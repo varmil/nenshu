@@ -2,12 +2,15 @@
 
 年齢補正した年収ランキングを公開する静的サイト。AI-DLC に沿って開発する。
 
+AI-DLC のフェーズ定義・ドキュメント種別（spec / overview / plan / design の違い）・承認ゲートは `docs/AI-DLC実践リファレンス_v10.pdf` が正。plan.md や design.md を書く前、Unit に着手する前は必ずこれを読み、記載されている型に従う。
+
 ## このリポジトリの読み方
 
 決定はすべて `docs/` にある。セッションをまたぐ前提はここから読む。
 
 | 知りたいこと | 読む場所 |
 | --- | --- |
+| 開発の進め方（フェーズ・ドキュメント種別・承認ゲート） | `docs/AI-DLC実践リファレンス_v10.pdf` |
 | プロダクト全体の面・アクター・施策一覧 | `docs/product/product.md` |
 | 用語の定義 | `docs/product/glossary.md` |
 | なぜ作るか・成功指標 | `docs/ranking/intent.md` |
@@ -40,4 +43,4 @@ Next.js 15（App Router / `output: 'export'`）、TypeScript、Tailwind CSS、sh
 
 ## 現在地
 
-Bolt 1（MVP: ランキング1ページ）に着手する段階。`docs/ranking/overview.md` の U0 から。
+Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン）は実装済み（`docs/ranking/data-pipeline/`、Issue #1）。次は `docs/ranking/overview.md` の U1（プロジェクト基盤とデザイントークン）。
