@@ -22,8 +22,10 @@ Unit ごとの `plan.md` / `design.md` は、その Unit に着手する時点�
 
 ## 採用スタック
 
-Next.js 15（App Router / `output: 'export'`）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Pages。
+Next.js（App Router / `output: 'export'`）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Pages。
 サーバーサイドの実行環境を持たない。API もデータベースもない。
+
+バージョンは Next.js に限らず全般的に、特筆した理由がない限り着手時点の最新安定版を使う。固定が必要になったらADRに理由を書く。
 
 理由は ADR-0001 と ADR-0002 にある。
 
