@@ -55,4 +55,4 @@ Unit の実装を終えたら、次の順で進める。
 
 ## 現在地
 
-Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン）は実装済み（`docs/ranking/data-pipeline/`、Issue #1）。次は `docs/ranking/overview.md` の U1（プロジェクト基盤とデザイントークン）。
+Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）は実装済み。**Cloudflare Pages へのGitHub連携はユーザー側で未実施**（ダッシュボードでの手動操作が必要、`docs/ranking/project-foundation/design.md` にビルド設定あり）。次は `docs/ranking/overview.md` の U2（ランキング表と年齢スイッチ）。
