@@ -13,6 +13,7 @@ import type {
 import { AgeSwitch } from "./AgeSwitch";
 import { FilterSelect } from "./FilterSelect";
 import { FilterToggleGroup } from "./FilterToggleGroup";
+import { SearchInput } from "./SearchInput";
 import { RankingTable } from "./RankingTable";
 import { RankingCardList } from "./RankingCardList";
 
@@ -77,6 +78,10 @@ export function RankingApp({
               }))
             }
             options={AVG_AGE_OPTIONS}
+          />
+          <SearchInput
+            value={state.query}
+            onChange={(query) => setState((prev) => ({ ...prev, query }))}
           />
         </div>
       </header>

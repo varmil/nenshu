@@ -81,4 +81,28 @@ describe("buildRankedCompanies", () => {
     );
     expect(combined.length).toBeLessThan(industryOnly.length);
   });
+
+  it("AC-6: 「商船三井」で検索すると「株式会社　商船三井」が結果に含まれる", () => {
+    const ranked = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { query: "商船三井" })
+    );
+    expect(ranked.some((c) => c.name === "株式会社　商船三井")).toBe(true);
+  });
+
+  it("検索はフィルタとANDで結合する（業種フィルタ単独より件数が減る）", () => {
+    const industryOnly = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { industry: "海運業" })
+    );
+    const combined = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { industry: "海運業", query: "商船三井" })
+    );
+    expect(combined.length).toBeLessThan(industryOnly.length);
+    expect(combined.some((c) => c.name === "株式会社　商船三井")).toBe(true);
+  });
 });
