@@ -10,12 +10,31 @@ async function selectOption(page: import("@playwright/test").Page, filterLabel: 
   await page.getByRole("option", { name: optionLabel, exact: true }).click();
 }
 
+/**
+ * 従業員数・在籍年数・平均年齢はToggleGroup（3択のスイッチ）。
+ * ToggleGroupはrole=groupでaria-labelを持ち、各選択肢はrole=buttonになる。
+ */
+async function pressToggle(page: import("@playwright/test").Page, filterLabel: string, optionLabel: string) {
+  await page
+    .getByRole("group", { name: filterLabel })
+    .getByRole("button", { name: optionLabel, exact: true })
+    .click();
+}
+
 test.describe("初期表示（AC-1のスモーク確認）", () => {
   test("1位はキーエンス、推定年収2,178万円", async ({ page }) => {
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
     await expect(firstRow).toContainText("株式会社キーエンス");
     await expect(firstRow).toContainText("2,178万円");
+  });
+
+  test("従業員数・在籍年数・平均年齢のトグルに可視ラベルが表示される", async ({ page }) => {
+    await page.goto("/");
+    const header = page.getByRole("banner");
+    for (const label of ["従業員数", "在籍年数", "平均年齢"]) {
+      await expect(header.getByText(label, { exact: true })).toBeVisible();
+    }
   });
 });
 
@@ -31,7 +50,7 @@ test.describe("フィルタ", () => {
 
   test("AC-4: 従業員数で「1,000人以上」を選ぶと、表示される全社が1,000人以上", async ({ page }) => {
     await page.goto("/");
-    await selectOption(page, "従業員数", "1,000人以上");
+    await pressToggle(page, "従業員数", "1,000人以上");
 
     const rows = page.getByRole("table").locator("tbody tr");
     const count = await rows.count();
@@ -48,7 +67,7 @@ test.describe("フィルタ", () => {
   test("AC-5: 業種と平均年齢を重ねると、両方の条件を満たす会社だけが表示される", async ({ page }) => {
     await page.goto("/");
     await selectOption(page, "業種", "情報・通信業");
-    await selectOption(page, "平均年齢", "〜40歳");
+    await pressToggle(page, "平均年齢", "〜40歳");
 
     const rows = page.getByRole("table").locator("tbody tr");
     const count = await rows.count();
@@ -78,6 +97,39 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeLessThan(100);
     expect(count).toBeGreaterThan(0);
+  });
+
+  // 従業員数の3区分（517/734/616）はいずれもvisibleCount(100)より多いため、
+  // 「表示行数が減るか」では絞り込みの有無を判定できない。1位のキーエンス（3,306人、
+  // 「〜300人」には該当しない）が絞り込みで表から外れるかどうかで判定する。
+  test("キーボードだけで従業員数のスイッチを操作できる", async ({ page }) => {
+    await page.goto("/");
+
+    const group = page.getByRole("group", { name: "従業員数" });
+    await group.getByRole("button", { name: "〜300人" }).focus();
+    await page.keyboard.press("Enter");
+
+    await expect(group.getByRole("button", { name: "〜300人" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    const firstRow = page.getByRole("table").locator("tbody tr").first();
+    await expect(firstRow).not.toContainText("株式会社キーエンス");
+  });
+
+  test("スイッチはもう一度押すと解除され、絞り込みが外れる", async ({ page }) => {
+    await page.goto("/");
+    const firstRow = page.getByRole("table").locator("tbody tr").first();
+    const toggleButton = page
+      .getByRole("group", { name: "従業員数" })
+      .getByRole("button", { name: "〜300人" });
+
+    await pressToggle(page, "従業員数", "〜300人");
+    await expect(firstRow).not.toContainText("株式会社キーエンス");
+
+    await pressToggle(page, "従業員数", "〜300人");
+    await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
+    await expect(firstRow).toContainText("株式会社キーエンス");
   });
 });
 

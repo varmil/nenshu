@@ -12,6 +12,7 @@ import type {
 } from "../types";
 import { AgeSwitch } from "./AgeSwitch";
 import { FilterSelect } from "./FilterSelect";
+import { FilterToggleGroup } from "./FilterToggleGroup";
 import { RankingTable } from "./RankingTable";
 import { RankingCardList } from "./RankingCardList";
 
@@ -40,14 +41,14 @@ export function RankingApp({
         <div className="overflow-x-auto">
           <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <FilterSelect
             label="業種"
             value={state.industry}
             onChange={(industry) => setState((prev) => ({ ...prev, industry }))}
             options={industryOptions}
           />
-          <FilterSelect
+          <FilterToggleGroup
             label="従業員数"
             value={state.employeeSize}
             onChange={(employeeSize) =>
@@ -58,7 +59,7 @@ export function RankingApp({
             }
             options={EMPLOYEE_SIZE_OPTIONS}
           />
-          <FilterSelect
+          <FilterToggleGroup
             label="在籍年数"
             value={state.tenure}
             onChange={(tenure) =>
@@ -66,7 +67,7 @@ export function RankingApp({
             }
             options={TENURE_OPTIONS}
           />
-          <FilterSelect
+          <FilterToggleGroup
             label="平均年齢"
             value={state.avgAgeBucket}
             onChange={(avgAgeBucket) =>
