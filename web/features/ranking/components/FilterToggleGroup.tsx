@@ -14,16 +14,21 @@ export function FilterToggleGroup({
   options: { value: string; label: string }[];
 }) {
   return (
-    <ToggleGroup
-      aria-label={label}
-      value={value ? [value] : []}
-      onValueChange={(values) => onChange(values[0] ?? null)}
-    >
-      {options.map((option) => (
-        <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label}>
-          {option.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
+    <div className="flex flex-col gap-1">
+      <span aria-hidden="true" className="text-muted-foreground text-xs">
+        {label}
+      </span>
+      <ToggleGroup
+        aria-label={label}
+        value={value ? [value] : []}
+        onValueChange={(values) => onChange(values[0] ?? null)}
+      >
+        {options.map((option) => (
+          <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label}>
+            {option.label}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+    </div>
   );
 }

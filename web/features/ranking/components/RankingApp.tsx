@@ -41,7 +41,7 @@ export function RankingApp({
         <div className="overflow-x-auto">
           <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-end gap-2">
           <FilterSelect
             label="業種"
             value={state.industry}
