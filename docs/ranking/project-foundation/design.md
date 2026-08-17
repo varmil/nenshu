@@ -50,15 +50,21 @@ ESLint flat config（`eslint.config.mjs`）に、`no-restricted-syntax` で16進
 
 Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリポジトリ直下にあるため、フック自体はどこにpackage.jsonがあっても直下に置く必要がある）。ステージされたファイルが `web/` 配下かどうかで、`web/`のtypecheck・lint・testを呼ぶか、直下の`scripts/`のtest（U0）を呼ぶかをlint-stagedの対象パターンで振り分ける。
 
-## Cloudflare Pages
+## Cloudflare へのデプロイ（Workers Builds + 静的アセット）
 
-このUnitでは接続作業そのものは行わない（アカウントアクセスが無いため）。ユーザーが Cloudflare Pages ダッシュボードで実施するための設定値をここに記録する。
+このUnitでは接続作業そのものは行わない（アカウントアクセスが無いため）。ただし実際の接続作業でエラーが出たため、判明した事実と対応をここに記録する。
+
+**現在のCloudflareダッシュボードには「Framework preset」に相当する項目が既存プロジェクトの設定画面には無い。** プロジェクト作成時のウィザードにだけ出る選択肢で、いったんプロジェクトができた後は「ビルドコマンド」「デプロイコマンド」「バージョンコマンド」「ルートディレクトリ」を直接編集する形になっている（Cloudflare Pagesという別製品ではなく、Workers Builds に一本化されている）。
 
 - ルートディレクトリ: `web`
-- **Framework preset: 「Next.js (Static HTML Export)」を選ぶ。** 汎用の「Next.js」を選ぶと、Cloudflareは `npx opennextjs-cloudflare build`（Next.jsをCloudflare Workers上でSSR動作させるアダプタ）を自動的に使おうとする。このアダプタは `.next/standalone` を前提にするが、本プロジェクトは `output: 'export'`（ADR-0002）で純粋な静的書き出しのため `.next/standalone` が存在せず、`ENOENT: pages-manifest.json` で失敗する（実際のデプロイで発生し確認済み）。static exportのUnit詳細設計はGitHub連携よりも前に固まらないため、ここで踏むことになった。
-- ビルドコマンド: `npx next build`
-- 出力ディレクトリ: `out`
-- Node.jsバージョン: リポジトリの `.nvmrc` 等が無いため、Cloudflare側のデフォルト（最新LTS系）に委ねる
+- ビルドコマンド: `npm run build`（`next build`。`next.config.ts` の `output: 'export'` により `web/out/` に静的書き出しされる）
+- デプロイコマンド: `npx wrangler deploy`
+- バージョンコマンド: `npx wrangler versions upload`
+- 上記はWorkerのデプロイコマンドなので、`web/wrangler.jsonc` で `assets.directory: "./out"` を指定し、コード無しの静的アセット配信用Workerとして構成する（`compatibility_date` は着手日、`not_found_handling: "404-page"` でNext.jsが生成する404ページを使う）。
+
+**踏んだ罠**: プロジェクト作成時に汎用の「Next.js」相当のテンプレートが選ばれると、ビルドコマンドが自動で `npx opennextjs-cloudflare build`（Next.jsをフルSSRでCloudflare Workers上に動かすアダプタ）になる。これは `.next/standalone` を前提にするが、本プロジェクトは `output: 'export'` の純粋な静的書き出し（ADR-0002）のため `.next/standalone` が存在せず、`ENOENT: pages-manifest.json` で失敗する。ビルドコマンドを `npm run build` に戻し、`wrangler.jsonc` を静的アセット配信の設定にすることで解消する。
+
+ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤が Workers（静的アセット配信）に統合されている。無料枠の商用利用可否・帯域無制限といったADR-0001の判断根拠は変わらない。
 
 ## データの再生成
 
