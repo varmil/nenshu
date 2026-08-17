@@ -1,18 +1,19 @@
 import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
 import { matchesFilters } from "./filter";
+import { matchesQuery } from "./search";
 import { estimateSalary } from "./salary";
 
 /**
  * フィルタ→補正年収の計算→ソート→ランク付与→visibleCountで切り出し、の順で行う。
- * U4（検索）は「フィルタ」の位置に絞り込みステップを追加する形で乗る。
- * state.query はU3では常に未設定。
  */
 export function buildRankedCompanies(
   companies: CompaniesData,
   curves: CurvesData,
   state: RankingState
 ): RankedCompany[] {
-  const filteredRows = companies.rows.filter((row) => matchesFilters(row, companies.industries, state));
+  const filteredRows = companies.rows.filter(
+    (row) => matchesFilters(row, companies.industries, state) && matchesQuery(row[1], state.query)
+  );
 
   const withSalary: Omit<RankedCompany, "rank">[] = filteredRows.map((row) => {
     const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees, badge] = row;

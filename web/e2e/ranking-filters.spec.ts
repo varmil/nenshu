@@ -29,10 +29,10 @@ test.describe("初期表示（AC-1のスモーク確認）", () => {
     await expect(firstRow).toContainText("2,178万円");
   });
 
-  test("業種・従業員数・在籍年数・平均年齢のフィルタに可視ラベルが表示される", async ({ page }) => {
+  test("業種・従業員数・在籍年数・平均年齢・検索欄に可視ラベルが表示される", async ({ page }) => {
     await page.goto("/");
     const header = page.getByRole("banner");
-    for (const label of ["業種", "従業員数", "在籍年数", "平均年齢"]) {
+    for (const label of ["業種", "従業員数", "在籍年数", "平均年齢", "会社名で検索"]) {
       await expect(header.getByText(label, { exact: true })).toBeVisible();
     }
   });
@@ -130,6 +130,47 @@ test.describe("フィルタ", () => {
     await pressToggle(page, "従業員数", "〜300人");
     await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
     await expect(firstRow).toContainText("株式会社キーエンス");
+  });
+});
+
+test.describe("フリーワード検索", () => {
+  test("AC-6: 「商船三井」で「株式会社　商船三井」が引ける", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("searchbox", { name: "会社名で検索" }).fill("商船三井");
+
+    const rows = page.getByRole("table").locator("tbody tr");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("株式会社　商船三井");
+  });
+
+  test("AC-6: 「ｷｰｴﾝｽ」（半角カナ）で「株式会社キーエンス」が引ける", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("searchbox", { name: "会社名で検索" }).fill("ｷｰｴﾝｽ");
+
+    const rows = page.getByRole("table").locator("tbody tr");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("株式会社キーエンス");
+  });
+
+  test("検索はフィルタとANDで結合する", async ({ page }) => {
+    await page.goto("/");
+    await selectOption(page, "業種", "海運業");
+    const rowsAfterIndustry = await page.getByRole("table").locator("tbody tr").count();
+
+    await page.getByRole("searchbox", { name: "会社名で検索" }).fill("商船三井");
+    const rows = page.getByRole("table").locator("tbody tr");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toContainText("株式会社　商船三井");
+    expect(await rows.count()).toBeLessThan(rowsAfterIndustry);
+  });
+
+  test("キーボードだけで検索欄に入力できる", async ({ page }) => {
+    await page.goto("/");
+    const input = page.getByRole("searchbox", { name: "会社名で検索" });
+    await input.focus();
+    await page.keyboard.type("商船三井");
+
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(1);
   });
 });
 
