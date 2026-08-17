@@ -57,4 +57,4 @@ Unit の実装を終えたら、次の順で進める。
 
 ## 現在地
 
-Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）は実装済み。**Cloudflare Pages へのGitHub連携はユーザー側で未実施**（ダッシュボードでの手動操作が必要、`docs/ranking/project-foundation/design.md` にビルド設定あり）。次は `docs/ranking/overview.md` の U3（フィルタ4種）。`useRankingState`（`web/features/ranking/hooks/useRankingState.ts`）の状態形状はU2で確定済みなので、U3はここに絞り込みステップを追加する形で乗る（`docs/ranking/ranking-table/design.md` 参照）。
+Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）は実装済み。**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ 、設定は `docs/ranking/project-foundation/design.md` 参照）。次は `docs/ranking/overview.md` の U3（フィルタ4種）。`useRankingState`（`web/features/ranking/hooks/useRankingState.ts`）の状態形状はU2で確定済みなので、U3はここに絞り込みステップを追加する形で乗る（`docs/ranking/ranking-table/design.md` 参照）。
