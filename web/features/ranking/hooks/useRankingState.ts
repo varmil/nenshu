@@ -11,6 +11,7 @@ export interface UseRankingStateResult {
   state: RankingState;
   setState: Dispatch<SetStateAction<RankingState>>;
   rankedCompanies: RankedCompany[];
+  totalCount: number;
 }
 
 function readStateFromLocation(): RankingState {
@@ -83,10 +84,10 @@ export function useRankingState(
     return () => clearTimeout(debounceRef.current);
   }, [state]);
 
-  const rankedCompanies = useMemo(
+  const { companies: rankedCompanies, totalCount } = useMemo(
     () => buildRankedCompanies(companies, curves, state),
     [companies, curves, state]
   );
 
-  return { state, setState, rankedCompanies };
+  return { state, setState, rankedCompanies, totalCount };
 }

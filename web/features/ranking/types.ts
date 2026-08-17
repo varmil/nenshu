@@ -2,6 +2,9 @@ export type TargetAge = 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
 
 export const TARGET_AGES: readonly TargetAge[] = [25, 30, 35, 40, 45, 50, 55, 60];
 
+/** 1ページあたりの表示件数。 */
+export const PAGE_SIZE = 100;
+
 export type EmployeeSizeBucket = "under300" | "300to1000" | "1000plus";
 export type TenureBucket = "under13" | "13to17" | "17plus";
 export type AvgAgeBucket = "under40" | "40to43" | "43plus";
@@ -37,7 +40,8 @@ export interface RankingState {
   tenure: TenureBucket | null;
   avgAgeBucket: AvgAgeBucket | null;
   query: string;
-  visibleCount: number;
+  /** 1始まり。 */
+  page: number;
 }
 
 export interface RankedCompany {

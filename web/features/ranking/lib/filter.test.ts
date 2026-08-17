@@ -13,7 +13,7 @@ function stateFor(overrides: Partial<RankingState>): RankingState {
     tenure: null,
     avgAgeBucket: null,
     query: "",
-    visibleCount: 100,
+    page: 1,
     ...overrides,
   };
 }

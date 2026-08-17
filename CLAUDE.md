@@ -22,14 +22,14 @@ Unit ごとの `plan.md` / `design.md` は、その Unit に着手する時点�
 
 ## 採用スタック
 
-Next.js（App Router / `output: 'export'`）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Pages。
-サーバーサイドの実行環境を持たない。API もデータベースもない。
+Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
+**Cloudflare Workers上で`@opennextjs/cloudflare`によりフルSSRする（ADR-0004）。** `output: 'export'`の静的書き出しではない。API もデータベースも持たない点は変わらない（DBもAPIコールも無く、ビルド時に確定済みの静的データをリクエスト時にフィルタして返すだけ）。
 
 バージョンは Next.js に限らず全般的に、特筆した理由がない限り着手時点の最新安定版を使う。固定が必要になったらADRに理由を書く。
 
-理由は ADR-0001 と ADR-0002 にある。
+理由は ADR-0001・ADR-0002・ADR-0004にある（ADR-0004がADR-0001の「サーバー実行環境は要らない」・ADR-0002の`output:'export'`を一部supersede）。
 
-**`next/navigation` の `useSearchParams()` は使わない。** `output: 'export'` では、`useSearchParams()` を使うコンポーネントは `<Suspense>` で囲んでいても静的HTMLへのプリレンダーからスキップされ（`BAILOUT_TO_CLIENT_SIDE_RENDERING`）、実行時に完全にクライアント側でレンダリングされる。U5で実際にこれを踏み、ランキング表がHTMLから消える回帰を起こした（`docs/ranking/url-sync/design.md`参照）。クエリ文字列を読みたいときは `window.location.search` を直接読む。`useRouter()`・`usePathname()` にはこの制約はない。
+**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ（`useRankingState`参照）。**ページネーションのように離散的でネットワークを許容してよい操作は`<Link>`にしてよい**が、現状（1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持している間）は意味が無いため使っていない（U6・Issue #22参照）。
 
 ## エージェントが従う優先順位
 
@@ -60,4 +60,12 @@ Unit の実装を終えたら、次の順で進める。
 
 ## 現在地
 
-Bolt 1（MVP: ランキング1ページ）に着手する段階。U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）は実装済み。**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ 、設定は `docs/ranking/project-foundation/design.md` 参照）。次は `docs/ranking/overview.md` の U6（0件・端の状態と段階表示、U3・U4に依存）。年齢・4フィルタ・検索語は`?age=&ind=&emp=&ten=&aage=&q=`としてURLに同期済み。Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`）のパス設計は`docs/ranking/overview.md`に確定済み。`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。`next/navigation`の`useSearchParams()`はstatic exportでランキング表をHTMLから消すため使わない（同セクション参照）。
+Bolt 1（MVP: ランキング1ページ）に着手する段階。U0〜U6が実装済み: U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）。
+
+**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。U5完了後、フィルタ付きURLのSEO（クローラーが見るHTMLが常にビルド時の初期値になってしまう問題）を理由に**`output:'export'`をやめ`@opennextjs/cloudflare`でのフルSSRに移行した（ADR-0004）**。SSR成果物はエッジでキャッシュしている（`cache.enabled: true`、`docs/ranking/ssr-migration/design.md`参照）。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
+
+次は `docs/ranking/overview.md` の U7（計算方法ページ`/about`、U1に依存）。
+
+年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。ページネーションはクライアント側完結（`pushState`、ネットワーク非発生）——現状すでに全企業データが初回HTMLにembedされておりクライアントが全件保持しているため。**この「全件embed」アーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、掲載企業数を増やす（Issue #22、4,000社規模見込み）際は見直しが必要**（コメント済み）。
+
+Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`）のパス設計は`docs/ranking/overview.md`に確定済み。`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。

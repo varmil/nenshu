@@ -8,7 +8,7 @@ export const INITIAL_STATE: RankingState = {
   tenure: null,
   avgAgeBucket: null,
   query: "",
-  visibleCount: 100,
+  page: 1,
 };
 
 const EMPLOYEE_SIZE_TO_PARAM: Record<EmployeeSizeBucket, string> = {
@@ -36,7 +36,7 @@ const PARAM_TO_TENURE = invert(TENURE_TO_PARAM);
 const PARAM_TO_AVG_AGE = invert(AVG_AGE_TO_PARAM);
 
 /**
- * 常に age → ind → emp → ten → aage → q の順で組み立てる（カノニカル化）。
+ * 常に age → ind → emp → ten → aage → q → page の順で組み立てる（カノニカル化）。
  * フィルタを適用した順序に関係なく、同じ絞り込みなら常に同じ文字列になる。
  * 初期値と同じ項目はクエリに出さない。
  */
@@ -48,6 +48,7 @@ export function buildSearchParams(state: RankingState): URLSearchParams {
   if (state.tenure !== null) params.set("ten", TENURE_TO_PARAM[state.tenure]);
   if (state.avgAgeBucket !== null) params.set("aage", AVG_AGE_TO_PARAM[state.avgAgeBucket]);
   if (state.query !== "") params.set("q", state.query);
+  if (state.page !== INITIAL_STATE.page) params.set("page", String(state.page));
   return params;
 }
 
@@ -78,6 +79,12 @@ export function parseSearchParams(params: URLSearchParams): Partial<RankingState
 
   const q = params.get("q");
   if (q !== null) result.query = q;
+
+  const page = params.get("page");
+  if (page !== null) {
+    const n = Number(page);
+    if (Number.isInteger(n) && n >= 1) result.page = n;
+  }
 
   return result;
 }
