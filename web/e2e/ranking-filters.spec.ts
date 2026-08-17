@@ -29,10 +29,10 @@ test.describe("初期表示（AC-1のスモーク確認）", () => {
     await expect(firstRow).toContainText("2,178万円");
   });
 
-  test("従業員数・在籍年数・平均年齢のトグルに可視ラベルが表示される", async ({ page }) => {
+  test("業種・従業員数・在籍年数・平均年齢のフィルタに可視ラベルが表示される", async ({ page }) => {
     await page.goto("/");
     const header = page.getByRole("banner");
-    for (const label of ["従業員数", "在籍年数", "平均年齢"]) {
+    for (const label of ["業種", "従業員数", "在籍年数", "平均年齢"]) {
       await expect(header.getByText(label, { exact: true })).toBeVisible();
     }
   });
