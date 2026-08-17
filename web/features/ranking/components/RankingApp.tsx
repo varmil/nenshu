@@ -7,6 +7,7 @@ import type {
   CompaniesData,
   CurvesData,
   EmployeeSizeBucket,
+  RankingState,
   TargetAge,
   TenureBucket,
 } from "../types";
@@ -20,11 +21,13 @@ import { RankingCardList } from "./RankingCardList";
 export function RankingApp({
   companies,
   curves,
+  initialState,
 }: {
   companies: CompaniesData;
   curves: CurvesData;
+  initialState: RankingState;
 }) {
-  const { state, setState, rankedCompanies } = useRankingState(companies, curves);
+  const { state, setState, rankedCompanies } = useRankingState(companies, curves, initialState);
 
   const handleAgeChange = (targetAge: TargetAge) => {
     setState((prev) => ({ ...prev, targetAge }));
