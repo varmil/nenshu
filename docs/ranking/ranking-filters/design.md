@@ -158,3 +158,11 @@ web/
 **修正**: `max-w-5xl mx-auto` の前に `w-full` を足す（`w-full max-w-5xl mx-auto`）。`width: 100%` を明示することでflexアイテムのサイズ決定を「fit-content」から「コンテナ幅いっぱい」に固定し、`max-w-5xl` は広い画面でのみ効くようになり、`mx-auto` はその上限に達したときだけ中央寄せとして機能する。
 
 **教訓**: `flex-col` の親の直下で `mx-auto` を使ってコンテナを中央寄せする場合は、必ず `w-full`（または同等の明示的幅指定）を併用する。`mx-auto` 単体では意図しない `fit-content` サイズになりうる。この種のバグは静的な型チェック・単体テストでは検出できず、実ブラウザ（今回はPlaywright E2E）でのモバイル幅チェックで初めて顕在化した——U1〜U2のブラウザ確認では検出されておらず、今回のE2E導入で初めて見つかった既存バグである。
+
+## 追記: 従業員数・在籍年数・平均年齢をSelectからToggleGroupに変更
+
+初回実装ではUI統一のため4フィルタすべて`Select`にしたが、ユーザーからのフィードバックで「業種以外は3択しかないのでプルダウンではなくスイッチにしたい」と指示があり、業種以外の3フィルタ（従業員数・在籍年数・平均年齢）を`ToggleGroup`（`design-system/ui/toggle-group.tsx`、`AgeSwitch`と同じプリミティブ）に変更した。業種（33択）は引き続き`Select`のまま。
+
+新規 `features/ranking/components/FilterToggleGroup.tsx` は `FilterSelect` と同じ`value: string | null` / `onChange` インターフェースを持つが、内部は`ToggleGroup`の`value`を`string[]`（0件または1件）として扱う。**「すべて」の選択肢ボタンは置かず、選択中のボタンをもう一度押すと解除されて`null`（絞り込みなし）に戻る**（base-uiのToggleは個々に押下状態を持ち、グループは「同時に押せるのは1つまで」を強制するだけなので、選択中のボタンを再度押すと自然に0件になる）。
+
+この変更に伴い `web/e2e/ranking-filters.spec.ts` を更新した（見た目の変更にはUnit/E2E双方の更新が必須というCLAUDE.mdのルールに従う）。`ToggleGroup`は`role="group"`＋`aria-label`、各選択肢は`role="button"`＋`aria-pressed`でレンダリングされる（`AgeSwitch`のE2E確認と同じ仕組み）。追加したケース: トグルのキーボード操作（Tab/ArrowRight/Enter）、再押下による解除（絞り込み解除）。
