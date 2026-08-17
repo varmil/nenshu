@@ -81,3 +81,20 @@ export function parseSearchParams(params: URLSearchParams): Partial<RankingState
 
   return result;
 }
+
+/**
+ * Next.jsのServer Componentに渡る`searchParams`（URLSearchParamsではなくプレーンオブジェクト。
+ * 同じキーが複数あれば配列になる）を`parseSearchParams`に渡せる`URLSearchParams`に変換する。
+ * 同じキーが重複している場合は最初の値を採用する。
+ */
+export function searchParamsRecordToURLSearchParams(
+  record: Record<string, string | string[] | undefined>
+): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(record)) {
+    if (value === undefined) continue;
+    const first = Array.isArray(value) ? value[0] : value;
+    if (first !== undefined) params.set(key, first);
+  }
+  return params;
+}

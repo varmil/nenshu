@@ -166,6 +166,16 @@ export function useRankingState(companies, curves) {
 - ESLintの`react-hooks/set-state-in-effect`ルールが、外部システム（URL）からの意図的な同期に対しても警告を出す。該当箇所は理由コメント付きで`eslint-disable-next-line`する。
 - **この3段階の罠はいずれもE2E（Playwrightで実ブラウザ操作）で見つけた。** Unitテスト（`urlState.test.ts`、Reactに依存しない純粋関数のテスト）だけでは検出できない領域だった。
 
+### 追記: マージ後に見つかったチラつき（`useEffect` → `useLayoutEffect`）
+
+U5マージ後、フィルタ付きURL（例: `/?age=45&ind=銀行業`）をF5でリロードすると、一瞬「絞り込みなし」の内容が見えてからすぐ正しい内容に描き変わるチラつきが実際のブラウザ操作で報告された。
+
+原因は読み取り方向のeffectが`useEffect`だったこと。`output:'export'`はビルド時に1回だけHTMLを生成するSSGであり、リクエストごとのSSRではないため、初期HTMLは常に`INITIAL_STATE`（絞り込みなし）で焼き込まれる。これ自体は変更不能（ビルド時に将来のリクエストのクエリ文字列は分からない）。問題は、この初期HTMLをブラウザが実際にペイントした**後**に、`useEffect`が非同期に発火して正しいstateへ補正していたこと——この「初期状態のペイント」と「補正後のペイント」の間の1フレームがユーザーに見えていた。
+
+**修正**: 読み取りeffectを`useLayoutEffect`（ビルド時のプリレンダーはNode上での実行なので`typeof window !== "undefined"`で`useEffect`にフォールバックする isomorphic 版）に変更した。`useLayoutEffect`はハイドレート後のDOMコミット直後・ブラウザがペイントする前に同期的に走るため、補正後のレンダーがそのまま最初のペイントになり、チラつきが消える。
+
+**この修正はE2Eで検証できない。** 既存のE2E（AC-7の直接オープンテスト等）は`page.goto()`が解決した後（＝ハイドレート・エフェクトとも完了済み）の最終的なDOM状態しか見ておらず、`useEffect`版でも`useLayoutEffect`版でも同じ「最終的には正しい」という結果になり区別が付かない。今回の不具合は「最終的に正しいかどうか」ではなく「正しくなるまでの間に何が一瞬見えるか」という、フレーム単位の過渡的な見た目の話で、自動テストで安定して検証する手段が無い（スクリーンショットを特定タイミングで撮る方式は原理的にフレークになる）。ビルド確認（`useLayoutEffect`使用時にサーバー実行時の警告「useLayoutEffect does nothing on the server」が出ないこと）とUnitテスト・E2Eスイート全体のグリーンで代替し、チラつきの解消自体は目視（今回はユーザー報告→修正→ユーザー自身の再確認）に頼る。
+
 ## Bolt 2 のパス設計（`docs/ranking/overview.md`に追記）
 
 - `/age/[age]/` — `age`は`TargetAge`（8値）をそのまま文字列化。

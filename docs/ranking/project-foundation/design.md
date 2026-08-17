@@ -70,6 +70,19 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 **踏んだ罠その2（npmバージョン差）**: `wrangler.jsonc` を追加した際、ローカル（npm 11.6.2）で `package-lock.json` を作り直して `npm ci` の通過も確認したが、Cloudflareのビルドログには `Detected the following tools from environment: npm@10.9.2` とあり、そちらでは `npm ci` が「`@emnapi/core`/`@emnapi/runtime` がロックファイルに無い」で失敗した。**同じ `package.json` でも、npmのメジャーバージョンが違うと optionalDependencies（今回は `sharp`/`rolldown` が依存する `@emnapi/*` 系のWASMフォールバック）の解決結果が変わり、生成される `package-lock.json` の中身が変わる。** ロックファイルは必ず `npx npm@10.9.2 install`（Cloudflareと同じバージョン）で作り直し、`npx npm@10.9.2 ci` が通ることまで確認してからコミットする。CLAUDE.md「開発上の約束」にも同じ内容を書いた。
 
+## 2026-08-17追記（SSR移行、ADR-0004）
+
+`docs/ranking/ssr-migration/`で、`output:'export'`（静的アセット配信）からCloudflare Workers上でのNext.jsフルSSR（`@opennextjs/cloudflare`）に切り替えた。これに伴い、Cloudflareダッシュボードのビルド/デプロイコマンドを次のとおり変更する必要がある（**ダッシュボードの更新はユーザーが実施する。アカウントアクセスが無いため**）。
+
+- ビルドコマンド: `npm run build`（`next build`のみ）→ **`npx opennextjs-cloudflare build`**（`next build`を内部で実行したうえで`.open-next/`にCloudflare Workers用の成果物を生成する）
+- デプロイコマンド: `npx wrangler deploy`（変更なし。ただし参照先は`wrangler.jsonc`の新しい`main`/`assets`設定になる）
+
+これは上記の「踏んだ罠」で当時失敗した構成（自動検出される「Next.js」テンプレートのデフォルトビルドコマンド）に**意図的に戻す**変更である。当時失敗したのは`output:'export'`のままだったため（`.next/standalone`が存在せず`ENOENT: pages-manifest.json`）。今回は`next.config.ts`から`output:'export'`を削除したため、同じコマンドが正しく機能する。
+
+**マージ順序に注意**: コード（`main`ブランチ）を先にマージし、そのあとダッシュボードのコマンドを更新する。逆順（ダッシュボードを先に変更）だと、まだ`output:'export'`のコードに対して`opennextjs-cloudflare build`が失敗する。コードを先にマージした場合、ダッシュボードが旧コマンドのままでも`next build`自体は成功するが、`npx wrangler deploy`が`.open-next/worker.js`（新しい`wrangler.jsonc`が要求するエントリーポイント）を見つけられずに失敗する。Cloudflareは通常ビルド失敗時に直前の成功バージョンを配信し続けるため、本番が即座に壊れることはない想定。
+
+詳細は`docs/ranking/ssr-migration/design.md`参照。
+
 ## データの再生成
 
 `pipeline/scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す（`pipeline/` から実行する場合は `--out ../web/public/data`）。リポジトリ直下の暫定 `public/` は削除する。

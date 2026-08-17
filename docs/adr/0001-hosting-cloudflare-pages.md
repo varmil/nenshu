@@ -1,6 +1,6 @@
 # ADR-0001 ホスティングは Cloudflare Pages にする
 
-状態: Accepted
+状態: Accepted（「サーバーサイドの実行環境は要らない」という前提は ADR-0004 により supersede。Cloudflare を使う判断自体は有効）
 日付: 2026-08-16
 
 ## 文脈

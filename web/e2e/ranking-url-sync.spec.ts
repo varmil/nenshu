@@ -1,6 +1,26 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("URLクエリとの同期", () => {
+  test("SSR: 生HTTPリクエスト（JS実行なし）でも/?age=45&ind=銀行業のレスポンスHTMLが絞り込み済みになっている", async ({
+    request,
+  }) => {
+    // ブラウザ・JSを介さない生のHTTPリクエスト。検索エンジンのクローラーが取得する
+    // HTMLと同じものを見る。SSR化前（output:'export'）はここが常にビルド時の
+    // 初期値（絞り込みなし）になっており、この検証自体が原理的に不可能だった
+    // （`docs/ranking/ssr-migration/design.md`参照）。
+    const response = await request.get("/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+
+    // companies.json全件がハイドレーション用データとして<script>内にも埋め込まれる
+    // ため、単純な会社名の文字列検索では実際に描画された<table>の中身かどうかを
+    // 区別できない。<table>...</table>内のtbody行数（見た目に表示される内容）だけを
+    // 数える。AC-7どおり銀行業は82社。
+    const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
+    const rowCount = (tableHtml.match(/<tr/g) ?? []).length - 1; // theadの1行を除く
+    expect(rowCount).toBe(82);
+  });
+
   test("AC-7: /?age=45&ind=銀行業 を直接開くと、45歳・銀行業82社の状態で復元される", async ({ page }) => {
     await page.goto("/?age=45&ind=銀行業");
 

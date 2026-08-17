@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildSearchParams, parseSearchParams, INITIAL_STATE } from "./urlState";
+import {
+  buildSearchParams,
+  parseSearchParams,
+  searchParamsRecordToURLSearchParams,
+  INITIAL_STATE,
+} from "./urlState";
 import type { RankingState } from "../types";
 
 function stateFor(overrides: Partial<RankingState>): RankingState {
@@ -82,5 +87,28 @@ describe("buildSearchParams", () => {
     };
     expect(buildSearchParams(a).toString()).toBe(buildSearchParams(b).toString());
     expect(buildSearchParams(a).toString()).toBe("ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&emp=1000-&q=%E4%B8%89%E4%BA%95");
+  });
+});
+
+describe("searchParamsRecordToURLSearchParams", () => {
+  it("プレーンオブジェクトをURLSearchParamsに変換する", () => {
+    const params = searchParamsRecordToURLSearchParams({ age: "45", ind: "銀行業" });
+    expect(params.get("age")).toBe("45");
+    expect(params.get("ind")).toBe("銀行業");
+  });
+
+  it("値が配列の場合は最初の要素を使う", () => {
+    const params = searchParamsRecordToURLSearchParams({ age: ["45", "50"] });
+    expect(params.get("age")).toBe("45");
+  });
+
+  it("値がundefinedのキーは無視する", () => {
+    const params = searchParamsRecordToURLSearchParams({ age: undefined, ind: "銀行業" });
+    expect(params.has("age")).toBe(false);
+    expect(params.get("ind")).toBe("銀行業");
+  });
+
+  it("空オブジェクトからは空のURLSearchParamsになる", () => {
+    expect(searchParamsRecordToURLSearchParams({}).toString()).toBe("");
   });
 });

@@ -1,6 +1,6 @@
 # ADR-0002 Next.js の静的書き出し＋shadcn/ui を採用する
 
-状態: Accepted
+状態: Accepted（`output: 'export'` の部分は ADR-0004 により supersede。Next.js + shadcn/ui + TypeScript という技術選定自体は有効）
 日付: 2026-08-16
 
 ## 文脈
