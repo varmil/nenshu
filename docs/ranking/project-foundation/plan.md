@@ -24,14 +24,14 @@
 5. `web/design-system/components/`・`inventory.md`・`design-system.md` の器を作る（中身は最小限）。
 6. 生の hex を書くと落ちる ESLint ルールを追加する。
 7. Husky + lint-staged で、コミット前に型チェック・lint・テストを強制する。
-8. `data/ranking_unified_2026.csv` から `web/public/data/` へデータを再生成し、リポジトリ直下の暫定 `public/` を削除する。
+8. `pipeline/data/ranking_unified_2026.csv` から `web/public/data/` へデータを再生成し、リポジトリ直下の暫定 `public/` を削除する。
 9. `npm run build`（`web/`）が `output: 'export'` で通ることを確認する。
 10. Cloudflare Pages のビルド設定（ルートディレクトリ・ビルドコマンド・出力ディレクトリ）を手順としてまとめ、ユーザーに接続してもらう。
 11. Issue #2 の完了条件を一つずつ確認する。
 
 ## 依存
 
-なし（`docs/ranking/overview.md` の通り、U1は他Unitに依存しない）。U0で確定した `scripts/build-data.ts` の `--out` 引数をそのまま使う。
+なし（`docs/ranking/overview.md` の通り、U1は他Unitに依存しない）。U0で確定した `pipeline/scripts/build-data.ts` の `--out` 引数をそのまま使う。
 
 ## リスク
 

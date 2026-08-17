@@ -4,7 +4,7 @@
  * 走らせるほうが正しいため、渡されるファイル名は使わずコマンドを固定で返す。
  */
 export default {
-  "scripts/**/*.ts": () => "npm test",
+  "pipeline/scripts/**/*.ts": () => "npm --prefix pipeline test",
   "web/**/*.{ts,tsx}": () => [
     "npm --prefix web run lint",
     "npm --prefix web run typecheck",

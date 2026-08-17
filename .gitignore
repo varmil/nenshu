@@ -34,11 +34,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# APIキー
-salary35/.edinet_key
-salary35/.estat_key
-
-# パイプラインの生成物
-salary35/cache/
-salary35/out/

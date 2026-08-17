@@ -1,5 +1,7 @@
 # U0 データ変換パイプライン — Unit実行プラン
 
+**2026-08-17追記（Issue #11）**: 本文中の `scripts/`・`data/` は、その後 `pipeline/scripts/`・`pipeline/data/` に移動した。詳細は `docs/ranking/data-pipeline/design.md` の追記を参照。
+
 `docs/AI-DLC実践リファレンス_v10.pdf` p.8/p.13 の形式に合わせる。ここには**段取り（作業手順と検証順）**だけを書く。技術選定の理由や内部構造・関数シグネチャは書かない — それは `docs/ranking/data-pipeline/design.md` に委ねる。
 
 ## 参照

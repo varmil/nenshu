@@ -6,7 +6,7 @@
 web/features/ranking/
   types.ts                    # RankingState, RankedCompany, CompaniesData, CurvesData, バケット型
   lib/
-    curve.ts                  # interpolate（scripts/lib/curve.ts と同じアルゴリズム。ブラウザ側の別実装）
+    curve.ts                  # interpolate（pipeline/scripts/lib/curve.ts と同じアルゴリズム。ブラウザ側の別実装）
     curve.test.ts
     salary.ts                 # estimateSalary
     salary.test.ts            # AC-1 / AC-2 をここで固定
@@ -24,7 +24,7 @@ web/features/ranking/
 app/page.tsx                   # Server Component。companies.json/curves.jsonをimportし<RankingApp>に渡す
 ```
 
-`scripts/lib/curve.ts`（Node、ビルド時専用）と `web/features/ranking/lib/curve.ts`（ブラウザ、実行時）は別実装になる。共有パッケージ化はしない。理由: 2つは別npmプロジェクト（`docs/ranking/project-foundation/design.md` の決定）であり、10行程度の純関数のために共有パッケージ境界を作るコストのほうが高い。同じアルゴリズムであることは、両方が同じ実データ（`web/public/data/curves.json`）に対して同じ結果を出すことをテストで固定することで担保する。
+`pipeline/scripts/lib/curve.ts`（Node、ビルド時専用）と `web/features/ranking/lib/curve.ts`（ブラウザ、実行時）は別実装になる。共有パッケージ化はしない。理由: 2つは別npmプロジェクト（`docs/ranking/project-foundation/design.md` の決定）であり、10行程度の純関数のために共有パッケージ境界を作るコストのほうが高い。同じアルゴリズムであることは、両方が同じ実データ（`web/public/data/curves.json`）に対して同じ結果を出すことをテストで固定することで担保する。
 
 ## 型
 
@@ -81,7 +81,7 @@ plan.md の確定事項と同一。バケット型は判定ロジックを持た
 
 ## 計算ロジック
 
-`lib/curve.ts` の `interpolate(points, values, x)` は `salary35/curves.py` の `_interp` と同じ（区分線形補間、範囲外は端の値で頭打ち）。`scripts/lib/curve.ts` と同一アルゴリズムをそのまま複製する。
+`lib/curve.ts` の `interpolate(points, values, x)` は `pipeline/salary35/curves.py` の `_interp` と同じ（区分線形補間、範囲外は端の値で頭打ち）。`pipeline/scripts/lib/curve.ts` と同一アルゴリズムをそのまま複製する。
 
 `lib/salary.ts`:
 

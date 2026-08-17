@@ -1,6 +1,6 @@
 /**
  * 区分線形補間。範囲外は端の値で頭打ちにする。
- * salary35/curves.py の _interp / scripts/lib/curve.ts と同じ挙動にする。
+ * pipeline/salary35/curves.py の _interp / pipeline/scripts/lib/curve.ts と同じ挙動にする。
  */
 export function interpolate(points: number[], values: number[], x: number): number {
   if (x <= points[0]) return values[0];
