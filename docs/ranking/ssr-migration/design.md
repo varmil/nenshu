@@ -255,7 +255,38 @@ U5時点では、静的HTML（`output:'export'`）が常にビルド時の初期
 
 - `next.config.ts`の`headers()`で`Cache-Control`（ブラウザ、1時間）と`Cloudflare-CDN-Cache-Control`（エッジ、1日・stale-while-revalidateで1週間）を設定する（前述）。
 - **Cloudflareの既定のキャッシュ挙動はHTMLを自動でキャッシュしない場合がある。** 本番デプロイ後、`curl -I`で`CF-Cache-Status`ヘッダーを確認し、実際にキャッシュされているか検証する。
-- されていない場合の候補: (a) `.open-next/worker.js`（ビルド成果物）の前段にCache API（`caches.default`）を使う薄いラッパーWorkerを挟み`wrangler.jsonc`の`main`をそちらに向ける、(b) Cloudflareダッシュボードでカスタムドメイン/Zoneを前提にCache Ruleを追加する。現在`*.workers.dev`のみで運用中のため、(b)はカスタムドメイン接続が前提になる可能性があり、その場合は別途ユーザー判断が必要。この設計・判断は実測後に本ドキュメントへ追記する。
+
+### 追記: 本番デプロイ後に判明した罠 — `Cache-Control`ヘッダーだけでは自動キャッシュされない
+
+本番デプロイ直後、`curl -I`で`cache-control`・`cloudflare-cdn-cache-control`ヘッダーは意図通り付いていたが、**`CF-Cache-Status`ヘッダー自体が一切付いていなかった**（`HIT`/`MISS`/`DYNAMIC`いずれでもなく、ヘッダーごと存在しない）。`*.workers.dev`運用が原因かと疑ったが、Cloudflare公式ドキュメントでは`workers.dev`でもWorkers Cachingが動作すると明記されている。
+
+**実際の原因: Cloudflareの自動エッジキャッシュ（Workers Caching）は、`wrangler.jsonc`側で明示的に有効化しないと機能しない。** `Cache-Control`レスポンスヘッダーを返すだけでは不十分で、`wrangler.jsonc`のトップレベルに`cache.enabled: true`を設定する必要がある（Wrangler 4.69.0以降が必要。本プロジェクトは4.123.0で満たす）。この設定により、Cloudflareがリクエストごとにまずキャッシュを確認し、ヒットすればWorkerを起動せずにキャッシュから直接返す（＝CPU時間・レイテンシの両方を削減する）。
+
+```jsonc
+{
+  // ...
+  "cache": {
+    "enabled": true
+  }
+}
+```
+
+**修正**: `wrangler.jsonc`に`cache.enabled: true`を追加した。マージ後、本番で`CF-Cache-Status`が`HIT`になるか再確認する。
+
+## 本番デプロイ後のCPU時間の実測
+
+本番デプロイ後、Cloudflareダッシュボードで CPU時間の中央値が235ms前後（Wall time・Request durationもほぼ同値の227ms）と表示された。Workers Free planのハードリミットは10ms/リクエストのため、額面どおりなら全リクエストが`Error 1102`で失敗するはずだが、**実際にはエラーは一件も発生していない。**
+
+切り分けとして、ローカルで同じビルド成果物を実行して比較した。
+
+- `next start`（Node、ウォームアップ後）: 18〜35ms
+- `wrangler dev`（実際のworkerdランタイム、ウォームアップ後）: 20〜28ms
+
+いずれもリクエスト単体の処理自体は10msに近いオーダーで、235msには遠く及ばない。CPU時間とWall timeがほぼ同値であることから待ち時間（I/O待ち）ではなく純粋な実行時間であることは分かるが、ローカルの「ウォーム」な計測とは大きく乖離している。
+
+**現時点の見立て: 235msの大半はコールドスタート（isolateの初期化・スクリプトの解析/コンパイル）由来であり、リクエストハンドラ自体の実行時間ではない可能性が高い。** Cloudflareはisolateの起動用CPU予算をリクエスト単体の10ms上限とは別枠で確保しており、2024年以降200ms→400msに引き上げられている。Bolt 1時点はトラフィックが少なく、isolateが温まった状態を維持しにくいため、多くのリクエストが実質コールドスタートに近い状態で計測されている可能性がある。エラーが一件も発生していないことは、この見立てと整合する（実行時間そのものが10ms上限に抵触していれば確実にエラーになるはずだが、なっていない）。
+
+**結論**: 現時点でWorkers Paid（月5ドル）への移行は不要と判断する。ただし実測に基づく確証ではなく推定であるため、今後トラフィックが増えて中央値の傾向が変わらないか、エラー率が上昇しないかは継続的に見ていく。前段のキャッシュ（`cache.enabled: true`）が効けば、キャッシュヒット時はWorker自体が起動しなくなるため、CPU時間の実測値も改善するはずで、キャッシュ確認と合わせて再測定する。
 
 ## テスト方針
 
