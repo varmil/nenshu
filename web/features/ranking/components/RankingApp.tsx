@@ -17,6 +17,7 @@ import { FilterToggleGroup } from "./FilterToggleGroup";
 import { SearchInput } from "./SearchInput";
 import { RankingTable } from "./RankingTable";
 import { RankingCardList } from "./RankingCardList";
+import { RankingPagination } from "./RankingPagination";
 
 export function RankingApp({
   companies,
@@ -27,10 +28,18 @@ export function RankingApp({
   curves: CurvesData;
   initialState: RankingState;
 }) {
-  const { state, setState, rankedCompanies } = useRankingState(companies, curves, initialState);
+  const { state, setState, rankedCompanies, totalCount } = useRankingState(
+    companies,
+    curves,
+    initialState
+  );
 
   const handleAgeChange = (targetAge: TargetAge) => {
-    setState((prev) => ({ ...prev, targetAge }));
+    setState((prev) => ({ ...prev, targetAge, page: 1 }));
+  };
+
+  const handlePageChange = (page: number) => {
+    setState((prev) => ({ ...prev, page }));
   };
 
   const industryOptions = companies.industries.map((industry) => ({
@@ -49,7 +58,7 @@ export function RankingApp({
           <FilterSelect
             label="業種"
             value={state.industry}
-            onChange={(industry) => setState((prev) => ({ ...prev, industry }))}
+            onChange={(industry) => setState((prev) => ({ ...prev, industry, page: 1 }))}
             options={industryOptions}
           />
           <FilterToggleGroup
@@ -59,6 +68,7 @@ export function RankingApp({
               setState((prev) => ({
                 ...prev,
                 employeeSize: employeeSize as EmployeeSizeBucket | null,
+                page: 1,
               }))
             }
             options={EMPLOYEE_SIZE_OPTIONS}
@@ -67,7 +77,7 @@ export function RankingApp({
             label="在籍年数"
             value={state.tenure}
             onChange={(tenure) =>
-              setState((prev) => ({ ...prev, tenure: tenure as TenureBucket | null }))
+              setState((prev) => ({ ...prev, tenure: tenure as TenureBucket | null, page: 1 }))
             }
             options={TENURE_OPTIONS}
           />
@@ -78,18 +88,28 @@ export function RankingApp({
               setState((prev) => ({
                 ...prev,
                 avgAgeBucket: avgAgeBucket as AvgAgeBucket | null,
+                page: 1,
               }))
             }
             options={AVG_AGE_OPTIONS}
           />
           <SearchInput
             value={state.query}
-            onChange={(query) => setState((prev) => ({ ...prev, query }))}
+            onChange={(query) => setState((prev) => ({ ...prev, query, page: 1 }))}
           />
         </div>
       </header>
-      <RankingTable companies={rankedCompanies} targetAge={state.targetAge} />
-      <RankingCardList companies={rankedCompanies} targetAge={state.targetAge} />
+      {totalCount === 0 ? (
+        <p className="text-muted-foreground py-12 text-center text-sm">
+          条件に一致する企業が見つかりませんでした。フィルタや検索条件を緩めてお試しください。
+        </p>
+      ) : (
+        <>
+          <RankingTable companies={rankedCompanies} targetAge={state.targetAge} />
+          <RankingCardList companies={rankedCompanies} targetAge={state.targetAge} />
+          <RankingPagination state={state} totalCount={totalCount} onPageChange={handlePageChange} />
+        </>
+      )}
     </div>
   );
 }

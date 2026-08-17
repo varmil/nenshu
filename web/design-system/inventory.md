@@ -18,6 +18,7 @@
 | `card.tsx` | U2 | `npx shadcn@latest add card` |
 | `select.tsx` | U3 | `npx shadcn@latest add select`（フィルタ4種のプルダウン用） |
 | `input.tsx` | U4 | `npx shadcn@latest add input`（フリーワード検索欄用） |
+| `pagination.tsx` | U6 | `npx shadcn@latest add pagination`（ページネーション用） |
 
 ## components/（合成物）
 

@@ -45,6 +45,17 @@ describe("parseSearchParams", () => {
   it("空のパラメータからは何も復元しない", () => {
     expect(parseSearchParams(new URLSearchParams(""))).toEqual({});
   });
+
+  it("pageを正しい整数として復元する", () => {
+    expect(parseSearchParams(new URLSearchParams("page=2")).page).toBe(2);
+  });
+
+  it("不正なpage（0・負数・非数値）は無視する", () => {
+    expect(parseSearchParams(new URLSearchParams("page=0")).page).toBeUndefined();
+    expect(parseSearchParams(new URLSearchParams("page=-1")).page).toBeUndefined();
+    expect(parseSearchParams(new URLSearchParams("page=abc")).page).toBeUndefined();
+    expect(parseSearchParams(new URLSearchParams("page=1.5")).page).toBeUndefined();
+  });
 });
 
 describe("buildSearchParams", () => {
@@ -61,6 +72,15 @@ describe("buildSearchParams", () => {
     expect(params.get("aage")).toBe("40-43");
   });
 
+  it("page=1（既定値）はクエリに出さない", () => {
+    expect(buildSearchParams(stateFor({ page: 1 })).has("page")).toBe(false);
+  });
+
+  it("pageが1以外なら末尾に出す", () => {
+    const params = buildSearchParams(stateFor({ industry: "銀行業", page: 2 }));
+    expect(params.toString()).toBe("ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
+  });
+
   it("往復変換が一致する（build→parse→buildが同じ文字列になる）", () => {
     const state = stateFor({
       targetAge: 45,
@@ -69,6 +89,7 @@ describe("buildSearchParams", () => {
       tenure: "17plus",
       avgAgeBucket: "43plus",
       query: "商船",
+      page: 3,
     });
     const first = buildSearchParams(state).toString();
     const parsed = parseSearchParams(new URLSearchParams(first));
