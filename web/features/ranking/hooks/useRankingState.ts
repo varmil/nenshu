@@ -1,11 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
 import { buildRankedCompanies } from "../lib/rank";
 import { buildSearchParams, INITIAL_STATE, parseSearchParams } from "../lib/urlState";
 
 const QUERY_URL_UPDATE_DEBOUNCE_MS = 300;
+
+// static export のビルド時プリレンダーは Node 上での実行なので useLayoutEffect は
+// 使えない（Reactが警告を出す）。ブラウザでだけ useLayoutEffect を使う。
+const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export interface UseRankingStateResult {
   state: RankingState;
@@ -39,6 +43,13 @@ function readStateFromLocation(): RankingState {
  * - URL → state: マウント時に一度読み、以後は `popstate`（ブラウザの戻る/進む）
  *   でだけ読み直す。`pushState`/`replaceState` は `popstate` を発火させないため、
  *   自分自身の書き込みで読み取りが再トリガーされることはない。
+ *   マウント時の読み取りは `useEffect` ではなく `useIsomorphicLayoutEffect` で行う。
+ *   `useEffect` だとブラウザが一度「初期値（絞り込みなし）」の状態をペイントした後に
+ *   非同期で補正されるため、フィルタ付きURLを直接開いた際に一瞬絞り込み前の内容が
+ *   見えてから正しい内容に描き変わるチラつきが発生する（実際に確認した）。
+ *   `useLayoutEffect` はハイドレート後のDOMコミット直後・ブラウザがペイントする前に
+ *   同期的に走るため、この2回目のレンダーはブラウザに一切ペイントされず、
+ *   結果としてチラつきが消える。
  * - state → URL: stateが変わるたびに発火し、現在のURLと異なる場合だけ
  *   history を更新する（同一なら何もしない）。queryだけが変わった場合は
  *   `replaceState`+デバウンス、それ以外は即座に`pushState`（1操作=1履歴エントリ）。
@@ -52,8 +63,7 @@ export function useRankingState(companies: CompaniesData, curves: CurvesData): U
   // しまい、直接URLを開いたときの復元が壊れる（実際にE2Eで再現して踏んだ）。
   const isFirstWrite = useRef(true);
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- マウント時にURL（外部システム）からstateを復元する意図的な同期
+  useIsomorphicLayoutEffect(() => {
     setState(readStateFromLocation());
 
     const onPopState = () => {
