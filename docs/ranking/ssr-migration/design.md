@@ -273,6 +273,21 @@ U5時点では、静的HTML（`output:'export'`）が常にビルド時の初期
 
 **修正**: `wrangler.jsonc`に`cache.enabled: true`を追加した。マージ後、本番で`CF-Cache-Status`が`HIT`になるか再確認する。
 
+### 追記: OpenNext公式のキャッシュ機能の要否を確認（`https://opennext.js.org/cloudflare/caching`）
+
+OpenNext Cloudflare adapterが提供するキャッシュ機構（Incremental Cache／R2・KV・D1・Workers Static Assets、Queue、Tag Cache、Cache Purge）を一通り確認したが、**いずれもNext.jsのISR（`revalidate`付きfetch）やオンデマンド再検証（`revalidateTag`/`revalidatePath`）のための仕組み**で、本サイトはどちらも使っていない（ランキングページは`searchParams`依存の完全動的レンダリングのみ）。そのため以下はすべて対象外と判断した。
+
+- Incremental Cache（R2/KV/D1/Workers Static Assets）: ISR用のページキャッシュ。導入しない。
+- Queue（Durable Object Queue等）: 時間ベースの再検証をさばく仕組み。導入しない。
+- Tag Cache（D1/Durable Object Sharded）: `revalidateTag`/`revalidatePath`用。導入しない。
+- Cache Purge: オンデマンド再検証時の自動パージ。導入しない（そもそもカスタムドメイン/Zoneが前提の機能でもある）。
+
+**唯一、実際に効果がある発見: `_next/static/*`（JS/CSS/フォント等のハッシュ付きビルド成果物）はWorkerを経由せずAssetsバインディングから直接配信されるため、`next.config.ts`の`headers()`が一切効かない。** 本番で確認したところ、Cloudflareの既定値である`Cache-Control: public, max-age=0, must-revalidate`のままだった。ファイル名にコンテンツハッシュが含まれ同一URLの中身が変わることはないので、本来は無期限にキャッシュしてよい。
+
+**修正**: `web/public/_headers`を新規作成し、`_next/static/*`に`Cache-Control: public, max-age=31536000, immutable`を設定した（OpenNext公式ドキュメントに記載の方法）。ローカルの`wrangler dev`で対象JSファイルに対し`Cache-Control`が意図通り付き、`CF-Cache-Status: HIT`になることを確認済み。
+
+`public/data/companies.json`・`curves.json`も`public/`配下にあるため理論上は同じ経路で配信されうるが、実際にはビルド時の`import`でJSバンドルに直接埋め込まれており、実行時にこのURLへ独立してfetchするコードは存在しない（U5のE2E「フィルタ操作中にネットワークリクエストが発生しない」で検証済み）。事実上使われないURLのため、キャッシュ設定は追加しなかった。
+
 ## 本番デプロイ後のCPU時間の実測
 
 本番デプロイ後、Cloudflareダッシュボードで CPU時間の中央値が235ms前後（Wall time・Request durationもほぼ同値の227ms）と表示された。Workers Free planのハードリミットは10ms/リクエストのため、額面どおりなら全リクエストが`Error 1102`で失敗するはずだが、**実際にはエラーは一件も発生していない。**
