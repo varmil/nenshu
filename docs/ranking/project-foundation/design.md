@@ -55,7 +55,8 @@ Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリ�
 このUnitでは接続作業そのものは行わない（アカウントアクセスが無いため）。ユーザーが Cloudflare Pages ダッシュボードで実施するための設定値をここに記録する。
 
 - ルートディレクトリ: `web`
-- ビルドコマンド: `npm run build`
+- **Framework preset: 「Next.js (Static HTML Export)」を選ぶ。** 汎用の「Next.js」を選ぶと、Cloudflareは `npx opennextjs-cloudflare build`（Next.jsをCloudflare Workers上でSSR動作させるアダプタ）を自動的に使おうとする。このアダプタは `.next/standalone` を前提にするが、本プロジェクトは `output: 'export'`（ADR-0002）で純粋な静的書き出しのため `.next/standalone` が存在せず、`ENOENT: pages-manifest.json` で失敗する（実際のデプロイで発生し確認済み）。static exportのUnit詳細設計はGitHub連携よりも前に固まらないため、ここで踏むことになった。
+- ビルドコマンド: `npx next build`
 - 出力ディレクトリ: `out`
 - Node.jsバージョン: リポジトリの `.nvmrc` 等が無いため、Cloudflare側のデフォルト（最新LTS系）に委ねる
 
