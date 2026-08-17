@@ -66,6 +66,8 @@ Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリ�
 
 ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤が Workers（静的アセット配信）に統合されている。無料枠の商用利用可否・帯域無制限といったADR-0001の判断根拠は変わらない。
 
+**踏んだ罠その2（npmバージョン差）**: `wrangler.jsonc` を追加した際、ローカル（npm 11.6.2）で `package-lock.json` を作り直して `npm ci` の通過も確認したが、Cloudflareのビルドログには `Detected the following tools from environment: npm@10.9.2` とあり、そちらでは `npm ci` が「`@emnapi/core`/`@emnapi/runtime` がロックファイルに無い」で失敗した。**同じ `package.json` でも、npmのメジャーバージョンが違うと optionalDependencies（今回は `sharp`/`rolldown` が依存する `@emnapi/*` 系のWASMフォールバック）の解決結果が変わり、生成される `package-lock.json` の中身が変わる。** ロックファイルは必ず `npx npm@10.9.2 install`（Cloudflareと同じバージョン）で作り直し、`npx npm@10.9.2 ci` が通ることまで確認してからコミットする。CLAUDE.md「開発上の約束」にも同じ内容を書いた。
+
 ## データの再生成
 
 `scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す。リポジトリ直下の暫定 `public/` は削除する。
