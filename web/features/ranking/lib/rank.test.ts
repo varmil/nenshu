@@ -7,7 +7,11 @@ import type { CompaniesData, CurvesData, RankingState } from "../types";
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
 
-function stateFor(targetAge: RankingState["targetAge"], visibleCount = 100): RankingState {
+function stateFor(
+  targetAge: RankingState["targetAge"],
+  visibleCount = 100,
+  overrides: Partial<RankingState> = {}
+): RankingState {
   return {
     targetAge,
     industry: null,
@@ -16,6 +20,7 @@ function stateFor(targetAge: RankingState["targetAge"], visibleCount = 100): Ran
     avgAgeBucket: null,
     query: "",
     visibleCount,
+    ...overrides,
   };
 }
 
@@ -41,5 +46,39 @@ describe("buildRankedCompanies", () => {
   it("visibleCountで件数が切り出される", () => {
     const ranked = buildRankedCompanies(companies, curves, stateFor(35, 10));
     expect(ranked).toHaveLength(10);
+  });
+
+  it("AC-3: 業種で「海運業」を選ぶと7社になり、順位が1から振り直される", () => {
+    const ranked = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, 100, { industry: "海運業" })
+    );
+    expect(ranked).toHaveLength(7);
+    expect(ranked[0].rank).toBe(1);
+    expect(ranked.map((c) => c.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("AC-4: 従業員数で「1,000人以上」を選ぶと616社になる", () => {
+    const ranked = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { employeeSize: "1000plus" })
+    );
+    expect(ranked).toHaveLength(616);
+  });
+
+  it("AC-5: 業種と平均年齢を重ねると、業種のみより件数が減る", () => {
+    const industryOnly = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { industry: "情報・通信業" })
+    );
+    const combined = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, companies.rows.length, { industry: "情報・通信業", avgAgeBucket: "under40" })
+    );
+    expect(combined.length).toBeLessThan(industryOnly.length);
   });
 });

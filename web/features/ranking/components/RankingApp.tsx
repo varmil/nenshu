@@ -1,8 +1,17 @@
 "use client";
 
 import { useRankingState } from "../hooks/useRankingState";
-import type { CompaniesData, CurvesData, TargetAge } from "../types";
+import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
+import type {
+  AvgAgeBucket,
+  CompaniesData,
+  CurvesData,
+  EmployeeSizeBucket,
+  TargetAge,
+  TenureBucket,
+} from "../types";
 import { AgeSwitch } from "./AgeSwitch";
+import { FilterSelect } from "./FilterSelect";
 import { RankingTable } from "./RankingTable";
 import { RankingCardList } from "./RankingCardList";
 
@@ -19,12 +28,55 @@ export function RankingApp({
     setState((prev) => ({ ...prev, targetAge }));
   };
 
+  const industryOptions = companies.industries.map((industry) => ({
+    value: industry,
+    label: industry,
+  }));
+
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4">
-      <header className="flex flex-col gap-2">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
+      <header className="flex flex-col gap-3">
         <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
         <div className="overflow-x-auto">
           <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <FilterSelect
+            label="業種"
+            value={state.industry}
+            onChange={(industry) => setState((prev) => ({ ...prev, industry }))}
+            options={industryOptions}
+          />
+          <FilterSelect
+            label="従業員数"
+            value={state.employeeSize}
+            onChange={(employeeSize) =>
+              setState((prev) => ({
+                ...prev,
+                employeeSize: employeeSize as EmployeeSizeBucket | null,
+              }))
+            }
+            options={EMPLOYEE_SIZE_OPTIONS}
+          />
+          <FilterSelect
+            label="在籍年数"
+            value={state.tenure}
+            onChange={(tenure) =>
+              setState((prev) => ({ ...prev, tenure: tenure as TenureBucket | null }))
+            }
+            options={TENURE_OPTIONS}
+          />
+          <FilterSelect
+            label="平均年齢"
+            value={state.avgAgeBucket}
+            onChange={(avgAgeBucket) =>
+              setState((prev) => ({
+                ...prev,
+                avgAgeBucket: avgAgeBucket as AvgAgeBucket | null,
+              }))
+            }
+            options={AVG_AGE_OPTIONS}
+          />
         </div>
       </header>
       <RankingTable companies={rankedCompanies} targetAge={state.targetAge} />

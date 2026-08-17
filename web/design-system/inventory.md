@@ -12,6 +12,11 @@
 | コンポーネント | 追加日 | 備考 |
 | --- | --- | --- |
 | `button.tsx` | U1 | `npx shadcn@latest add button` |
+| `table.tsx` | U2 | `npx shadcn@latest add table` |
+| `toggle.tsx` / `toggle-group.tsx` | U2 | `npx shadcn@latest add toggle-group`（年齢スイッチ用） |
+| `badge.tsx` | U2 | `npx shadcn@latest add badge` |
+| `card.tsx` | U2 | `npx shadcn@latest add card` |
+| `select.tsx` | U3 | `npx shadcn@latest add select`（フィルタ4種のプルダウン用） |
 
 ## components/（合成物）
 
