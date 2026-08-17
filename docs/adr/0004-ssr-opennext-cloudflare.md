@@ -38,6 +38,8 @@ spec.md 136行目のSEO要件（「トップページの初期表示（35歳・�
 - Bolt 2で計画している企業詳細1,867ページ・業種33ページ・年齢別8ページは、クエリに依存せず内容が決まるため`generateStaticParams`によるビルド時事前生成のままで問題ない。ランキングのトップページ（`/`）だけが真にリクエスト依存でSSRを要する。
 - デプロイ設定（ビルドコマンド・`wrangler` 設定等）が変わる。`docs/ranking/project-foundation/design.md`の記載を更新する必要がある。
 - **移行実装前に、Free planのCPU時間10ms上限に実際のフィルタ+レンダリングが収まるかを実測で確認する。** 収まらない場合はWorkers Paid（月5ドル、CPU時間の上限が大幅に緩和される）への移行を検討する。収益化前に固定費が発生する判断になるため、実測結果を見てから決める。
+
+**2026-08-17追記（本番デプロイ後の実測）**: ダッシュボードのCPU時間中央値は235ms前後だったが、エラー（`Error 1102`等）は一件も発生していない。ローカルの同一ビルドでの実測（`next start`・`wrangler dev`ともにウォームアップ後18〜35ms）との乖離から、235msの大半はコールドスタート（isolate起動）由来と推定している（Cloudflareはisolate起動用CPU予算をリクエスト単体の10ms上限とは別枠で確保しており、200ms→400msに引き上げられている）。Free planのままで様子を見る判断とした。詳細は`docs/ranking/ssr-migration/design.md`の「本番デプロイ後のCPU時間の実測」参照。合わせて、`Cache-Control`ヘッダーだけでは自動キャッシュされず`wrangler.jsonc`に`cache.enabled: true`の明示が必要だったことも判明した（同ドキュメント参照）。
 - 実装は本ADR承認後、専用のUnitとして`plan.md`/`design.md`を書いてから進める。既存のU0〜U5の成果物（`useRankingState`のロジック、`buildRankedCompanies`、フィルタ・検索の純粋関数群）はサーバーコンポーネント側でそのまま再利用できる想定。
 
 ## 却下案
