@@ -40,7 +40,7 @@
 
 ## 結果
 
-**ビルド時の変換スクリプト** `scripts/build-data.ts` が、CSV から次の2ファイルを生成する。手作業で JSON を編集しない。
+**ビルド時の変換スクリプト** `pipeline/scripts/build-data.ts` が、CSV から次の2ファイルを生成する。手作業で JSON を編集しない。
 
 `public/data/companies.json` — 列指向の配列で持ち、キー名の繰り返しを避ける。
 

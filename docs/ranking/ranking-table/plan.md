@@ -48,7 +48,7 @@ function useRankingState(companies: CompaniesData, curves: CurvesData): {
 
 1. `docs/ranking/ranking-table/design.md` を書く（ファイル構成、補間ロジックの移植方法、フォーマット規則、レスポンシブ方針、テスト方針）。
 2. `web/` に Vitest を追加する（ルートと同じ選定。既存の `web/design-system/**` のlint/typecheckフックに `npm --prefix web test` を追加）。
-3. 補正年収の計算ロジックを実装する。`scripts/lib/curve.ts` の補間と同じアルゴリズムを `web/features/ranking/lib/curve.ts` に移植し、`web/public/data/companies.json` の実データに対して AC-1（キーエンス35歳=2,178万円）・AC-2（同25歳=1,642万円）をテストとして固定する。
+3. 補正年収の計算ロジックを実装する。`pipeline/scripts/lib/curve.ts` の補間と同じアルゴリズムを `web/features/ranking/lib/curve.ts` に移植し、`web/public/data/companies.json` の実データに対して AC-1（キーエンス35歳=2,178万円）・AC-2（同25歳=1,642万円）をテストとして固定する。
 4. ランキング生成パイプライン（フィルタ→補正年収→ソート→ランク付与→`visibleCount`で切り出し）を実装する。AC-2後半（60歳上位50社に35歳上位50社が40社以上含まれる）を実データに対するテストとして固定する。
 5. 数値フォーマット（万円・カンマ区切り、小数第1位）をテストとともに実装する。
 6. `useRankingState` フックを実装する。

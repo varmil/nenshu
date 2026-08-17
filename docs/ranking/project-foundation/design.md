@@ -9,8 +9,8 @@
 ```
 repo/
 ├─ package.json              # データパイプライン専用（U0, 変更なし）
-├─ scripts/                  # build-data.ts（U0, 変更なし）
-├─ data/                     # ソースCSV・カーブ（変更なし）
+├─ scripts/                  # build-data.ts（U0, 変更なし。2026-08-17: Issue #11 で pipeline/scripts/ に移動）
+├─ data/                     # ソースCSV・カーブ（変更なし。2026-08-17: Issue #11 で pipeline/data/ に移動）
 └─ web/                      # Next.js アプリ本体（このUnitで新設）
    ├─ package.json
    ├─ next.config.ts          # output: 'export', images.unoptimized, turbopack.root
@@ -48,7 +48,9 @@ ESLint flat config（`eslint.config.mjs`）に、`no-restricted-syntax` で16進
 
 ## コミット前フック
 
-Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリポジトリ直下にあるため、フック自体はどこにpackage.jsonがあっても直下に置く必要がある）。ステージされたファイルが `web/` 配下かどうかで、`web/`のtypecheck・lint・testを呼ぶか、直下の`scripts/`のtest（U0）を呼ぶかをlint-stagedの対象パターンで振り分ける。
+Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリポジトリ直下にあるため、フック自体はどこにpackage.jsonがあっても直下に置く必要がある）。ステージされたファイルが `web/` 配下かどうかで、`web/`のtypecheck・lint・testを呼ぶか、`pipeline/scripts/`のtest（U0）を呼ぶかをlint-stagedの対象パターンで振り分ける。
+
+**2026-08-17追記（Issue #11）**: データパイプライン一式（`scripts/`・`data/`・`package.json`・`tsconfig.json`・`vitest.config.ts`・`salary35/`）を `pipeline/` 配下に移動した。これに伴い、リポジトリ直下の `package.json` は husky + lint-staged だけを持つ「Gitフック調整役」に縮小し、データパイプラインの実行時依存（tsx/vitest/typescript）は `pipeline/package.json` に移した（`web/` と `pipeline/` という2つの独立npmプロジェクトを横断してフックを振り分ける役目は、`.git` がある直下に残す必要があるため）。`pipeline/scripts/build-data.ts` の `ROOT` 解決はファイル位置基準のため無変更で動くが、`--out` 引数は `pipeline/` からの相対パスになった点に注意（次節で更新）。
 
 ## Cloudflare へのデプロイ（Workers Builds + 静的アセット）
 
@@ -70,4 +72,4 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 ## データの再生成
 
-`scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す。リポジトリ直下の暫定 `public/` は削除する。
+`pipeline/scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す（`pipeline/` から実行する場合は `--out ../web/public/data`）。リポジトリ直下の暫定 `public/` は削除する。

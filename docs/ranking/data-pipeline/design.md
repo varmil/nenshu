@@ -2,23 +2,26 @@
 
 Unit内部の構造。技術選定の理由もここに含める（施策を横断しない・可逆な判断のため ADR にはしない）。
 
+**2026-08-17追記（Issue #11）**: 当時リポジトリ直下に置いていた `package.json`/`tsconfig.json`/`scripts/`/`data/` は、`web/` との非対称を解消するため `pipeline/` 配下に移動した。以下の本文のパスは移動後（`pipeline/` 配下）の表記に更新済み。移動の経緯・root package.json の分割方針は `docs/ranking/project-foundation/design.md` を参照。
+
 ## 配置
 
 `web/`（Next.js アプリ本体）は U1 未着手のため存在しない。U0 をそれに依存させないよう、リポジトリ直下に専用の軽量構成を置く。
 
 ```
-package.json              # devDependencies: typescript, tsx, vitest, @types/node
-tsconfig.json
-scripts/
-  build-data.ts            # CLI 本体
-  lib/
-    csv.ts                 # data/ranking_unified_2026.csv の最小パーサ
-    curve.ts               # 区分線形補間
-    slug.ts                 # id 生成
-  build-data.test.ts        # Vitest
+pipeline/
+  package.json              # devDependencies: typescript, tsx, vitest, @types/node
+  tsconfig.json
+  scripts/
+    build-data.ts            # CLI 本体
+    lib/
+      csv.ts                 # data/ranking_unified_2026.csv の最小パーサ
+      curve.ts               # 区分線形補間
+      slug.ts                 # id 生成
+    build-data.test.ts        # Vitest
 ```
 
-出力先はデフォルト `public/data/`（ADR-0003 記載のパスそのまま）だが、`--out` 引数で変更可能にする。U1 が Next.js を `web/` にスキャフォールドする際、`--out web/public/data` を指定するだけで済むようにするため。
+出力先はデフォルト `public/data/`（ADR-0003 記載のパスそのまま）だが、`--out` 引数で変更可能にする。U1 が Next.js を `web/` にスキャフォールドする際、`--out ../web/public/data` を指定するだけで済むようにするため（`--out` は `pipeline/` からの相対パス）。
 
 **テストランナーは Vitest。** TypeScript ネイティブで設定が軽く、後で Next.js（U1）と同居させても衝突しない。
 
