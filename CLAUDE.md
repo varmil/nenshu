@@ -29,6 +29,8 @@ Next.js（App Router / `output: 'export'`）、TypeScript、Tailwind CSS、shadc
 
 理由は ADR-0001 と ADR-0002 にある。
 
+**`next/navigation` の `useSearchParams()` は使わない。** `output: 'export'` では、`useSearchParams()` を使うコンポーネントは `<Suspense>` で囲んでいても静的HTMLへのプリレンダーからスキップされ（`BAILOUT_TO_CLIENT_SIDE_RENDERING`）、実行時に完全にクライアント側でレンダリングされる。U5で実際にこれを踏み、ランキング表がHTMLから消える回帰を起こした（`docs/ranking/url-sync/design.md`参照）。クエリ文字列を読みたいときは `window.location.search` を直接読む。`useRouter()`・`usePathname()` にはこの制約はない。
+
 ## エージェントが従う優先順位
 
 既存コードベース ＞ `web/design-system/` のレジストリ ＞ モック。
