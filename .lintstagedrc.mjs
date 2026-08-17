@@ -8,5 +8,6 @@ export default {
   "web/**/*.{ts,tsx}": () => [
     "npm --prefix web run lint",
     "npm --prefix web run typecheck",
+    "npm --prefix web test",
   ],
 };
