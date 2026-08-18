@@ -86,6 +86,8 @@ Unit の実装を終えたら、次の順で進める。
 - **`AgeSwitch` は `design-system/` に昇格させず `features/ranking/` から import している。** `TargetAge`/`TARGET_AGES` というドメイン語彙に依存しており、design-systemに持ち込むと語彙か型が二重になるため。`TargetAge`・`estimateSalary`・`format` が本来「年収ドメイン」の共有物である点は既知の負債（`docs/company/company-page/design.md`）
 - ランキングの会社名は `<Link href="/company/{id}">`。ページ間遷移なので `<Link>` でよい（上の規約どおり）。**ただし `prefetch={false}` を必ず付ける**——既定だとビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんで**本番のトップページ表示だけで34件のリクエストが飛んだ**（実測。修正後は0件）。全ルートが動的レンダリングなので、そのぶんWorkerが起動する
 - **プリフェッチは本番ビルドでしか動かないので、devサーバーに対して走るE2Eでは検出できない。** `npm run measure:prefetch`（`web/scripts/measure-prefetch.mjs`）で `npm run build && npx next start -p 3211` に対して測る。動的ルートへの `<Link>` を増やしたときはこれを回すこと
+- **ページ間の遷移は `next/link` を直接使わず `features/navigation/components/NavLink` を使う。** プリフェッチを切った代償で、クリックからRSCペイロードが届くまでの待ちが体感に出る（「一瞬もたつく」）。Next.js公式の `useLinkStatus()` で待ちを拾い、画面上端に細いプログレスバーを出している（`features/navigation/`、`app/layout.tsx` の `<NavProgressBar />`）。**`nextjs-toploader` 系のライブラリは使わない**——この用途のライブラリは軒並み更新が止まっており（2026-08時点で最新の `holy-loader` でも9か月前）、いずれも `history.pushState` を差し替えるので、`pushState` を直接呼んでURL同期している当サイトとは相性が悪い
+- **`loading.tsx` は置かない。効かないため。** `loading.js` のフォールバックはプリフェッチで先に配られて初めて効く仕組みで、`prefetch={false}` では配達自体が起きない。RSCの到着を2.5秒遅らせて実測してもスケルトンは一度も出なかった（`docs/company/company-page/design.md`）
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**必ず「上位◯%」を隣に併記し、100を超えうる理由を注記する**（glossary参照）。
 

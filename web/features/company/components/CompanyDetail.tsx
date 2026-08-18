@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "@/features/navigation/components/NavLink";
 import { useEffect, useState } from "react";
 import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent, CardHeader } from "@/design-system/ui/card";
@@ -73,17 +73,17 @@ export function CompanyDetail({
           ページ（gzip 64KB）。読むとは限らない導線を先読みさせる価値はない。
           理由の詳細は RankingTable.tsx。
         */}
-        <Link href="/" prefetch={false} className="hover:text-foreground underline">
+        <NavLink href="/" prefetch={false} className="hover:text-foreground underline">
           年齢補正年収ランキング
-        </Link>
+        </NavLink>
         <span aria-hidden="true">/</span>
-        <Link
+        <NavLink
           href={`/?ind=${encodeURIComponent(view.tse33)}`}
           prefetch={false}
           className="hover:text-foreground underline"
         >
           {view.tse33}
-        </Link>
+        </NavLink>
       </nav>
 
       <header className="flex flex-col gap-3">
@@ -192,9 +192,9 @@ export function CompanyDetail({
         </p>
         <p>
           推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。
-          <Link href="/about" className="hover:text-foreground ml-1 underline">
+          <NavLink href="/about" className="hover:text-foreground ml-1 underline">
             計算方法と限界
-          </Link>
+          </NavLink>
         </p>
         {view.hasBadge && (
           <p>

@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/design-system/ui/card";
-import Link from "next/link";
+import { NavLink } from "@/features/navigation/components/NavLink";
 import { Badge } from "@/design-system/ui/badge";
 import type { RankedCompany, TargetAge } from "../types";
 import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
@@ -21,13 +21,13 @@ export function RankingCardList({
                 <span className="text-muted-foreground text-xs">{company.rank}位</span>
                 <p className="font-medium">
                   {/* prefetch={false} の理由は RankingTable.tsx を参照。 */}
-                  <Link
+                  <NavLink
                     href={`/company/${company.id}`}
                     prefetch={false}
                     className="hover:underline"
                   >
                     {company.name}
-                  </Link>
+                  </NavLink>
                 </p>
                 <p className="text-muted-foreground text-xs">{company.tse33}</p>
               </div>

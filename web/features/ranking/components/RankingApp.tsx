@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "@/features/navigation/components/NavLink";
 import { useRankingState } from "../hooks/useRankingState";
 import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
 import type {
@@ -53,12 +53,12 @@ export function RankingApp({
       <header className="flex flex-col gap-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
-          <Link
+          <NavLink
             href="/about"
             className="text-muted-foreground hover:text-foreground text-sm underline"
           >
             計算方法
-          </Link>
+          </NavLink>
         </div>
         <div className="overflow-x-auto">
           <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
