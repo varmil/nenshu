@@ -45,7 +45,21 @@ export function RankingTable({
               <TableCell className="text-muted-foreground">{company.rank}</TableCell>
               <TableCell>
                 <span className="flex items-center gap-1.5">
-                  <Link href={`/company/${company.id}`} className="hover:underline">
+                  {/*
+                    prefetch={false}。既定の "auto" だと <Link> がビューポートに入った
+                    時点で RSC ペイロードを取りに行き、**本番ビルドでは1ページ表示する
+                    だけで数十件のリクエストが飛ぶ**（実測34件）。1ページに100社並ぶうえ
+                    `/company/[id]` は動的レンダリングなので、そのぶんWorkerが起動する
+                    （無料枠は10万リクエスト/日）。読者が開くのはせいぜい1社なので、
+                    投機的な先読みは割に合わない。
+                    **プリフェッチは本番でしか動かないため、devサーバーで走るE2Eでは
+                    検出できない。** `npm run measure:prefetch` で測る。
+                  */}
+                  <Link
+                    href={`/company/${company.id}`}
+                    prefetch={false}
+                    className="hover:underline"
+                  >
                     {company.name}
                   </Link>
                   {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}

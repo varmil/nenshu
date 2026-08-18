@@ -20,7 +20,12 @@ export function RankingCardList({
               <div>
                 <span className="text-muted-foreground text-xs">{company.rank}位</span>
                 <p className="font-medium">
-                  <Link href={`/company/${company.id}`} className="hover:underline">
+                  {/* prefetch={false} の理由は RankingTable.tsx を参照。 */}
+                  <Link
+                    href={`/company/${company.id}`}
+                    prefetch={false}
+                    className="hover:underline"
+                  >
                     {company.name}
                   </Link>
                 </p>

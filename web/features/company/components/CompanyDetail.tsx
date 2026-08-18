@@ -68,12 +68,18 @@ export function CompanyDetail({
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
       <nav className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-        <Link href="/" className="hover:text-foreground underline">
+        {/*
+          prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
+          ページ（gzip 64KB）。読むとは限らない導線を先読みさせる価値はない。
+          理由の詳細は RankingTable.tsx。
+        */}
+        <Link href="/" prefetch={false} className="hover:text-foreground underline">
           年齢補正年収ランキング
         </Link>
         <span aria-hidden="true">/</span>
         <Link
           href={`/?ind=${encodeURIComponent(view.tse33)}`}
+          prefetch={false}
           className="hover:text-foreground underline"
         >
           {view.tse33}
