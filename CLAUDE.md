@@ -72,10 +72,22 @@ Unit の実装を終えたら、次の順で進める。
 
 **Python側（`pipeline/salary35/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary35 && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
 
-**未解決の課題（Bolt 2 に入る前に判断が要る）:**
+**Bolt 2 に着手中（企業詳細ページと公開URL戦略）。Inceptionは完了。**
 
-- **Issue #22: 掲載企業数を増やす際のペイロード。** 全件embedアーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、4,000社規模では超過見込み。
+**`/age/[age]`・`/industry/[industry]` は作らない（ADR-0006・Issue #49）。** ADR-0004でフルSSRになった時点で「パスにしなければクロールできない」前提が消え、Googleのファセットナビゲーション指針もパスとクエリを区別しない。年齢8件・業種33件は `?age=`・`?ind=` のまま自己canonical＋sitemap登録にし、他の組み合わせ・`q`・`page` は正規URLへ寄せる。実装はU8（Issue #53）。
 
-次は `docs/ranking/overview.md` の Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`。パス設計は確定済み）。
+**企業ページのIDは 証券コード（1,760社）／EDINETコード（107社）**（ADR-0006）。現行の書類ID由来のIDは毎年の有報提出で変わり、URLが年1回リセットされてしまうため。`edinet_code` 列は将来の10年推移でも名寄せキーになる。実装はC0（Issue #51）。
+
+**企業詳細ページ `/company/[id]` の施策は `docs/company/`** （product.mdの施策マップで `ranking` とは別施策）。v1は手持ちデータで作れる5項目（平均年収・年収偏差値・全体順位・業界内順位・年齢別チャート）。実装はC1（Issue #52）。順位・偏差値の母集団統計は**ビルド時に確定させる**——Workers FreeのCPU 10ms/リクエスト制約があるため、リクエストごとに1,867社×8年齢を計算しない。
+
+**年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**必ず「上位◯%」を隣に併記し、100を超えうる理由を注記する**（glossary参照）。
+
+順序: C0（#51）→ C1（#52）→ U8（#53）。
+
+**未解決の課題:**
+
+- **Issue #22: 掲載企業数を増やす際のペイロード。** 全件embedアーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、4,000社規模では超過見込み。企業詳細ページは1社ぶんしか送らないので、この問題を悪化させない。
+- **Issue #54: 平均年収の10年推移。** EDINETは有報を10年保持しているので取得は可能だが、約18,000書類のダウンロードと年をまたぐ名寄せが要る。
+- **Issue #55: 株価・信用格付け。** J-Quants・edinetdb.jp からの調達可否を確認するところから。**再配布可否の判断は運営者が行う**（product.mdの制約に明記）。
 
 `web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
