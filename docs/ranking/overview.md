@@ -15,6 +15,8 @@
 | U6 | 0件・端の状態と段階表示 | U3, U4 | AC-8 | |
 | U7 | 計算方法ページ | U1 | AC-10 | ロジックなし。文章が本体 |
 | U8 | 検索エンジン向け導線 | U7, company施策のC1 | — | canonical・sitemap・robots・リンクハブ（ADR-0006） |
+| U9 | SSR移行 | U5 | AC-7 | Bolt 1 の途中で足した。`@opennextjs/cloudflare` でフルSSR（ADR-0004）。Issue #37 |
+| U10 | 推定モデルの改良 | U2 | AC-9 | Bolt 1 の後に足した。22歳アンカーの2点モデル（ADR-0005）。Issue #42・#46 |
 
 ## 実施順序
 
@@ -29,6 +31,8 @@ U1 ─┘   └─→ U7（独立して進められる）
 U0 と U1 は互いに独立なので先に片付ける。U2 が通れば施策として最低限の価値が出る。
 
 **U8 は Bolt 1 の後に足した Unit で、company 施策の C1 に依存する**（sitemap に企業詳細ページ1,867件のURLを載せるため）。
+
+**U9・U10 は Bolt 1 の途中・直後に、当初の分解に無かった Unit として足した**（U9 は U5 のあと、U10 は U7 のあと）。どちらも `docs/ranking/<unit>/` に plan.md・design.md を持つ Unit なので、後からこの一覧に登録した。Unit 一覧に無い Unit を作らないための運用は CLAUDE.md の「Unit の起票（着手前）」にある。
 
 ## 共有コンポーネント
 
