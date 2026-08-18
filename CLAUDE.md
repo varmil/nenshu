@@ -66,7 +66,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **アクセス解析は Microsoft Clarity**（Issue #44）。`web/lib/analytics/clarity.ts` にタグを置き、`app/layout.tsx` から `next/script` の `strategy="afterInteractive"` で読む。npmパッケージは使わない（同じタグを注入するだけでJSバンドルが増えるため）。**本番ビルドでのみ有効**（`isClarityEnabled`）——開発サーバーとE2Eの実行ぶんが実セッションとして計測に混ざるのを防ぐため、またE2Eの「操作中にネットワークリクエストが発生しない」テスト（リクエスト数を0で固定）を壊さないため。
 
-年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。
+年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。**1ページは25件**（`web/features/ranking/types.ts`の`PAGE_SIZE`）——100件のときページ遷移で一瞬もたつくとの指摘があり、1回の再描画で作るDOMを1/4にするため下げた（全1,867社で75ページ）。データは全件embedのままなので、この変更でペイロードは変わらない。
 
 **推定式はADR-0005の2点モデル**（`web/features/ranking/lib/salary.ts`）。目標年齢が平均年齢より下では、その会社の賃金カーブが「22歳＝業種平均の水準」と「平均年齢＝実測の平均年間給与」の2点を通ると置いて間を業種カーブの形で結ぶ。平均年齢より上はADR-0003の倍率一定のまま。Issue #42（若年側の過大推定）はこれで解消した（キーエンス25歳 1,642万→788万）。**カーブは`curves.json`に千円で入っているので、`curveValuesInYen`で円に揃えてから`estimateSalary`に渡すこと**——旧式は比しか取らないので揃えなくても合っていた。経緯と却下案（標準労働者カーブは効果が小さく60歳側が悪化する）は`docs/ranking/estimation-model/design.md`とADR-0005にある。
 
@@ -84,7 +84,7 @@ Unit の実装を終えたら、次の順で進める。
 - `rankAll` / `rankIndustry` は `companies.rows` **と同じ並びの配列**。IDをキーにした辞書にしていない。**行がずれると別の会社の順位を出すので、`companies` と同じループで作ること**
 - **年齢別チャートは依存を足さずインラインSVG**（`features/company/components/SalaryCurveChart.tsx`）。rechartsは使わない。縦軸は0起点にせず、代わりに各点の金額を数値で併記している
 - **`AgeSwitch` は `design-system/` に昇格させず `features/ranking/` から import している。** `TargetAge`/`TARGET_AGES` というドメイン語彙に依存しており、design-systemに持ち込むと語彙か型が二重になるため。`TargetAge`・`estimateSalary`・`format` が本来「年収ドメイン」の共有物である点は既知の負債（`docs/company/company-page/design.md`）
-- ランキングの会社名は `<Link href="/company/{id}">`。ページ間遷移なので `<Link>` でよい（上の規約どおり）。**ただし `prefetch={false}` を必ず付ける**——既定だとビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんで**本番のトップページ表示だけで34件のリクエストが飛んだ**（実測。修正後は0件）。全ルートが動的レンダリングなので、そのぶんWorkerが起動する
+- ランキングの会社名は `<Link href="/company/{id}">`。ページ間遷移なので `<Link>` でよい（上の規約どおり）。**ただし `prefetch={false}` を必ず付ける**——既定だとビューポートに入った時点でRSCペイロードを取りに行き、**本番のトップページ表示だけで34件のリクエストが飛んだ**（1ページ100件だった頃の実測。修正後は0件）。全ルートが動的レンダリングなので、そのぶんWorkerが起動する
 - **プリフェッチは本番ビルドでしか動かないので、devサーバーに対して走るE2Eでは検出できない。** `npm run measure:prefetch`（`web/scripts/measure-prefetch.mjs`）で `npm run build && npx next start -p 3211` に対して測る。動的ルートへの `<Link>` を増やしたときはこれを回すこと
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**必ず「上位◯%」を隣に併記し、100を超えうる理由を注記する**（glossary参照）。

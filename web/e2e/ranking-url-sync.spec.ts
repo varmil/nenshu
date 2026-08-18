@@ -15,10 +15,17 @@ test.describe("URLクエリとの同期", () => {
     // companies.json全件がハイドレーション用データとして<script>内にも埋め込まれる
     // ため、単純な会社名の文字列検索では実際に描画された<table>の中身かどうかを
     // 区別できない。<table>...</table>内のtbody行数（見た目に表示される内容）だけを
-    // 数える。AC-7どおり銀行業は82社。
-    const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    const rowCount = (tableHtml.match(/<tr/g) ?? []).length - 1; // theadの1行を除く
-    expect(rowCount).toBe(82);
+    // 数える。AC-7どおり銀行業は82社で、1ページ25件なので1ページ目は25行になる。
+    const rowsIn = (body: string) => {
+      const tableHtml = body.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
+      return (tableHtml.match(/<tr/g) ?? []).length - 1; // theadの1行を除く
+    };
+    expect(rowsIn(html)).toBe(25);
+
+    // 82社 = 25件 × 3ページ + 7件。最終ページの端数まで見て件数を担保する。
+    const lastPage = await request.get("/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=4");
+    expect(lastPage.status()).toBe(200);
+    expect(rowsIn(await lastPage.text())).toBe(7);
   });
 
   test("AC-7: /?age=45&ind=銀行業 を直接開くと、45歳・銀行業82社の状態で復元される", async ({ page }) => {
@@ -27,8 +34,12 @@ test.describe("URLクエリとの同期", () => {
     await expect(page.getByRole("button", { name: "45歳" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("combobox", { name: "業種" })).toContainText("銀行業");
 
+    // 銀行業は82社。1ページ25件なので1ページ目は25行、最終ページ（4ページ目）が7行。
     const rows = page.getByRole("table").locator("tbody tr");
-    await expect(rows).toHaveCount(82);
+    await expect(rows).toHaveCount(25);
+
+    await page.goto("/?age=45&ind=銀行業&page=4");
+    await expect(rows).toHaveCount(7);
   });
 
   test("初期状態（何も操作しない）のURLは / のまま", async ({ page }) => {
