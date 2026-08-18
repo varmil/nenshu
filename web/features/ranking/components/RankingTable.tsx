@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/design-system/ui/table";
-import Link from "next/link";
+import { NavLink } from "@/features/navigation/components/NavLink";
 import { Badge } from "@/design-system/ui/badge";
 import type { RankedCompany, TargetAge } from "../types";
 import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
@@ -55,13 +55,13 @@ export function RankingTable({
                     **プリフェッチは本番でしか動かないため、devサーバーで走るE2Eでは
                     検出できない。** `npm run measure:prefetch` で測る。
                   */}
-                  <Link
+                  <NavLink
                     href={`/company/${company.id}`}
                     prefetch={false}
                     className="hover:underline"
                   >
                     {company.name}
-                  </Link>
+                  </NavLink>
                   {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}
                 </span>
               </TableCell>

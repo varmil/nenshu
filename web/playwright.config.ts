@@ -15,5 +15,10 @@ export default defineConfig({
   },
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // ブラウザを同梱できない実行環境（コンテナ等）向けの逃げ道。
+    // 未設定ならPlaywrightが自前で入れたChromiumをそのまま使う。
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+      : {},
   },
 });

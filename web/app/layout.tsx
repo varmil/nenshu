@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
+import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
 import "./globals.css";
 import {
   CLARITY_PROJECT_ID,
@@ -30,6 +31,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* ページ間の遷移中に上端へ細いバーを出す（`features/navigation`）。 */}
+        <NavProgressBar />
         {children}
         {/*
           Microsoft Clarity（Issue #44）。

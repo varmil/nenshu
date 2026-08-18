@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { NavLink } from "@/features/navigation/components/NavLink";
 import {
   Table,
   TableBody,
@@ -43,9 +43,9 @@ export default function AboutPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 leading-relaxed">
       <header className="flex flex-col gap-3">
-        <Link href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
+        <NavLink href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
           ← ランキングに戻る
-        </Link>
+        </NavLink>
         <h1 className="text-2xl font-bold">計算方法</h1>
         <p>
           このサイトは、有価証券報告書に載っている「平均年間給与」を、賃金カーブを使って
@@ -347,9 +347,9 @@ export default function AboutPage() {
       </Section>
 
       <footer>
-        <Link href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
+        <NavLink href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
           ← ランキングに戻る
-        </Link>
+        </NavLink>
       </footer>
     </div>
   );

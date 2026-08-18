@@ -18,7 +18,12 @@ import { chromium } from "@playwright/test";
 
 const base = process.argv[2] ?? "http://localhost:3211";
 
-const browser = await chromium.launch();
+// ブラウザを同梱できない実行環境向けの逃げ道（playwright.config.ts と同じ扱い）。
+const browser = await chromium.launch(
+  process.env.PLAYWRIGHT_CHROMIUM_PATH
+    ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
+    : {}
+);
 const page = await browser.newPage();
 
 const requests = [];
