@@ -11,17 +11,20 @@ const nextConfig: NextConfig = {
     root: dirname(fileURLToPath(import.meta.url)),
   },
   async headers() {
-    return [
+    // どちらのページもデータはビルド時に確定し、実行中は変わらない（更新は年1回）。
+    // ブラウザには短め、エッジには長めに持たせる。
+    // 静的アセット（_next/static/*）はWorkerを経由しないためここでは効かない。
+    // そちらは public/_headers で設定している。
+    const cacheHeaders = [
+      { key: "Cache-Control", value: "public, max-age=3600" },
       {
-        source: "/",
-        headers: [
-          { key: "Cache-Control", value: "public, max-age=3600" },
-          {
-            key: "Cloudflare-CDN-Cache-Control",
-            value: "public, s-maxage=86400, stale-while-revalidate=604800",
-          },
-        ],
+        key: "Cloudflare-CDN-Cache-Control",
+        value: "public, s-maxage=86400, stale-while-revalidate=604800",
       },
+    ];
+    return [
+      { source: "/", headers: cacheHeaders },
+      { source: "/about", headers: cacheHeaders },
     ];
   },
 };
