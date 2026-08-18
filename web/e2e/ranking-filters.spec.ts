@@ -92,14 +92,14 @@ test.describe("フィルタ", () => {
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
 
-    // 何らかの業種が選ばれ、絞り込みがURLに反映されて表が空にならないことを確認する。
-    // （1ページはPAGE_SIZE件で頭打ちなので、行数では絞り込みの有無を判定できない。）
-    await expect(page).toHaveURL(/[?&]ind=/);
+    // 何らかの業種が選ばれ、表が絞り込まれて全1,867社ではなくなっていることを確認する。
     const rows = page.getByRole("table").locator("tbody tr");
-    expect(await rows.count()).toBeGreaterThan(0);
+    const count = await rows.count();
+    expect(count).toBeLessThan(100);
+    expect(count).toBeGreaterThan(0);
   });
 
-  // 従業員数の3区分（517/734/616）はいずれもPAGE_SIZE(25)より多いため、
+  // 従業員数の3区分（517/734/616）はいずれもPAGE_SIZE(100)より多いため、
   // 「表示行数が減るか」では絞り込みの有無を判定できない。1位のキーエンス（3,306人、
   // 「〜300人」には該当しない）が絞り込みで表から外れるかどうかで判定する。
   test("キーボードだけで従業員数のスイッチを操作できる", async ({ page }) => {

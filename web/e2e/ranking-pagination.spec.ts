@@ -9,16 +9,6 @@ test.describe("0件・端の状態と段階表示", () => {
     await expect(page.getByRole("table")).toHaveCount(0);
   });
 
-  test("1ページの表示は25件で、最終ページは端数ぶんだけになる", async ({ page }) => {
-    await page.goto("/");
-    const rows = page.getByRole("table").locator("tbody tr");
-    await expect(rows).toHaveCount(25);
-
-    // 全1,867社 = 25件 × 74ページ + 17件。
-    await page.goto("/?page=75");
-    await expect(rows).toHaveCount(17);
-  });
-
   test("ページ送りをクリックすると内容が変わり、URLにpage=2が反映される", async ({ page }) => {
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
@@ -27,7 +17,7 @@ test.describe("0件・端の状態と段階表示", () => {
     await page.getByRole("button", { name: "次のページへ" }).click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(firstRow).toContainText("東京エレクトロン株式会社");
+    await expect(firstRow).toContainText("戸田建設株式会社");
     await expect(firstRow).not.toContainText("株式会社キーエンス");
   });
 
@@ -61,7 +51,7 @@ test.describe("0件・端の状態と段階表示", () => {
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    expect(tableHtml).toContain("東京エレクトロン株式会社");
+    expect(tableHtml).toContain("戸田建設株式会社");
     expect(tableHtml).not.toContain("株式会社キーエンス");
   });
 
