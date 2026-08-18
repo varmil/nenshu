@@ -29,7 +29,7 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 
 理由は ADR-0001・ADR-0002・ADR-0004にある（ADR-0004がADR-0001の「サーバー実行環境は要らない」・ADR-0002の`output:'export'`を一部supersede）。
 
-**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ（`useRankingState`参照）。**ページネーションのように離散的でネットワークを許容してよい操作は`<Link>`にしてよい**が、現状（1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持している間）は意味が無いため使っていない（U6・Issue #22参照）。
+**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ（`useRankingState`参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、現状1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持しているため、`<Link>`にする意味が無く使っていない（U6・Issue #22参照）。
 
 ## エージェントが従う優先順位
 
@@ -60,12 +60,17 @@ Unit の実装を終えたら、次の順で進める。
 
 ## 現在地
 
-Bolt 1（MVP: ランキング1ページ）に着手する段階。U0〜U6が実装済み: U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）。
+**Bolt 1（MVP: ランキング1ページ＋計算方法ページ）の全Unit U0〜U7が実装済み。** U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）・U7（計算方法ページ`/about`、`docs/ranking/about-page/`、Issue #8）。
 
-**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。U5完了後、フィルタ付きURLのSEO（クローラーが見るHTMLが常にビルド時の初期値になってしまう問題）を理由に**`output:'export'`をやめ`@opennextjs/cloudflare`でのフルSSRに移行した（ADR-0004）**。SSR成果物はエッジでキャッシュしている（`cache.enabled: true`、`docs/ranking/ssr-migration/design.md`参照）。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
+**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。`output:'export'`をやめ`@opennextjs/cloudflare`でフルSSRしている（ADR-0004）。`/`は`searchParams`を読むので`ƒ (Dynamic)`、`/about`は`○ (Static)`。SSR成果物はエッジでキャッシュ（`wrangler.jsonc`の`cache.enabled: true`＋`next.config.ts`の`headers()`）、`_next/static/*`はWorkerを経由しないため`public/_headers`で設定している。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
 
-次は `docs/ranking/overview.md` の U7（計算方法ページ`/about`、U1に依存）。
+年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。
 
-年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。ページネーションはクライアント側完結（`pushState`、ネットワーク非発生）——現状すでに全企業データが初回HTMLにembedされておりクライアントが全件保持しているため。**この「全件embed」アーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、掲載企業数を増やす（Issue #22、4,000社規模見込み）際は見直しが必要**（コメント済み）。
+**未解決の課題（Bolt 2 に入る前に判断が要る）:**
 
-Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`）のパス設計は`docs/ranking/overview.md`に確定済み。`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
+- **Issue #42: 若年側の推定が過大になる。** 式が「産業平均に対する倍率は何歳でも同じ」と仮定しているが、実際の倍率は中央値1.22倍・最大4.32倍（キーエンス）で、25歳時点が高給企業で大幅に過大に出る（キーエンス1,642万円・三菱商事1,491万円）。**実装のバグではなくモデルの仮定の問題。** 対処候補（標準労働者カーブ／初任給アンカー／令和7年データへの更新／就職四季報）はIssueに調査済み。当面は`/about`の限界セクションに定量的に開示している。
+- **Issue #22: 掲載企業数を増やす際のペイロード。** 全件embedアーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、4,000社規模では超過見込み。
+
+次は `docs/ranking/overview.md` の Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`。パス設計は確定済み）。
+
+`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
