@@ -1,6 +1,7 @@
 import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
 import { PAGE_SIZE } from "../types";
 import { matchesFilters } from "./filter";
+import { curveValuesInYen } from "./curve";
 import { matchesQuery } from "./search";
 import { estimateSalary } from "./salary";
 
@@ -24,10 +25,21 @@ export function buildRankedCompanies(
     (row) => matchesFilters(row, companies.industries, state) && matchesQuery(row[1], state.query)
   );
 
+  // 円に直したカーブは産業大分類ごとに1本しかないので、1,867行ぶん作り直さず使い回す。
+  const curvesInYen = new Map<string, number[]>();
+  const curveValuesFor = (curveKey: string) => {
+    let values = curvesInYen.get(curveKey);
+    if (values === undefined) {
+      values = curveValuesInYen(curves.curves[curveKey]);
+      curvesInYen.set(curveKey, values);
+    }
+    return values;
+  };
+
   const withSalary: Omit<RankedCompany, "rank">[] = filteredRows.map((row) => {
     const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees, badge] = row;
     const curveKey = companies.curveKeys[curveIdx];
-    const curveValues = curves.curves[curveKey];
+    const curveValues = curveValuesFor(curveKey);
     const estimatedSalary = estimateSalary(avgSalary, avgAge, curveValues, curves.agePoints, state.targetAge);
 
     return {

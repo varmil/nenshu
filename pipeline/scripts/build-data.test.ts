@@ -27,7 +27,15 @@ describe("buildData", () => {
     expect(result.companies.rows.length).toBe(1867);
   });
 
-  it("カーブから再計算した35歳時点の推定年収がCSVのsalary35と全1,867社で一致する", () => {
+  // CSVの `salary35` / `factor` / `rank_adj` は**旧式（ADR-0003）**の派生列で、
+  // 表示には使っていない（web側は avgSalary / avgAge / industry しか読まない）。
+  // 表示の推定式は ADR-0005 の2点モデルに変わっており、その検証は
+  // `web/features/ranking/lib/salary.test.ts` にある。
+  //
+  // このテストの役割は、**avgSalary・avgAge・industry の取り込みと、行と賃金カーブの
+  // 対応づけが正しい**ことを1,867社ぶん固定すること。ここがずれると全数値が静かに狂う。
+  // CSVを再生成する際は、旧式の列を作り直すか落とすかを決めること（Issue #46）。
+  it("旧式でカーブから再計算した値がCSVのsalary35と全1,867社で一致する（データ取り込みの検証）", () => {
     const { agePoints, curves } = result.curves;
     const mismatches: string[] = [];
 

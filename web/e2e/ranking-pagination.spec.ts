@@ -17,7 +17,7 @@ test.describe("0件・端の状態と段階表示", () => {
     await page.getByRole("button", { name: "次のページへ" }).click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(firstRow).toContainText("岩谷産業株式会社");
+    await expect(firstRow).toContainText("戸田建設株式会社");
     await expect(firstRow).not.toContainText("株式会社キーエンス");
   });
 
@@ -51,7 +51,7 @@ test.describe("0件・端の状態と段階表示", () => {
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    expect(tableHtml).toContain("岩谷産業株式会社");
+    expect(tableHtml).toContain("戸田建設株式会社");
     expect(tableHtml).not.toContain("株式会社キーエンス");
   });
 

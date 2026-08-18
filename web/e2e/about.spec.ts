@@ -12,7 +12,8 @@ test.describe("計算方法ページ（/about）", () => {
 
     // 式
     await expect(page.getByRole("heading", { name: "補正の式" })).toBeVisible();
-    await expect(page.getByText("推定年収（目標年齢）＝ 平均年間給与 ×")).toBeVisible();
+    await expect(page.getByText("目標年齢 ≦ 平均年齢:")).toBeVisible();
+    await expect(page.getByText("目標年齢 ＞ 平均年齢:")).toBeVisible();
 
     // 出典
     await expect(page.getByRole("heading", { name: "出典", exact: true })).toBeVisible();
@@ -26,24 +27,49 @@ test.describe("計算方法ページ（/about）", () => {
     // 限界
     await expect(page.getByRole("heading", { name: "この方法の限界" })).toBeVisible();
     await expect(page.getByText("推定値であって実測ではありません")).toBeVisible();
+    // カーブが「ある時点の断面」であることを、軌跡と取り違えない書き方で示している
+    await expect(
+      page.getByText("同じ人が歳を取っていく軌跡でも、1社の中で昇給していく軌跡でもありません")
+    ).toBeVisible();
   });
 
-  test("AC-10: 年齢スイッチが同業種内の順位を動かさないことが書かれている", async ({ page }) => {
+  test("AC-10: 年齢スイッチで順位がほとんど動かないことが、実測値付きで書かれている", async ({
+    page,
+  }) => {
     await page.goto("/about");
     await expect(
-      page.getByRole("heading", { name: "年齢スイッチは同業種内の順位を動かしません" })
+      page.getByRole("heading", { name: "年齢スイッチで順位はほとんど動きません" })
     ).toBeVisible();
-    // 理由（目標年齢が式から約分で消えること）まで書かれている
-    await expect(page.getByText("目標年齢が式から消えます")).toBeVisible();
+    // 理由（同業種は必ず同じカーブを引くこと）と、動く割合の実測値まで書かれている
+    await expect(page.getByText("同じ業種の2社は必ず同じカーブを引きます")).toBeVisible();
+    await expect(page.getByText("1.7%")).toBeVisible();
+    await expect(page.getByText("39社")).toBeVisible();
   });
 
-  test("若年側が過大に出るという限界が数値付きで書かれている", async ({ page }) => {
+  test("2点モデルの仮定と、残っている限界が数値付きで書かれている", async ({ page }) => {
     await page.goto("/about");
-    await expect(
-      page.getByText("産業平均より大幅に高い会社ほど、若い側の推定が過大になります")
-    ).toBeVisible();
-    // 印象ではなく実データの数値で書かれている
+    // 若い側で置いている仮定（22歳＝業種平均）と、その開きの実データ
+    await expect(page.getByRole("heading", { name: /22歳の水準を業種平均と置いています/ })).toBeVisible();
     await expect(page.getByText("中央値1.22倍")).toBeVisible();
+    await expect(
+      page.getByText("若い側の推定は逆に低めに出ます")
+    ).toBeVisible();
+    // 平均年齢より上に倍率一定が残っていることを、60歳の最大値付きで開示している
+    await expect(
+      page.getByRole("heading", { name: /平均年齢より上は、いまも倍率を一定と置いています/ })
+    ).toBeVisible();
+    await expect(page.getByText("2,213万円")).toBeVisible();
+  });
+
+  test("式の実例を電卓で追うと、表示している推定年収と同じ金額になる", async ({ page }) => {
+    await page.goto("/about");
+    // みずほ銀行・35歳。万円に丸めた値どうしで引き算すると1万円ずれるため、
+    // 途中の値は小数第1位まで出している。この桁で計算すると表示と同じ755万円になる。
+    await expect(page.getByText("カーブ（22歳）＝ 341.9万円")).toBeVisible();
+    await expect(page.getByText("カーブ（35歳）＝ 660.6万円")).toBeVisible();
+    await expect(page.getByText("カーブ（40.7歳）＝ 749.1万円")).toBeVisible();
+    await expect(page.getByText("平均年間給与 870.1万円")).toBeVisible();
+    await expect(page.getByText(/推定年収 ＝ .*＝ 755万円/)).toBeVisible();
   });
 
   test("「本社のみ」バッジの意味が実例付きで書かれている", async ({ page }) => {
@@ -74,7 +100,7 @@ test.describe("計算方法ページ（/about）", () => {
     const html = await response.text();
 
     expect(html).toContain("令和5年賃金構造基本統計調査");
-    expect(html).toContain("目標年齢が式から消えます");
+    expect(html).toContain("同じ業種の2社は必ず同じカーブを引きます");
     expect(html).toContain("株式会社みずほ銀行");
   });
 });
