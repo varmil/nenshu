@@ -106,6 +106,73 @@ describe("buildData", () => {
     );
   });
 
+  // stats.json は企業詳細ページ（`/company/[id]`）が使う母集団統計。順位を
+  // リクエストごとに計算しないための事前計算で、companies.json と行の並びが
+  // 一致していることが正しさの前提になる。
+  it("stats.json が8年齢 × 1,867社ぶんの順位を持つ", () => {
+    const { ages, count, rankAll, rankIndustry, population, industryCounts } = result.stats;
+    expect(ages).toEqual([25, 30, 35, 40, 45, 50, 55, 60]);
+    expect(count).toBe(1867);
+    expect(rankAll.length).toBe(1867);
+    expect(rankIndustry.length).toBe(1867);
+    expect(population.length).toBe(8);
+    expect(industryCounts.length).toBe(result.companies.industries.length);
+    expect(industryCounts.reduce((a, b) => a + b, 0)).toBe(1867);
+    for (const row of rankAll) expect(row.length).toBe(8);
+    for (const row of rankIndustry) expect(row.length).toBe(8);
+  });
+
+  it("stats.json の順位が推定年収の降順と一致する", () => {
+    const { agePoints, curves } = result.curves;
+    const { ages, rankAll, rankIndustry, industryCounts } = result.stats;
+    const rows = result.companies.rows;
+
+    for (let k = 0; k < ages.length; k++) {
+      const estimates = rows.map((row) =>
+        estimateSalary(
+          row[6],
+          row[4],
+          curveValuesInYen(curves[result.companies.curveKeys[row[3]]]),
+          agePoints,
+          ages[k]
+        )
+      );
+      for (let i = 0; i < rows.length; i++) {
+        // 同額は同順位（自分より高い会社の数 ＋ 1）。
+        const higher = estimates.filter((e) => e > estimates[i]).length;
+        expect(rankAll[i][k]).toBe(higher + 1);
+
+        const higherInIndustry = rows.filter(
+          (row, j) => row[2] === rows[i][2] && estimates[j] > estimates[i]
+        ).length;
+        expect(rankIndustry[i][k]).toBe(higherInIndustry + 1);
+        expect(rankIndustry[i][k]).toBeLessThanOrEqual(industryCounts[rows[i][2]]);
+      }
+    }
+  });
+
+  it("stats.json の母集団統計が実データと一致する", () => {
+    const { agePoints, curves } = result.curves;
+    const rows = result.companies.rows;
+    const estimates = rows.map((row) =>
+      estimateSalary(
+        row[6],
+        row[4],
+        curveValuesInYen(curves[result.companies.curveKeys[row[3]]]),
+        agePoints,
+        35
+      )
+    );
+    const mean = estimates.reduce((a, b) => a + b, 0) / estimates.length;
+    // 母標準偏差（n で割る）。対象は掲載している1,867社そのもの。
+    const sd = Math.sqrt(
+      estimates.reduce((s, x) => s + (x - mean) ** 2, 0) / estimates.length
+    );
+    const at35 = result.stats.population[result.stats.ages.indexOf(35)];
+    expect(at35.mean).toBe(Math.round(mean));
+    expect(at35.sd).toBe(Math.round(sd));
+  });
+
   it("補間は代表年齢の範囲外で端の値に頭打ちになる", () => {
     const points = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
     const values = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];

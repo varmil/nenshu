@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/design-system/ui/card";
+import Link from "next/link";
 import { Badge } from "@/design-system/ui/badge";
 import type { RankedCompany, TargetAge } from "../types";
 import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
@@ -18,7 +19,11 @@ export function RankingCardList({
             <div className="flex items-start justify-between gap-2">
               <div>
                 <span className="text-muted-foreground text-xs">{company.rank}位</span>
-                <p className="font-medium">{company.name}</p>
+                <p className="font-medium">
+                  <Link href={`/company/${company.id}`} className="hover:underline">
+                    {company.name}
+                  </Link>
+                </p>
                 <p className="text-muted-foreground text-xs">{company.tse33}</p>
               </div>
               {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}

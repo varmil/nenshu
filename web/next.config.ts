@@ -25,6 +25,7 @@ const nextConfig: NextConfig = {
     return [
       { source: "/", headers: cacheHeaders },
       { source: "/about", headers: cacheHeaders },
+      { source: "/company/:id", headers: cacheHeaders },
     ];
   },
 };
