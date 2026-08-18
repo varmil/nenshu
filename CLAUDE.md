@@ -78,7 +78,13 @@ Unit の実装を終えたら、次の順で進める。
 
 **企業ページのIDは 証券コード（1,760社）／EDINETコード（107社）**（ADR-0006）。現行の書類ID由来のIDは毎年の有報提出で変わり、URLが年1回リセットされてしまうため。`edinet_code` 列は将来の10年推移でも名寄せキーになる。実装はC0（Issue #51）。
 
-**企業詳細ページ `/company/[id]` の施策は `docs/company/`** （product.mdの施策マップで `ranking` とは別施策）。v1は手持ちデータで作れる5項目（平均年収・年収偏差値・全体順位・業界内順位・年齢別チャート）。実装はC1（Issue #52）。順位・偏差値の母集団統計は**ビルド時に確定させる**——Workers FreeのCPU 10ms/リクエスト制約があるため、リクエストごとに1,867社×8年齢を計算しない。
+**企業詳細ページ `/company/[id]` の施策は `docs/company/`** （product.mdの施策マップで `ranking` とは別施策）。v1は手持ちデータで作れる5項目（平均年収・年収偏差値・全体順位・業界内順位・年齢別チャート）。C1（Issue #52）で実装済み。
+
+- **順位・偏差値の母集団統計は `stats.json` にビルド時に確定させてある**（`pipeline/scripts/build-data.ts` の `buildStats`）。Workers FreeのCPU 10ms/リクエスト制約があるため、リクエストごとに1,867社×8年齢（約15,000回の補間）を回さない。リクエスト時の計算は当該1社ぶんの8年齢＝16回だけ。`/` は `stats.json` を読まないのでトップページのペイロードは増えない
+- `rankAll` / `rankIndustry` は `companies.rows` **と同じ並びの配列**。IDをキーにした辞書にしていない。**行がずれると別の会社の順位を出すので、`companies` と同じループで作ること**
+- **年齢別チャートは依存を足さずインラインSVG**（`features/company/components/SalaryCurveChart.tsx`）。rechartsは使わない。縦軸は0起点にせず、代わりに各点の金額を数値で併記している
+- **`AgeSwitch` は `design-system/` に昇格させず `features/ranking/` から import している。** `TargetAge`/`TARGET_AGES` というドメイン語彙に依存しており、design-systemに持ち込むと語彙か型が二重になるため。`TargetAge`・`estimateSalary`・`format` が本来「年収ドメイン」の共有物である点は既知の負債（`docs/company/company-page/design.md`）
+- ランキングの会社名は `<Link href="/company/{id}">`。ページ間遷移なので `<Link>` でよい（上の規約どおり）
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**必ず「上位◯%」を隣に併記し、100を超えうる理由を注記する**（glossary参照）。
 

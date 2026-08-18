@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/design-system/ui/table";
+import Link from "next/link";
 import { Badge } from "@/design-system/ui/badge";
 import type { RankedCompany, TargetAge } from "../types";
 import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
@@ -44,7 +45,9 @@ export function RankingTable({
               <TableCell className="text-muted-foreground">{company.rank}</TableCell>
               <TableCell>
                 <span className="flex items-center gap-1.5">
-                  {company.name}
+                  <Link href={`/company/${company.id}`} className="hover:underline">
+                    {company.name}
+                  </Link>
                   {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}
                 </span>
               </TableCell>

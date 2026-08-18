@@ -37,7 +37,9 @@ spec.md の 1.1〜1.9 すべて。ルート・数値・チャート・ランキ�
 
 **年齢スイッチ（`features/ranking/components/AgeSwitch.tsx`）** — ranking 施策のものを企業詳細ページからも使う。**2つ目の施策から使う最初のコンポーネントになる。**
 
-`docs/AI-DLC実践リファレンス_v10.pdf` の運用ルール④「featureをまたぐUIは `design-system/components/` へ昇格（Issue起票→設計承認を厚く）」に該当する。C1 の設計時に、昇格させるか `features/ranking/` から import するかを判断し、昇格させるなら `design-system/inventory.md` に記録する。
+`docs/AI-DLC実践リファレンス_v10.pdf` の運用ルール④「featureをまたぐUIは `design-system/components/` へ昇格（Issue起票→設計承認を厚く）」に該当する。
+
+**C1 で「昇格させない」と判断した。** `AgeSwitch` は `TargetAge` / `TARGET_AGES`（glossary の「目標年齢」）というドメイン語彙に依存しており、`design-system/` に持ち込むと語彙か型のどちらかが二重になる。`features/ranking/` から import する。理由と、`TargetAge` / `estimateSalary` / `format` が本来は共有ドメインである点（既知の負債）は `docs/company/company-page/design.md` にある。
 
 **推定年収の計算（`features/ranking/lib/salary.ts` ほか）** — 同じく ranking 施策の純粋関数をそのまま使う。**式を書き写さない**（ADR-0005 で決めた線。写すと片方の変更を取り逃す）。
 
