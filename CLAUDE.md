@@ -17,6 +17,7 @@ AI-DLC のフェーズ定義・ドキュメント種別（spec / overview / plan
 | 何を作るか・受け入れ基準 | `docs/ranking/spec.md` |
 | Unit の分解と順序 | `docs/ranking/overview.md` |
 | 不可逆な技術決定 | `docs/adr/NNNN-*.md` |
+| Unit の起票からマージまでの手順 | この CLAUDE.md の「Unit の起票（着手前）」「Unit完了後の運用」／`.github/ISSUE_TEMPLATE/`・`.github/pull_request_template.md` |
 
 Unit ごとの `plan.md` / `design.md` は、その Unit に着手する時点で書く。事前に埋めない。
 
@@ -48,12 +49,28 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 - **`web/` のロックファイルを更新したら、ローカルのnpmバージョンではなく `npx npm@10.9.2 ci`（Cloudflareのビルド環境が使うバージョン。変わっていたらビルドログの `Detected the following tools` 行で確認）で `npm ci` が通ることを確認する。** ローカルのnpmが新しいと、optionalDependencies（`@emnapi/*` 等）の解決がnpmバージョン間で微妙に異なり、ローカルでは通るのにCloudflareの `npm ci` だけ「lock fileとずれている」で失敗することがある（実際に2回発生した）。**このルールは `web/` に限る。** Cloudflareがビルドするのは `web/` だけで、ルートと `pipeline/` はCIの対象外のため、ローカルのnpmで `npm ci` が通ることの確認で足りる。
 - **見た目（レイアウト・レスポンシブ・キーボード操作等）または機能に変更があるときは、Unitテスト（統合テスト含む）とE2Eテスト（`web/e2e/`, `npm run test:e2e`）の両方を書き、リポジトリに残す。** その場限りの動作確認で済ませない。ロジックの正しさはUnitテストで固定し、実際にブラウザでどう描画・動作するか（型チェック・Unitテストでは検出できない領域）はE2Eで固定する。U3でこの運用により実際にモバイル幅の横スクロールバグを検出できた（`docs/ranking/ranking-filters/design.md`参照）。既存のE2Eファイル（例: `web/e2e/ranking-filters.spec.ts`）に該当する変更なら新規ファイルを増やさずそこに追記してよい。
 
+## Unit の起票（着手前）
+
+**1 Unit = 1 Issue = 原則1 PR = `docs/<施策>/<unit>/` の plan.md・design.md。** AI-DLC リファレンスのスコープ構造どおり、**Issue が Unit の正**（契約書）で、完了条件はそこにある。
+
+着手の順序は次のとおり。
+
+1. **`docs/<施策>/overview.md` の Unit 一覧に載っていない Unit は着手しない。** 先に overview.md に行を足す（ID・依存・対応する受け入れ基準・共有コンポーネントに触るか）。ID は施策ごとの連番（ranking は `U`、company は `C`）。
+2. **Issue を立てる。** タイトルは `[Unit] <ID> <名前>`、ラベルは `unit` と `bolt-N`。テンプレは `.github/ISSUE_TEMPLATE/unit.md` で、**参照（spec の節・ADR）／依存／完了条件／非対象は必須**。完了条件は spec.md の受け入れ基準に対応させ、チェックできる形で書く。
+3. **その Issue 番号を持って plan.md を書き、着手する。** plan.md・design.md の冒頭から Issue を参照する（Issue → spec → ADR がリンクで辿れる状態にする）。
+
+Unit にしないもの——1コミットで終わる修正・ドキュメントのみの変更・依存更新——は Issue 無しで進めてよい。その場合は PR 本文の「対応 Issue」に理由を1行書く。**plan.md や design.md を書きたくなった時点でそれは Unit なので、先に Issue を立てる。**
+
+まだ Unit に割れていない要望・課題は `.github/ISSUE_TEMPLATE/idea.md`（`【親】` 始まり、ラベル無し）で起票し、割った時点で `[Unit]` Issue を子として立てて親をリンクする。
+
+進めながら分かったことは Issue のコメントではなく **design.md に書く**。Issue のコメントは決定の置き場所にしない（`docs/` の外に「AI が読めない決定」を作らないため）。
+
 ## Unit完了後の運用
 
 Unit の実装を終えたら、次の順で進める。
 
 1. **動作チェック**: ビルドとテストを実行する。見た目・機能に変更があるUnitは「開発上の約束」のとおりUnitテスト・E2Eテストを書いたうえで、UIを持つUnitはさらに dev server を起動して実際にブラウザで機能を触って確認する（型チェック・テストが通ることはコードの正しさの保証であって、機能の正しさの保証ではない）。**ブラウザ操作ツールがそのセッションで使えない場合は、E2Eテストの実行結果で代替してよい。** `package.json` に変更があるなら `package-lock.json` が更新・ステージされているかもここで確認する（「開発上の約束」参照）。
-2. 対応する Issue に紐づけた PR を作成する（`Closes #<番号>`）。
+2. 対応する Issue に紐づけた PR を作成する（`Closes #<番号>`）。本文は `.github/pull_request_template.md` の節をそのまま埋める（動作チェックの結果と docs の更新をここで突き合わせる）。
 3. **動作チェックに問題がなければ、承認を待たずにマージしてよい。** 問題が見つかった場合はマージせず、内容を報告する。
 
 この許可は Unit の実装フロー（ビルド・テスト・PR・マージ）に限る。破壊的な操作（force push・履歴の書き換え等）や、この運用の対象外の判断が要る場面は都度確認する。
