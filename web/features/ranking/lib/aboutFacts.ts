@@ -1,5 +1,6 @@
 import type { CompaniesData, CompanyRow, CurvesData } from "../types";
-import { interpolate } from "./curve";
+import { curveValuesInYen, interpolate } from "./curve";
+import { estimateSalary } from "./salary";
 import { TARGET_AGES } from "../types";
 
 /** 計算方法ページで実例として挙げる会社。 */
@@ -20,26 +21,31 @@ export interface FormulaExample {
   targetAge: number;
   /** 賃金カーブを引く産業大分類（例: 金融業・保険業）。 */
   curveKey: string;
+  /** カーブの起点（22歳）の値（円）。2点モデルの若い側のアンカー。 */
+  curveAtAnchorAge: number;
+  /** カーブの起点の年齢。`agePoints[0]`。 */
+  anchorAge: number;
   /** カーブの目標年齢での値（円）。 */
   curveAtTargetAge: number;
   /** カーブのその会社の平均年齢での値（円）。 */
   curveAtAvgAge: number;
-  /** 補正倍率 = curveAtTargetAge ÷ curveAtAvgAge。 */
-  factor: number;
   estimatedSalary: number;
 }
 
 /**
- * 「平均年齢から離れた年齢ほど不確実」という限界を、印象ではなく数字で書くための材料。
- * 詳しい経緯は Issue #42 と `docs/ranking/about-page/plan.md` にある。
+ * この方法の限界を、印象ではなく数字で書くための材料。
+ * 詳しい経緯は Issue #42 と `docs/ranking/estimation-model/design.md` にある。
  */
 export interface ModelBiasFacts {
-  /** 産業平均に対する倍率の分布。式はこれが全年齢で一定だと仮定している。 */
+  /**
+   * その会社の平均年間給与が、同じ産業・同じ年齢の平均の何倍か、の分布。
+   * 2点モデルは、この開きが22歳の時点では無い（会社の初任給＝業種平均）と置いている。
+   */
   premiumMedian: number;
   premiumP90: number;
   premiumMax: number;
   premiumMaxCompanyName: string;
-  /** 掲載企業の平均年齢の中央値。ここから離れるほど外挿になる。 */
+  /** 掲載企業の平均年齢の中央値。ここから離れるほど推定の確からしさが落ちる。 */
   avgAgeMedian: number;
   /** 目標年齢ごとの「その会社の平均年齢からの距離」の平均。 */
   meanExtrapolationByAge: { age: number; distance: number }[];
@@ -47,6 +53,14 @@ export interface ModelBiasFacts {
   top50Overlap: number;
   youngestTargetAge: number;
   oldestTargetAge: number;
+  /**
+   * 同じ業種の2社の組のうち、目標年齢を変えると順序が入れ替わるものの割合（%）。
+   * 平均年齢が同じなら順序は動かない。旧式では業種内の順序が完全に不変だった。
+   */
+  sameIndustrySwapPercent: number;
+  /** 最年長の目標年齢での推定年収の最大値と、その会社。倍率一定が残っている側。 */
+  oldestMaxEstimate: number;
+  oldestMaxCompanyName: string;
 }
 
 /** 計算方法ページの本文に埋める数値。 */
@@ -127,7 +141,7 @@ function quantile(sorted: number[], p: number): number {
 }
 
 function curveValuesFor(companies: CompaniesData, curves: CurvesData, row: CompanyRow): number[] {
-  return curves.curves[companies.curveKeys[row[3]]].map((v) => v * 1000);
+  return curveValuesInYen(curves.curves[companies.curveKeys[row[3]]]);
 }
 
 function estimateFor(
@@ -136,10 +150,13 @@ function estimateFor(
   row: CompanyRow,
   targetAge: number
 ): number {
-  const values = curveValuesFor(companies, curves, row);
-  const factor =
-    interpolate(curves.agePoints, values, targetAge) / interpolate(curves.agePoints, values, row[4]);
-  return row[6] * factor;
+  return estimateSalary(
+    row[6],
+    row[4],
+    curveValuesFor(companies, curves, row),
+    curves.agePoints,
+    targetAge
+  );
 }
 
 function buildModelBiasFacts(companies: CompaniesData, curves: CurvesData): ModelBiasFacts {
@@ -163,6 +180,10 @@ function buildModelBiasFacts(companies: CompaniesData, curves: CurvesData): Mode
       .map((r) => r.id);
   const youngestTop50 = new Set(rankedIdsAt(youngest));
 
+  const oldestTop = companies.rows
+    .map((row) => ({ name: row[1], value: estimateFor(companies, curves, row, oldest) }))
+    .reduce((a, b) => (b.value > a.value ? b : a));
+
   return {
     premiumMedian: quantile(sortedPremiums, 0.5),
     premiumP90: quantile(sortedPremiums, 0.9),
@@ -177,7 +198,42 @@ function buildModelBiasFacts(companies: CompaniesData, curves: CurvesData): Mode
     top50Overlap: rankedIdsAt(oldest).filter((id) => youngestTop50.has(id)).length,
     youngestTargetAge: youngest,
     oldestTargetAge: oldest,
+    sameIndustrySwapPercent: sameIndustrySwapPercent(companies, curves),
+    oldestMaxEstimate: oldestTop.value,
+    oldestMaxCompanyName: oldestTop.name,
   };
+}
+
+/**
+ * 同じ業種（東証33業種）の2社の組のうち、目標年齢を変えると大小が入れ替わるものの割合。
+ *
+ * 旧式（ADR-0003）では補正倍率が業種ごとの共通因子になり、業種内の順序は目標年齢に
+ * よらず完全に不変だった。2点モデルでは平均年齢が違う会社どうしで入れ替わりうる。
+ * 「順位は動かない」と書き続けないために、実測して本文に出す。
+ *
+ * 計算方法ページはビルド時に一度だけ描画されるので、O(n²) でも問題にならない。
+ */
+function sameIndustrySwapPercent(companies: CompaniesData, curves: CurvesData): number {
+  const byIndustry = new Map<number, number[][]>();
+  for (const row of companies.rows) {
+    const estimates = TARGET_AGES.map((age) => estimateFor(companies, curves, row, age));
+    const group = byIndustry.get(row[2]);
+    if (group === undefined) byIndustry.set(row[2], [estimates]);
+    else group.push(estimates);
+  }
+
+  let pairs = 0;
+  let swapped = 0;
+  for (const group of byIndustry.values()) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        pairs++;
+        const first = group[i][0] > group[j][0];
+        if (TARGET_AGES.some((_, k) => group[i][k] > group[j][k] !== first)) swapped++;
+      }
+    }
+  }
+  return pairs === 0 ? 0 : (swapped / pairs) * 100;
 }
 
 function buildFormulaExample(
@@ -188,7 +244,7 @@ function buildFormulaExample(
 ): FormulaExample {
   const curveKey = companies.curveKeys[row[3]];
   // カーブは千円単位で持っているので、本文の金額と桁を揃えるため円に直す。
-  const curveValues = curves.curves[curveKey].map((v) => v * 1000);
+  const curveValues = curveValuesInYen(curves.curves[curveKey]);
   const curveAtTargetAge = interpolate(curves.agePoints, curveValues, FORMULA_EXAMPLE_TARGET_AGE);
   const curveAtAvgAge = interpolate(curves.agePoints, curveValues, company.avgAge);
 
@@ -196,9 +252,16 @@ function buildFormulaExample(
     company,
     targetAge: FORMULA_EXAMPLE_TARGET_AGE,
     curveKey,
+    anchorAge: curves.agePoints[0],
+    curveAtAnchorAge: curveValues[0],
     curveAtTargetAge,
     curveAtAvgAge,
-    factor: curveAtTargetAge / curveAtAvgAge,
-    estimatedSalary: Math.round(company.avgSalary * (curveAtTargetAge / curveAtAvgAge)),
+    estimatedSalary: estimateSalary(
+      company.avgSalary,
+      company.avgAge,
+      curveValues,
+      curves.agePoints,
+      FORMULA_EXAMPLE_TARGET_AGE
+    ),
   };
 }

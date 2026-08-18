@@ -16,3 +16,15 @@ export function interpolate(points: number[], values: number[], x: number): numb
   const y1 = values[i + 1];
   return y0 + ((y1 - y0) * (x - x0)) / (x1 - x0);
 }
+
+/**
+ * カーブは `curves.json` に千円単位で入っている（賃金構造基本統計調査の表記のまま）。
+ * 会社の平均年間給与は円なので、両者を足し引きする前にここで桁を揃える。
+ *
+ * 旧式（ADR-0003）はカーブの比しか取らなかったため単位が打ち消し合っていたが、
+ * 2点モデル（ADR-0005）はカーブの値を給与そのものと足し引きするので、
+ * 揃えないと1,000倍ずれる。
+ */
+export function curveValuesInYen(values: number[]): number[] {
+  return values.map((v) => v * 1000);
+}

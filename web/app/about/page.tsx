@@ -10,7 +10,12 @@ import {
 } from "@/design-system/ui/table";
 import { Badge } from "@/design-system/ui/badge";
 import { buildAboutFacts } from "@/features/ranking/lib/aboutFacts";
-import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
+import {
+  formatDecimal1,
+  formatInt,
+  formatManYen,
+  formatManYen1,
+} from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
@@ -51,35 +56,65 @@ export default function AboutPage() {
       </header>
 
       <Section title="補正の式">
-        <p className="bg-muted rounded-md p-4 font-mono text-sm">
-          推定年収（目標年齢）＝ 平均年間給与 × カーブ（目標年齢）÷ カーブ（その会社の平均年齢）
+        <p>
+          式は2つあります。選んだ目標年齢が、その会社の平均年齢より
+          <strong>下（若い側）か上か</strong>で変わります。
+        </p>
+        <p className="bg-muted overflow-x-auto rounded-md p-4 font-mono text-sm">
+          目標年齢 ≦ 平均年齢:
+          <br />
+          推定年収 ＝ カーブ（{ex.anchorAge}歳）
+          <br />
+          　　　　　＋（平均年間給与 − カーブ（{ex.anchorAge}歳））
+          <br />
+          　　　　　　×（カーブ（目標年齢）− カーブ（{ex.anchorAge}歳））
+          <br />
+          　　　　　　÷（カーブ（平均年齢）− カーブ（{ex.anchorAge}歳））
+          <br />
+          <br />
+          目標年齢 ＞ 平均年齢:
+          <br />
+          推定年収 ＝ 平均年間給与 × カーブ（目標年齢）÷ カーブ（平均年齢）
+        </p>
+        <p>
+          若い側は、その会社の賃金カーブが<strong>2つの点を通る</strong>と置いています。
+          {ex.anchorAge}歳では業種平均の水準、平均年齢ではその会社の実測の平均年間給与。
+          この2点の間を、業種カーブの形でつないでいます。
+        </p>
+        <p>
+          会社ごとの給与の差は、
+          <strong>若いうちは小さく、年次や等級を重ねるにつれて開いていきます</strong>
+          。「産業平均に対する倍率は何歳でも同じ」と置くと、産業平均より大幅に高い会社では若い側が過大に出ます。それを避けるための式です。
         </p>
         <p>
           実例として、{ex.company.name}を目標年齢{ex.targetAge}歳で見た場合の計算をそのまま示します。
         </p>
         <ul className="ml-5 list-disc space-y-1">
           <li>
-            平均年間給与 <strong>{formatManYen(ex.company.avgSalary)}</strong>（平均年齢
+            平均年間給与 <strong>{formatManYen1(ex.company.avgSalary)}</strong>（平均年齢
             {formatDecimal1(ex.company.avgAge)}歳）
           </li>
           <li>
-            カーブ（{ex.targetAge}歳）＝ {formatManYen(ex.curveAtTargetAge)}
+            カーブ（{ex.anchorAge}歳）＝ {formatManYen1(ex.curveAtAnchorAge)}
           </li>
           <li>
-            カーブ（{formatDecimal1(ex.company.avgAge)}歳）＝ {formatManYen(ex.curveAtAvgAge)}
+            カーブ（{ex.targetAge}歳）＝ {formatManYen1(ex.curveAtTargetAge)}
           </li>
           <li>
-            補正倍率 ＝ {formatManYen(ex.curveAtTargetAge)} ÷ {formatManYen(ex.curveAtAvgAge)} ＝{" "}
-            <strong>{ex.factor.toFixed(3)}</strong>
+            カーブ（{formatDecimal1(ex.company.avgAge)}歳）＝ {formatManYen1(ex.curveAtAvgAge)}
           </li>
           <li>
-            推定年収 ＝ {formatManYen(ex.company.avgSalary)} × {ex.factor.toFixed(3)} ＝{" "}
+            推定年収 ＝ {formatManYen1(ex.curveAtAnchorAge)} ＋（
+            {formatManYen1(ex.company.avgSalary)} −{formatManYen1(ex.curveAtAnchorAge)}）×（
+            {formatManYen1(ex.curveAtTargetAge)} −{formatManYen1(ex.curveAtAnchorAge)}）÷（
+            {formatManYen1(ex.curveAtAvgAge)} −{formatManYen1(ex.curveAtAnchorAge)}）＝{" "}
             <strong>{formatManYen(ex.estimatedSalary)}</strong>
           </li>
         </ul>
         <p>
           平均{formatDecimal1(ex.company.avgAge)}歳の会社の平均給与を、{ex.targetAge}
           歳時点の水準に引き直しています。
+          {/* 万円に丸めた値どうしで引き算すると答えが1万円ずれるため、途中の値は小数第1位まで出している */}
         </p>
       </Section>
 
@@ -168,24 +203,22 @@ export default function AboutPage() {
         </p>
       </Section>
 
-      <Section title="年齢スイッチは同業種内の順位を動かしません">
-        <p>これは仕様であって不具合ではありません。式の比を取ると分かります。</p>
-        <p className="bg-muted rounded-md p-4 font-mono text-sm">
-          推定年収A ÷ 推定年収B ＝ （平均給与A ÷ カーブ(平均年齢A)）÷（平均給与B ÷ カーブ(平均年齢B)）
+      <Section title="年齢スイッチで順位はほとんど動きません">
+        <p>これは仕様であって不具合ではありません。</p>
+        <p>
+          東証{facts.industryCount}業種はどれも産業大分類に多対一で対応するので、
+          <strong>同じ業種の2社は必ず同じカーブを引きます</strong>
+          。同じカーブを引き、かつ平均年齢も同じ2社では、目標年齢を変えても両社に同じ変換が掛かるだけなので、大小関係は動きません。
         </p>
         <p>
-          同じカーブを引く2社では、分子のカーブ（目標年齢）が両方に同じだけ掛かるので約分され、
-          <strong>目標年齢が式から消えます</strong>。東証{facts.industryCount}
-          業種はどれも産業大分類に多対一で対応するので、同じ業種の2社は必ず同じカーブを引きます。したがって同業種内の並び順は目標年齢によらず変わりません。
+          平均年齢が違う会社どうしなら入れ替わりえます。実際に全組み合わせを数えると、同じ業種の2社の組のうち目標年齢によって順序が変わるのは
+          <strong>{bias.sameIndustrySwapPercent.toFixed(1)}%</strong>
+          だけです。上位50社の顔ぶれも、{bias.youngestTargetAge}歳時点と{bias.oldestTargetAge}
+          歳時点で<strong>{bias.top50Overlap}社</strong>が重なります。
         </p>
         <p>
-          順位が動くのは業種をまたぐ比較だけです。実際、上位50社の顔ぶれは
-          {bias.youngestTargetAge}歳時点と{bias.oldestTargetAge}歳時点で
-          <strong>{bias.top50Overlap}社</strong>が重なります。
-        </p>
-        <p>
-          年齢スイッチが変えるのは順位ではなく<strong>金額</strong>
-          です。「その年齢ならいくらか」を知るための機能で、「年齢を変えると順位が入れ替わる」機能ではありません。
+          年齢スイッチが変えるのは、順位というより<strong>金額</strong>
+          です。「その年齢ならいくらか」を知るための機能で、「年齢を変えると順位が大きく入れ替わる」機能ではありません。
         </p>
       </Section>
 
@@ -206,9 +239,11 @@ export default function AboutPage() {
           </div>
 
           <div>
-            <h3 className="font-bold">カーブは会社間の差から作っています</h3>
+            <h3 className="font-bold">カーブはある時点の断面です</h3>
             <p>
-              「平均年齢の高い会社ほど年収も高い」という会社をまたいだ関係を、年功カーブと読み替えています。1社の中で実際に昇給していく軌跡ではありません。
+              賃金カーブは、調査時点にいた労働者を年齢階級ごとに平均したものです。
+              <strong>同じ人が歳を取っていく軌跡でも、1社の中で昇給していく軌跡でもありません。</strong>
+              中途入社の人も含まれるため、同じ会社に勤め続けた場合の昇給より傾きは緩やかになります。
             </p>
           </div>
 
@@ -223,31 +258,51 @@ export default function AboutPage() {
 
           <div>
             <h3 className="font-bold">
-              平均年齢から離れた年齢ほど不確実です。特に若い側は高く出ます
+              {ex.anchorAge}歳の水準を業種平均と置いています
             </h3>
             <p>
-              この式は<strong>「その会社の産業平均に対する倍率は何歳でも同じ」</strong>
-              と仮定しています。実際の倍率は中央値{bias.premiumMedian.toFixed(2)}倍、上位10%で
-              {bias.premiumP90.toFixed(2)}倍、最大は{bias.premiumMaxCompanyName}の
-              {bias.premiumMax.toFixed(2)}倍で、産業平均より大幅に高い会社があります。
+              若い側の式は、その会社の{ex.anchorAge}
+              歳時点の給与が業種平均と同じだと仮定しています。会社ごとの給与の開きは実際には中央値
+              {bias.premiumMedian.toFixed(2)}倍、上位10%で{bias.premiumP90.toFixed(2)}倍、最大は
+              {bias.premiumMaxCompanyName}の{bias.premiumMax.toFixed(2)}
+              倍まであり、この開きが{ex.anchorAge}歳では無くなると置いていることになります。
             </p>
             <p className="mt-2">
-              しかし会社ごとの給与の差は、
-              <strong>若いうちは小さく、年次や等級を重ねるにつれて開いていきます</strong>
-              。倍率を全年齢で一定と置くと、
-              <strong>産業平均より大幅に高い会社ほど、若い側の推定が過大になります</strong>。
+              初任給の水準が業種平均より高い会社では、
+              <strong>若い側の推定は逆に低めに出ます</strong>
+              。倍率を全年齢で一定と置いていた以前の式では、最も開きの大きい会社で25歳の推定が2倍を超えて出ていました。それに比べれば小さなずれですが、ゼロではありません。
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-bold">
+              平均年齢より上は、いまも倍率を一定と置いています
+            </h3>
+            <p>
+              若い側と違い、平均年齢より上では「産業平均に対する倍率は変わらない」という仮定が残っています。
+              {bias.oldestTargetAge}歳時点の推定は最大で{bias.oldestMaxCompanyName}の
+              {formatManYen(bias.oldestMaxEstimate)}
+              になります。ここを直すだけの根拠になるデータを見つけられていないため、置き換えていません。
             </p>
             <p className="mt-2">
+              加えて{bias.oldestTargetAge}
+              歳付近のカーブは、定年や再雇用で賃金の下がった人を含む産業平均の形です。それをそのままその会社の
+              {bias.oldestTargetAge}歳に当てています。
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-bold">平均年齢から離れた年齢ほど不確実です</h3>
+            <p>
               掲載企業の平均年齢は中央値{formatDecimal1(bias.avgAgeMedian)}
-              歳です。目標年齢25歳を選ぶと平均{extrapolation.get(25)?.toFixed(1)}
-              歳ぶん外挿することになり、40歳（{extrapolation.get(40)?.toFixed(1)}
-              歳）に比べて仮定への負荷がはるかに大きくなります。60歳側も
+              歳です。目標年齢{bias.youngestTargetAge}歳を選ぶと平均
+              {extrapolation.get(25)?.toFixed(1)}歳ぶん、{bias.oldestTargetAge}歳なら
               {extrapolation.get(60)?.toFixed(1)}
-              歳離れているうえ、カーブが定年・再雇用で賃金の下がった人を含む形になっています。
+              歳ぶん、実測から離れた場所を推定することになります。40歳（
+              {extrapolation.get(40)?.toFixed(1)}歳）が最も近く、両端が最も遠くなります。
             </p>
             <p className="mt-2">
               <strong>平均年齢に近い年齢ほど確からしく、離れるほど幅を持って読んでください。</strong>
-              この点は改善すべき課題として認識しています。
             </p>
           </div>
 

@@ -62,20 +62,38 @@ describe("buildAboutFacts の式の実例", () => {
     expect(e.curveKey).toBe("金融業・保険業");
   });
 
-  it("式が実際に成り立つ（推定年収 = 平均年間給与 × 倍率）", () => {
-    expect(e.factor).toBeCloseTo(e.curveAtTargetAge / e.curveAtAvgAge, 10);
-    expect(e.estimatedSalary).toBe(Math.round(e.company.avgSalary * e.factor));
+  it("2点モデルのアンカーは22歳で、カーブの起点の値を円で持つ", () => {
+    expect(e.anchorAge).toBe(22);
+    expect(e.curveAtAnchorAge).toBe(curves.curves["金融業・保険業"][0] * 1000);
   });
 
-  it("平均年齢40.7歳を35歳へ補正するので倍率は1未満、推定は767万円", () => {
-    expect(e.factor).toBeLessThan(1);
-    expect(Math.round(e.estimatedSalary / 10000)).toBe(767);
+  it("本文に書いた式をそのまま計算すると推定年収に一致する", () => {
+    const recomputed =
+      e.curveAtAnchorAge +
+      ((e.company.avgSalary - e.curveAtAnchorAge) * (e.curveAtTargetAge - e.curveAtAnchorAge)) /
+        (e.curveAtAvgAge - e.curveAtAnchorAge);
+    expect(e.estimatedSalary).toBe(Math.round(recomputed));
+  });
+
+  it("平均年齢40.7歳を35歳へ引き直すので平均年間給与より低く、推定は755万円", () => {
+    expect(e.estimatedSalary).toBeLessThan(e.company.avgSalary);
+    expect(Math.round(e.estimatedSalary / 10000)).toBe(755);
+  });
+
+  it("本文に小数第1位まで出した値で計算しても、表示している推定年収と同じ万円になる", () => {
+    // 万円に丸めた値どうしで引き算すると1万円ずれる。桁を1つ増やせば合う（U7で踏んだ）。
+    const man1 = (yen: number) => Number((yen / 10000).toFixed(1));
+    const a = man1(e.curveAtAnchorAge);
+    const byHand =
+      a + ((man1(e.company.avgSalary) - a) * (man1(e.curveAtTargetAge) - a)) / (man1(e.curveAtAvgAge) - a);
+    expect(Math.round(byHand)).toBe(Math.round(e.estimatedSalary / 10000));
   });
 
   it("rank.ts の estimateSalary と同じ値になる（表と食い違わせない）", async () => {
     const { estimateSalary } = await import("./salary");
+    const { curveValuesInYen } = await import("./curve");
     const row = companies.rows.find((r) => r[1] === "株式会社みずほ銀行")!;
-    const curveValues = curves.curves[companies.curveKeys[row[3]]];
+    const curveValues = curveValuesInYen(curves.curves[companies.curveKeys[row[3]]]);
     expect(e.estimatedSalary).toBe(
       estimateSalary(row[6], row[4], curveValues, curves.agePoints, 35)
     );
@@ -108,9 +126,18 @@ describe("buildAboutFacts のモデルの偏り（限界の節で使う数値）
     expect(byAge.get(60)).toBe(Math.max(...b.meanExtrapolationByAge.map((x) => x.distance)));
   });
 
-  it("上位50社は最年少・最年長の目標年齢で41社が重なる", () => {
+  it("上位50社は最年少・最年長の目標年齢で39社が重なる", () => {
     expect(b.youngestTargetAge).toBe(25);
     expect(b.oldestTargetAge).toBe(60);
-    expect(b.top50Overlap).toBe(41);
+    expect(b.top50Overlap).toBe(39);
+  });
+
+  it("同業種内で目標年齢により順序が入れ替わるのは1.7%（旧式では0%だった）", () => {
+    expect(b.sameIndustrySwapPercent).toBeCloseTo(1.7, 1);
+  });
+
+  it("倍率一定が残る60歳側の最大値を数値で持つ（キーエンス2,213万円）", () => {
+    expect(b.oldestMaxCompanyName).toBe("株式会社キーエンス");
+    expect(Math.round(b.oldestMaxEstimate / 10000)).toBe(2213);
   });
 });
