@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { buildData } from "./build-data";
 import { interpolate } from "./lib/curve";
+import { estimateSalary } from "../../web/features/ranking/lib/salary";
+import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { parseUnifiedCsv, type UnifiedRow } from "./lib/csv";
 
 const ROOT = join(__dirname, "..");
@@ -27,23 +29,22 @@ describe("buildData", () => {
     expect(result.companies.rows.length).toBe(1867);
   });
 
-  // CSVの `salary35` / `factor` / `rank_adj` は**旧式（ADR-0003）**の派生列で、
-  // 表示には使っていない（web側は avgSalary / avgAge / industry しか読まない）。
-  // 表示の推定式は ADR-0005 の2点モデルに変わっており、その検証は
-  // `web/features/ranking/lib/salary.test.ts` にある。
+  // **Python（`pipeline/salary35/curves.py`）と TypeScript（`web/.../salary.ts`）の
+  // 実装が一致していることの検証。** CSVの `salary35` 列は Python が
+  // `curves.estimate_salary`（ADR-0005の2点モデル）で計算した値で、ここでは
+  // **サイトが実際に使っている `estimateSalary` をそのまま呼んで**突き合わせる。
+  // 式を書き写すと web 側の変更を取り逃すので、実物を import する。
   //
-  // このテストの役割は、**avgSalary・avgAge・industry の取り込みと、行と賃金カーブの
-  // 対応づけが正しい**ことを1,867社ぶん固定すること。ここがずれると全数値が静かに狂う。
-  // CSVを再生成する際は、旧式の列を作り直すか落とすかを決めること（Issue #46）。
-  it("旧式でカーブから再計算した値がCSVのsalary35と全1,867社で一致する（データ取り込みの検証）", () => {
+  // 丸めにも注意が要る。Python の組み込み round() は偶数丸めで JavaScript の
+  // Math.round と違うため、Python 側は floor(x + 0.5) を使っている。
+  it("2点モデル（ADR-0005）で再計算した35歳時点の推定年収がCSVのsalary35と全1,867社で一致する", () => {
     const { agePoints, curves } = result.curves;
     const mismatches: string[] = [];
 
     for (const row of sourceRows) {
-      const series = curves[row.industry];
-      const factor =
-        interpolate(agePoints, series, 35) / interpolate(agePoints, series, row.avgAge);
-      const recomputed = Math.round(row.avgSalary * factor);
+      // カーブは千円単位。給与と足し引きするので円に揃える（ADR-0005）。
+      const series = curveValuesInYen(curves[row.industry]);
+      const recomputed = estimateSalary(row.avgSalary, row.avgAge, series, agePoints, 35);
       if (recomputed !== row.salary35) {
         mismatches.push(`${row.name}: recomputed=${recomputed} csv=${row.salary35}`);
       }

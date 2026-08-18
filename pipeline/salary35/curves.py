@@ -19,14 +19,23 @@
 """
 
 import json
+import math
 from pathlib import Path
 from bisect import bisect_right
 
 # 年収ベースのカーブ（fetch_estat.py が生成）。あれば既定で使う。
+#
+# **配信に使われているのは `pipeline/data/annual_curves.json`。** build-data.ts が
+# これを読んで `web/public/data/curves.json` を作る。こちらを先に探す。
+# fetch_estat.py の書き出し先（salary35/annual_curves.json）は取得直後の置き場で、
+# リポジトリには入っていない。探し順を間違えると、下のフォールバック定数
+# （所定内給与＝月額・賞与を含まない）が黙って使われ、web と別の数字が出る。
 _ANNUAL = {}
-_p = Path(__file__).resolve().parent / "annual_curves.json"
-if _p.exists():
-    _ANNUAL = json.loads(_p.read_text())
+_HERE = Path(__file__).resolve().parent
+for _p in (_HERE.parent / "data" / "annual_curves.json", _HERE / "annual_curves.json"):
+    if _p.exists():
+        _ANNUAL = json.loads(_p.read_text())
+        break
 ANNUAL_INDUSTRY = _ANNUAL.get("ANNUAL_INDUSTRY", {})
 ANNUAL_LARGE = _ANNUAL.get("ANNUAL_LARGE", {})
 
@@ -137,11 +146,55 @@ def wage_at(age, industry="産業計", curves=None):
 
 
 def age_factor(from_age, to_age=35.0, industry="産業計", curves=None):
-    """from_age の賃金水準を to_age に換算する倍率。"""
+    """from_age の賃金水準を to_age に換算する倍率。
+
+    **これ単体は目標年齢が平均年齢より上のときの式**（ADR-0003）。
+    若い側は倍率では表せないので `estimate_salary` を使うこと。
+    """
     base = wage_at(from_age, industry, curves)
     if base <= 0:
         return None
     return wage_at(to_age, industry, curves) / base
+
+
+def _round_half_up(x):
+    """JavaScript の Math.round と同じ丸め。
+
+    Python の組み込み round() は偶数丸めなので、.5 ちょうどで
+    web 側（`web/features/ranking/lib/salary.ts`）と1円ずれる。
+    両者の一致は `pipeline/scripts/build-data.test.ts` が全1,867社で固定している。
+    """
+    return int(math.floor(x + 0.5))
+
+
+def estimate_salary(avg_salary, avg_age, to_age=35.0, industry="産業計", curves=None):
+    """年齢補正した推定年収。ADR-0005 の2点モデル。
+
+        目標年齢 ≦ 平均年齢:
+          C(22) + (平均年間給与 − C(22)) × (C(目標年齢) − C(22)) ÷ (C(平均年齢) − C(22))
+        目標年齢 > 平均年齢:
+          平均年間給与 × C(目標年齢) ÷ C(平均年齢)
+
+    **`web/features/ranking/lib/salary.ts` と同じ挙動にすること。**
+    表示に使うのは web 側の実装で、こちらは CSV の派生列を作るためのもの。
+    ずれると CSV とサイトの数字が食い違う。
+    """
+    at_target = wage_at(to_age, industry, curves) * 1000     # カーブは千円、給与は円
+    at_avg = wage_at(avg_age, industry, curves) * 1000
+    if at_avg <= 0:
+        return None
+    if to_age > avg_age:
+        return _round_half_up(avg_salary * at_target / at_avg)
+
+    table = curves or (ANNUAL_INDUSTRY or INDUSTRY_CURVES)
+    values = table.get(industry) or table.get("産業計") or next(iter(table.values()))
+    anchor = values[0] * 1000
+    span = at_avg - anchor
+    # 平均年齢が起点に近い会社や、平均給与が業種の22歳水準を下回る会社では
+    # 2点を結べない。倍率一定（旧式）に戻す。
+    if span <= 0 or avg_salary <= anchor:
+        return _round_half_up(avg_salary * at_target / at_avg)
+    return _round_half_up(anchor + (avg_salary - anchor) * (at_target - anchor) / span)
 
 
 def industry_of(tse33):

@@ -16,7 +16,7 @@ const HEADER = [
   "rank_adj", "rank_raw", "rank_delta", "sec_code", "name", "tse33",
   "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
   "factor", "employees_nonconsolidated", "employees_consolidated",
-  "emp_ratio", "badge", "salary35_fit", "industry", "source",
+  "emp_ratio", "badge", "industry", "source",
   "period_end", "doc_id",
 ];
 

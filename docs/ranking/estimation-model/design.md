@@ -66,6 +66,35 @@ pipeline/scripts/build-data.test.ts                     # 旧式の照合テス�
 
 ## 残した課題
 
-- Python側（`pipeline/salary35/unified.py` の `salary35` / `factor`）は旧式のまま。EDINETキーが無い環境ではCSVを再生成できないため、次回のデータ更新とセットにする（Issue #46）
+- ~~Python側は旧式のまま~~ → Issue #46 で解消。**「EDINETキーが無いとCSVを再生成できない」という当初の見立てが誤りだった。** `salary35` は `avg_salary` / `avg_age` / `industry` だけから決まり、3つとも既にCSVにあるので、`unified.py --from-csv` で派生列だけ計算し直せる
 - 平均年齢より上の倍率一定（ADR-0005「決定」の但し書き）
 - e-Stat の令和6年・令和7年データはExcelにしかない。カーブの更新にはパーサが要る
+
+## パイプライン側の追随（Issue #46）
+
+**当初「EDINETキーが無いとCSVを再生成できない」と見立てていたが、これは誤りだった。** `salary35` は `avg_salary` / `avg_age` / `industry` だけから決まり、3つとも既にCSVに入っている。有報を取り直さなくても派生列だけ計算し直せる。
+
+`unified.py` に `rebuild_derived()` を切り出し、EDINETから取り直す経路（`build()`）と既存CSVを式に追随させる経路（`--from-csv`）の両方が同じ関数を通るようにした。式が2箇所に分かれると片方だけ直して静かに食い違う。
+
+```bash
+cd pipeline/salary35 && python3 unified.py --from-csv ../data/ranking_unified_2026.csv
+cd pipeline && npx tsx scripts/build-data.ts --out ../web/public/data
+```
+
+### 実装中に踏んだこと
+
+**Pythonがwebと別のカーブを読んでいた。** `curves.py` は `annual_curves.json` を自分の隣（`salary35/`）だけ探していたが、リポジトリに入っている・build-data.ts が読んでいるのは `pipeline/data/annual_curves.json` のほう。ファイルが見つからず、フォールバックのハードコード定数 `INDUSTRY_CURVES`（**所定内給与＝月額・賞与を含まない**）が黙って使われていた。最初の再生成でキーエンス2,178万に対し三菱商事1,310万（web は1,578万）と出て気づいた。`pipeline/data/` を先に探すよう直し、理由をコメントに残した。
+
+**丸めが言語で違う。** Python の組み込み `round()` は偶数丸め、JavaScript の `Math.round` は0.5切り上げ。1円ずれる可能性があるので Python 側は `floor(x + 0.5)` を使う。
+
+### 列の変更
+
+- `factor` — 若い側は倍率で表せないので、**実際に掛かった比率 `salary35 ÷ avg_salary`** に意味を変えた
+- `salary35_fit` — 落とした。データ自身から局所線形回帰で引いたカーブでの参考値だったが、そのカーブは26〜55歳でしか定義されておらず22歳のアンカーを持てない。ADR-0005 に対応する定義が無く、web も読んでいない
+- `rank_adj` / `rank_delta` — 新しい `salary35` から振り直し。行順も `rank_adj` 順に並び直るので、CSVの差分は全行になる
+
+### 照合テストを本物に繋いだ
+
+`pipeline/scripts/build-data.test.ts` は、式を書き写すのではなく **`web/features/ranking/lib/salary.ts` の `estimateSalary` をそのまま import して** CSV の `salary35` と全1,867社で突き合わせる。書き写すと web 側の変更を取り逃す。目標年齢を35から36に変えて全1,867社で落ちることを確認済み（テストが空回りしていないことの確認）。
+
+ADR-0003 が求めていた「補間の実装は Python 側と一致させる」を、式が複雑になった後も保つための線がこれになる。
