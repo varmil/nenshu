@@ -21,7 +21,11 @@ OUT.mkdir(exist_ok=True)
 
 
 def load_edinet_codelist():
-    """EDINETコードリスト（APIキー不要）から業種と上場区分を読む。"""
+    """EDINETコードリスト（APIキー不要）から業種・上場区分・提出者名を読む。
+
+    提出者名は `unified.backfill_edinet_code()` が、証券コードで引けない会社
+    （上場廃止で証券コードが外れた会社・非上場の有報提出会社）を突合するのに使う。
+    """
     path = ROOT / "Edinetcode.zip"
     if not path.exists():
         import urllib.request
@@ -41,6 +45,7 @@ def load_edinet_codelist():
             continue
         code = r[idx["ＥＤＩＮＥＴコード"]]
         info[code] = {
+            "name": r[idx["提出者名"]],
             "tse33": r[idx["提出者業種"]],
             "listed": r[idx["上場区分"]],
             "sec_code": (r[idx["証券コード"]] or "")[:4],

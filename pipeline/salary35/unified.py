@@ -8,6 +8,8 @@
 """
 
 import csv
+import re
+import unicodedata
 from datetime import date
 from pathlib import Path
 
@@ -90,11 +92,81 @@ def load_csv(path):
     return rows
 
 
+def _norm_name(s):
+    """社名の突合用の正規化。全角/半角を揃え、空白をすべて落とす。
+
+    法人格は落とさない。EDINETコードリスト側も法人格を含む正式名称を持って
+    いるので、落としても得が無く、同名衝突が増えるだけになる。
+    """
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", s or ""))
+
+
+def backfill_edinet_code(rows):
+    """EDINETコードリストと突合して edinet_code 列を埋める。
+
+    公開URL `/company/[id]` の識別子は「証券コードがあればそれ、無ければ
+    EDINETコード」（ADR-0006）。書類IDは毎年の有報提出で変わるので使わない。
+
+    コードリストは現時点のスナップショットなので、証券コードだけでは足りない
+    ——上場廃止で証券コードが外れた会社が引けない。社名でフォールバックし、
+    同名が複数あるときは上場区分、それでも決まらなければ未割り当てのコードで
+    絞る。**1件でも決まらなければ社名を列挙して異常終了する。** 空のまま進むと
+    同名の別会社に静かに紐づき、URLが別の会社を指したまま公開されてしまう。
+    """
+    info = run.load_edinet_codelist()
+
+    by_sec, by_name = {}, {}
+    for code, v in info.items():
+        sec = (v.get("sec_code") or "").strip()
+        if sec:
+            by_sec.setdefault(sec, []).append(code)
+        by_name.setdefault(_norm_name(v.get("name")), []).append(code)
+
+    used = set()
+    pending = []
+    for r in rows:
+        sec = (r.get("sec_code") or "").strip()
+        cands = by_sec.get(sec, []) if sec else []
+        if len(cands) == 1:
+            r["edinet_code"] = cands[0]
+            used.add(cands[0])
+        else:
+            pending.append(r)
+
+    unresolved = []
+    for r in pending:
+        cands = list(by_name.get(_norm_name(r.get("name")), []))
+        if len(cands) > 1:
+            same = [c for c in cands
+                    if info[c].get("listed") == (r.get("listed") or "")]
+            if len(same) == 1:
+                cands = same
+        if len(cands) > 1:
+            free = [c for c in cands if c not in used]
+            if len(free) == 1:
+                cands = free
+        if len(cands) == 1:
+            r["edinet_code"] = cands[0]
+            used.add(cands[0])
+        else:
+            unresolved.append((r.get("name"), r.get("sec_code"), cands))
+
+    if unresolved:
+        lines = "\n".join(
+            f"  {name}（証券コード {sec or '無し'}）→ 候補 {cands or '無し'}"
+            for name, sec, cands in unresolved
+        )
+        raise SystemExit(
+            f"EDINETコードを決められない行が {len(unresolved)} 件あります。\n{lines}"
+        )
+    return rows
+
+
 HEADERS = ["rank_adj", "rank_raw", "rank_delta", "sec_code", "name", "tse33",
            "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
            "factor", "employees_nonconsolidated", "employees_consolidated",
            "emp_ratio", "badge", "industry", "source",
-           "period_end", "doc_id"]
+           "period_end", "edinet_code", "doc_id"]
 
 
 def save(rows, path=None):
@@ -116,7 +188,19 @@ if __name__ == "__main__":
         help="EDINET から取り直さず、既存の CSV の派生列（salary35・factor・順位）"
              "だけを今の式で計算し直す。推定式を変えたときに使う。",
     )
+    ap.add_argument(
+        "--backfill-edinet-code",
+        metavar="PATH",
+        help="EDINET から取り直さず、既存の CSV に edinet_code 列を埋める。"
+             "公開URLの識別子（ADR-0006）に使う。",
+    )
     args = ap.parse_args()
+
+    if args.backfill_edinet_code:
+        rows = backfill_edinet_code(load_csv(args.backfill_edinet_code))
+        path = save(rows, Path(args.backfill_edinet_code))
+        print(f"\nedinet_code を埋めた {len(rows)}社 → {path}")
+        raise SystemExit(0)
 
     if args.from_csv:
         # 読んだ CSV をその場で書き換える。列も行順も save() が決めるので揃う。
