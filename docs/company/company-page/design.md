@@ -132,6 +132,10 @@ CLAUDE.md の「`useRouter()`/`router.push()` を高頻度なクライアント�
 - `components/NavLink.tsx` — `next/link` に「何も描画しない子」を1つ足しただけのもの。`useLinkStatus()` は `<Link>` の子孫でしか読めないので、こうして pending をストアへ渡す。ページ間の遷移はすべてこれを使う
 - `components/NavProgressBar.tsx` — `app/layout.tsx` に1つだけ置く。バーの伸びは `app/globals.css` のCSSアニメーション（120ms遅らせて出す。速い遷移でちらつかせないため）
 
+**`next/link` の直接importはlintで止めている**（`eslint.config.mjs` の `no-restricted-imports`。例外は `NavLink.tsx` 自身だけ）。`<Link>` のまま書いてもコンパイルも表示も通ってしまい、そのリンクだけバーが出ない状態に気づけないため。生hexを禁止しているのと同じ理由・同じやり方。
+
+色は `--primary` を参照しているので、テーマ側の色を変えればバーも一緒に変わる。
+
 **ライブラリを使わなかったのは、この用途のライブラリが軒並み止まっているため。** 2026-08-18 時点のnpmの最終公開日は、`nextjs-toploader` が2025-09-09、`holy-loader` が2025-11-13、`@bprogress/next` が2025-04-14、`next-nprogress-bar` が2025-02-18。動いているのは `@tanem/react-nprogress`（2026-08-10）だけだが、これはReact汎用でNextの遷移検知を持たないため、結局 `useLinkStatus()` 側は自前になる。加えて既存のライブラリは `history.pushState` を差し替えて遷移を検知するので、`pushState` を直接呼んでフィルタとURLを同期している当サイトの作り（`docs/ranking/url-sync/design.md`）とは相性が悪い。
 
 ### `loading.tsx` は効かないので置かない

@@ -22,6 +22,28 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
   ]),
   {
+    // ページ間の遷移は features/navigation の NavLink を使う。next/link を直接使うと、
+    // そのリンクだけ遷移中のプログレスバーが出ない状態になり、しかも見た目が同じなので
+    // 気づけない。忘れられる類の約束なので lint で止める（`docs/company/company-page/design.md`）。
+    files: ["**/*.{ts,tsx}"],
+    // NavLink 自身は next/link と useLinkStatus を包むのが仕事なので、ここだけ例外。
+    ignores: ["features/navigation/components/NavLink.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "next/link",
+              message:
+                "ページ間の遷移は features/navigation/components/NavLink の NavLink を使う（遷移中のプログレスバーが出なくなるため）。props は next/link と同じ。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 色は design-system/tokens/tokens.css のCSS変数だけを使う。生の hex を書けない状態を lint で強制する。
     files: ["**/*.{ts,tsx}"],
     ignores: ["design-system/tokens/**"],
