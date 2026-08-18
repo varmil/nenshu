@@ -12,7 +12,8 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "measure:prefetch": "node scripts/measure-prefetch.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
