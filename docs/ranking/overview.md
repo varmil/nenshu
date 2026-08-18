@@ -14,6 +14,7 @@
 | U5 | URLクエリとの同期 | U3, U4 | AC-7 | ※共有: 絞り込み状態 |
 | U6 | 0件・端の状態と段階表示 | U3, U4 | AC-8 | |
 | U7 | 計算方法ページ | U1 | AC-10 | ロジックなし。文章が本体 |
+| U8 | 検索エンジン向け導線 | U7, company施策のC1 | — | canonical・sitemap・robots・リンクハブ（ADR-0006） |
 
 ## 実施順序
 
@@ -21,9 +22,13 @@
 U0 ─┐
     ├─→ U2 ─→ (U3, U4 は並列) ─→ U5 ─→ U6
 U1 ─┘   └─→ U7（独立して進められる）
+
+（company施策の C0 → C1）─→ U8
 ```
 
 U0 と U1 は互いに独立なので先に片付ける。U2 が通れば施策として最低限の価値が出る。
+
+**U8 は Bolt 1 の後に足した Unit で、company 施策の C1 に依存する**（sitemap に企業詳細ページ1,867件のURLを載せるため）。
 
 ## 共有コンポーネント
 
@@ -37,14 +42,20 @@ U0 と U1 は互いに独立なので先に片付ける。U2 が通れば施策�
 
 `features/ranking/components/` に置くものが既定。複数の施策から使うものだけ `design-system/components/` へ昇格させる。Bolt 1 の時点では昇格させない。データテーブルは Bolt 2 で企業詳細・業種ページを作る段階で、共通化するか判断する。
 
-## Bolt 2 以降（この overview の対象外）
+## U8 検索エンジン向け導線
 
-年齢別ページ `/age/[age]`（8枚）、業種別ページ `/industry/[業種]`（33枚）、企業詳細ページ `/company/[key]`（1,867枚）。
+ADR-0006 で決めたインデックス戦略を実装する Unit。
 
-U5 で URL の形を決めておけば、静的ページの生成はそこに乗せるだけで済む。**U5の設計時にBolt 2のパスを確定した（`docs/ranking/url-sync/design.md`参照）。**
+- `app/sitemap.ts` — `/`・`/about`・`?age=`8件・`?ind=`33件・`/company/[id]`1,867件（約1,910 URL）
+- `app/robots.ts`
+- `/` の `generateMetadata` — searchParams から title・description・canonical を組み立てる。`?age=N` のみと `?ind=X` のみは自己canonical、`?age=N&ind=X` は `/?age=N` へ、`emp`・`ten`・`aage`・`q`・`page` を含むURLは `/` へ寄せる
+- リンクハブ — `/` の下部に年齢8件・業種33件への `<Link>` を置き、クロール経路を作る
+- `metadataBase` を1か所に閉じる（独自ドメインが未決のため。spec.md 5.）
 
-- `/age/[age]/` — `age` は `TargetAge`（25/30/35/40/45/50/55/60 の8値）をそのまま文字列化したもの。U5の `age` クエリパラメータと同じ値空間。
-- `/industry/[industry]/` — `industry` は `companies.json` の `industries`（33件）の業種名をそのまま使う。U5の `ind` クエリパラメータと同じ値空間。
-- `/company/[id]/` — `id` はU0の `makeId` が生成した既存の一意キー（1,867件、`CompanyRow[0]`）をそのまま使う。
+## Bolt 2 以降
 
-3種とも新しいID生成方式は不要で、既存の識別子を `generateStaticParams` に渡すだけで足りる設計にしてある。実装そのものはBolt 2の対象外。
+**`/age/[age]`・`/industry/[industry]` は作らないことに決めた（ADR-0006・Issue #49）。** U5 の設計時にパスを確定させていたが、ADR-0004 のフルSSR移行によって `/?age=25` を直接開いてもサーバーが絞り込み済みのHTMLを返すようになり、「パスにしなければクロールできない」という前提が消えた。Google のファセットナビゲーション指針もパスとクエリを区別せず、推奨するのは「個別アイテムのページ＋フィルタ無しの一覧1枚」で、41枚ぶんの実装を作る対価に見合わない。代わりに U8 でクエリURLに canonical と sitemap を与える。
+
+企業詳細ページ `/company/[id]`（1,867枚）は作る。**ID は 証券コード／EDINETコード に変える**（ADR-0006）——現行の書類ID由来のIDは毎年の有報提出で変わるため。施策としては `docs/company/` に独立している（`docs/product/product.md` の施策マップ）。
+
+その先（平均年収の10年推移・株価・信用格付け）は `timeseries`・`market-data` 施策として別に扱う。
