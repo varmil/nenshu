@@ -1,5 +1,6 @@
 export interface UnifiedRow {
   secCode: string;
+  edinetCode: string;
   name: string;
   tse33: string;
   avgAge: number;
@@ -17,7 +18,7 @@ const HEADER = [
   "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
   "factor", "employees_nonconsolidated", "employees_consolidated",
   "emp_ratio", "badge", "industry", "source",
-  "period_end", "doc_id",
+  "period_end", "edinet_code", "doc_id",
 ];
 
 /**
@@ -47,6 +48,7 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
     const get = (name: string) => cols[HEADER.indexOf(name)];
     return {
       secCode: get("sec_code"),
+      edinetCode: get("edinet_code"),
       name: get("name"),
       tse33: get("tse33"),
       avgAge: Number(get("avg_age")),

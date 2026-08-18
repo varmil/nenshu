@@ -35,3 +35,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 __pycache__/
+
+# pipeline: EDINET から再取得できるもの（コードリストのスナップショット・書類キャッシュ）
+pipeline/salary35/Edinetcode.zip
+pipeline/salary35/cache/
+pipeline/salary35/out/

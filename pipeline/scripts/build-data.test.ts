@@ -8,6 +8,7 @@ import { interpolate } from "./lib/curve";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { parseUnifiedCsv, type UnifiedRow } from "./lib/csv";
+import { makeId } from "./lib/slug";
 
 const ROOT = join(__dirname, "..");
 
@@ -56,6 +57,53 @@ describe("buildData", () => {
   it("id が1,867件すべて一意", () => {
     const ids = result.companies.rows.map((r) => r[0]);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // ここから4件は公開URL `/company/[id]` の安定性を固定する（ADR-0006）。
+  // 書類ID由来のIDは毎年の有報提出で変わるため、一度公開したURLが年1回
+  // リセットされてしまう。証券コード／EDINETコードはどちらも年をまたいで変わらない。
+  it("証券コードを持つ会社の id は証券コードそのもの", () => {
+    const withSecCode = sourceRows.filter((r) => r.secCode !== "");
+    expect(withSecCode.length).toBe(1760);
+    for (const row of withSecCode) {
+      expect(makeId(row)).toBe(row.secCode);
+    }
+  });
+
+  it("証券コードを持たない107社の id はEDINETコード（E＋5桁）", () => {
+    const withoutSecCode = sourceRows.filter((r) => r.secCode === "");
+    expect(withoutSecCode.length).toBe(107);
+    for (const row of withoutSecCode) {
+      expect(makeId(row)).toMatch(/^E\d{5}$/);
+    }
+  });
+
+  it("書類ID由来の id が1件も残っていない", () => {
+    // 旧 makeId が作っていた形（社名のASCII部分＋小文字化した書類ID）。
+    // 例: みずほ銀行の `s100yfah`、JERA の `jera-s100ycjz`。
+    const docIdShaped = result.companies.rows
+      .map((r) => r[0])
+      .filter((id) => /s1\d{2}[0-9a-z]{4}$/.test(id));
+    expect(docIdShaped).toEqual([]);
+  });
+
+  it("代表的な会社の id が固定されている", () => {
+    const idOf = (name: string) => {
+      const row = result.companies.rows.find((r) => r[1] === name);
+      if (row === undefined) throw new Error(`${name} が見つからない`);
+      return row[0];
+    };
+    expect(idOf("株式会社キーエンス")).toBe("6861");
+    expect(idOf("三菱商事株式会社")).toBe("8058");
+    expect(idOf("トヨタ自動車株式会社")).toBe("7203");
+    // 非上場。旧IDは書類ID由来の `s100yfah` だった。
+    expect(idOf("株式会社みずほ銀行")).toBe("E03532");
+  });
+
+  it("makeId は証券コードもEDINETコードも無ければ例外を投げる", () => {
+    expect(() => makeId({ secCode: "", edinetCode: "", name: "架空株式会社" })).toThrow(
+      /架空株式会社/
+    );
   });
 
   it("補間は代表年齢の範囲外で端の値に頭打ちになる", () => {
