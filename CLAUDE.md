@@ -70,10 +70,11 @@ Unit の実装を終えたら、次の順で進める。
 
 **推定式はADR-0005の2点モデル**（`web/features/ranking/lib/salary.ts`）。目標年齢が平均年齢より下では、その会社の賃金カーブが「22歳＝業種平均の水準」と「平均年齢＝実測の平均年間給与」の2点を通ると置いて間を業種カーブの形で結ぶ。平均年齢より上はADR-0003の倍率一定のまま。Issue #42（若年側の過大推定）はこれで解消した（キーエンス25歳 1,642万→788万）。**カーブは`curves.json`に千円で入っているので、`curveValuesInYen`で円に揃えてから`estimateSalary`に渡すこと**——旧式は比しか取らないので揃えなくても合っていた。経緯と却下案（標準労働者カーブは効果が小さく60歳側が悪化する）は`docs/ranking/estimation-model/design.md`とADR-0005にある。
 
+**Python側（`pipeline/salary35/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary35 && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
+
 **未解決の課題（Bolt 2 に入る前に判断が要る）:**
 
 - **Issue #22: 掲載企業数を増やす際のペイロード。** 全件embedアーキテクチャは1,867社で既にgzip後64KB/100KB予算を消費しており、4,000社規模では超過見込み。
-- **Issue #46: パイプライン側の推定式が旧式のまま。** CSVの`salary35`/`factor`/`rank_adj`列はADR-0003の派生値。web側は読んでいないが、次回のデータ再生成とセットで新式に合わせるか列ごと落とす。
 
 次は `docs/ranking/overview.md` の Bolt 2（`/age/[age]`・`/industry/[industry]`・`/company/[id]`。パス設計は確定済み）。
 

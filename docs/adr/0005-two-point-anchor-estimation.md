@@ -65,7 +65,13 @@ C(a) = カーブ[業種](a)
 
 **カーブの単位を揃える必要が出た。** 旧式はカーブの比しか取らないので `curves.json` の千円のままで答えが合っていた。新式はカーブの値を給与と足し引きするため、円に揃えないと1,000倍ずれる。`curveValuesInYen` を通す。
 
-**CSV の `salary35` / `factor` / `rank_adj` 列は旧式の派生値として取り残される。** web側はこれらを読んでいない（`build-data.ts` は `avgSalary` / `avgAge` / `industry` しか使わない）。`pipeline/scripts/build-data.test.ts` の照合テストは旧式のまま残し、役割を「データ取り込みの検証」と書き換えた。Python側の式の追随は次回のデータ再生成とセットで行う（Issue #46）。
+**丸めも揃える必要が出た。** Python の組み込み `round()` は偶数丸めで JavaScript の `Math.round` と違う。Python 側は `floor(x + 0.5)` を使う。
+
+**Python側（`pipeline/salary35/curves.py` の `estimate_salary`）も同じ式にした。** CSV の `salary35` / `factor` / `rank_adj` はこの式で計算し直してある。EDINET から取り直す必要は無い——`salary35` は `avg_salary` / `avg_age` / `industry` だけから決まり、3つとも既に CSV にあるため、派生列だけを再計算できる（`unified.py --from-csv`）。
+
+`factor` 列の意味を変えた。若い側は倍率で表せないので、**実際に掛かった比率 `salary35 ÷ avg_salary`** を入れる。`salary35_fit`（データ自身から引いたカーブでの参考値）は列ごと落とした。ADR-0005 に対応する定義が無く、web も読んでいないため。
+
+`pipeline/scripts/build-data.test.ts` の照合テストは、**web の `estimateSalary` をそのまま import して** CSV の `salary35` と全1,867社で突き合わせる形にした。ADR-0003 が求めていた「補間の実装は Python 側と一致させる」を、式が複雑になった後も保つための線。式を書き写すと web 側の変更を取り逃すので実物を呼ぶ。
 
 ## 却下案
 
