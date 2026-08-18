@@ -56,6 +56,22 @@ export default nextConfig;
 initOpenNextCloudflareForDev();
 ```
 
+### デプロイしてもエッジの古いHTMLは消えない（既知・許容している）
+
+`s-maxage=86400` なので、**デプロイ直前にキャッシュされたURLは最大24時間ぶん古い内容を返し続ける。** `/` は `searchParams` ごとに別のキャッシュエントリになるため、年齢・フィルタの組み合わせごとに個別に古いまま残る。
+
+ADR-0005（推定式の変更）のデプロイ直後に実際に踏んだ。Worker自体は新しいコードなのに `/?age=25` が `cf-cache-status: HIT` / `age: 519` で旧値の1,642万円を返し、キャッシュを避けるクエリを足すと新値の788万円が返る、という状態になった。同じ時点で `/about` は新しい内容だった（そちらはキャッシュが入れ替わっていた）ため、**ランキングの金額と `/about` の式が食い違って見えうる**。
+
+`nenshu.fkmks-247.workers.dev` はCloudflare側のゾーンで、こちらのAPIトークンではパージできない。設定でしか対処できない。
+
+**それでもTTLは短くしない（ユーザー判断・2026-08-18）。** データ更新は年1回、コードのデプロイも頻繁ではなく、最大24時間の遅延は許容する。`s-maxage` を300〜600秒に下げればデプロイが数分で行き渡るが、Worker の呼び出し回数（無料枠100k req/day、CPU 10ms/req）を消費する側に振ることになる。
+
+表示金額が全面的に変わる変更をデプロイしたときは、**しばらく古い値が見えることを前提に確認する**こと。キャッシュを避けた確認には一意なクエリ文字列を足す。
+
+```bash
+curl -s "https://nenshu.fkmks-247.workers.dev/?age=25&cachebust=$RANDOM"
+```
+
 - `output: 'export'`を削除する。これがADR-0004の中核（ADR-0002を一部supersede）。
 - ブラウザ向け`Cache-Control`（1時間）とエッジ向け`Cloudflare-CDN-Cache-Control`（1日、1週間はstale-while-revalidateで許容）を分ける。データは年1回しか変わらないため、この程度の粒度で十分。
 - `initOpenNextCloudflareForDev()`はadapterの推奨手順。今回Cloudflareのバインディング（KV/D1/R2等）は使わないため実質的な効果は薄いが、`next dev`実行時にadapterの前提を壊さないための標準的な追加。
