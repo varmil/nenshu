@@ -79,10 +79,13 @@ function isAchromatic(value: string): boolean {
 
 describe("tokens.css の色トークン", () => {
   it("ライトとダークで同じ色トークンが揃っている", () => {
-    // --space-* と --radius は色ではないので比較から外す。
+    // --space-* / --font-* / --radius は色ではないので比較から外す。
     const colorNames = (tokens: Tokens) =>
       Object.keys(tokens)
-        .filter((name) => !name.startsWith("space-") && name !== "radius")
+        .filter(
+          (name) =>
+            !name.startsWith("space-") && !name.startsWith("font-") && name !== "radius",
+        )
         .sort();
 
     expect(colorNames(dark)).toEqual(colorNames(root));
@@ -117,5 +120,42 @@ describe("tokens.css の色トークン", () => {
   it("チャート色 5 本がすべて互いに異なる", () => {
     const charts = [1, 2, 3, 4, 5].map((n) => root[`chart-${n}`]);
     expect(new Set(charts).size).toBe(5);
+  });
+});
+
+/*
+ * フォントは webfont を持たず OS のフォントだけで組む（Issue #64）。
+ * 「うっかり next/font や @font-face を足して初期表示コストが戻る」のを止めたい。
+ */
+describe("tokens.css のフォント", () => {
+  const stacks = { "--font-sans": root["font-sans"], "--font-mono": root["font-mono"] };
+
+  it.each(Object.entries(stacks))("%s が定義されている", (_name, stack) => {
+    expect(stack).toBeTruthy();
+  });
+
+  it.each(Object.entries(stacks))("%s は webfont を参照しない", (_name, stack) => {
+    // url(...) が出てくる = ダウンロードが要るフォントを指している。
+    expect(stack).not.toMatch(/url\(/);
+  });
+
+  it.each(Object.entries(stacks))("%s は総称ファミリーで終わる", (_name, stack) => {
+    // 最後の砦。どれも入っていない環境で無指定に落ちないようにする。
+    expect(stack.trim()).toMatch(/(sans-serif|serif|monospace)$/);
+  });
+
+  it("--font-sans は日本語フォントを明示している", () => {
+    // 明示が無いと、日本語が中国語フォントに解決されて漢字の字形が崩れる環境がある
+    // （実際に Chromium が WenQuanYi Zen Hei を選ぶのを確認した）。
+    const stack = root["font-sans"];
+    expect(stack).toContain("Hiragino Sans");
+    expect(stack).toContain("Meiryo");
+    expect(stack).toContain("Noto Sans CJK JP");
+  });
+
+  it("@theme が --font-sans / --font-mono を参照している", () => {
+    // ここが切れると Tailwind の font-sans / font-mono が効かなくなる。
+    expect(css).toContain("--font-sans: var(--font-sans);");
+    expect(css).toContain("--font-mono: var(--font-mono);");
   });
 });
