@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Script from "next/script";
 import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
+import { SiteHeader } from "@/features/navigation/components/SiteHeader";
+import { buildThemeScript } from "@/features/theme/lib/themeScript";
 import "./globals.css";
 import {
   CLARITY_PROJECT_ID,
@@ -9,19 +11,28 @@ import {
 } from "@/lib/analytics/clarity";
 
 export const metadata: Metadata = {
-  title: "年齢補正年収ランキング（開発中）",
-  description: "年齢で補正した年収でランキングを比較する。サイト名は未確定（docs/ranking/spec.md 5. 未決事項）。",
+  title: "OpenReport | 年収ランキング",
+  description:
+    "有価証券報告書の平均年間給与を年齢で補正し、その年齢時点の年収でランキングを比較する。上場・非上場1,867社。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="ja"
-      className="h-full antialiased"
-    >
+    // suppressHydrationWarning は <html> のクラスを下のインラインスクリプトが
+    // Reactの外で書き換えるため。これが無いとハイドレーション時に警告が出る。
+    <html lang="ja" className="h-full antialiased" suppressHydrationWarning>
       <body className="min-h-full flex flex-col">
+        {/*
+          表示モードを最初の描画より前に確定させる（Issue #68）。
+          next/script ではなく素の <script> なのは、HTMLパーサを止めてでも
+          先に走ってほしいため。next/script の strategy はどれも
+          「描画をブロックしない」ことが目的で、ここで欲しい性質と逆になる。
+          詳細は features/theme/lib/themeScript.ts。
+        */}
+        <script dangerouslySetInnerHTML={{ __html: buildThemeScript() }} />
         {/* ページ間の遷移中に上端へ細いバーを出す（`features/navigation`）。 */}
         <NavProgressBar />
+        <SiteHeader />
         {children}
         {/*
           Microsoft Clarity（Issue #44）。

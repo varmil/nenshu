@@ -36,6 +36,8 @@ cd web && npx shadcn@latest apply <preset-code> --only theme --yes
 
 年収額は主役だが、**主役だからと色を付けると画面上で最も目立つ色が「押せないもの」に割り当てられる。** サイズと太さで主役であることは十分伝わるので、色はクリックできるものに取っておく。OpenWork の企業一覧が同じ切り分け（黒＝データ、青＝ナビゲーション）で、リンク色は `rgb(22,108,157)` — この `--primary`（`rgb(0,117,149)`）とほぼ同じ色を1ページ 430 リンクに当てても煩くない。
 
+**ダークでは `--primary` に別の値を使う。** ライトの `oklch(0.52 0.105 223.128)` をそのままダーク背景に置くと 2.72:1 で AA を割る。ダークはプリセットが `.dark --sidebar-primary` として持つ明るいティール `oklch(0.715 0.143 215.221)`（文字色として 8.34、塗った時の対文字 5.66）を使う。`--primary` は「リンクの文字色」と「選択中のタブの塗り」の両方を担うので、**両用途で AA を満たす値でなければならない**。経緯は `docs/site-chrome/site-header-theme/design.md`。
+
 選択中のタブは `TAB_TOGGLE_SELECTED_CLASS`（`features/ranking/components/tabToggleClass.ts`）で塗る。shadcn プリミティブの既定 `data-[state=on]:bg-muted` はごく薄いグレーで選択中が分からないため上書きしている。`ui/` は手で盛らない約束なので、プリミティブ側ではなく呼び出し側で当てる。
 
 ## フォント

@@ -1,6 +1,5 @@
 "use client";
 
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { useRankingState } from "../hooks/useRankingState";
 import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
 import type {
@@ -51,15 +50,8 @@ export function RankingApp({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
-          <NavLink
-            href="/about"
-            className="text-primary text-sm underline"
-          >
-            計算方法
-          </NavLink>
-        </div>
+        {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
+        <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
         <div className="overflow-x-auto">
           <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
         </div>

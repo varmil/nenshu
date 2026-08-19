@@ -21,7 +21,7 @@ import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
 
 export const metadata: Metadata = {
-  title: "計算方法 | 年齢補正年収ランキング",
+  title: "計算方法 | OpenReport",
   description:
     "年齢補正の式、賃金カーブの作り方と出典、対象範囲、そしてこの方法で何が言えて何が言えないかを全部公開しています。",
 };

@@ -74,7 +74,7 @@ export function CompanyDetail({
           理由の詳細は RankingTable.tsx。
         */}
         <NavLink href="/" prefetch={false} className="text-primary underline">
-          年齢補正年収ランキング
+          ランキング
         </NavLink>
         <span aria-hidden="true">/</span>
         <NavLink
