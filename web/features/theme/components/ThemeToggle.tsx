@@ -8,60 +8,45 @@ import { applyTheme, readAppliedTheme, syncSystemTheme, toggleTheme } from "../l
 /*
  * ライト/ダークの切替（Issue #68、`docs/site-chrome/spec.md` 3）。
  *
- * 現在のモードは React の state ではなく **`<html>` のクラスが正**。初期値を
- * サーバーから渡せない（SSR の HTML はエッジで24時間キャッシュされるため
- * spec.md 3.3）ので、クラスは `themeScript.ts` のインラインスクリプトが最初の
- * 描画より前に確定させており、React はそれを後から読むだけになる。
+ * **どちらのモードかを JavaScript で判定して描き分けない。** 両方の中身を常に出し、
+ * どちらを見せるかは `dark:` バリアント（＝ `<html>` の `dark` クラス）に任せる。
+ * クラスは `themeScript.ts` のインラインスクリプトが最初の描画より前に確定させて
+ * いるので、**サーバーのHTMLがそのまま正しい見た目になり、ハイドレーションを
+ * 待つ必要が無い。**
  *
- * この「React の外にある状態を読む」ために useSyncExternalStore を使う。
- * useEffect + setState でも書けるが、それは
- * react-hooks/set-state-in-effect が禁じている形（実際に lint に止められた）。
- */
-
-/** `<html>` の class 属性の変化を購読する。自分の applyTheme も含めて拾える。 */
-function subscribe(onStoreChange: () => void): () => void {
-  const observer = new MutationObserver(onStoreChange);
-  observer.observe(document.documentElement, {
-    attributes: true,
-    attributeFilter: ["class"],
-  });
-
-  // 読者がまだ選んでいない間は OS の設定に従うので、セッション中の変化にも追従する。
-  // クラスを書き換えれば上の MutationObserver が拾うので、ここで onStoreChange は呼ばない。
-  const media = window.matchMedia("(prefers-color-scheme: dark)");
-  const onMediaChange = (event: MediaQueryListEvent) => syncSystemTheme(event.matches);
-  media.addEventListener("change", onMediaChange);
-
-  return () => {
-    observer.disconnect();
-    media.removeEventListener("change", onMediaChange);
-  };
-}
-
-const getSnapshot = () => readAppliedTheme();
-
-/**
- * サーバー描画とハイドレーション中に使う値。
+ * 以前は現在のモードを useSyncExternalStore で読み、サーバー側では null を返して
+ * アイコンを出していなかった。その結果 **ボタンが約86ms ものあいだ空のまま残り、
+ * ハイドレーション後にアイコンが現れる**（実測）ちらつきになっていた。
  *
- * サーバーはモードを知りえないので null を返し、アイコンを出さない。ここで仮に
- * 太陽を描くと、ダークの読者にだけ一瞬まちがったアイコンが見える。
- * ハイドレーション後に useSyncExternalStore が getSnapshot の値へ切り替える。
+ * 押した時のモードは DOM から読めばよく（`readAppliedTheme`）、描画のための
+ * state は持たない。
  */
-const getServerSnapshot = () => null;
-
 export function ThemeToggle() {
-  const theme = React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  // 読者がまだ選んでいない間は OS の設定に従うので、セッション中の変化にも追従する。
+  // ここでは state を更新しない——見た目は CSS が決めるので再描画が要らない。
+  React.useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onChange = (event: MediaQueryListEvent) => syncSystemTheme(event.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
 
   return (
     <Button
       variant="ghost"
       size="icon"
-      onClick={() => applyTheme(toggleTheme(theme ?? readAppliedTheme()))}
-      // 押すと何になるかを読み上げる。現在の状態ではなく次の状態を言う。
-      aria-label={theme === "dark" ? "ライトモードに切り替える" : "ダークモードに切り替える"}
-      data-theme-state={theme ?? "unknown"}
+      onClick={() => applyTheme(toggleTheme(readAppliedTheme()))}
     >
-      {theme === "dark" ? <Moon /> : theme === "light" ? <Sun /> : null}
+      <Sun className="dark:hidden" />
+      <Moon className="hidden dark:block" />
+      {/*
+        アクセシブル名も CSS で切り替える。aria-label は属性なので CSS から
+        変えられず、JSで出し分けるとアイコンと同じちらつきが戻ってしまう。
+        `sr-only` は display を指定しないので `hidden` / `dark:block` と併用できる。
+        display:none の側はアクセシブル名の計算から外れるため、読み上げは常に1つ。
+      */}
+      <span className="sr-only dark:hidden">ダークモードに切り替える</span>
+      <span className="sr-only hidden dark:block">ライトモードに切り替える</span>
     </Button>
   );
 }
