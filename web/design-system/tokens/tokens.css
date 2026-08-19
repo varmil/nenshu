@@ -5,7 +5,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -81,6 +81,30 @@
   --space-lg: 1.5rem;
   --space-xl: 2.5rem;
   --space-2xl: 4rem;
+
+  /*
+   * フォントは webfont を使わず OS のフォントだけで組む（Issue #64）。
+   * ダウンロードが発生しないので、初期表示のコストも font-swap による
+   * レイアウトシフトもゼロになる。以前は next/font で Geist を読んでいたが、
+   * Geist が描いていたのは数字とラテン文字だけで（日本語はどのみち OS の
+   * フォントに落ちていた）、そのために毎ページ 51KB / 2リクエストを払っていた。
+   *
+   * 日本語名と英語名を両方並べるのは OS のロケールによってどちらで引けるかが
+   * 変わるため。Arial は日本語グリフを持たないので、ラテンは Arial、日本語は
+   * その次の "Noto Sans CJK JP" が拾う（文字単位でフォールバックするため）。
+   * 末尾の "Noto Sans CJK JP" は Linux・一部 Android 向けの保険。ヒラギノも
+   * メイリオも無い環境では最後の sans-serif に落ちるが、そこが中国語フォントに
+   * 解決されると漢字が中国語字形（直・骨・今 など）で出るため明示している。
+   * 実際にこの指定が無いと Chromium が WenQuanYi Zen Hei を選ぶ環境を確認済み。
+   */
+  --font-sans:
+    "Hiragino Sans", ヒラギノ角ゴシック, "Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN W3",
+    メイリオ, Meiryo, Arial, "Noto Sans CJK JP", sans-serif;
+
+  /* 等幅は /about の計算式ブロックだけで使う。日本語グリフは持たないので
+     和文は --font-sans と同じ経路でフォールバックする（Geist Mono でも同じだった）。 */
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.148 0.004 228.8);

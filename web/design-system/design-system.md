@@ -38,6 +38,24 @@ cd web && npx shadcn@latest apply <preset-code> --only theme --yes
 
 選択中のタブは `TAB_TOGGLE_SELECTED_CLASS`（`features/ranking/components/tabToggleClass.ts`）で塗る。shadcn プリミティブの既定 `data-[state=on]:bg-muted` はごく薄いグレーで選択中が分からないため上書きしている。`ui/` は手で盛らない約束なので、プリミティブ側ではなく呼び出し側で当てる。
 
+## フォント
+
+**webfont を使わない。OS のフォントだけで組む**（Issue #64）。`tokens/tokens.css` の `--font-sans` / `--font-mono` がスタックの正で、`next/font` は使わない。
+
+以前は `next/font/google` で Geist を読んでいたが、実測すると**全ページで 2リクエスト / 52,396 bytes**（トップページの HTML が gzip 64KB なので、ページ本体とほぼ同じ重さ）を払っていた。さらに DevTools で実際に描画しているフォントを取ると、**Geist が描いていたのは数字とラテン文字だけ**で、日本語はどのみち OS のフォントに落ちていた。system font stack にして 0 バイト・0 リクエストになった。
+
+`--font-sans` に日本語フォントを明示しているのは、**明示が無いと日本語が中国語フォントに解決される環境があるため**。Chromium が（`lang="ja"` があり Noto Sans CJK JP が入っているのに）WenQuanYi Zen Hei を選ぶのを実際に確認した。漢字は日中で字形が違う（直・骨・今 など）ので実害になる。
+
+スタックの並びの意図:
+
+- 日本語名と英語名を両方書くのは、OS のロケールによってどちらで引けるかが変わるため
+- `Arial` は日本語グリフを持たないので、ラテンは Arial、日本語はその次の `"Noto Sans CJK JP"` が拾う（フォールバックは文字単位で効く）
+- 末尾の `"Noto Sans CJK JP"` は Linux・一部 Android 向けの保険。Mac / Windows はその前のヒラギノ / メイリオで解決する
+
+`--font-mono` は `/about` の計算式ブロックだけで使う。等幅も webfont を持たない。日本語グリフは持たないので和文は `--font-sans` と同じ経路でフォールバックする（Geist Mono でも同じだった）。
+
+`tokens/tokens.test.ts` が「webfont を参照しない」「総称ファミリーで終わる」「日本語フォントを明示している」を、`e2e/theme.spec.ts` が「フォントのリクエストが 0 件」を固定している。
+
 ## 余白・タイポ・角丸・影
 
 同じく `tokens/tokens.css` の CSS 変数から。ただし余白（`--space-*`）は Tailwind の `--spacing-*` 名前空間とは意図的に分離している。`--spacing-*` は `w-*` / `max-w-*` / `h-*` / `p-*` / `m-*` / `gap-*` など複数の utility ファミリーが共有する基準スケールで、そこに独自の名前付きキー（`sm`/`md`/`lg` 等）を追加すると無関係な utility の値を書き換えてしまう（U1 実装中に `max-w-md` が壊れる形で実際に発生した）。今後もこのファイルの `@theme` ブロックに `--spacing-*` の新しいキーを追加しない。

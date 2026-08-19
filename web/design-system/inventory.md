@@ -5,7 +5,7 @@
 ## tokens/
 
 - `tokens.css` — 色・余白・タイポ（フォントサイズ）・角丸・影のCSS変数。色以外はライト/ダークで変わらない。色と `--radius` は shadcn プリセット `b1sAmVzuq` 由来（差し替え手順は `design-system.md`「色」）。
-- `tokens.test.ts` — ライト/ダークの対称性と WCAG AA コントラストを固定する（Issue #62）。
+- `tokens.test.ts` — ライト/ダークの対称性と WCAG AA コントラスト（Issue #62）、およびフォントが webfont を持たないこと（Issue #64）を固定する。
 - `tailwind.preset.ts` — 上記トークンを型付きで参照するための薄いレイヤー（CSS以外の場所からの参照用）。
 
 ## ui/（shadcnプリミティブ）

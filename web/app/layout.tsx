@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
 import "./globals.css";
@@ -8,16 +7,6 @@ import {
   buildClarityScript,
   isClarityEnabled,
 } from "@/lib/analytics/clarity";
-
-const geistSans = Geist({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "年齢補正年収ランキング（開発中）",
@@ -28,7 +17,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ja"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">
         {/* ページ間の遷移中に上端へ細いバーを出す（`features/navigation`）。 */}

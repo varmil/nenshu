@@ -123,3 +123,41 @@ test.describe("配色トークン", () => {
     expect(parseFloat(borderRadius)).toBeGreaterThan(0);
   });
 });
+
+/*
+ * フォントは OS のフォントだけで組む（Issue #64）。以前は next/font で Geist を
+ * 読んでおり、全ページで 2リクエスト / 52,396 bytes を払っていた。Geist が
+ * 描いていたのは数字とラテン文字だけで、日本語はどのみち OS のフォントに
+ * 落ちていた。ここが 0 に保たれていることをブラウザで固定する。
+ */
+test.describe("フォント", () => {
+  for (const path of ["/", "/about", "/company/6861"]) {
+    test(`${path} はフォントを1件もダウンロードしない`, async ({ page }) => {
+      const fontRequests: string[] = [];
+      page.on("request", (request) => {
+        if (/\.(woff2?|ttf|otf|eot)(\?|$)/.test(request.url())) {
+          fontRequests.push(request.url());
+        }
+      });
+
+      await page.goto(path, { waitUntil: "networkidle" });
+
+      expect(fontRequests).toEqual([]);
+      // @font-face が読み込まれていないことも合わせて見る。
+      const loaded = await page.evaluate(() =>
+        [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family),
+      );
+      expect(loaded).toEqual([]);
+    });
+  }
+
+  test("日本語フォントが明示されている（漢字が中国語字形にならない）", async ({ page }) => {
+    await page.goto("/");
+
+    const stack = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+
+    expect(stack).toContain("Hiragino Sans");
+    expect(stack).toContain("Meiryo");
+    expect(stack).toContain("Noto Sans CJK JP");
+  });
+});
