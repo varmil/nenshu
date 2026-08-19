@@ -73,14 +73,14 @@ export function CompanyDetail({
           ページ（gzip 64KB）。読むとは限らない導線を先読みさせる価値はない。
           理由の詳細は RankingTable.tsx。
         */}
-        <NavLink href="/" prefetch={false} className="hover:text-foreground underline">
+        <NavLink href="/" prefetch={false} className="text-primary underline">
           年齢補正年収ランキング
         </NavLink>
         <span aria-hidden="true">/</span>
         <NavLink
           href={`/?ind=${encodeURIComponent(view.tse33)}`}
           prefetch={false}
-          className="hover:text-foreground underline"
+          className="text-primary underline"
         >
           {view.tse33}
         </NavLink>
@@ -102,7 +102,7 @@ export function CompanyDetail({
             <span className="text-muted-foreground text-sm">{targetAge}歳時点の推定年収</span>
             <Badge variant="secondary">推定</Badge>
           </div>
-          <p className="text-primary text-4xl font-bold">
+          <p className="text-4xl font-bold">
             {formatManYen(current.estimatedSalary)}
           </p>
         </CardHeader>
@@ -192,7 +192,7 @@ export function CompanyDetail({
         </p>
         <p>
           推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。
-          <NavLink href="/about" className="hover:text-foreground ml-1 underline">
+          <NavLink href="/about" className="text-primary ml-1 underline">
             計算方法と限界
           </NavLink>
         </p>

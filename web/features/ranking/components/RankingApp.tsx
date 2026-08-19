@@ -55,7 +55,7 @@ export function RankingApp({
           <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
           <NavLink
             href="/about"
-            className="text-muted-foreground hover:text-foreground text-sm underline"
+            className="text-primary text-sm underline"
           >
             計算方法
           </NavLink>

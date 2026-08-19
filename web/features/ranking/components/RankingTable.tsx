@@ -58,7 +58,7 @@ export function RankingTable({
                   <NavLink
                     href={`/company/${company.id}`}
                     prefetch={false}
-                    className="hover:underline"
+                    className="text-primary hover:underline"
                   >
                     {company.name}
                   </NavLink>
@@ -67,7 +67,7 @@ export function RankingTable({
               </TableCell>
               <TableCell className="text-muted-foreground">{company.tse33}</TableCell>
               <TableCell>
-                <span className="text-primary text-2xl font-bold">
+                <span className="text-2xl font-bold">
                   {formatManYen(company.estimatedSalary)}
                 </span>
               </TableCell>
