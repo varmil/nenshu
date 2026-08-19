@@ -91,6 +91,14 @@ Unit の実装を終えたら、次の順で進める。
 
 **Bolt 2 に着手中（企業詳細ページと公開URL戦略）。Inceptionは完了。**
 
+**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。ドメインは未取得。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
+
+**サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
+
+- **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
+- **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
+- **`--primary` はライトとダークで別の値。** ライトをそのままダーク背景に置くと 2.72:1 で AA を割る（実際に割っていた）。`tokens.test.ts` のコントラストテストは**両モードで回す**（`:root` だけ見ていたのがこの見逃しの原因）
+
 **`/age/[age]`・`/industry/[industry]` は作らない（ADR-0006・Issue #49）。** ADR-0004でフルSSRになった時点で「パスにしなければクロールできない」前提が消え、Googleのファセットナビゲーション指針もパスとクエリを区別しない。年齢8件・業種33件は `?age=`・`?ind=` のまま自己canonical＋sitemap登録にし、他の組み合わせ・`q`・`page` は正規URLへ寄せる。実装はU8（Issue #53）。
 
 **企業ページのIDは 証券コード（1,760社）／EDINETコード（107社）**（ADR-0006）。現行の書類ID由来のIDは毎年の有報提出で変わり、URLが年1回リセットされてしまうため。`edinet_code` 列は将来の10年推移でも名寄せキーになる。実装はC0（Issue #51）。

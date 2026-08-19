@@ -97,7 +97,14 @@ describe("tokens.css の色トークン", () => {
     expect(css).toContain("--radius-lg: var(--radius);");
   });
 
-  it.each([
+  /*
+   * ライトとダークの**両方**で回す（Issue #68）。
+   *
+   * 以前は :root しか見ておらず、そのせいでダークの --primary が背景に対して
+   * 2.72:1 しか無い状態を長く見逃していた。ダークの配色は tokens.css に
+   * 揃っていたが画面に出す仕組みが無かったため、誰も気づけなかった。
+   */
+  const contrastPairs = [
     ["--foreground", "--background"],
     ["--muted-foreground", "--background"],
     ["--primary", "--background"],
@@ -105,11 +112,23 @@ describe("tokens.css の色トークン", () => {
     ["--accent-foreground", "--accent"],
     ["--secondary-foreground", "--secondary"],
     ["--primary-foreground", "--primary"],
-  ])("%s は %s の上で WCAG AA（4.5:1）を満たす", (fg, bg) => {
-    // --primary は年収額の表示色（RankingTable・RankingCardList・CompanyDetail）で、
-    // --primary-foreground はボタン・年齢スイッチのラベル。ここが割れると実際に読めなくなる。
+  ] as const;
+
+  const modes = [
+    ["ライト", root],
+    ["ダーク", dark],
+  ] as const;
+
+  it.each(
+    modes.flatMap(([mode, tokens]) =>
+      contrastPairs.map(([fg, bg]) => [mode, fg, bg, tokens] as const),
+    ),
+  )("%s: %s は %s の上で WCAG AA（4.5:1）を満たす", (_mode, fg, bg, tokens) => {
+    // --primary はリンク・選択中のタブ・年齢別チャートの色（#65 で役割を決めた）。
+    // --primary-foreground は塗りつぶしたタブとボタンのラベル。
+    // ここが割れると実際に読めなくなる。
     const name = (token: string) => token.slice(2);
-    expect(contrastRatio(root[name(fg)], root[name(bg)])).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(tokens[name(fg)], tokens[name(bg)])).toBeGreaterThanOrEqual(4.5);
   });
 
   it("--primary に色味がある（Issue #62: 白黒から脱する）", () => {

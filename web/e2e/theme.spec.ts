@@ -161,3 +161,151 @@ test.describe("フォント", () => {
     expect(stack).toContain("Noto Sans CJK JP");
   });
 });
+
+/*
+ * ライト/ダークの切替（Issue #68、`docs/site-chrome/spec.md` 3、AC-3〜AC-7）。
+ *
+ * ダークの配色は tokens.css に前からあったが、適用する仕組みが無く一度も
+ * 画面に出ていなかった。ここで初めてブラウザ上の挙動を固定する。
+ */
+test.describe("表示モード", () => {
+  test.describe("OS がダークのとき", () => {
+    test.use({ colorScheme: "dark" });
+
+    test("AC-3: 初回表示の時点でダーク（ライトが一瞬も見えない）", async ({ page }) => {
+      // domcontentloaded の時点で見るのが肝。ここで既に dark が付いていれば、
+      // インラインスクリプトが最初の描画より前に走ったことになる。
+      // load 後に見ると、ハイドレーション後に付いた場合でも通ってしまう。
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+
+      await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+    });
+
+    test("AC-7: ダークでもリンク・選択中のタブが読める", async ({ page }) => {
+      await page.goto("/");
+
+      const ratios = await page.evaluate(() => {
+        /*
+         * 算出色は色空間がまちまち（Chromium は oklch 由来の色を lab(...) で返す）。
+         * 自前でパースすると空間ごとの実装が要るので、canvas に塗って
+         * sRGB のバイト値で読み戻し、それで WCAG の比を出す。
+         */
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+        const toRgb = (color: string): [number, number, number] => {
+          ctx.clearRect(0, 0, 1, 1);
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, 1, 1);
+          const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+          return [r, g, b];
+        };
+        const channel = (v: number) => {
+          const c = v / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = (color: string) => {
+          const [r, g, b] = toRgb(color).map(channel);
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const ratio = (fg: string, bg: string) => {
+          const a = luminance(fg);
+          const b = luminance(bg);
+          const [hi, lo] = a > b ? [a, b] : [b, a];
+          return (hi + 0.05) / (lo + 0.05);
+        };
+
+        const bg = getComputedStyle(document.body).backgroundColor;
+        const link = document.querySelector("tbody tr a")!;
+        const selectedTab = document.querySelector('[data-slot="toggle-group-item"][aria-pressed="true"]')!;
+        const selectedStyle = getComputedStyle(selectedTab);
+
+        return {
+          link: ratio(getComputedStyle(link).color, bg),
+          selectedTab: ratio(selectedStyle.color, selectedStyle.backgroundColor),
+        };
+      });
+
+      // #65 で Primary をリンク・タブ・チャートの色に振り直したので、
+      // ダークの --primary が AA を割ると全リンクが読めなくなる（実際に 2.72 だった）。
+      expect(ratios.link).toBeGreaterThanOrEqual(4.5);
+      expect(ratios.selectedTab).toBeGreaterThanOrEqual(4.5);
+    });
+  });
+
+  test.describe("OS がライトのとき", () => {
+    test.use({ colorScheme: "light" });
+
+    test("初回表示はライト", async ({ page }) => {
+      await page.goto("/", { waitUntil: "domcontentloaded" });
+
+      await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    });
+
+    test("AC-4/AC-5: 切り替えられ、リロードしても保持される", async ({ page }) => {
+      await page.goto("/");
+      await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+
+      await page.getByRole("button", { name: "ダークモードに切り替える" }).click();
+      await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      // OS はライトのままなので、保持されていなければここでライトに戻る。
+      await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+
+      // 戻せることも見る。
+      await page.getByRole("button", { name: "ライトモードに切り替える" }).click();
+      await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
+    });
+
+    test("AC-6: 切替でネットワークリクエストが発生しない", async ({ page }) => {
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      const requests: string[] = [];
+      page.on("request", (request) => requests.push(request.url()));
+
+      await page.getByRole("button", { name: "ダークモードに切り替える" }).click();
+      await expect(page.locator("html")).toHaveClass(/\bdark\b/);
+
+      // SSR を巻き込んでいないことの担保。巻き込むとエッジキャッシュに
+      // モードが焼かれる危険が出る（spec.md 3.3）。
+      expect(requests).toEqual([]);
+    });
+  });
+});
+
+test.describe("共通ヘッダ", () => {
+  for (const path of ["/", "/about", "/company/6861"]) {
+    test(`AC-1: ${path} にヘッダが出る`, async ({ page }) => {
+      await page.goto(path);
+
+      const header = page.getByRole("banner");
+      await expect(header.getByRole("link", { name: "OpenReport" })).toBeVisible();
+      await expect(header.getByRole("link", { name: "計算方法" })).toBeVisible();
+      await expect(
+        header.getByRole("button", { name: /モードに切り替える/ }),
+      ).toBeVisible();
+    });
+  }
+
+  test("AC-2: OpenReport を押すと / に戻る", async ({ page }) => {
+    await page.goto("/about");
+
+    await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "年齢補正年収ランキング" })).toBeVisible();
+  });
+
+  test("AC-9: モバイル幅でヘッダが横スクロールを起こさない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+
+    const overflows = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+
+    expect(overflows).toBe(false);
+  });
+});
