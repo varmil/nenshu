@@ -6,7 +6,7 @@
   "tailwind": {
     "config": "",
     "css": "design-system/tokens/tokens.css",
-    "baseColor": "neutral",
+    "baseColor": "mist",
     "cssVariables": true,
     "prefix": ""
   },
