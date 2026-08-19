@@ -5,29 +5,42 @@ plan: `./plan.md`
 
 実装しながら決めたこと。決定は Issue のコメントではなくここに置く（CLAUDE.md）。
 
-## 1. 表示モードは `<html>` のクラスが正で、React はそれを読むだけ
+## 1. 表示モードは `<html>` のクラスが正で、見た目は CSS が決める
 
 **サーバーはモードを知りえない。** SSR の出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`、`wrangler.jsonc` の `cache.enabled: true`）ので、モードをHTMLに焼くと**ある読者の選択がキャッシュ経由で他の読者に配られる**。
 
-したがって唯一の真実は「いま `<html>` に `dark` が付いているか」で、これを
+したがって唯一の真実は「いま `<html>` に `dark` が付いているか」であり、これを `themeScript.ts` のインラインスクリプトが**最初の描画より前に**確定させる。
 
-1. `themeScript.ts` のインラインスクリプトが**最初の描画より前に**確定させる
-2. `ThemeToggle` が後から読む
+**React はこの状態を持たないし、読んで描き分けもしない。** 配色は CSS 変数（`.dark` ブロック）が、アイコンと読み上げ名は `dark:` バリアントが決める。React の state をモードの正にしていない。理由は次項のちらつきで、実際に一度まちがえた。
 
-という順序にした。React の state をモードの正にしていない。
+### 描き分けは JS ではなく CSS でやる（ちらつきの実測と修正）
 
-### `useSyncExternalStore` を使った理由
+最初は現在のモードを `useSyncExternalStore` で読み、`getServerSnapshot` に `null` を返して**サーバー側ではアイコンを出さない**実装にしていた。まちがったアイコンを一瞬見せないためだったが、**実際に F5 でちらついた。**
 
-最初は `useEffect` + `setState` で `<html>` のクラスを読んでいたが、**lint に止められた**:
+フレーム単位で測った結果（本番ビルド、OS=ダーク）:
 
 ```
-react-hooks/set-state-in-effect
-Calling setState synchronously within an effect can trigger cascading renders
+ 122.5ms frame1   ボタン=空っぽ        label=ダークモードに切り替える
+ 184.1ms frame5   ボタン=空っぽ        label=ダークモードに切り替える
+ 208.5ms frame6   ボタン=アイコンあり   label=ライトモードに切り替える  ← ハイドレーション完了
 ```
 
-これは正しい指摘で、`<html>` のクラスは「React の外にある状態」なのだから `useSyncExternalStore` が本来の道具になる。`getServerSnapshot` は `null` を返し、サーバー描画とハイドレーション中はアイコンを出さない。**ここで仮に太陽を描くと、ダークの読者にだけ一瞬まちがったアイコンが見える。**
+**ボタンが約86ms のあいだ空のまま残り、そこにアイコンが現れていた。** 同時に測った `body` の背景色は frame0 から一貫してダークで、**ページの地色は一度もちらついていない**（インラインスクリプトは正しく効いていた）。つまり原因は配色ではなくアイコンだった。
 
-購読は `<html>` の class 属性への `MutationObserver`。自分の `applyTheme` による変更も同じ経路で拾えるので、状態の持ち方が1本になる。
+修正は **「JS で判定しない」**。両方のアイコンを常に出し、どちらを見せるかを `dark:` バリアント（＝ `<html>` の `dark` クラス）に任せる。クラスはインラインスクリプトが最初の描画より前に付けているので、**サーバーが返した HTML がそのまま正しい見た目になり、ハイドレーションを待つ必要が無い。**
+
+```tsx
+<Sun className="dark:hidden" />
+<Moon className="hidden dark:block" />
+```
+
+アクセシブル名も同じ方法で切り替える。`aria-label` は属性なので CSS から変えられず、JS で出し分けるとアイコンと同じちらつきが戻る。`sr-only` は `display` を指定しないので `hidden` / `dark:block` と併用でき、`display:none` の側はアクセシブル名の計算から外れるため読み上げは常に1つになる。
+
+結果として `useSyncExternalStore` も描画用の state も不要になった。押した時のモードは `readAppliedTheme()` で DOM から読めば足りる。**「React の外の状態を React に持ち込まない」ほうが、持ち込んで同期するより単純だった。**
+
+残っている `useEffect` は OS 設定の変更を購読するだけで、state を更新しない（見た目は CSS が決めるので再描画が要らない）。
+
+ちらつきは E2E で固定した。**JS を一切実行しない生の HTTP レスポンス**を見て、`lucide-sun` と `lucide-moon` の両方が入っていることを確かめる。旧実装に戻すと実際に落ちる。
 
 ## 2. FOUC は素の `<script>` で殺す。`next/script` は使わない
 

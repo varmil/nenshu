@@ -289,6 +289,36 @@ test.describe("共通ヘッダ", () => {
     });
   }
 
+  /*
+   * ちらつき防止（Issue #66 の追加報告）。
+   *
+   * 以前は現在のモードを JS で判定してアイコンを描き分けており、サーバー側では
+   * どちらか分からないので何も出していなかった。その結果 **ボタンが約86ms
+   * 空のまま残り、ハイドレーション後にアイコンが現れる**（実測）ちらつきが出た。
+   *
+   * いまは両方のアイコンを常に出し、`dark:` バリアント（＝ <html> の dark クラス）
+   * で見せ分けている。クラスはインラインスクリプトが最初の描画より前に付けるので、
+   * **サーバーが返した HTML がそのまま正しい見た目になる。**
+   *
+   * JS を一切実行しない生の HTTP レスポンスで見るのが確実な判定になる。
+   */
+  test("ちらつき防止: SSRのHTMLの時点でトグルにアイコンが入っている", async ({ request }) => {
+    const response = await request.get("/");
+    expect(response.status()).toBe(200);
+    const html = await response.text();
+
+    const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? "";
+    expect(header).not.toBe("");
+
+    // lucide のアイコンは svg として直接埋まる。片方だけでは描き分けができていない。
+    expect(header).toContain("lucide-sun");
+    expect(header).toContain("lucide-moon");
+
+    // 読み上げ名も両方入っていて、CSS 側で片方が display:none になる。
+    expect(header).toContain("ダークモードに切り替える");
+    expect(header).toContain("ライトモードに切り替える");
+  });
+
   test("AC-2: OpenReport を押すと / に戻る", async ({ page }) => {
     await page.goto("/about");
 
