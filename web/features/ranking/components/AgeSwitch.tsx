@@ -2,6 +2,7 @@
 
 import { ToggleGroup, ToggleGroupItem } from "@/design-system/ui/toggle-group";
 import { TARGET_AGES, type TargetAge } from "../types";
+import { TAB_TOGGLE_SELECTED_CLASS } from "./tabToggleClass";
 
 export function AgeSwitch({
   value,
@@ -20,7 +21,12 @@ export function AgeSwitch({
       }}
     >
       {TARGET_AGES.map((age) => (
-        <ToggleGroupItem key={age} value={String(age)} aria-label={`${age}歳`}>
+        <ToggleGroupItem
+          key={age}
+          value={String(age)}
+          aria-label={`${age}歳`}
+          className={TAB_TOGGLE_SELECTED_CLASS}
+        >
           {age}
         </ToggleGroupItem>
       ))}

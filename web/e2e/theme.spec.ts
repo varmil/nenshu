@@ -35,19 +35,74 @@ test.describe("配色トークン", () => {
     expect(background).not.toBe("");
   });
 
-  test("ランキングの年収額が --primary の色で描画される", async ({ page }) => {
+  /*
+   * 色の役割分担: Primary はナビゲーション（リンク・選択中のタブ・チャート）に使い、
+   * データそのもの（年収額）は地のテキスト色のままにする。年収額が主役だからと
+   * 色を付けると、画面上で最も目立つ色が「押せないもの」に割り当てられてしまう。
+   */
+  test("ランキングの年収額は地のテキスト色（Primary を使わない）", async ({ page }) => {
     await page.goto("/");
 
-    // 1行目の推定年収（RankingTable の `text-primary text-2xl font-bold`）。
-    const salary = page.getByRole("table").locator("tbody tr").first().locator(".text-primary");
+    const firstRow = page.getByRole("table").locator("tbody tr").first();
+    // 推定年収のセル（RankingTable の `text-2xl font-bold`）。
+    const salary = firstRow.locator(".text-2xl");
     await expect(salary).toBeVisible();
 
-    const salaryColor = await salary.evaluate((el) => getComputedStyle(el).color);
+    const { salaryColor, bodyColor, primary } = await page.evaluate((el) => {
+      const style = getComputedStyle(document.documentElement);
+      return {
+        salaryColor: getComputedStyle(el as Element).color,
+        bodyColor: getComputedStyle(document.body).color,
+        primary: style.getPropertyValue("--primary").trim(),
+      };
+    }, await salary.elementHandle());
+
+    expect(salaryColor).toBe(bodyColor);
+    expect(salaryColor).not.toBe(primary);
+  });
+
+  test("会社名リンクは Primary で描画される", async ({ page }) => {
+    await page.goto("/");
+
+    const link = page.getByRole("table").locator("tbody tr").first().getByRole("link");
+    await expect(link).toBeVisible();
+
+    const linkColor = await link.evaluate((el) => getComputedStyle(el).color);
     const bodyColor = await page.evaluate(() => getComputedStyle(document.body).color);
 
-    // text-primary が効いていれば本文色とは別の色になり、かつ無彩色ではない。
-    expect(isAchromatic(salaryColor)).toBe(false);
-    expect(salaryColor).not.toBe(bodyColor);
+    expect(isAchromatic(linkColor)).toBe(false);
+    expect(linkColor).not.toBe(bodyColor);
+  });
+
+  test("選択中の年齢タブは Primary で塗りつぶされる", async ({ page }) => {
+    await page.goto("/");
+
+    // exact 指定は必須。「40歳」は平均年齢フィルタの「〜40歳」にも一致してしまう。
+    const selected = page.getByRole("button", { name: "35歳", exact: true });
+    const unselected = page.getByRole("button", { name: "40歳", exact: true });
+
+    const selectedBg = await selected.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const unselectedBg = await unselected.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+    // 選択中だけが塗られていて、かつその塗りが無彩色ではない。
+    expect(isAchromatic(selectedBg)).toBe(false);
+    expect(selectedBg).not.toBe(unselectedBg);
+  });
+
+  test("遷移中のプログレスバーは 4px ある", async ({ page }) => {
+    await page.goto("/");
+
+    // .nav-progress は遷移中しか描画されないので、同じ宣言を持つ要素を作って測る。
+    const height = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.className = "nav-progress";
+      document.body.append(probe);
+      const value = getComputedStyle(probe).height;
+      probe.remove();
+      return value;
+    });
+
+    expect(height).toBe("4px");
   });
 
   test("--radius から rounded-* が導出されている", async ({ page }) => {

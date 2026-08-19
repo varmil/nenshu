@@ -24,7 +24,7 @@ export function RankingCardList({
                   <NavLink
                     href={`/company/${company.id}`}
                     prefetch={false}
-                    className="hover:underline"
+                    className="text-primary hover:underline"
                   >
                     {company.name}
                   </NavLink>
@@ -40,7 +40,7 @@ export function RankingCardList({
                 <span className="text-muted-foreground text-xs">{targetAge}歳時点の推定年収</span>
                 <Badge variant="secondary">推定</Badge>
               </div>
-              <p className="text-primary text-3xl font-bold">
+              <p className="text-3xl font-bold">
                 {formatManYen(company.estimatedSalary)}
               </p>
             </div>

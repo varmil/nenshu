@@ -1,6 +1,7 @@
 "use client";
 
 import { ToggleGroup, ToggleGroupItem } from "@/design-system/ui/toggle-group";
+import { TAB_TOGGLE_SELECTED_CLASS } from "./tabToggleClass";
 
 export function FilterToggleGroup({
   label,
@@ -24,7 +25,12 @@ export function FilterToggleGroup({
         onValueChange={(values) => onChange(values[0] ?? null)}
       >
         {options.map((option) => (
-          <ToggleGroupItem key={option.value} value={option.value} aria-label={option.label}>
+          <ToggleGroupItem
+            key={option.value}
+            value={option.value}
+            aria-label={option.label}
+            className={TAB_TOGGLE_SELECTED_CLASS}
+          >
             {option.label}
           </ToggleGroupItem>
         ))}

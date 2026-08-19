@@ -43,7 +43,7 @@ export default function AboutPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 leading-relaxed">
       <header className="flex flex-col gap-3">
-        <NavLink href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
+        <NavLink href="/" className="text-primary text-sm underline">
           ← ランキングに戻る
         </NavLink>
         <h1 className="text-2xl font-bold">計算方法</h1>
@@ -320,7 +320,7 @@ export default function AboutPage() {
           <li>
             <a
               href="https://disclosure2.edinet-fsa.go.jp/"
-              className="underline"
+              className="text-primary underline"
               target="_blank"
               rel="noreferrer"
             >
@@ -331,14 +331,14 @@ export default function AboutPage() {
           <li>
             <a
               href="https://www.mhlw.go.jp/toukei/list/chinginkouzou.html"
-              className="underline"
+              className="text-primary underline"
               target="_blank"
               rel="noreferrer"
             >
               賃金構造基本統計調査（厚生労働省）
             </a>
             — 賃金カーブ。
-            <a href="https://www.e-stat.go.jp/" className="underline" target="_blank" rel="noreferrer">
+            <a href="https://www.e-stat.go.jp/" className="text-primary underline" target="_blank" rel="noreferrer">
               e-Stat
             </a>
             経由で取得
@@ -347,7 +347,7 @@ export default function AboutPage() {
       </Section>
 
       <footer>
-        <NavLink href="/" className="text-muted-foreground hover:text-foreground text-sm underline">
+        <NavLink href="/" className="text-primary text-sm underline">
           ← ランキングに戻る
         </NavLink>
       </footer>

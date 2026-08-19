@@ -31,7 +31,7 @@
   left: 0;
   right: 0;
   z-index: 50;
-  height: 2px;
+  height: 4px;
   transform: scaleX(0);
   transform-origin: 0 50%;
   background: var(--primary);
