@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   test: {
-    include: ["features/**/*.test.ts", "lib/**/*.test.ts"],
+    include: [
+      "features/**/*.test.ts",
+      "lib/**/*.test.ts",
+      "design-system/**/*.test.ts",
+    ],
   },
   resolve: {
     // tsconfig の paths（`@/*` → `./*`）に合わせる。アプリのコードが `@/` で
