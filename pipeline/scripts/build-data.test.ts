@@ -224,4 +224,83 @@ describe("buildData", () => {
       expect(curveKeys[curveIdx]).toBeDefined();
     }
   });
+
+  // history.json は企業詳細ページの「平均年収推移（過去10年間）」が読む
+  // （T0・`docs/timeseries/spec.md` 1.4）。/ は読まない（Issue #22）。
+  it("AC-2: history.json が10年ぶんで、各社の配列長が years と揃っている", () => {
+    const { years, byId } = result.history;
+    expect(years).toEqual([2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]);
+
+    const ids = Object.keys(byId);
+    expect(ids.length).toBeGreaterThanOrEqual(1850);
+    for (const id of ids) {
+      expect(byId[id].length).toBe(years.length);
+    }
+  });
+
+  it("AC-2: 年ごとの社数が下限を満たす", () => {
+    const { years, byId } = result.history;
+    const countFor = (year: number) => {
+      const k = years.indexOf(year);
+      return Object.values(byId).filter((v) => v[k] !== null).length;
+    };
+    expect(countFor(2026)).toBeGreaterThanOrEqual(1850);
+    expect(countFor(2017)).toBeGreaterThanOrEqual(1600);
+  });
+
+  // 同じ有報から取った同じ数字なので、ここがずれていたら抽出が壊れている。
+  it("AC-3: history.json の2026年が companies.json の平均年収と全社で一致する", () => {
+    const { years, byId } = result.history;
+    const k = years.indexOf(2026);
+    const rows = result.companies.rows;
+
+    // 2026年は全社ぶん揃っていなければならない（同じ有報・同じ抽出関数なので、
+    // 1社でも欠けるか値がずれたら抽出が壊れている）。
+    for (const row of rows) {
+      const values = byId[row[0]];
+      expect(values).toBeDefined();
+      expect(values[k]).toBe(row[6]);
+    }
+    expect(rows.length).toBe(1867);
+  });
+
+  // 誤読はたいてい隣の年から浮く。桁の切り方を間違えると10倍・4倍に飛ぶ。
+  it("AC-2: 隣接する年で極端に動く組が 0.1% 未満", () => {
+    const { byId } = result.history;
+    let pairs = 0;
+    const jumps: string[] = [];
+    for (const [id, values] of Object.entries(byId)) {
+      for (let i = 1; i < values.length; i++) {
+        const a = values[i - 1];
+        const b = values[i];
+        if (a === null || b === null) continue;
+        pairs++;
+        if (b / a > 1.8 || b / a < 0.55) jumps.push(`${id}:${a}→${b}`);
+      }
+    }
+    expect(pairs).toBeGreaterThan(15000);
+    expect(jumps.length / pairs).toBeLessThan(0.001);
+  });
+
+  it("AC-4: 欠けている年は null で、内挿されていない", () => {
+    const { byId } = result.history;
+    const withGap = Object.values(byId).filter((v) => v.some((x) => x === null));
+    // 古い年ほど欠ける（上場が新しい会社など）。欠けが1社も無いのは抽出の取りこぼし。
+    expect(withGap.length).toBeGreaterThan(0);
+
+    // null を残していることの確認。内挿していれば null は消えている。
+    for (const values of withGap) {
+      expect(values.some((x) => x === null)).toBe(true);
+    }
+  });
+
+  it("AC-4: 全年が null の会社は載せない", () => {
+    for (const values of Object.values(result.history.byId)) {
+      expect(values.some((x) => x !== null)).toBe(true);
+    }
+  });
+
+  it("AC-5: history.json のgzip後サイズが150KB以内", () => {
+    expect(result.historyGzipSize).toBeLessThanOrEqual(150 * 1024);
+  });
 });

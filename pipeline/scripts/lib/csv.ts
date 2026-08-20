@@ -62,3 +62,46 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
     };
   });
 }
+
+export interface SalaryHistoryRow {
+  edinetCode: string;
+  year: number;
+  avgSalary: number;
+}
+
+const HISTORY_HEADER = [
+  "edinet_code", "year", "avg_salary", "avg_age",
+  "employees_nonconsolidated", "source", "period_end", "doc_id",
+];
+
+/**
+ * data/salary_history.csv の最小パーサ（T0・`docs/timeseries/spec.md` 1.3）。
+ *
+ * `parseUnifiedCsv` と同じ方針で、想定外の列が来たら例外で落とす。読むのは
+ * `edinet_code` / `year` / `avg_salary` の3列だけ——残りは抽出の追跡用に
+ * CSVには持たせてあるが、`history.json` には出さない。
+ */
+export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
+  const withoutBom = text.replace(/^﻿/, "");
+  const lines = withoutBom.split(/\r?\n/).filter((line) => line.length > 0);
+
+  const [headerLine, ...dataLines] = lines;
+  const header = headerLine.split(",");
+  if (header.length !== HISTORY_HEADER.length || header.some((h, i) => h !== HISTORY_HEADER[i])) {
+    throw new Error(`data/salary_history.csv の列が想定と一致しません: ${headerLine}`);
+  }
+
+  return dataLines.map((line, lineIndex) => {
+    const cols = line.split(",");
+    if (cols.length !== HISTORY_HEADER.length) {
+      throw new Error(
+        `data/salary_history.csv の${lineIndex + 2}行目が${HISTORY_HEADER.length}列でありません: ${line}`
+      );
+    }
+    return {
+      edinetCode: cols[0],
+      year: Number(cols[1]),
+      avgSalary: Number(cols[2]),
+    };
+  });
+}

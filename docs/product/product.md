@@ -26,7 +26,7 @@
 | ranking | 年齢補正ランキング | 着手中 | `docs/ranking/` |
 | company | 企業詳細ページ | 着手中 | `docs/company/` |
 | site-chrome | サイト共通の外装（ヘッダ・表示モード） | 着手中 | `docs/site-chrome/` |
-| timeseries | 年収・業績の10年推移 | 未着手（EDINET 遡及取得が前提） | — |
+| timeseries | 平均年収の10年推移 | 着手中 | `docs/timeseries/` |
 | market-data | 株価推移・信用格付け | 未着手（データ調達の可否から） | — |
 | monetize | 収益化（広告・アフィリエイト） | 未着手 | — |
 
