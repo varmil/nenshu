@@ -298,20 +298,6 @@ export function CompanyDetail({
             <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
           </section>
 
-          {history && (
-            <section className="flex flex-col gap-2">
-              <h2 className="text-lg font-bold">平均年収推移（過去10年間）</h2>
-              <p className="text-muted-foreground text-sm">
-                {/* 表示基準の切替と独立（timeseries spec 2.2・AC-8）。 */}
-                各年の有価証券報告書に載った<strong>実測値</strong>です。
-                「年齢そろえ」を選んでもここの数字は変わりません。
-              </p>
-              <SalaryHistoryChart history={history} />
-              {/* 増減の要約は図の下（アートボード 4b）。図を見てから読む順になる。 */}
-              {historySummary && <p className="text-muted-foreground text-sm">{historySummary}</p>}
-            </section>
-          )}
-
           <section className="flex flex-col gap-2">
             <h2 className="text-lg font-bold">有価証券報告書の実測値</h2>
             <p className="text-muted-foreground text-xs">
@@ -345,6 +331,23 @@ export function CompanyDetail({
               </div>
             </dl>
           </section>
+
+          {/*
+            **推移は「有価証券報告書の実測値」の下**（アートボード 4b）。どちらも
+            補正していない数字で、上の節が今年の1点、この節がその10年ぶんになる。
+            C2 は推定年収の節と実測値の節の間に挟んでいたため、実測の数字が
+            2か所に分かれていた。
+          */}
+          {history && (
+            <section className="flex flex-col gap-2">
+              <h2 className="text-lg font-bold">平均年収推移（過去10年間）</h2>
+              {/* 表示基準の切替と独立（timeseries spec 2.2・AC-8）。出典は AC-9。 */}
+              <p className="text-muted-foreground text-xs">
+                各年の有価証券報告書に載った平均年間給与の実測値（提出会社単体）。単位は万円。
+              </p>
+              <SalaryHistoryChart history={history} summary={historySummary} />
+            </section>
+          )}
 
           <HowItWorks />
         </div>
