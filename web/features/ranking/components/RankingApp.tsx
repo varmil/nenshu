@@ -88,7 +88,7 @@ export function RankingApp({
           <p className="text-muted-foreground text-xs md:text-sm">
             {isRaw ? (
               <>
-                有価証券報告書の平均年間給与（単体）そのままで1,867社。
+                有価証券報告書の平均年間給与（単体）で1,867社。
                 <span className="hidden md:inline">
                   年齢は会社ごとに違うため、若い会社は低めに出ます。
                 </span>

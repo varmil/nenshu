@@ -94,7 +94,7 @@ export function RankingTable({
                         <NavLink
                           href={`/company/${company.id}`}
                           prefetch={false}
-                          className="text-primary truncate font-medium hover:underline"
+                          className="text-primary truncate font-bold hover:underline"
                         >
                           {company.name}
                         </NavLink>
@@ -112,7 +112,7 @@ export function RankingTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-col gap-1">
-                    <span className="text-xl font-bold tabular-nums">{formatManYen(salary)}</span>
+                    <span className="text-base font-bold tabular-nums">{formatManYen(salary)}</span>
                     <SalaryBar
                       value={salary}
                       max={pageMaxSalary}

@@ -67,6 +67,17 @@ export function buildRankedCompanies(
 - shadcnの`PaginationLink`/`PaginationPrevious`/`PaginationNext`は内部で`Button`コンポーネントを`render`propで`<a>`に差し替えている実装で、**`role="button"`が明示的に付与される**（`<a href>`だが実装上は`role="link"`にならない）。E2Eのロケータは`getByRole("button", ...)`を使う必要がある（`getByRole("link", ...)`ではタイムアウトする。実際に踏んだ）。
 - `PaginationPrevious`/`PaginationNext`の`aria-label`はshadcnの既定で英語（"Go to previous/next page"）固定。日本語UIとの整合とE2Eの安定したセレクタ確保を兼ねて、`aria-label="前のページへ"`/`"次のページへ"`で明示的に上書きした（`{...props}`が既定の`aria-label`より後にスプレッドされるため、propsで渡すだけで上書きできる）。
 
+## ページ送りの後は最上部へ戻す（Issue #96、2026-08-20）
+
+`RankingPagination` の `goTo` は `startTransition` の直後に `scrollToPageTop()`（`lib/scroll.ts`）を呼ぶ。
+
+**ページ送りのボタンは100行ぶん下にある。** スクロール位置を保ったまま行だけ入れ替わると、変わったのは画面の上のほう＝視界の外なので、「押しても何も起きていない」ように見える（公開後の指摘。実測でボタンの位置は `scrollY = 5,653`）。
+
+- **戻す先はページ最上部**（`{ top: 0, left: 0 }`）。表の先頭ではなく見出しまで戻す——ページが変わったことは見出し直下の「1,867社 中 101〜200社目」で読める。
+- **`behavior` は指定しない**（＝一瞬で戻す）。`smooth` にすると100行ぶんの距離を流れることになり、`prefers-reduced-motion` への配慮も要る。ページ送りは離散的な操作なので途中の景色に意味が無い。
+- **呼ぶ場所は `goTo` の中**。先頭の `if` で「範囲外・同じページ」を弾いた後なので、**実際にページが変わるときだけ**戻る。無効化された「前へ」を押しても位置は動かない。
+- `window` は引数で受ける（既定値 `globalThis.window`）。node 環境の vitest から呼べるようにするためで、SSR で読み込まれても評価時には何も起きない。
+
 ## `components/RankingApp.tsx` の変更
 
 - 各フィルタ・年齢・検索語の`onChange`ハンドラに`page: 1`を追加した（`setState(prev => ({...prev, key: value, page: 1}))`）。ページネーション自体のクリック（`handlePageChange`）だけは`page`のみを変える。
@@ -76,10 +87,12 @@ export function buildRankedCompanies(
 
 - `rank.test.ts`: `totalCount`の算出、pageによる正しいオフセットの切り出し（2ページ目の先頭がrank101になること）、範囲外pageのクランプ、0件時に`companies`が空配列になることを固定。既存のAC-1〜AC-6のテストは新しい返り値の形（`{companies, totalCount}`）に合わせて書き換えた。
 - `urlState.test.ts`: `page`のparse（正常値・0/負数/非数値は無視）・build（既定値1は省略、末尾に付く）・カノニカル順序のテストを追加。
+- `scroll.test.ts`: `scrollToPageTop` が `{top: 0, left: 0}` で呼ぶこと・`behavior` を渡さないこと・`window` が無い環境で落ちないこと。
 - `pagination.test.ts`: `getPaginationRange`の境界値（総ページ数0/1、先頭付近・末尾付近・中間、隙間が1ページしかない場合に省略記号が出ないこと）を固定。
 - E2E（`web/e2e/ranking-pagination.spec.ts`）:
   - AC-8: 0件のとき案内が表示され、`<table>`が存在しないこと。
   - ページ送りクリックで内容（1位→101位の会社名）が変わり、URLに`page=2`が反映されること。
   - フィルタ変更で`page`パラメータがURLから消える（1に戻る）こと。
   - ページ送り操作中にネットワークリクエストが発生しないこと（U5と同じ手法）。
+  - ページ送りを押すと `window.scrollY` が0に戻ること（Issue #96。ボタンまでスクロールしてから押し、押す前が0でないことも確かめる）。
   - `?page=2`・`?page=999999`への生HTTPリクエスト（JS実行なし）で、SSRの時点で正しい内容（クランプ後の最終ページ含む）が返ること（U5フォローアップと同じ手法。`<table>`部分だけを正規表現で取り出して検証する——U5フォローアップで判明した「companies.json全件がハイドレーション用データとして埋め込まれる」問題を踏まえた手法）。

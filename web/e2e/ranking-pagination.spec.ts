@@ -22,6 +22,21 @@ test.describe("0件・端の状態と段階表示", () => {
     await expect(firstRow).not.toContainText("株式会社キーエンス");
   });
 
+  // Issue #96。ページ送りのボタンは100行ぶん下にあるので、位置を保ったままだと
+  // 入れ替わった行が視界に入らず「押しても何も起きていない」ように見える。
+  test("ページ送りを押すとページ最上部までスクロールが戻る", async ({ page }) => {
+    await page.goto("/");
+
+    const next = page.getByRole("button", { name: "次のページへ" });
+    await next.scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    await next.click();
+
+    await expect(page).toHaveURL(/[?&]page=2/);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  });
+
   test("フィルタを変更するとpageが1に戻る", async ({ page }) => {
     await page.goto("/?page=2");
     await expect(page).toHaveURL(/[?&]page=2/);

@@ -54,11 +54,11 @@ export function RankingCardList({
                 <NavLink
                   href={`/company/${company.id}`}
                   prefetch={false}
-                  className="text-primary min-w-0 truncate text-sm font-medium hover:underline"
+                  className="text-primary min-w-0 truncate text-sm font-bold hover:underline"
                 >
                   {company.name}
                 </NavLink>
-                <span className="shrink-0 text-lg font-bold tabular-nums">
+                <span className="shrink-0 text-base font-bold tabular-nums">
                   {formatManYen(salary)}
                 </span>
               </div>
