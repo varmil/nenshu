@@ -136,6 +136,21 @@ describe("tokens.css の色トークン", () => {
     expect(isAchromatic(dark.primary)).toBe(false);
   });
 
+  /*
+   * --overlay はシート・ダイアログの背後に敷く幕（Issue #79）。不透明にすると
+   * 背後のページが完全に隠れて「どこに重なっているか」が読めなくなる。
+   * ダークは背景自体が暗いので、ライトと同じ薄さでは幕が掛かって見えない。
+   */
+  it.each(modes)("%s: --overlay は半透明である", (_mode, tokens) => {
+    const alpha = parseOklch(tokens.overlay).alpha;
+    expect(alpha).toBeGreaterThan(0);
+    expect(alpha).toBeLessThan(1);
+  });
+
+  it("--overlay はダークのほうが濃い", () => {
+    expect(parseOklch(dark.overlay).alpha).toBeGreaterThan(parseOklch(root.overlay).alpha);
+  });
+
   it("チャート色 5 本がすべて互いに異なる", () => {
     const charts = [1, 2, 3, 4, 5].map((n) => root[`chart-${n}`]);
     expect(new Set(charts).size).toBe(5);

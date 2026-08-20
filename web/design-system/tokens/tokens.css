@@ -32,6 +32,7 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-overlay: var(--overlay);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -112,6 +113,9 @@
   --card-foreground: oklch(0.148 0.004 228.8);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.148 0.004 228.8);
+  /* シート・ダイアログの背後に敷く幕。ダークは背景自体が暗いので濃くしないと
+     幕が掛かって見えない（shadcn の既定 bg-black/10 のままだと分からなかった）。 */
+  --overlay: oklch(0 0 0 / 30%);
   --primary: oklch(0.52 0.105 223.128);
   --primary-foreground: oklch(0.984 0.019 200.873);
   --secondary: oklch(0.967 0.001 286.375);
@@ -147,6 +151,7 @@
   --card-foreground: oklch(0.987 0.002 197.1);
   --popover: oklch(0.218 0.008 223.9);
   --popover-foreground: oklch(0.987 0.002 197.1);
+  --overlay: oklch(0 0 0 / 60%);
   --primary: oklch(0.715 0.143 215.221);
   --primary-foreground: oklch(0.302 0.056 229.695);
   --secondary: oklch(0.274 0.006 286.033);
