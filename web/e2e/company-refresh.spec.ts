@@ -464,3 +464,52 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
     expect(yearX).toEqual(barX);
   });
 });
+
+/*
+ * 年齢別の表の列幅（2026-08-20 の指摘）。年齢の列に `w-36`（144px）を敷いていたため、
+ * 狭い器では「25歳」の3文字に必要な倍近くを取り、右の2列——とくに
+ * 「1,190万円〜1,785万円」が入る推定範囲——が痩せていた。**器の幅で切る**（`@container`）
+ * ので、ビューポート幅ではなくサイドバーを含めた実際の器で確かめる——768px でも
+ * サイドバーがあると器は 396px しかない。
+ */
+test.describe("年齢別の表の列幅", () => {
+  const columns = (page: import("@playwright/test").Page) =>
+    page
+      .getByRole("table")
+      .filter({ hasText: "推定範囲" })
+      .first()
+      .evaluate((table) => {
+        const th = [...table.querySelectorAll("th")];
+        return {
+          age: th[0].getBoundingClientRect().width,
+          range: th[2].getBoundingClientRect().width,
+          container: (table.parentElement as HTMLElement).clientWidth,
+          // 折り返さずに収まっているか（`whitespace-nowrap` なので溢れれば scrollWidth が伸びる）。
+          overflow: Math.max(
+            ...[...table.querySelectorAll("td")].map((n) => n.scrollWidth - n.clientWidth)
+          ),
+        };
+      });
+
+  for (const width of [360, 375, 768]) {
+    test(`器が狭いとき（${width}px）年齢の列は内容ぶんに絞る`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/company/6861");
+
+      const { age, range, container, overflow } = await columns(page);
+      expect(container).toBeLessThan(448); // @md 未満であることの確認（前提が崩れたら気づく）
+      expect(age).toBeLessThanOrEqual(72);
+      expect(range).toBeGreaterThan(age * 2);
+      expect(overflow).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test("器が広ければ元の幅に戻る", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const { age, container } = await columns(page);
+    expect(container).toBeGreaterThanOrEqual(448);
+    expect(age).toBe(144);
+  });
+});
