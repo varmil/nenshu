@@ -1,4 +1,4 @@
-import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
+import type { CompaniesData, CurvesData, RankedCompany, RankingState, SortKey } from "../types";
 import { PAGE_SIZE } from "../types";
 import { matchesFilters } from "./filter";
 import { curveValuesInYen } from "./curve";
@@ -10,6 +10,21 @@ export interface RankedCompaniesResult {
   companies: RankedCompany[];
   /** フィルタ後・ページ切り出し前の総件数。0件判定・総ページ数の算出に使う。 */
   totalCount: number;
+  /**
+   * **そのページに出ている金額の最大値**（円）。年収バーはこれを100%として引く
+   * （spec.md 1.11）。0件なら 0。
+   *
+   * ページ切り出しの**後**に採る。ページ・フィルタ・並び替え・表示基準のどれが
+   * 変わっても基準が取り直されるのは、この1点に閉じているためである。とくに
+   * 表示基準の切替では金額そのものが別の系列に変わるので、片方の基準で両方を
+   * 描くと年齢そろえに切り替えたとき棒だけ元の縮尺で残る。
+   */
+  pageMaxSalary: number;
+}
+
+/** 表示に使う金額。実測値なら有報そのまま、年齢そろえなら推定値（ADR-0007）。 */
+export function displaySalary(company: Pick<RankedCompany, "avgSalary" | "estimatedSalary">) {
+  return company.estimatedSalary ?? company.avgSalary;
 }
 
 /**
@@ -24,10 +39,6 @@ export function buildRankedCompanies(
   curves: CurvesData,
   state: RankingState
 ): RankedCompaniesResult {
-  const filteredRows = companies.rows.filter(
-    (row) => matchesFilters(row, companies.industries, state) && matchesQuery(row[1], state.query)
-  );
-
   // 円に直したカーブは産業大分類ごとに1本しかないので、1,867行ぶん作り直さず使い回す。
   const curvesInYen = new Map<string, number[]>();
   const curveValuesFor = (curveKey: string) => {
@@ -39,8 +50,14 @@ export function buildRankedCompanies(
     return values;
   };
 
+  /*
+   * **絞り込みの前に全1,867社ぶんの金額を出す。** 偏差値の隣に置く「上位◯%」は
+   * 母集団の中での位置なので、絞り込んだあとの並びからは出せない（`docs/product/
+   * glossary.md`: 偏差値は単独で出さない）。ここで一度だけ全件を計算し、絞り込みは
+   * そのあとに掛ける——絞り込みごとに2回計算しないための順序である。
+   */
   const targetAge = state.targetAge;
-  const withSalary: Omit<RankedCompany, "rank">[] = filteredRows.map((row) => {
+  const withSalary = companies.rows.map((row) => {
     const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees, badge] = row;
     const estimatedSalary =
       targetAge === null
@@ -54,33 +71,58 @@ export function buildRankedCompanies(
           );
 
     return {
-      id,
-      name,
-      tse33: companies.industries[tse33Idx],
-      hasBadge: badge === 1,
-      avgAge,
-      avgTenure,
-      avgSalary,
-      employees,
-      estimatedSalary,
+      row,
+      company: {
+        id,
+        name,
+        tse33: companies.industries[tse33Idx],
+        hasBadge: badge === 1,
+        avgAge,
+        avgTenure,
+        avgSalary,
+        employees,
+        estimatedSalary,
+      },
     };
   });
 
-  const sorted = withSalary.sort(
-    (a, b) => (b.estimatedSalary ?? b.avgSalary) - (a.estimatedSalary ?? a.avgSalary)
-  );
+  // 全体の並び。ここで振るのが母集団の中での位置（上位◯%の分母は全1,867社）。
+  withSalary.sort((a, b) => displaySalary(b.company) - displaySalary(a.company));
 
-  const ranked: RankedCompany[] = sorted.map((company, index) => ({
-    ...company,
-    rank: index + 1,
-  }));
+  // 順位は絞り込んだあとに1から振り直す（AC-3）。上位◯%はそれとは別に全体で数える。
+  const ranked: RankedCompany[] = withSalary
+    .map(({ row, company }, index) => ({ row, company, populationRank: index + 1 }))
+    .filter(
+      ({ row, company }) =>
+        matchesFilters(row, companies.industries, state) && matchesQuery(company.name, state.query)
+    )
+    .map(({ company, populationRank }, index) => ({ ...company, populationRank, rank: index + 1 }));
 
-  const totalCount = ranked.length;
+  const ordered = applySort(ranked, state.sort);
+
+  const totalCount = ordered.length;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const page = Math.min(state.page, totalPages);
+  const pageCompanies = ordered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return {
-    companies: ranked.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    companies: pageCompanies,
     totalCount,
+    pageMaxSalary: pageCompanies.reduce((max, c) => Math.max(max, displaySalary(c)), 0),
   };
+}
+
+/**
+ * 表示の並び替え（spec.md 1.10）。**`rank` は書き換えない。**
+ *
+ * `Array.prototype.sort` は安定なので、平均年齢・従業員数が同じ会社どうしは
+ * 金額の降順のまま残る。
+ */
+function applySort(companies: RankedCompany[], sort: SortKey): RankedCompany[] {
+  if (sort === "salary") return companies;
+  const compare =
+    sort === "age"
+      ? (a: RankedCompany, b: RankedCompany) => a.avgAge - b.avgAge
+      : (a: RankedCompany, b: RankedCompany) => b.employees - a.employees;
+  return [...companies].sort(compare);
 }

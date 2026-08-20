@@ -1,4 +1,5 @@
 import { NavLink } from "./NavLink";
+import { HeaderSearch } from "./HeaderSearch";
 import { ThemeToggle } from "@/features/theme/components/ThemeToggle";
 
 /**
@@ -22,7 +23,12 @@ export function SiteHeader() {
         <NavLink href="/" prefetch={false} className="text-lg font-bold">
           OpenReport
         </NavLink>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/*
+            会社名検索は全ページのヘッダに置く（U12）。`/` の上では状態を更新するだけ、
+            それ以外のページでは `/?q=` への遷移になる。詳細は HeaderSearch.tsx。
+          */}
+          <HeaderSearch />
           <NavLink href="/about" className="text-primary text-sm underline">
             計算方法
           </NavLink>

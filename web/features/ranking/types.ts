@@ -5,6 +5,16 @@ export const TARGET_AGES: readonly TargetAge[] = [25, 30, 35, 40, 45, 50, 55, 60
 /** 1ページあたりの表示件数。 */
 export const PAGE_SIZE = 100;
 
+/**
+ * 並び替えのキー（spec.md 1.10）。既定は `salary`。
+ *
+ * **並び替えても順位は振り直さない。** 順位は「表示基準の金額で何位か」を意味する
+ * ので、`age` で並べた表の順位列は 1,204位 / 87位 … と飛ぶのが正しい。
+ */
+export type SortKey = "salary" | "age" | "employees";
+
+export const SORT_KEYS: readonly SortKey[] = ["salary", "age", "employees"];
+
 export type EmployeeSizeBucket = "under300" | "300to1000" | "1000plus";
 export type TenureBucket = "under13" | "13to17" | "17plus";
 export type AvgAgeBucket = "under40" | "40to43" | "43plus";
@@ -48,6 +58,8 @@ export interface RankingState {
   tenure: TenureBucket | null;
   avgAgeBucket: AvgAgeBucket | null;
   query: string;
+  /** 表示の並び。順位（＝金額での位置）とは別物。 */
+  sort: SortKey;
   /** 1始まり。 */
   page: number;
 }
@@ -63,5 +75,31 @@ export interface RankedCompany {
   employees: number;
   /** 年齢そろえのときの推定年収（円）。実測値のときは `null`（`avgSalary` を出す）。 */
   estimatedSalary: number | null;
+  /** 絞り込み後の順位。1から振り直す（AC-3）。 */
   rank: number;
+  /**
+   * 絞り込みを掛けない全1,867社の中での順位。「上位◯%」の分子になる。
+   *
+   * `rank` と分けているのは、偏差値の隣に置く水準が**母集団の中での位置**でなければ
+   * ならないため（`docs/product/glossary.md`: 偏差値は単独で出さない）。海運業7社に
+   * 絞ったときの `rank` は1〜7で、これを分子にすると「上位14%」のような無意味な値になる。
+   */
+  populationRank: number;
+}
+
+/**
+ * 偏差値と全体平均の線に要る母集団統計だけを抜いたもの（spec.md 1.11・1.12）。
+ *
+ * **`stats.json` 全体（raw 130KB）をクライアントに渡さない。** ランキングページは
+ * 1,867社ぶんの行を既にHTMLに埋め込んでおり（gzip 66KB・Issue #22）、順位表
+ * `rankAll` / `rankIndustry` まで載せると予算を大きく超える。ここで要るのは
+ * 表示基準ごとの平均と標準偏差の9組だけで、`app/page.tsx` が抜いて渡す。
+ */
+export interface PopulationStats {
+  /** 母集団の社数（1,867）。 */
+  count: number;
+  /** 表示基準の並び。先頭の `null` が実測値、続いて TARGET_AGES（ADR-0007）。 */
+  bases: (number | null)[];
+  /** 円。`bases` と同じ並び。sd は母標準偏差。 */
+  population: { mean: number; sd: number }[];
 }

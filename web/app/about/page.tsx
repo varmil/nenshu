@@ -101,6 +101,12 @@ export default function AboutPage() {
           {formatManYen(facts.population.age35Mean)}です。同じ会社でも、
           どちらで見ているかによって順位が変わります。
         </p>
+        <p>
+          <strong>年収偏差値は100を超えることがあります。</strong>
+          偏差値は正規分布を前提にした指標ですが、年収の分布は右に強く裾を引くため、
+          上位のごく一部が平均から大きく離れます（35歳そろえのキーエンスで150.0）。
+          水準を読むときは隣に添えた<strong>「上位◯%」</strong>のほうが確かです。
+        </p>
       </Section>
 
       <Section title="補正の式">

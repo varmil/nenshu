@@ -13,6 +13,7 @@ function stateFor(overrides: Partial<RankingState>): RankingState {
     tenure: null,
     avgAgeBucket: null,
     query: "",
+    sort: "salary",
     page: 1,
     ...overrides,
   };

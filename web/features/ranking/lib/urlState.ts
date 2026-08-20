@@ -1,5 +1,12 @@
 import { TARGET_AGES } from "../types";
-import type { AvgAgeBucket, EmployeeSizeBucket, RankingState, TargetAge, TenureBucket } from "../types";
+import type {
+  AvgAgeBucket,
+  EmployeeSizeBucket,
+  RankingState,
+  SortKey,
+  TargetAge,
+  TenureBucket,
+} from "../types";
 
 /** 「年齢そろえ」に切り替えたときに選ばれる年齢。 */
 export const DEFAULT_TARGET_AGE: TargetAge = 35;
@@ -12,6 +19,7 @@ export const INITIAL_STATE: RankingState = {
   tenure: null,
   avgAgeBucket: null,
   query: "",
+  sort: "salary",
   page: 1,
 };
 
@@ -25,6 +33,13 @@ const TENURE_TO_PARAM: Record<TenureBucket, string> = {
   "13to17": "13-17",
   "17plus": "17-",
 };
+/** `salary` は既定なのでURLに出さない（下の buildSearchParams を参照）。 */
+const SORT_TO_PARAM: Record<SortKey, string> = {
+  salary: "salary",
+  age: "age",
+  employees: "emp",
+};
+
 const AVG_AGE_TO_PARAM: Record<AvgAgeBucket, string> = {
   under40: "-40",
   "40to43": "40-43",
@@ -38,9 +53,10 @@ function invert<K extends string>(map: Record<K, string>): Record<string, K> {
 const PARAM_TO_EMPLOYEE_SIZE = invert(EMPLOYEE_SIZE_TO_PARAM);
 const PARAM_TO_TENURE = invert(TENURE_TO_PARAM);
 const PARAM_TO_AVG_AGE = invert(AVG_AGE_TO_PARAM);
+const PARAM_TO_SORT = invert(SORT_TO_PARAM);
 
 /**
- * 常に age → ind → emp → ten → aage → q → page の順で組み立てる（カノニカル化）。
+ * 常に age → ind → emp → ten → aage → q → sort → page の順で組み立てる（カノニカル化）。
  * フィルタを適用した順序に関係なく、同じ絞り込みなら常に同じ文字列になる。
  * 初期値と同じ項目はクエリに出さない。
  *
@@ -56,6 +72,7 @@ export function buildSearchParams(state: RankingState): URLSearchParams {
   if (state.tenure !== null) params.set("ten", TENURE_TO_PARAM[state.tenure]);
   if (state.avgAgeBucket !== null) params.set("aage", AVG_AGE_TO_PARAM[state.avgAgeBucket]);
   if (state.query !== "") params.set("q", state.query);
+  if (state.sort !== INITIAL_STATE.sort) params.set("sort", SORT_TO_PARAM[state.sort]);
   if (state.page !== INITIAL_STATE.page) params.set("page", String(state.page));
   return params;
 }
@@ -90,6 +107,9 @@ export function parseSearchParams(params: URLSearchParams): Partial<RankingState
 
   const q = params.get("q");
   if (q !== null) result.query = q;
+
+  const sort = params.get("sort");
+  if (sort !== null && sort in PARAM_TO_SORT) result.sort = PARAM_TO_SORT[sort];
 
   const page = params.get("page");
   if (page !== null) {

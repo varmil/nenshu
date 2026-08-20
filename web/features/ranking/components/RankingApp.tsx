@@ -2,21 +2,25 @@
 
 import { useRankingState } from "../hooks/useRankingState";
 import { DEFAULT_TARGET_AGE } from "../lib/urlState";
-import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
+import { pageRange } from "../lib/pagination";
+import { populationForBasis } from "../lib/population";
+import { formatInt } from "../lib/format";
+import { PAGE_SIZE } from "../types";
 import type {
-  AvgAgeBucket,
   CompaniesData,
   CurvesData,
-  EmployeeSizeBucket,
+  PopulationStats,
   RankingState,
+  SortKey,
   TargetAge,
-  TenureBucket,
 } from "../types";
 import { AgeSwitch } from "./AgeSwitch";
 import { BasisSwitch } from "./BasisSwitch";
-import { FilterSelect } from "./FilterSelect";
-import { FilterToggleGroup } from "./FilterToggleGroup";
-import { SearchInput } from "./SearchInput";
+import { ActiveFilterChips } from "./ActiveFilterChips";
+import { IndustryChips } from "./IndustryChips";
+import { RankingFilters } from "./RankingFilters";
+import { RankingFilterSheet } from "./RankingFilterSheet";
+import { SortSwitch } from "./SortSwitch";
 import { RankingTable } from "./RankingTable";
 import { RankingCardList } from "./RankingCardList";
 import { RankingPagination } from "./RankingPagination";
@@ -24,40 +28,43 @@ import { RankingPagination } from "./RankingPagination";
 export function RankingApp({
   companies,
   curves,
+  population,
   initialState,
 }: {
   companies: CompaniesData;
   curves: CurvesData;
+  population: PopulationStats;
   initialState: RankingState;
 }) {
-  const { state, setState, rankedCompanies, totalCount } = useRankingState(
+  const { state, setState, rankedCompanies, totalCount, pageMaxSalary } = useRankingState(
     companies,
     curves,
     initialState
   );
 
-  const handleAgeChange = (targetAge: TargetAge) => {
-    setState((prev) => ({ ...prev, targetAge, page: 1 }));
+  /**
+   * 絞り込みの変更はすべてここを通す。**`page` を1に戻すのをここ1か所に閉じる**——
+   * 呼び出し側ごとに書いていると、増やしたフィルタで戻し忘れる。
+   */
+  const applyFilter = (patch: Partial<RankingState>) => {
+    setState((prev) => ({ ...prev, ...patch, page: 1 }));
   };
 
-  const handleBasisChange = (basis: "raw" | "age") => {
-    setState((prev) => ({
-      ...prev,
-      targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE,
-      page: 1,
-    }));
-  };
+  const handleAgeChange = (targetAge: TargetAge) => applyFilter({ targetAge });
+  const handleBasisChange = (basis: "raw" | "age") =>
+    applyFilter({ targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE });
+  const handleSortChange = (sort: SortKey) => applyFilter({ sort });
+  const handlePageChange = (page: number) => setState((prev) => ({ ...prev, page }));
 
   const isRaw = state.targetAge === null;
+  const basisPopulation = populationForBasis(population, state.targetAge);
+  const range = pageRange(state.page, totalCount, PAGE_SIZE);
 
-  const handlePageChange = (page: number) => {
-    setState((prev) => ({ ...prev, page }));
+  const filterProps = {
+    state,
+    onChange: applyFilter,
+    industries: companies.industries,
   };
-
-  const industryOptions = companies.industries.map((industry) => ({
-    value: industry,
-    label: industry,
-  }));
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -83,62 +90,62 @@ export function RankingApp({
             <AgeSwitch value={state.targetAge} onChange={handleAgeChange} disabled={isRaw} />
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <FilterSelect
-            label="業種"
-            value={state.industry}
-            onChange={(industry) => setState((prev) => ({ ...prev, industry, page: 1 }))}
-            options={industryOptions}
-          />
-          <FilterToggleGroup
-            label="従業員数"
-            value={state.employeeSize}
-            onChange={(employeeSize) =>
-              setState((prev) => ({
-                ...prev,
-                employeeSize: employeeSize as EmployeeSizeBucket | null,
-                page: 1,
-              }))
-            }
-            options={EMPLOYEE_SIZE_OPTIONS}
-          />
-          <FilterToggleGroup
-            label="在籍年数"
-            value={state.tenure}
-            onChange={(tenure) =>
-              setState((prev) => ({ ...prev, tenure: tenure as TenureBucket | null, page: 1 }))
-            }
-            options={TENURE_OPTIONS}
-          />
-          <FilterToggleGroup
-            label="平均年齢"
-            value={state.avgAgeBucket}
-            onChange={(avgAgeBucket) =>
-              setState((prev) => ({
-                ...prev,
-                avgAgeBucket: avgAgeBucket as AvgAgeBucket | null,
-                page: 1,
-              }))
-            }
-            options={AVG_AGE_OPTIONS}
-          />
-          <SearchInput
-            value={state.query}
-            onChange={(query) => setState((prev) => ({ ...prev, query, page: 1 }))}
-          />
-        </div>
       </header>
-      {totalCount === 0 ? (
-        <p className="text-muted-foreground py-12 text-center text-sm">
-          条件に一致する企業が見つかりませんでした。フィルタや検索条件を緩めてお試しください。
-        </p>
-      ) : (
-        <>
-          <RankingTable companies={rankedCompanies} targetAge={state.targetAge} />
-          <RankingCardList companies={rankedCompanies} targetAge={state.targetAge} />
-          <RankingPagination state={state} totalCount={totalCount} onPageChange={handlePageChange} />
-        </>
-      )}
+
+      {/* PC は左に絞り込みを常設した2カラム、モバイルは1カラム＋シート（アートボード 4a / 2a）。 */}
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-[13.5rem_1fr] md:items-start md:gap-6">
+        <aside className="hidden md:sticky md:top-4 md:block">
+          <h2 className="mb-3 text-sm font-medium">絞り込み</h2>
+          <RankingFilters {...filterProps} />
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <RankingFilterSheet {...filterProps} />
+            <SortSwitch value={state.sort} onChange={handleSortChange} />
+          </div>
+          <ActiveFilterChips state={state} onChange={applyFilter} />
+          <p className="text-muted-foreground text-xs">
+            {totalCount === 0
+              ? "0社"
+              : `${formatInt(totalCount)}社 中 ${formatInt(range.from)}〜${formatInt(range.to)}社目`}
+          </p>
+
+          {totalCount === 0 ? (
+            <p className="text-muted-foreground py-12 text-center text-sm">
+              条件に一致する企業が見つかりませんでした。フィルタや検索条件を緩めてお試しください。
+            </p>
+          ) : (
+            <>
+              <RankingTable
+                companies={rankedCompanies}
+                targetAge={state.targetAge}
+                pageMaxSalary={pageMaxSalary}
+                population={basisPopulation}
+                populationCount={population.count}
+              />
+              <RankingCardList
+                companies={rankedCompanies}
+                targetAge={state.targetAge}
+                pageMaxSalary={pageMaxSalary}
+                population={basisPopulation}
+                populationCount={population.count}
+              />
+              <RankingPagination
+                state={state}
+                totalCount={totalCount}
+                onPageChange={handlePageChange}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      <IndustryChips
+        industries={companies.industries}
+        current={state.industry}
+        onSelect={(industry) => applyFilter({ industry })}
+      />
     </div>
   );
 }

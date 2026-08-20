@@ -44,8 +44,8 @@ test.describe("配色トークン", () => {
     await page.goto("/");
 
     const firstRow = page.getByRole("table").locator("tbody tr").first();
-    // 推定年収のセル（RankingTable の `text-2xl font-bold`）。
-    const salary = firstRow.locator(".text-2xl");
+    // 年収のセル（RankingTable の `text-xl font-bold`）。
+    const salary = firstRow.locator(".text-xl");
     await expect(salary).toBeVisible();
 
     const { salaryColor, bodyColor, primary } = await page.evaluate((el) => {
