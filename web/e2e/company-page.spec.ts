@@ -5,7 +5,12 @@ import { test, expect } from "@playwright/test";
 // C2 で h1 の直下にも順位を出すようにしたため、「1位 / 1,867社」のような文字列は
 // ページ内に2か所ある。**カードの中の値**を見たいので `dl` に絞る。
 
-/** 大カードの数値リスト（全体順位・業界内順位・偏差値・全体平均との差）。 */
+/**
+ * 大カードの順位リスト（全体順位・業界内順位・偏差値）。
+ *
+ * C3 でカードは2カラムになり、全体平均との差は `dl` の外の段落に、平均年齢・
+ * 在籍年数・従業員数は2つ目の `dl` に移った。ここは1つ目の `dl` を指す。
+ */
 const card = (page: import("@playwright/test").Page) => page.locator("dl").first();
 
 test.describe("企業詳細ページ", () => {
@@ -19,19 +24,22 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
 
     // 順位は実測値の分布に対する値。
-    await expect(card(page).getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
-    await expect(card(page).getByText("業界内順位（電気機器）")).toBeVisible();
-    await expect(card(page).getByText("1位 / 150社")).toBeVisible();
-    await expect(card(page).getByText("全体平均 719万円")).toBeVisible();
+    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("1位 /150社")).toBeVisible();
+    // 偏差値は単独で出さない（glossary）。上位◯%が同じ枠に添う。
+    await expect(card(page).getByText("上位0.1%未満")).toBeVisible();
+    // 全体平均との差は C3 で `dl` の外の段落に移した。
+    await expect(page.getByText("全体平均 719万円 に対して")).toBeVisible();
 
     // 実測値では「推定」の語を出さない（spec AC-9）。
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
 
-    // 「有価証券報告書の実測値」の節。C2 で「この会社の要点」にも平均年齢と
-    // 勤続が出るので、`exact` で節の側だけを見る。
-    await expect(page.getByText("35.0歳", { exact: true })).toBeVisible();
-    await expect(page.getByText("11.3年", { exact: true })).toBeVisible();
-    await expect(page.getByText("3,306人", { exact: true })).toBeVisible();
+    // 「有価証券報告書の実測値」の節。C3 で上部カードにも平均年齢・在籍年数・
+    // 従業員数が並ぶようになったので、**節を特定してから**中を見る。
+    const rawFacts = page.locator("section", { hasText: "補正していない実際の数字です" });
+    await expect(rawFacts.getByText("35.0歳", { exact: true })).toBeVisible();
+    await expect(rawFacts.getByText("11.3年", { exact: true })).toBeVisible();
+    await expect(rawFacts.getByText("3,306人", { exact: true })).toBeVisible();
   });
 
   test("AC-1: /company/6861?age=35 でキーエンスの35歳時点の数値が出る", async ({ page }) => {
@@ -39,8 +47,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
-    await expect(card(page).getByText("1位 / 150社")).toBeVisible();
+    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("1位 /150社")).toBeVisible();
   });
 
   // 実測値のとき年齢スイッチは消さずに無効化する（ADR-0007）。
@@ -89,8 +97,9 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("120位 / 1,867社（上位6.4%）")).toBeVisible();
-    await expect(card(page).getByText("2位 / 71社")).toBeVisible();
+    await expect(card(page).getByText("120位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("上位6.4%")).toBeVisible();
+    await expect(card(page).getByText("2位 /71社")).toBeVisible();
   });
 
   // 実測値と年齢そろえで順位が変わることを、平均年齢が高めのトヨタで固定する。
@@ -98,8 +107,9 @@ test.describe("企業詳細ページ", () => {
     await page.goto("/company/7203");
 
     await expect(page.getByText("1,006万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("121位 / 1,867社（上位6.5%）")).toBeVisible();
-    await expect(card(page).getByText("2位 / 71社")).toBeVisible();
+    await expect(card(page).getByText("121位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("上位6.5%")).toBeVisible();
+    await expect(card(page).getByText("2位 /71社")).toBeVisible();
   });
 
   test("AC-3: 年齢スイッチで25歳を選ぶと金額と偏差値が変わり、ネットワークリクエストが発生しない", async ({
@@ -169,8 +179,9 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("280位 / 1,867社（上位15.0%）")).toBeVisible();
-    await expect(card(page).getByText("17位 / 82社")).toBeVisible();
+    await expect(card(page).getByText("280位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("上位15.0%")).toBeVisible();
+    await expect(card(page).getByText("17位 /82社")).toBeVisible();
   });
 
   test("AC-6: 三菱商事に「本社のみ」バッジと、その意味の説明がある", async ({ page }) => {
@@ -251,7 +262,8 @@ test.describe("企業詳細ページ", () => {
 
   test("業種名からランキングの業種フィルタへ戻れる", async ({ page }) => {
     await page.goto("/company/6861");
-    await page.getByRole("link", { name: "電気機器" }).click();
+    // C3 で「電気機器150社をすべて見る」が増えたため、パンくずのほうを厳密に指す。
+    await page.getByRole("link", { name: "電気機器", exact: true }).click();
 
     await expect(page).toHaveURL(/[?&]ind=/);
     await expect(page.getByRole("combobox", { name: "業種" })).toContainText("電気機器");

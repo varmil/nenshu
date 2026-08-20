@@ -3,8 +3,9 @@
 import { NavLink } from "@/features/navigation/components/NavLink";
 import { useEffect, useState } from "react";
 import { Badge } from "@/design-system/ui/badge";
-import { Card, CardContent, CardHeader } from "@/design-system/ui/card";
+import { Card, CardContent } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
+import { ControlBand } from "@/features/ranking/components/ControlBand";
 import { BasisSwitch } from "@/features/ranking/components/BasisSwitch";
 import { DEFAULT_TARGET_AGE } from "@/features/ranking/lib/urlState";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
@@ -23,7 +24,7 @@ import { AgeSalaryTable } from "./AgeSalaryTable";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
 import { CompanyLogoMark } from "@/features/ranking/components/CompanyLogoMark";
-import { buildHighlights, buildHistorySummary } from "../lib/highlights";
+import { buildCurveSummary, buildHighlights, buildHistorySummary } from "../lib/highlights";
 
 function parseAge(raw: string | null): TargetAge | null {
   const n = Number(raw);
@@ -81,6 +82,7 @@ export function CompanyDetail({
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
   const highlights = buildHighlights(view, current);
   const historySummary = history ? buildHistorySummary(history.years, history.values) : null;
+  const curveSummary = buildCurveSummary(byAge, view.name);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -109,106 +111,170 @@ export function CompanyDetail({
       </nav>
 
       <header className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <CompanyLogoMark name={view.name} />
-          <h1 className="text-2xl font-bold">{view.name}</h1>
-          {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
+        {/*
+          ロゴマークを大きくし、社名と位置をその右に積む（C3、アートボード 4b）。
+          C2 では h1 の中に小さなマークが並んでいて、社名の一部のように見えていた。
+        */}
+        <div className="flex items-start gap-3.5">
+          <CompanyLogoMark name={view.name} size="lg" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* 390px では 28px だと社名が2行に折れる（実測）。モバイルは1段落とす。 */}
+              <h1 className="text-2xl font-bold sm:text-3xl">{view.name}</h1>
+              {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
+            </div>
+            {/* 順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても位置が分かる。 */}
+            <p className="text-muted-foreground text-sm">
+              {`${view.tse33}で${formatInt(current.rankIndustry)}位 / ${formatInt(view.industryCount)}社・` +
+                `全体で${formatInt(current.rankAll)}位 / ${formatInt(view.totalCount)}社` +
+                `（${formatTopPercent(current.topPercent)}）`}
+            </p>
+          </div>
         </div>
-        {/* 順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても位置が分かる。 */}
-        <p className="text-muted-foreground text-sm">
-          {`${view.tse33}で${formatInt(current.rankIndustry)}位 / ${formatInt(view.industryCount)}社・` +
-            `全体で${formatInt(current.rankAll)}位 / ${formatInt(view.totalCount)}社` +
-            `（${formatTopPercent(current.topPercent)}）`}
-        </p>
-        <div className="flex flex-col gap-2">
+        {/* 器はランキングと同じ（U13 の ControlBand）。同じ操作を2ページで別の形にしない。 */}
+        <ControlBand
+          label="見せ方"
+          hint={
+            isRaw
+              ? `有価証券報告書の数値そのまま（平均年齢 ${formatDecimal1(view.avgAge)}歳の会社全体の平均）`
+              : `業種の賃金カーブで${targetAge}歳の水準に置き換えた推定値`
+          }
+        >
           <BasisSwitch
             value={targetAge}
             onChange={(basis) => setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)}
             label="見せ方"
           />
-          <div className="overflow-x-auto">
-            {/* 実測値のときも消さずに無効化する（ADR-0007）。理由は AgeSwitch.tsx。 */}
-            <AgeSwitch value={targetAge} onChange={setTargetAge} disabled={isRaw} />
-          </div>
-        </div>
+        </ControlBand>
+        <ControlBand
+          label="年齢"
+          tone={isRaw ? "dashed" : "solid"}
+          hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
+        >
+          {/* 実測値のときも消さずに無効化する（ADR-0007）。理由は AgeSwitch.tsx。 */}
+          <AgeSwitch value={targetAge} onChange={setTargetAge} disabled={isRaw} />
+        </ControlBand>
       </header>
 
       {/* PC は本文＋右サイドバー、モバイルは1カラム（アートボード 4b / 2b）。 */}
-      <div className="flex flex-col gap-4 md:grid md:grid-cols-[1fr_16rem] md:items-start md:gap-6">
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-[1fr_19.75rem] md:items-start md:gap-6">
         <div className="flex min-w-0 flex-col gap-6">
+          {/*
+            **カードは2カラム**（C3、アートボード 5b）。左が「いくらか」、右が
+            「その額が母集団のどこか」。C2 は全部を縦に積んでいたため、金額と位置の
+            間に順位4件が挟まり、同じことを言う数字が離れていた。
+            モバイルでは縦に積まれ、読み順は 金額 → 順位 → 位置 → 分布 になる。
+          */}
           <Card>
-            <CardHeader>
-              {/* 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。 */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground text-sm">
-                  {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
-                </span>
-                {!isRaw && <Badge variant="secondary">推定</Badge>}
+            <CardContent className="grid gap-6 p-5 md:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <div>
+                  {/* 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。 */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground text-sm">
+                      {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
+                    </span>
+                    {!isRaw && <Badge variant="secondary">推定</Badge>}
+                  </div>
+                  <p className="text-4xl font-bold tabular-nums">{formatManYen(current.salary)}</p>
+                  <p className="text-muted-foreground mt-1 text-sm">
+                    全体平均 {formatManYen(current.populationMean)} に対して{" "}
+                    <span className="text-foreground font-medium">
+                      {formatDiffFromMean(current.diffFromMean)}
+                    </span>
+                  </p>
+                </div>
+
+                <dl className="border-border grid grid-cols-3 gap-3 border-t pt-3">
+                  <div>
+                    <dt className="text-muted-foreground text-xs">全体順位</dt>
+                    <dd className="text-lg font-semibold tabular-nums">
+                      {formatInt(current.rankAll)}位
+                      <span className="text-muted-foreground text-xs font-normal">
+                        {" "}
+                        /{formatInt(view.totalCount)}社
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">業界内順位</dt>
+                    <dd className="text-lg font-semibold tabular-nums">
+                      {formatInt(current.rankIndustry)}位
+                      <span className="text-muted-foreground text-xs font-normal">
+                        {" "}
+                        /{formatInt(view.industryCount)}社
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    {/* 偏差値は単独で出さない（glossary）。上位◯%を必ず隣に置く。 */}
+                    <dt className="text-muted-foreground text-xs">年収偏差値</dt>
+                    <dd className="text-lg font-semibold tabular-nums">
+                      {formatDeviation(current.deviation)}
+                      <span className="text-muted-foreground block text-xs font-normal">
+                        {formatTopPercent(current.topPercent)}
+                      </span>
+                    </dd>
+                  </div>
+                </dl>
+
+                {/*
+                  平均年齢・在籍年数・従業員数はカードの中にも出す（アートボード 5b）。
+                  下の「有価証券報告書の実測値」と重複するが、**金額の隣に無いと
+                  「35.0歳の会社の2,178万円」という読み方ができない**。
+                */}
+                <dl className="border-border grid grid-cols-3 gap-3 border-t pt-3">
+                  <div>
+                    <dt className="text-muted-foreground text-xs">平均年齢</dt>
+                    <dd className="tabular-nums">{formatDecimal1(view.avgAge)}歳</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">在籍年数</dt>
+                    <dd className="tabular-nums">{formatDecimal1(view.avgTenure)}年</dd>
+                  </div>
+                  <div>
+                    <dt className="text-muted-foreground text-xs">従業員数（単体）</dt>
+                    <dd className="tabular-nums">{formatInt(view.employees)}人</dd>
+                  </div>
+                </dl>
               </div>
-              <p className="text-4xl font-bold">{formatManYen(current.salary)}</p>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <dl className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <dt className="text-muted-foreground text-xs">全体順位</dt>
-                  <dd className="text-lg font-medium">
-                    {formatInt(current.rankAll)}位
-                    <span className="text-muted-foreground text-sm">
-                      {" "}
-                      / {formatInt(view.totalCount)}社（{formatTopPercent(current.topPercent)}）
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">業界内順位（{view.tse33}）</dt>
-                  <dd className="text-lg font-medium">
-                    {formatInt(current.rankIndustry)}位
-                    <span className="text-muted-foreground text-sm">
-                      {" "}
-                      / {formatInt(view.industryCount)}社
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">年収偏差値</dt>
-                  <dd className="text-lg font-medium">
-                    {formatDeviation(current.deviation)}
-                    <span className="text-muted-foreground text-sm">
-                      {" "}
-                      （{formatTopPercent(current.topPercent)}）
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground text-xs">全体平均との差</dt>
-                  <dd className="text-lg font-medium">
-                    {formatDiffFromMean(current.diffFromMean)}
-                    <span className="text-muted-foreground text-sm">
-                      {" "}
-                      （全体平均 {formatManYen(current.populationMean)}）
-                    </span>
-                  </dd>
-                </div>
-              </dl>
 
-              {/* 分布の中での位置（spec 1.13）。平均との差だけでは裾か中央かが分からない。 */}
-              <SalaryDistributionChart
-                current={current}
-                count={view.totalCount}
-                companyName={view.name}
-              />
+              <div className="flex flex-col justify-center gap-6">
+                {/* 分布の中での位置（spec 1.13）。平均との差だけでは裾か中央かが分からない。 */}
+                <SalaryDistributionChart
+                  current={current}
+                  count={view.totalCount}
+                  companyName={view.name}
+                />
 
-              <p className="text-muted-foreground text-xs">
-                年収の分布は右に裾を引くため、偏差値は100を超えることがあります。水準を読むときは
-                「上位◯%」のほうが確かです。
-              </p>
+                <p className="text-muted-foreground text-xs">
+                  年収の分布は右に裾を引くため、偏差値は100を超えることがあります。水準を読むときは
+                  「上位◯%」のほうが確かです。
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <section className="flex flex-col gap-2">
+          {/*
+            **表 → 説明文 → チャート**の順（C3、アートボード 4b）。C2 は図が先だったが、
+            8点の金額を確かめたい読者は表を、形を掴みたい読者はチャートを見る。先に
+            数値を出しておくと、図は「その形」を確かめるためだけのものになる。
+          */}
+          <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
-            <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
+            {/* 数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。 */}
+            <div className="flex flex-col gap-1.5">
+              {curveSummary.map((sentence) => (
+                <p key={sentence} className="text-sm leading-relaxed">
+                  {sentence}
+                </p>
+              ))}
+            </div>
+            <p className="text-muted-foreground text-center text-sm font-semibold">
+              年齢別の推定年収の推移
+            </p>
+            <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
           </section>
 
           {history && (
@@ -218,9 +284,10 @@ export function CompanyDetail({
                 {/* 表示基準の切替と独立（timeseries spec 2.2・AC-8）。 */}
                 各年の有価証券報告書に載った<strong>実測値</strong>です。
                 「年齢そろえ」を選んでもここの数字は変わりません。
-                {historySummary && <> {historySummary}</>}
               </p>
               <SalaryHistoryChart history={history} />
+              {/* 増減の要約は図の下（アートボード 4b）。図を見てから読む順になる。 */}
+              {historySummary && <p className="text-muted-foreground text-sm">{historySummary}</p>}
             </section>
           )}
 
@@ -231,22 +298,29 @@ export function CompanyDetail({
                 ? "補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
                 : "ここから下は補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"}
             </p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
-              <div>
+            {/*
+              罫線で仕切った4セル（アートボード 4b）。地のまま並べると、上のカードの
+              数値との境目が無く、どこからが「補正していない数字」なのかが分からない。
+              `gap-px` と背景色で1本ずつの罫線を作る（内側の罫線を各セルに書くと角で重なる）。
+            */}
+            <dl className="bg-border border-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-4">
+              <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">平均年収</dt>
-                <dd className="font-medium">{formatManYen(view.avgSalary)}</dd>
+                <dd className="text-lg font-semibold tabular-nums">{formatManYen(view.avgSalary)}</dd>
               </div>
-              <div>
+              <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">平均年齢</dt>
-                <dd className="font-medium">{formatDecimal1(view.avgAge)}歳</dd>
+                <dd className="text-lg font-semibold tabular-nums">{formatDecimal1(view.avgAge)}歳</dd>
               </div>
-              <div>
+              <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">在籍年数</dt>
-                <dd className="font-medium">{formatDecimal1(view.avgTenure)}年</dd>
+                <dd className="text-lg font-semibold tabular-nums">
+                  {formatDecimal1(view.avgTenure)}年
+                </dd>
               </div>
-              <div>
+              <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">従業員数（単体）</dt>
-                <dd className="font-medium">{formatInt(view.employees)}人</dd>
+                <dd className="text-lg font-semibold tabular-nums">{formatInt(view.employees)}人</dd>
               </div>
             </dl>
           </section>
@@ -254,17 +328,22 @@ export function CompanyDetail({
           <HowItWorks />
         </div>
 
-        <aside className="flex flex-col gap-6 md:sticky md:top-4">
-          <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium">この会社の要点</h2>
+        {/* サイドバーは2枚のカード（アートボード 5b）。地のままだと本文の続きに見える。 */}
+        <aside className="flex flex-col gap-4 md:sticky md:top-4">
+          <section className="bg-muted flex flex-col gap-2 rounded-lg p-4">
+            <h2 className="text-sm font-bold">この会社の要点</h2>
             {/* 数値から導ける事実だけ。会社ごとの解説文は書かない（spec 1.11）。 */}
-            <ul className="text-muted-foreground flex list-disc flex-col gap-1.5 pl-4 text-sm">
+            <ul className="text-muted-foreground flex list-disc flex-col gap-1.5 pl-4 text-xs leading-relaxed">
               {highlights.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           </section>
-          <NeighborCompanies neighbors={current.neighbors} industry={view.tse33} />
+          <NeighborCompanies
+            neighbors={current.neighbors}
+            industry={view.tse33}
+            industryCount={view.industryCount}
+          />
         </aside>
       </div>
 

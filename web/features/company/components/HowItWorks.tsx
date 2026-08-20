@@ -27,13 +27,22 @@ export function HowItWorks() {
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-lg font-bold">この数字の作り方</h2>
+      {/*
+        番号は丸の中の数字にする（C3、アートボード 4b）。「STEP 1」という文字列より
+        1文字ぶんで済み、3枚が横に並んだときに順番が形で分かる。
+      */}
       <ol className="grid gap-2 sm:grid-cols-3">
         {STEPS.map((step, i) => (
           <li key={step.title}>
             <Card className="h-full">
-              <CardContent className="flex flex-col gap-1 p-3">
-                <span className="text-muted-foreground text-xs">STEP {i + 1}</span>
-                <h3 className="text-sm font-medium">{step.title}</h3>
+              <CardContent className="flex flex-col gap-1.5 p-4">
+                <span
+                  aria-hidden="true"
+                  className="bg-primary text-primary-foreground flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums"
+                >
+                  {i + 1}
+                </span>
+                <h3 className="text-sm font-bold">{step.title}</h3>
                 <p className="text-muted-foreground text-xs">{step.body}</p>
               </CardContent>
             </Card>

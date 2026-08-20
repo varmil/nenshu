@@ -98,3 +98,47 @@ export function buildHistorySummary(years: number[], values: (number | null)[]):
     `（${first.year}年 ${formatManYen(first.value)} → ${last.year}年 ${formatManYen(last.value)}）。`
   );
 }
+
+/**
+ * 年齢別の推定年収に添える説明文（C3、アートボード 4b）。
+ *
+ * **`buildHighlights` と同じ線を守る——数値から機械的に導ける事実だけ。** 表と
+ * チャートに出ている8点を、読者が自分で見つけなくてよい形に言い直すだけである。
+ *
+ * 3文を返しうる。最高水準の年齢／伸びが最大の5歳区間／末尾で下がる理由。
+ * **末尾が下がっていなければ3文目は出さない**（該当しない項目は出さない）。
+ */
+export function buildCurveSummary(byAge: CompanyAgeStats[], name: string): string[] {
+  if (byAge.length < 2) return [];
+
+  const peak = byAge.reduce((best, s) => (s.salary > best.salary ? s : best), byAge[0]);
+
+  let jump = { from: byAge[0], to: byAge[1], diff: byAge[1].salary - byAge[0].salary };
+  for (let i = 1; i < byAge.length - 1; i++) {
+    const diff = byAge[i + 1].salary - byAge[i].salary;
+    if (diff > jump.diff) jump = { from: byAge[i], to: byAge[i + 1], diff };
+  }
+
+  const sentences = [
+    `${name}の推定年収を年齢別に見ると、${peak.targetAge}歳の` +
+      `${formatManYen(peak.salary)}が最も高い水準になります。`,
+  ];
+
+  if (jump.diff > 0) {
+    sentences.push(
+      `5歳刻みで比べると${jump.from.targetAge}歳から${jump.to.targetAge}歳の伸びが最も大きく、` +
+        `＋${formatManYen(jump.diff)}でした。`
+    );
+  }
+
+  // 定年前後でカーブが下向きになる会社だけ、下がって見える理由を添える。
+  const last = byAge[byAge.length - 1];
+  const previous = byAge[byAge.length - 2];
+  if (last.salary < previous.salary) {
+    sentences.push(
+      `${last.targetAge}歳で下がるのは、補正に使う統計側の賃金カーブが定年前後で下向きになるためです。`
+    );
+  }
+
+  return sentences;
+}

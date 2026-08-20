@@ -1,14 +1,16 @@
 import { formatManYen } from "@/features/ranking/lib/format";
 import type { TargetAge } from "@/features/ranking/types";
 import type { CompanyAgeStats } from "../types";
-import { ESTIMATE_RANGE_RATIO, estimateRange } from "../lib/stats";
+import { ESTIMATE_RANGE_RATIO, estimateRange, niceTicks } from "../lib/stats";
 
 const WIDTH = 720;
 const HEIGHT = 270;
 // 左右の余白は端の点のラベル幅ぶん要る。中央揃えのラベルが viewBox の外に
 // はみ出すと、そこだけ切れて表示される（「2,213」で右に14ユニット出ていた）。
 // 左は縦軸の目盛ラベルぶんを広げてある（C2 で目盛を足した）。
-const PADDING = { top: 34, right: 40, bottom: 40, left: 96 };
+// 下の余白は「年齢の目盛」と「（歳）」の2行ぶん要る（C3）。1行に詰めると
+// 右端の「60」と「（歳）」が重なる（実測）。
+const PADDING = { top: 34, right: 40, bottom: 58, left: 96 };
 // viewBox は固定なので、狭い画面ではSVG全体が縮む。375px幅では約0.48倍になり、
 // 13px で書くと実効7px弱で読めない。22 にすると実効10〜11pxになる。
 const FONT_SIZE = 22;
@@ -59,8 +61,12 @@ export function SalaryCurveChart({
     ...[...byAge].reverse().map((s, i) => `${x(byAge.length - 1 - i)},${y(estimateRange(s.salary).low)}`),
   ].join(" ");
 
-  // 目盛は4本。丸い数字に寄せず、描いている範囲を等分する（0起点ではないため）。
-  const ticks = [0, 1, 2, 3].map((i) => low + ((high - low) * i) / 3);
+  /*
+   * 目盛は**丸い数字**に寄せる（C3）。C2 は描画範囲を等分していたので
+   * `422 / 1,430 / 2,439 / 3,448` という端数が縦軸に並び、物差しとして働いて
+   * いなかった。0起点にしない方針は変えていない（`niceTicks` は範囲の内側だけを返す）。
+   */
+  const ticks = niceTicks(low, high);
 
   return (
     <figure className="flex flex-col gap-2">
@@ -72,6 +78,24 @@ export function SalaryCurveChart({
           .map((s) => `${s.targetAge}歳 ${formatManYen(s.salary)}`)
           .join("、")}`}
       >
+        <text
+          x={PADDING.left - 10}
+          y={PADDING.top - 14}
+          textAnchor="end"
+          fontSize={FONT_SIZE}
+          fill="var(--color-muted-foreground)"
+        >
+          （万円）
+        </text>
+        <text
+          x={WIDTH - 4}
+          y={HEIGHT - 6}
+          textAnchor="end"
+          fontSize={FONT_SIZE}
+          fill="var(--color-muted-foreground)"
+        >
+          （歳）
+        </text>
         {ticks.map((value) => (
           <g key={value}>
             <line
@@ -126,7 +150,7 @@ export function SalaryCurveChart({
               </text>
               <text
                 x={x(i)}
-                y={HEIGHT - 10}
+                y={HEIGHT - 28}
                 textAnchor="middle"
                 fontSize={FONT_SIZE}
                 fontWeight={isSelected ? 700 : 400}

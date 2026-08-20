@@ -29,12 +29,19 @@ export function AgeSalaryTable({
   const percent = Math.round(ESTIMATE_RANGE_RATIO * 100);
 
   return (
-    <Table>
+    /*
+      **罫線で仕切り、値は中央に置く**（C3、アートボード 4b）。8行×3列の数表で、
+      罫線が無いと横に読むときに行を見失う。金額を右寄せにしないのは、列幅が
+      内容より広く、右端に寄せると見出しと縦位置が揃わないため。
+    */
+    <Table className="border-border border">
       <TableHeader>
-        <TableRow>
-          <TableHead className="w-16">年齢</TableHead>
-          <TableHead className="text-right">推定年収</TableHead>
-          <TableHead className="text-right">推定範囲（±{percent}%）</TableHead>
+        <TableRow className="bg-muted">
+          <TableHead className="border-border w-36 border text-center">年齢</TableHead>
+          <TableHead className="border-border border text-center">推定年収</TableHead>
+          <TableHead className="border-border border text-center">
+            推定範囲（±{percent}%）
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -42,16 +49,27 @@ export function AgeSalaryTable({
           const { low, high } = estimateRange(stats.salary);
           const isSelected = stats.targetAge === selectedAge;
           return (
-            <TableRow key={stats.targetAge} className={isSelected ? "bg-muted" : undefined}>
-              <TableCell className={isSelected ? "font-medium" : undefined}>
+            <TableRow key={stats.targetAge}>
+              {/* 選択中の年齢の行だけ地を敷いて太くする（表とスイッチの対応を見せる）。 */}
+              <TableCell
+                className={`border-border bg-muted text-muted-foreground border text-center ${
+                  isSelected ? "text-foreground font-bold" : ""
+                }`}
+              >
                 {stats.targetAge}歳
               </TableCell>
               <TableCell
-                className={`text-right tabular-nums ${isSelected ? "font-medium" : ""}`}
+                className={`border-border border text-center tabular-nums ${
+                  isSelected ? "bg-muted font-bold" : ""
+                }`}
               >
                 {formatManYen(stats.salary)}
               </TableCell>
-              <TableCell className="text-muted-foreground text-right tabular-nums">
+              <TableCell
+                className={`border-border text-muted-foreground border text-center tabular-nums ${
+                  isSelected ? "bg-muted" : ""
+                }`}
+              >
                 {formatManYen(low)}〜{formatManYen(high)}
               </TableCell>
             </TableRow>

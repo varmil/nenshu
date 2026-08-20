@@ -102,3 +102,46 @@ export function estimateRange(salary: number): { low: number; high: number } {
     high: salary * (1 + ESTIMATE_RANGE_RATIO),
   };
 }
+
+/**
+ * 目盛に使う丸い数字を返す（C3、アートボード 4b）。
+ *
+ * C2 では描画範囲を等分していたため、縦軸に `422 / 1,430 / 2,439 / 3,448`
+ * という**データ由来の端数**が並んでいた。目盛は読者が位置を当てるための物差しなので、
+ * 500・1,000 のような刻みでなければ役に立たない。
+ *
+ * 刻みは 1・2・2.5・5 ×10ⁿ の候補から選ぶ。**「範囲を等分した幅を切り上げる」では
+ * 決めない**——788万〜2,699万の範囲では等分幅が 1,009万 になり、わずかに超えたせいで
+ * 2,000万刻みに上がって目盛が1本しか残らなかった。候補を並べて、**本数が `count` に
+ * 最も近いもの**を採る（同じなら刻みの大きいほう＝目盛の少ないほう）。
+ */
+export function niceTicks(low: number, high: number, count = 4): number[] {
+  const span = high - low;
+  if (!(span > 0) || count < 2) return [];
+
+  const ticksFor = (step: number) => {
+    const values: number[] = [];
+    for (let value = Math.ceil(low / step) * step; value <= high; value += step) {
+      values.push(value);
+    }
+    return values;
+  };
+
+  const exponent = Math.floor(Math.log10(span));
+  let best: number[] = [];
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let e = exponent - 2; e <= exponent + 1; e++) {
+    for (const factor of [1, 2, 2.5, 5]) {
+      const step = factor * 10 ** e;
+      const values = ticksFor(step);
+      if (values.length < 2) continue;
+      const score = Math.abs(values.length - count);
+      // 同点なら後から来る大きい刻みを採る（`<=`）。目盛は少ないほうが読みやすい。
+      if (score <= bestScore) {
+        bestScore = score;
+        best = values;
+      }
+    }
+  }
+  return best;
+}
