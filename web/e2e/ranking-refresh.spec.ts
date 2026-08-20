@@ -190,9 +190,9 @@ test.describe("サイドバーと件数表示", () => {
     expect(after!.y).toBeLessThan(800);
   });
 
-  test("件数が「1,867社 中 1〜100社目」の形で出る", async ({ page }) => {
+  test("件数が「1,867社 中 1〜30社目」の形で出る", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("1,867社 中 1〜100社目")).toBeVisible();
+    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
   });
 
   test("適用中のチップが出て、1つずつ解除できる", async ({ page }) => {
@@ -470,7 +470,7 @@ test.describe("公開後の手直し", () => {
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText("1,867社 中 1〜100社目")).toBeVisible();
+    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
     await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
       "aria-pressed",
       "true"
