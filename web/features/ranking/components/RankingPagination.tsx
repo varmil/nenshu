@@ -48,7 +48,7 @@ export function RankingPagination({
   const goTo = (page: number) => {
     if (page < 1 || page > totalPages || page === state.page) return;
     startTransition(() => onPageChange(page));
-    // 押した位置は表の下（100行ぶん下）なので、そのままだと入れ替わった行が
+    // 押した位置は表の下（1ページぶん下）なので、そのままだと入れ替わった行が
     // 視界に入らない。ページが実際に変わるときだけ最上部へ戻す（Issue #96）。
     scrollToPageTop();
   };

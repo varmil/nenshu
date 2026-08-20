@@ -9,6 +9,23 @@ test.describe("0件・端の状態と段階表示", () => {
     await expect(page.getByRole("table")).toHaveCount(0);
   });
 
+  // Issue #103。100件から30件に減らした。件数表示・行数・総ページ数が同じ刻みで
+  // 動いていること（どれか1つだけ100のまま残っていないこと）をここで固定する。
+  test("1ページは30件で、件数表示と行数が一致する", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(30);
+    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
+    // 1,867 / 30 = 63ページ。末尾のページ番号がそのまま総ページ数になる。
+    // `PaginationLink` は `<a role="button">` なので role は button で引く。
+    await expect(page.getByRole("button", { name: "63", exact: true })).toBeVisible();
+  });
+
+  test("最終ページは端数の7社で、件数表示も1,861〜1,867社目になる", async ({ page }) => {
+    await page.goto("/?page=63");
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(7);
+    await expect(page.getByText("1,867社 中 1,861〜1,867社目")).toBeVisible();
+  });
+
   test("ページ送りをクリックすると内容が変わり、URLにpage=2が反映される", async ({ page }) => {
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
@@ -17,12 +34,12 @@ test.describe("0件・端の状態と段階表示", () => {
     await page.getByRole("button", { name: "次のページへ" }).click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
-    // 既定は実測値なので、2ページ目の先頭は実測値の並びで101位の会社になる。
-    await expect(firstRow).toContainText("オリックス株式会社");
+    // 既定は実測値なので、2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社になる。
+    await expect(firstRow).toContainText("ソニーフィナンシャルグループ株式会社");
     await expect(firstRow).not.toContainText("株式会社キーエンス");
   });
 
-  // Issue #96。ページ送りのボタンは100行ぶん下にあるので、位置を保ったままだと
+  // Issue #96。ページ送りのボタンは表1ページぶん下にあるので、位置を保ったままだと
   // 入れ替わった行が視界に入らず「押しても何も起きていない」ように見える。
   test("ページ送りを押すとページ最上部までスクロールが戻る", async ({ page }) => {
     await page.goto("/");
@@ -67,7 +84,7 @@ test.describe("0件・端の状態と段階表示", () => {
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    expect(tableHtml).toContain("戸田建設株式会社");
+    expect(tableHtml).toContain("ソニーフィナンシャルグループ株式会社");
     expect(tableHtml).not.toContain("株式会社キーエンス");
   });
 

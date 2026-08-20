@@ -93,7 +93,9 @@ test.describe("表示基準の切替", () => {
       "true"
     );
     await expect(page.getByRole("combobox", { name: "業種" })).toContainText("銀行業");
-    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(82);
+    // 1ページはPAGE_SIZE=30件（Issue #103）なので、82社であることは件数表示で見る。
+    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(30);
   });
 
   // 生のHTTPレスポンス＝クローラーが見るHTML。既定が実測値になっていることを

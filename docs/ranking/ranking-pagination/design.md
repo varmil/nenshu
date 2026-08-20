@@ -63,7 +63,7 @@ export function buildRankedCompanies(
 
 - 各`PaginationLink`の`href`は`buildSearchParams({...state, page: n}).toString()`から生成する。現在のフィルタを保持したままの完全なクエリ文字列になるため、クロールされれば直接そのURLがSSRで正しく返る。
 - クリック時は`e.preventDefault()`し、`useTransition()`の`startTransition`でラップした`onPageChange(n)`（＝`setState`）を呼ぶ。`pushState`経路（`useRankingState`の書き込みeffect）にそのまま乗る。
-- **「読み込み中の状態」（Issue #7の完了条件）は`useTransition()`の`isPending`で表現する。** 100件程度の再描画は通常一瞬で終わるため、実際に目に見える保留状態にならないことが多い。U5の`useLayoutEffect`チラつきの件と同様、**この保留状態が安定してE2Eで検証できるとは限らない**（今回のE2Eでは`isPending`の可視化自体はテストしていない。ネットワーク非発生・URL反映・内容の変化は確認済み）。
+- **「読み込み中の状態」（Issue #7の完了条件）は`useTransition()`の`isPending`で表現する。** 1ページぶんの再描画は通常一瞬で終わるため、実際に目に見える保留状態にならないことが多い。U5の`useLayoutEffect`チラつきの件と同様、**この保留状態が安定してE2Eで検証できるとは限らない**（今回のE2Eでは`isPending`の可視化自体はテストしていない。ネットワーク非発生・URL反映・内容の変化は確認済み）。
 - shadcnの`PaginationLink`/`PaginationPrevious`/`PaginationNext`は内部で`Button`コンポーネントを`render`propで`<a>`に差し替えている実装で、**`role="button"`が明示的に付与される**（`<a href>`だが実装上は`role="link"`にならない）。E2Eのロケータは`getByRole("button", ...)`を使う必要がある（`getByRole("link", ...)`ではタイムアウトする。実際に踏んだ）。
 - `PaginationPrevious`/`PaginationNext`の`aria-label`はshadcnの既定で英語（"Go to previous/next page"）固定。日本語UIとの整合とE2Eの安定したセレクタ確保を兼ねて、`aria-label="前のページへ"`/`"次のページへ"`で明示的に上書きした（`{...props}`が既定の`aria-label`より後にスプレッドされるため、propsで渡すだけで上書きできる）。
 
@@ -71,12 +71,22 @@ export function buildRankedCompanies(
 
 `RankingPagination` の `goTo` は `startTransition` の直後に `scrollToPageTop()`（`lib/scroll.ts`）を呼ぶ。
 
-**ページ送りのボタンは100行ぶん下にある。** スクロール位置を保ったまま行だけ入れ替わると、変わったのは画面の上のほう＝視界の外なので、「押しても何も起きていない」ように見える（公開後の指摘。実測でボタンの位置は `scrollY = 5,653`）。
+**ページ送りのボタンは表1ページぶん下にある。** スクロール位置を保ったまま行だけ入れ替わると、変わったのは画面の上のほう＝視界の外なので、「押しても何も起きていない」ように見える（公開後の指摘。1ページ100件だった頃の実測でボタンの位置は `scrollY = 5,653`。30件でも表の高さは1画面を超えるので事情は変わらない）。
 
-- **戻す先はページ最上部**（`{ top: 0, left: 0 }`）。表の先頭ではなく見出しまで戻す——ページが変わったことは見出し直下の「1,867社 中 101〜200社目」で読める。
-- **`behavior` は指定しない**（＝一瞬で戻す）。`smooth` にすると100行ぶんの距離を流れることになり、`prefers-reduced-motion` への配慮も要る。ページ送りは離散的な操作なので途中の景色に意味が無い。
+- **戻す先はページ最上部**（`{ top: 0, left: 0 }`）。表の先頭ではなく見出しまで戻す——ページが変わったことは見出し直下の「1,867社 中 31〜60社目」で読める。
+- **`behavior` は指定しない**（＝一瞬で戻す）。`smooth` にすると表1ページぶんの距離を流れることになり、`prefers-reduced-motion` への配慮も要る。ページ送りは離散的な操作なので途中の景色に意味が無い。
 - **呼ぶ場所は `goTo` の中**。先頭の `if` で「範囲外・同じページ」を弾いた後なので、**実際にページが変わるときだけ**戻る。無効化された「前へ」を押しても位置は動かない。
 - `window` は引数で受ける（既定値 `globalThis.window`）。node 環境の vitest から呼べるようにするためで、SSR で読み込まれても評価時には何も起きない。
+
+## 1ページの件数は30件（Issue #103、2026-08-20）
+
+`PAGE_SIZE = 30`（`web/features/ranking/types.ts`）。公開当初は100件だったが、1画面のスクロール量として多すぎるという指摘を受けて減らした。1,867社は63ページになる。
+
+**この定数はページの重さを決める値ではない。** 全1,867社ぶんのデータは表示件数に関わらずハイドレーション用に初回HTMLへ埋まっている（Issue #22）ので、減らして軽くなるのは描画する行数ぶんだけ——実測でトップページの HTML は gzip 70,283 B → 62,563 B（`next start` に対して計測。同じ手法で `/company/[id]` は変化なし）。Issue #22 の全件embedの問題はこれで解けたわけではない。
+
+**行数を「絞り込みが効いたか」の判定に使っているテストは書き換えた。** 1ページの行数は `PAGE_SIZE` で頭打ちなので、「業種を選ぶと100行未満になる」「銀行業は82行」といったアサーションは、絞り込みが壊れても通ってしまう。件数表示（`82社 中 1〜30社目`）で見るように直した（`e2e/ranking-basis.spec.ts`・`e2e/ranking-url-sync.spec.ts`・`e2e/ranking-filters.spec.ts`）。同じ理由で `rank.test.ts` の「上位50社の重なり」はページを継ぎ足して50社を作る。
+
+`<Link prefetch={false}>` の件数も100→30に減るが、**先読みは元から0件**なので `npm run measure:prefetch` の結果は変わらない（実測で `/company/` への先読み0件）。
 
 ## `components/RankingApp.tsx` の変更
 
@@ -85,13 +95,13 @@ export function buildRankedCompanies(
 
 ## テスト方針
 
-- `rank.test.ts`: `totalCount`の算出、pageによる正しいオフセットの切り出し（2ページ目の先頭がrank101になること）、範囲外pageのクランプ、0件時に`companies`が空配列になることを固定。既存のAC-1〜AC-6のテストは新しい返り値の形（`{companies, totalCount}`）に合わせて書き換えた。
+- `rank.test.ts`: `totalCount`の算出、pageによる正しいオフセットの切り出し（2ページ目の先頭が`rank = PAGE_SIZE + 1`になること）、範囲外pageのクランプ、0件時に`companies`が空配列になることを固定。既存のAC-1〜AC-6のテストは新しい返り値の形（`{companies, totalCount}`）に合わせて書き換えた。
 - `urlState.test.ts`: `page`のparse（正常値・0/負数/非数値は無視）・build（既定値1は省略、末尾に付く）・カノニカル順序のテストを追加。
 - `scroll.test.ts`: `scrollToPageTop` が `{top: 0, left: 0}` で呼ぶこと・`behavior` を渡さないこと・`window` が無い環境で落ちないこと。
 - `pagination.test.ts`: `getPaginationRange`の境界値（総ページ数0/1、先頭付近・末尾付近・中間、隙間が1ページしかない場合に省略記号が出ないこと）を固定。
 - E2E（`web/e2e/ranking-pagination.spec.ts`）:
   - AC-8: 0件のとき案内が表示され、`<table>`が存在しないこと。
-  - ページ送りクリックで内容（1位→101位の会社名）が変わり、URLに`page=2`が反映されること。
+  - ページ送りクリックで内容（1位→`PAGE_SIZE + 1`位の会社名）が変わり、URLに`page=2`が反映されること。
   - フィルタ変更で`page`パラメータがURLから消える（1に戻る）こと。
   - ページ送り操作中にネットワークリクエストが発生しないこと（U5と同じ手法）。
   - ページ送りを押すと `window.scrollY` が0に戻ること（Issue #96。ボタンまでスクロールしてから押し、押す前が0でないことも確かめる）。

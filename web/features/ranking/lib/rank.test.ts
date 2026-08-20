@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildRankedCompanies } from "./rank";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
+import { PAGE_SIZE } from "../types";
 import type { CompaniesData, CurvesData, RankingState } from "../types";
 
 const companies = companiesData as CompaniesData;
@@ -26,13 +27,13 @@ function stateFor(
 
 describe("buildRankedCompanies", () => {
   // ADR-0007 で既定になった表示基準。補正を一切通さないので estimatedSalary は null。
-  it("AC-1: 初期状態（実測値・絞り込みなし）で上位100件、1位はキーエンスで有報のまま2,178万円", () => {
+  it("AC-1: 初期状態（実測値・絞り込みなし）で上位30件、1位はキーエンスで有報のまま2,178万円", () => {
     const { companies: ranked, totalCount } = buildRankedCompanies(
       companies,
       curves,
       stateFor(null)
     );
-    expect(ranked).toHaveLength(100);
+    expect(ranked).toHaveLength(PAGE_SIZE);
     expect(totalCount).toBe(companies.rows.length);
     expect(ranked[0].name).toBe("株式会社キーエンス");
     expect(ranked[0].rank).toBe(1);
@@ -65,27 +66,38 @@ describe("buildRankedCompanies", () => {
     expect(Math.round(ranked[0].estimatedSalary! / 10000)).toBe(2178);
   });
 
+  /*
+   * `buildRankedCompanies` は1ページぶんしか返さないので、PAGE_SIZE より広い範囲を
+   * 見るテストはページを継ぎ足して作る（PAGE_SIZE = 30 では1ページに50社入らない）。
+   */
+  const topN = (targetAge: 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60, n: number) => {
+    const acc: ReturnType<typeof buildRankedCompanies>["companies"] = [];
+    for (let page = 1; acc.length < n; page++) {
+      acc.push(...buildRankedCompanies(companies, curves, stateFor(targetAge, { page })).companies);
+    }
+    return acc.slice(0, n);
+  };
+
   // 2点モデル（ADR-0005）では平均年齢が違う会社どうしの順序が動きうるので、
   // 旧式（同業種内は完全に不変）より重なりは減る。実測37社に対して閾値を35社に置く。
   it("AC-2後半: 60歳時点の上位50社に、35歳時点の上位50社が35社以上含まれる", () => {
-    const top50at35 = new Set(
-      buildRankedCompanies(companies, curves, stateFor(35)).companies.slice(0, 50).map((c) => c.id)
-    );
-    const top50at60 = buildRankedCompanies(companies, curves, stateFor(60)).companies.slice(0, 50);
+    const top50at35 = new Set(topN(35, 50).map((c) => c.id));
+    const top50at60 = topN(60, 50);
 
     const overlap = top50at60.filter((c) => top50at35.has(c.id)).length;
     expect(overlap).toBeGreaterThanOrEqual(35);
   });
 
-  it("1ページの件数はPAGE_SIZE（100）で切り出される", () => {
+  it("1ページの件数はPAGE_SIZE（30）で切り出される", () => {
     const { companies: ranked } = buildRankedCompanies(companies, curves, stateFor(35));
-    expect(ranked).toHaveLength(100);
+    expect(PAGE_SIZE).toBe(30);
+    expect(ranked).toHaveLength(PAGE_SIZE);
   });
 
-  it("pageで正しいオフセットが切り出される（2ページ目は101〜200位）", () => {
+  it("pageで正しいオフセットが切り出される（2ページ目は31〜60位）", () => {
     const page1 = buildRankedCompanies(companies, curves, stateFor(35, { page: 1 })).companies;
     const page2 = buildRankedCompanies(companies, curves, stateFor(35, { page: 2 })).companies;
-    expect(page2[0].rank).toBe(101);
+    expect(page2[0].rank).toBe(PAGE_SIZE + 1);
     expect(page2.map((c) => c.id)).not.toEqual(page1.map((c) => c.id));
   });
 

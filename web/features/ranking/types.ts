@@ -2,8 +2,14 @@ export type TargetAge = 25 | 30 | 35 | 40 | 45 | 50 | 55 | 60;
 
 export const TARGET_AGES: readonly TargetAge[] = [25, 30, 35, 40, 45, 50, 55, 60];
 
-/** 1ページあたりの表示件数。 */
-export const PAGE_SIZE = 100;
+/**
+ * 1ページあたりの表示件数（Issue #103）。
+ *
+ * **100件は1画面のスクロール量として多すぎる**という指摘を受けて30件にした。
+ * 全1,867社ぶんのデータは表示件数に関わらず初回HTMLに埋まっている（Issue #22）
+ * ので、この値を変えても送るデータ量は変わらない。変わるのは描画する行数だけ。
+ */
+export const PAGE_SIZE = 30;
 
 /**
  * 並び替えのキー（spec.md 1.10）。既定は `salary`。

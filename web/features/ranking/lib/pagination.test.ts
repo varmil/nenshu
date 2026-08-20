@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getPaginationRange, pageRange } from "./pagination";
+import { PAGE_SIZE } from "../types";
 
 describe("getPaginationRange", () => {
   it("総ページ数が0のときは空配列", () => {
@@ -33,21 +34,27 @@ describe("getPaginationRange", () => {
 });
 
 describe("pageRange", () => {
-  it("1ページ目は 1〜100 社目", () => {
-    expect(pageRange(1, 1867, 100)).toEqual({ from: 1, to: 100, page: 1, totalPages: 19 });
+  // 実際に使う刻み（PAGE_SIZE = 30、Issue #103）で固定する。1,867社は63ページ。
+  it("1ページ目は 1〜30 社目", () => {
+    expect(pageRange(1, 1867, PAGE_SIZE)).toEqual({ from: 1, to: 30, page: 1, totalPages: 63 });
   });
 
   it("最終ページは端数で止まる", () => {
-    expect(pageRange(19, 1867, 100)).toEqual({ from: 1801, to: 1867, page: 19, totalPages: 19 });
+    expect(pageRange(63, 1867, PAGE_SIZE)).toEqual({
+      from: 1861,
+      to: 1867,
+      page: 63,
+      totalPages: 63,
+    });
   });
 
   // 範囲外のページを直接開いても、件数表示だけが空ページを指す状態にしない。
   it("範囲外のページは最終ページに寄せる（buildRankedCompanies と同じ規則）", () => {
-    expect(pageRange(99, 1867, 100).page).toBe(19);
-    expect(pageRange(0, 1867, 100).page).toBe(1);
+    expect(pageRange(999, 1867, PAGE_SIZE).page).toBe(63);
+    expect(pageRange(0, 1867, PAGE_SIZE).page).toBe(1);
   });
 
   it("0件なら 0〜0", () => {
-    expect(pageRange(1, 0, 100)).toEqual({ from: 0, to: 0, page: 1, totalPages: 1 });
+    expect(pageRange(1, 0, PAGE_SIZE)).toEqual({ from: 0, to: 0, page: 1, totalPages: 1 });
   });
 });

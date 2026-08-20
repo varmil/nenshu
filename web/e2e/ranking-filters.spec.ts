@@ -97,8 +97,9 @@ test.describe("フィルタ", () => {
 
     // U13 の列: 0 順位 / 1 会社名（平均年齢・在籍年数・従業員数を下に添える）/
     // 2 金額 / 3 偏差値。**業種は meta 行に出していない**ので、業種で絞れている
-    // ことは件数（情報・通信業 173社のうち平均年齢40歳未満）で見る。
-    expect(count).toBeLessThan(173);
+    // ことは総件数の表示（情報・通信業 173社のうち平均年齢40歳未満）で見る——
+    // 1ページの行数は PAGE_SIZE で頭打ちなので判定に使えない（Issue #103）。
+    await expect(page.getByText("1,867社 中")).toHaveCount(0);
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
       const meta = (await rows.nth(i).locator("td").nth(1).textContent())!;
@@ -117,13 +118,15 @@ test.describe("フィルタ", () => {
     await page.keyboard.press("Enter");
 
     // 何らかの業種が選ばれ、表が絞り込まれて全1,867社ではなくなっていることを確認する。
+    // **行数では判定できない**——1ページは PAGE_SIZE 件で頭打ちなので、絞り込みが
+    // 効いていなくても行数は同じ。総件数の表示が減ったかで見る（Issue #103）。
+    await expect(page).toHaveURL(/[?&]ind=/);
+    await expect(page.getByText("1,867社 中")).toHaveCount(0);
     const rows = page.getByRole("table").locator("tbody tr");
-    const count = await rows.count();
-    expect(count).toBeLessThan(100);
-    expect(count).toBeGreaterThan(0);
+    expect(await rows.count()).toBeGreaterThan(0);
   });
 
-  // 従業員数の3区分（517/734/616）はいずれもPAGE_SIZE(100)より多いため、
+  // 従業員数の3区分（517/734/616）はいずれもPAGE_SIZE(30)より多いため、
   // 「表示行数が減るか」では絞り込みの有無を判定できない。1位のキーエンス（3,306人、
   // 「〜300人」には該当しない）が絞り込みで表から外れるかどうかで判定する。
   test("キーボードだけで従業員数のスイッチを操作できる", async ({ page }) => {
