@@ -382,6 +382,21 @@ test.describe("U13 モックとの一致", () => {
     // 中央の列を取るので、入力欄はブランドより広い。
     expect(inputBox.width).toBeGreaterThan(300);
   });
+
+  // Issue #96。社名は一覧で最初に読む情報なので太字、金額は本文と同じ 16px に落とす
+  // （20px だと金額のほうが先に目に入り、どの会社の数字か読む順序が逆になる）。
+  test("社名は太字で、金額は 16px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const row = rows(page).first();
+    const name = row.getByRole("link").first();
+    await expect(name).toHaveCSS("font-weight", "700");
+
+    const salary = row.locator("td").nth(2).locator("span").first();
+    await expect(salary).toHaveText("2,178万円");
+    await expect(salary).toHaveCSS("font-size", "16px");
+  });
 });
 
 test.describe("U13 モックとの一致（モバイル）", () => {
@@ -482,7 +497,9 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     page.locator("div.md\\:hidden > div").first();
 
   test("社名は1行で切れ、折り返さない", async ({ page }) => {
-    await page.goto("/?q=大和証券");
+    // 金額を 16px に落として社名の幅が広がったぶん（Issue #96）、「大和証券グループ
+    // 本社」は 390px で切れなくなった。切り詰めそのものを見たいので長い社名で引く。
+    await page.goto("/?q=ジャパンエレベーター");
     const name = firstRow(page).getByRole("link").first();
     // 折り返していれば行が2つになる。切り詰めなら1つ。
     expect(await name.evaluate((el) => el.getClientRects().length)).toBe(1);
@@ -515,13 +532,24 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     expect(Math.abs(rowCenter - rankCenter)).toBeLessThanOrEqual(2);
   });
 
+  // Issue #96。PC と同じ手当て（社名を太字・金額を 16px）をモバイルの行にも入れる。
+  test("社名は太字で、金額は 16px", async ({ page }) => {
+    await page.goto("/");
+    const row = firstRow(page);
+
+    await expect(row.getByRole("link").first()).toHaveCSS("font-weight", "700");
+
+    const salary = row.getByText("2,178万円");
+    await expect(salary).toHaveCSS("font-size", "16px");
+  });
+
   test("見出しと説明文がそれぞれ1行に収まる", async ({ page }) => {
     await page.goto("/");
     const lines = async (locator: import("@playwright/test").Locator) =>
       locator.evaluate((el) => el.getClientRects().length);
 
     expect(await lines(page.getByRole("heading", { level: 1 }))).toBe(1);
-    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）そのままで1,867社。"))).toBe(1);
+    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）で1,867社。"))).toBe(1);
     expect(await lines(page.getByText("有価証券報告書の数値のまま。"))).toBe(1);
   });
 });
