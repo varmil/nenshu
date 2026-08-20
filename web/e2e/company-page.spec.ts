@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 // 数値は `docs/company/spec.md` §3 の受け入れ基準（2026-06 版データの実測値）。
+//
+// C2 で h1 の直下にも順位を出すようにしたため、「1位 / 1,867社」のような文字列は
+// ページ内に2か所ある。**カードの中の値**を見たいので `dl` に絞る。
+
+/** 大カードの数値リスト（全体順位・業界内順位・偏差値・全体平均との差）。 */
+const card = (page: import("@playwright/test").Page) => page.locator("dl").first();
 
 test.describe("企業詳細ページ", () => {
   // 既定は実測値（ADR-0007）。有報の平均年間給与そのままで、順位も偏差値も
@@ -13,17 +19,19 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
 
     // 順位は実測値の分布に対する値。
-    await expect(page.getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
-    await expect(page.getByText("業界内順位（電気機器）")).toBeVisible();
-    await expect(page.getByText("1位 / 150社")).toBeVisible();
-    await expect(page.getByText("全体平均 719万円")).toBeVisible();
+    await expect(card(page).getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
+    await expect(card(page).getByText("業界内順位（電気機器）")).toBeVisible();
+    await expect(card(page).getByText("1位 / 150社")).toBeVisible();
+    await expect(card(page).getByText("全体平均 719万円")).toBeVisible();
 
     // 実測値では「推定」の語を出さない（spec AC-9）。
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
 
-    await expect(page.getByText("35.0歳")).toBeVisible();
-    await expect(page.getByText("11.3年")).toBeVisible();
-    await expect(page.getByText("3,306人")).toBeVisible();
+    // 「有価証券報告書の実測値」の節。C2 で「この会社の要点」にも平均年齢と
+    // 勤続が出るので、`exact` で節の側だけを見る。
+    await expect(page.getByText("35.0歳", { exact: true })).toBeVisible();
+    await expect(page.getByText("11.3年", { exact: true })).toBeVisible();
+    await expect(page.getByText("3,306人", { exact: true })).toBeVisible();
   });
 
   test("AC-1: /company/6861?age=35 でキーエンスの35歳時点の数値が出る", async ({ page }) => {
@@ -31,8 +39,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
-    await expect(page.getByText("1位 / 150社")).toBeVisible();
+    await expect(card(page).getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
+    await expect(card(page).getByText("1位 / 150社")).toBeVisible();
   });
 
   // 実測値のとき年齢スイッチは消さずに無効化する（ADR-0007）。
@@ -81,8 +89,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("120位 / 1,867社（上位6.4%）")).toBeVisible();
-    await expect(page.getByText("2位 / 71社")).toBeVisible();
+    await expect(card(page).getByText("120位 / 1,867社（上位6.4%）")).toBeVisible();
+    await expect(card(page).getByText("2位 / 71社")).toBeVisible();
   });
 
   // 実測値と年齢そろえで順位が変わることを、平均年齢が高めのトヨタで固定する。
@@ -90,8 +98,8 @@ test.describe("企業詳細ページ", () => {
     await page.goto("/company/7203");
 
     await expect(page.getByText("1,006万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("121位 / 1,867社（上位6.5%）")).toBeVisible();
-    await expect(page.getByText("2位 / 71社")).toBeVisible();
+    await expect(card(page).getByText("121位 / 1,867社（上位6.5%）")).toBeVisible();
+    await expect(card(page).getByText("2位 / 71社")).toBeVisible();
   });
 
   test("AC-3: 年齢スイッチで25歳を選ぶと金額と偏差値が変わり、ネットワークリクエストが発生しない", async ({
@@ -161,8 +169,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("280位 / 1,867社（上位15.0%）")).toBeVisible();
-    await expect(page.getByText("17位 / 82社")).toBeVisible();
+    await expect(card(page).getByText("280位 / 1,867社（上位15.0%）")).toBeVisible();
+    await expect(card(page).getByText("17位 / 82社")).toBeVisible();
   });
 
   test("AC-6: 三菱商事に「本社のみ」バッジと、その意味の説明がある", async ({ page }) => {
@@ -170,7 +178,10 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "三菱商事株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("本社のみ", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("単体従業員数が連結の10%未満", { exact: false })).toBeVisible();
+    // C2 で「この会社の要点」にも同じ断りが入るので2か所ある。
+    await expect(
+      page.getByText("単体従業員数が連結の10%未満", { exact: false }).first()
+    ).toBeVisible();
   });
 
   test("AC-7: 存在しないIDと旧形式の書類IDは404", async ({ request }) => {

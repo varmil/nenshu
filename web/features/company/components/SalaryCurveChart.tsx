@@ -1,12 +1,14 @@
 import { formatManYen } from "@/features/ranking/lib/format";
 import type { TargetAge } from "@/features/ranking/types";
 import type { CompanyAgeStats } from "../types";
+import { ESTIMATE_RANGE_RATIO, estimateRange } from "../lib/stats";
 
 const WIDTH = 720;
 const HEIGHT = 270;
 // 左右の余白は端の点のラベル幅ぶん要る。中央揃えのラベルが viewBox の外に
 // はみ出すと、そこだけ切れて表示される（「2,213」で右に14ユニット出ていた）。
-const PADDING = { top: 34, right: 40, bottom: 40, left: 40 };
+// 左は縦軸の目盛ラベルぶんを広げてある（C2 で目盛を足した）。
+const PADDING = { top: 34, right: 40, bottom: 40, left: 96 };
 // viewBox は固定なので、狭い画面ではSVG全体が縮む。375px幅では約0.48倍になり、
 // 13px で書くと実効7px弱で読めない。22 にすると実効10〜11pxになる。
 const FONT_SIZE = 22;
@@ -19,8 +21,12 @@ const FONT_SIZE = 22;
  *
  * **縦軸は0起点にしない。** 8点の最小〜最大に余白を足した範囲にする。0起点だと
  * 差が潰れて読めない。目盛りの取り方で誤読させないよう、各点の金額を数値でも
- * 併記する。数値は「万円」を付けず万単位の整数だけにする——8点ぶんの
- * 「2,178万円」は狭い画面で隣と重なるため。単位は figcaption に書く。
+ * 併記し、縦軸に目盛を置く（C2・spec 1.14）。数値は「万円」を付けず万単位の
+ * 整数だけにする——8点ぶんの「2,178万円」は狭い画面で隣と重なるため。単位は
+ * figcaption に書く。
+ *
+ * **±20% の帯を重ねる。** 目安の幅であって統計的な信頼区間ではない（spec 1.14）。
+ * 帯の意味は figcaption に必ず書く——帯だけを見ると信頼区間に見えるため。
  *
  * `role="img"` と `aria-label` に加えて、`sr-only` の一覧を置く。画像ではなく
  * 数値として読み上げられるようにする（`docs/company/spec.md` 2. アクセシビリティ）。
@@ -33,12 +39,13 @@ export function SalaryCurveChart({
   selectedAge: TargetAge | null;
 }) {
   const values = byAge.map((s) => s.salary);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // 帯の外側まで入る範囲にする。折れ線だけに合わせると帯が枠から出る。
+  const min = Math.min(...values) * (1 - ESTIMATE_RANGE_RATIO);
+  const max = Math.max(...values) * (1 + ESTIMATE_RANGE_RATIO);
   // 全点が同額でも高さ0で割らないようにする。
   const span = max - min || Math.max(max, 1);
-  const low = min - span * 0.15;
-  const high = max + span * 0.15;
+  const low = min - span * 0.08;
+  const high = max + span * 0.08;
 
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
@@ -46,6 +53,14 @@ export function SalaryCurveChart({
   const y = (v: number) => PADDING.top + innerHeight * (1 - (v - low) / (high - low));
 
   const line = byAge.map((s, i) => `${x(i)},${y(s.salary)}`).join(" ");
+  // 上端を左→右、下端を右→左でなぞって閉じる（±20%の帯）。
+  const band = [
+    ...byAge.map((s, i) => `${x(i)},${y(estimateRange(s.salary).high)}`),
+    ...[...byAge].reverse().map((s, i) => `${x(byAge.length - 1 - i)},${y(estimateRange(s.salary).low)}`),
+  ].join(" ");
+
+  // 目盛は4本。丸い数字に寄せず、描いている範囲を等分する（0起点ではないため）。
+  const ticks = [0, 1, 2, 3].map((i) => low + ((high - low) * i) / 3);
 
   return (
     <figure className="flex flex-col gap-2">
@@ -57,6 +72,28 @@ export function SalaryCurveChart({
           .map((s) => `${s.targetAge}歳 ${formatManYen(s.salary)}`)
           .join("、")}`}
       >
+        {ticks.map((value) => (
+          <g key={value}>
+            <line
+              x1={PADDING.left}
+              x2={WIDTH - PADDING.right}
+              y1={y(value)}
+              y2={y(value)}
+              stroke="var(--color-border)"
+              strokeWidth={1}
+            />
+            <text
+              x={PADDING.left - 10}
+              y={y(value) + FONT_SIZE / 3}
+              textAnchor="end"
+              fontSize={FONT_SIZE}
+              fill="var(--color-muted-foreground)"
+            >
+              {Math.round(value / 10000).toLocaleString("ja-JP")}
+            </text>
+          </g>
+        ))}
+        <polygon points={band} fill="var(--color-primary)" fillOpacity={0.12} />
         <polyline
           points={line}
           fill="none"
@@ -109,7 +146,9 @@ export function SalaryCurveChart({
         ))}
       </ul>
       <figcaption className="text-muted-foreground text-xs">
-        横軸は年齢（歳）、数値は推定年収（万円）です。縦軸は0からではなく、8点が収まる範囲で描いています。
+        横軸は年齢（歳）、縦軸と数値は推定年収（万円）です。縦軸は0からではなく、8点と帯が収まる範囲で描いています。
+        薄い帯は ±{Math.round(ESTIMATE_RANGE_RATIO * 100)}% の推定範囲で、
+        <strong>目安の幅であって統計的な信頼区間ではありません。</strong>
         このカーブは1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません。
       </figcaption>
     </figure>
