@@ -1,4 +1,4 @@
-import { formatManYen } from "@/features/ranking/lib/format";
+import { formatInt, formatManYen } from "@/features/ranking/lib/format";
 import { formatBinLabel, formatTopPercent, positionPercent } from "../lib/stats";
 import type { CompanyAgeStats } from "../types";
 
@@ -28,7 +28,10 @@ export function SalaryDistributionChart({
     <figure className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <div className="bg-muted relative h-2 w-full overflow-hidden rounded-full">
-          <div className="bg-primary/25 h-full" style={{ width: `${position.toFixed(1)}%` }} />
+          <div
+            className="from-muted to-chart-1 h-full bg-gradient-to-r"
+            style={{ width: `${position.toFixed(1)}%` }}
+          />
           <span
             aria-hidden="true"
             className="bg-primary absolute inset-y-0 w-1 rounded-full"
@@ -40,18 +43,30 @@ export function SalaryDistributionChart({
             style={{ left: `${medianPosition}%` }}
           />
         </div>
+        {/* 端は順位で言う（アートボード 5b）。「下位／上位」だけでは何位の話か分からない。 */}
         <div className="text-muted-foreground flex justify-between text-[0.65rem]">
-          <span>下位</span>
+          <span>{formatInt(count)}位</span>
           <span>中位 {formatManYen(current.populationMedian)}</span>
-          <span>上位</span>
+          <span>1位</span>
         </div>
       </div>
 
       <div className="flex items-end gap-1" role="presentation">
         {distribution.counts.map((n, i) => (
           <div key={i} className="flex flex-1 flex-col items-center gap-1">
+            {/*
+              社数を棒の上に出す（C3、アートボード 4b）。**棒の高さは相対値でしか
+              読めない**ので、9本の形だけでは「170社」なのか「17社」なのかが分からない。
+            */}
             <span
-              className={`w-full rounded-t-sm ${i === bin ? "bg-primary" : "bg-muted"}`}
+              className={`text-[0.6rem] tabular-nums ${
+                i === bin ? "text-primary font-bold" : "text-muted-foreground"
+              }`}
+            >
+              {formatInt(n)}
+            </span>
+            <span
+              className={`w-full rounded-t-sm ${i === bin ? "bg-primary" : "bg-chart-1 dark:bg-chart-3"}`}
               style={{ height: `${Math.max(2, (n / maxCount) * 72)}px` }}
             />
             <span

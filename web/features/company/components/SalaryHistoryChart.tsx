@@ -15,6 +15,9 @@ import type { SalaryHistory } from "../types";
 export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
   const values = history.values;
   const max = Math.max(...values.filter((v): v is number => v !== null));
+  // 最新年だけ濃くする（C3、アートボード 4b）。10本のうちどれが「いまの数字」かは、
+  // ページの他の場所に出ている金額と同じ棒を探さないと分からなかった。
+  const latest = values.reduce((found, value, i) => (value === null ? found : i), -1);
 
   return (
     <figure className="flex flex-col gap-2">
@@ -23,7 +26,11 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
           const value = values[i];
           return (
             <div key={year} className="flex min-w-0 flex-1 flex-col items-center gap-1">
-              <span className="text-muted-foreground text-[0.6rem] tabular-nums">
+              <span
+                className={`text-[0.6rem] tabular-nums ${
+                  i === latest ? "text-foreground font-bold" : "text-muted-foreground"
+                }`}
+              >
                 {value === null ? "" : Math.round(value / 10000).toLocaleString("ja-JP")}
               </span>
               {value === null ? (
@@ -32,13 +39,12 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
                 </span>
               ) : (
                 <span
-                  className="bg-primary w-full rounded-t-sm"
+                  className={`w-full rounded-t-sm ${i === latest ? "bg-primary" : "bg-chart-1 dark:bg-chart-3"}`}
                   style={{ height: `${Math.max(2, (value / max) * 80)}px` }}
                 />
               )}
-              <span className="text-muted-foreground text-[0.6rem] tabular-nums">
-                {String(year).slice(2)}
-              </span>
+              {/* 西暦は4桁のまま出す（アートボード 4b）。下2桁だと「17」が何を指すか読めない。 */}
+              <span className="text-muted-foreground text-[0.6rem] tabular-nums">{year}</span>
             </div>
           );
         })}
@@ -53,7 +59,7 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
       </ul>
 
       <figcaption className="text-muted-foreground text-xs">
-        横軸は有価証券報告書の提出年（下2桁）、数値は平均年間給与（万円）です。縦軸は0起点。
+        横軸は有価証券報告書の提出年、数値は平均年間給与（万円）です。縦軸は0起点。
         各年の有報に載った提出会社単体の実測値で、年齢の補正は通していません。
       </figcaption>
     </figure>

@@ -7,6 +7,10 @@ export interface NeighborCompany {
   name: string;
   salary: number;
   hasBadge: boolean;
+  /** 同じ業種の中での順位（同額は同順位）。C3 でカードの各行に添える。 */
+  industryRank: number;
+  /** 有報の平均年齢。表示基準では変わらない実測値。 */
+  avgAge: number;
 }
 
 /** 出す社数（`docs/company/spec.md` 1.12）。 */
@@ -49,14 +53,34 @@ export function findNeighbors(
 
   const selfSalary = salaryOf(self);
 
-  return companies.rows
-    .filter((row) => row[2] === industryIdx && row[0] !== id)
+  /*
+   * **業界内順位は同じ業種を一度並べて出す。** 自分を除いた5社にだけ順位を振ると、
+   * 除いたぶん詰まって本来の順位とずれる（自分より上の会社が1つ繰り上がる）。
+   * 1業種は最大173社なので、並べ直しても当該1社ぶんの計算に埋もれる。
+   */
+  const industry = companies.rows
+    .filter((row) => row[2] === industryIdx)
     .map((row) => ({
       id: row[0],
       name: row[1],
       salary: salaryOf(row),
       hasBadge: row[8] === 1,
+      avgAge: row[4],
     }))
+    .sort((a, b) => b.salary - a.salary);
+
+  let previousSalary = Number.NaN;
+  let previousRank = 0;
+  const ranked = industry.map((company, index) => {
+    // 同額は同順位。次は飛ばす（1,2,2,4）——ランキングの `rank.ts` と同じ扱い。
+    const industryRank = company.salary === previousSalary ? previousRank : index + 1;
+    previousSalary = company.salary;
+    previousRank = industryRank;
+    return { ...company, industryRank };
+  });
+
+  return ranked
+    .filter((company) => company.id !== id)
     .sort((a, b) => Math.abs(a.salary - selfSalary) - Math.abs(b.salary - selfSalary))
     .slice(0, limit)
     // 並べるときは金額の降順にする。近さで並べると上下に交互に跳ねて読みにくい。

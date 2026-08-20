@@ -10,6 +10,7 @@ import {
   formatDeviation,
   formatDiffFromMean,
   formatTopPercent,
+  niceTicks,
   positionPercent,
   topPercent,
 } from "./stats";
@@ -144,5 +145,43 @@ describe("estimateRange（AC-14）", () => {
     const { low, high } = estimateRange(10_000_000);
     expect(low).toBe(8_000_000);
     expect(high).toBe(12_000_000);
+  });
+});
+
+describe("niceTicks", () => {
+  it("丸い刻みを返す（788万〜2,699万の描画範囲）", () => {
+    // SalaryCurveChart が渡すのは帯を含む範囲。C2 では 422 / 1,430 / 2,439 / 3,448
+    // というデータ由来の端数が並んでいた。
+    const ticks = niceTicks(4_220_000, 34_480_000);
+    expect(ticks).toEqual([10_000_000, 20_000_000, 30_000_000]);
+  });
+
+  it("刻みは 1・2・2.5・5 ×10ⁿ のどれかになる", () => {
+    for (const [low, high] of [
+      [0, 100],
+      [1_000, 9_300],
+      [2_400_000, 8_100_000],
+      [4_000_000, 4_800_000],
+    ]) {
+      const ticks = niceTicks(low, high);
+      const step = ticks[1] - ticks[0];
+      const magnitude = 10 ** Math.floor(Math.log10(step));
+      // 浮動小数の誤差があるので、係数は近似で照合する。
+      const factor = step / magnitude;
+      expect([1, 2, 2.5, 5].some((candidate) => Math.abs(factor - candidate) < 1e-9)).toBe(true);
+    }
+  });
+
+  it("目盛はすべて範囲の内側にある", () => {
+    const ticks = niceTicks(4_220_000, 34_480_000);
+    for (const tick of ticks) {
+      expect(tick).toBeGreaterThanOrEqual(4_220_000);
+      expect(tick).toBeLessThanOrEqual(34_480_000);
+    }
+  });
+
+  it("幅が0以下なら空を返す（全点が同額でも落ちない）", () => {
+    expect(niceTicks(5, 5)).toEqual([]);
+    expect(niceTicks(9, 3)).toEqual([]);
   });
 });

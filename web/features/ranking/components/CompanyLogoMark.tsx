@@ -11,11 +11,21 @@ export function initialOf(name: string): string {
   return name.replace(LEGAL_FORMS, "").trim().charAt(0) || name.charAt(0);
 }
 
-export function CompanyLogoMark({ name }: { name: string }) {
+export function CompanyLogoMark({
+  name,
+  size = "default",
+}: {
+  name: string;
+  /** `lg` は企業詳細ページの見出し用（C3、アートボード 4b の60px）。 */
+  size?: "default" | "lg";
+}) {
+  const box =
+    size === "lg" ? "size-15 rounded-lg text-2xl" : "size-8 text-sm md:size-10 md:text-base";
+
   return (
     <span
       aria-hidden="true"
-      className="border-border text-muted-foreground bg-muted flex size-8 shrink-0 items-center justify-center rounded-md border border-dashed text-sm font-bold md:size-10 md:text-base"
+      className={`border-border text-muted-foreground bg-muted flex shrink-0 items-center justify-center rounded-md border border-dashed font-bold ${box}`}
     >
       {initialOf(name)}
     </span>

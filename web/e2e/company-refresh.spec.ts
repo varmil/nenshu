@@ -203,3 +203,99 @@ test.describe("パンくずと見出し", () => {
     await expect(page.getByText(/電気機器で1位 \/ 150社・全体で1位 \/ 1,867社/)).toBeVisible();
   });
 });
+
+/*
+ * C3（Issue #89）でモックに合わせ直した見た目。**機能ではなく形**を固定する。
+ * 変えるときは `docs/company/company-mock-alignment/design.md` の対照表も直すこと。
+ */
+test.describe("C3 モックとの一致", () => {
+  test("上部カードは2カラムで、左に金額、右に位置バーと分布が並ぶ", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const amount = page.getByText("2,178万円", { exact: true }).first();
+    const distribution = page.locator("figure").first();
+    const amountBox = (await amount.boundingBox())!;
+    const figureBox = (await distribution.boundingBox())!;
+
+    // 右にいる（左端が金額より右）かつ、縦にはほぼ同じ高さから始まる。
+    expect(figureBox.x).toBeGreaterThan(amountBox.x + amountBox.width);
+    expect(Math.abs(figureBox.y - amountBox.y)).toBeLessThan(220);
+  });
+
+  test("カードの中に平均年齢・在籍年数・従業員数が並ぶ", async ({ page }) => {
+    await page.goto("/company/6861");
+    const stats = page.locator("dl").nth(1);
+    await expect(stats).toContainText("35.0歳");
+    await expect(stats).toContainText("11.3年");
+    await expect(stats).toContainText("3,306人");
+  });
+
+  test("位置バーの両端が順位で書かれている", async ({ page }) => {
+    await page.goto("/company/6861");
+    const figure = page.locator("figure").first();
+    await expect(figure).toContainText("1,867位");
+    await expect(figure).toContainText("1位");
+    await expect(figure).toContainText("中位");
+  });
+
+  test("ヒストグラムの各階級に社数が出る", async ({ page }) => {
+    await page.goto("/company/6861");
+    // 9本ぶんの数字が棒の上に出ている（sr-only の一覧とは別に、目で読める形で）。
+    const figure = page.locator("figure").first();
+    await expect(figure.getByText("144", { exact: true })).toBeVisible();
+  });
+
+  test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
+    await page.goto("/company/6861?age=35");
+
+    const table = page.getByRole("table");
+    const summary = page.getByText("推定年収を年齢別に見ると");
+    const chart = page.getByText("年齢別の推定年収の推移", { exact: true });
+
+    const tableBox = (await table.boundingBox())!;
+    const summaryBox = (await summary.boundingBox())!;
+    const chartBox = (await chart.boundingBox())!;
+    expect(tableBox.y).toBeLessThan(summaryBox.y);
+    expect(summaryBox.y).toBeLessThan(chartBox.y);
+  });
+
+  // 説明文は数値から機械的に導ける事実だけ（spec 1.11 と同じ線）。
+  test("説明文が最高水準の年齢と伸びの最大区間を述べる", async ({ page }) => {
+    await page.goto("/company/6861?age=35");
+    await expect(page.getByText("55歳の2,699万円が最も高い水準")).toBeVisible();
+    await expect(page.getByText("25歳から30歳の伸びが最も大きく")).toBeVisible();
+  });
+
+  test("チャートの縦軸が丸い目盛になっている", async ({ page }) => {
+    await page.goto("/company/6861");
+    const svg = page.locator("svg").filter({ hasText: "（万円）" });
+    // C2 は 422 / 1,430 / 2,439 / 3,448 というデータ由来の端数を出していた。
+    await expect(svg.getByText("1,000", { exact: true })).toBeVisible();
+    await expect(svg.getByText("3,000", { exact: true })).toBeVisible();
+  });
+
+  test("推移の横軸は4桁の西暦", async ({ page }) => {
+    await page.goto("/company/6861");
+    const section = page.locator("section", { hasText: "平均年収推移（過去10年間）" });
+    await expect(section.getByText("2017", { exact: true })).toBeVisible();
+    await expect(section.getByText("2026", { exact: true })).toBeVisible();
+  });
+
+  test("水準が近い会社に業界順位と平均年齢、業種一覧への導線が付く", async ({ page }) => {
+    await page.goto("/company/6861");
+    const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
+    await expect(neighbors.getByText("業界2位・平均43.1歳")).toBeVisible();
+    await expect(
+      neighbors.getByRole("link", { name: "電気機器150社をすべて見る" })
+    ).toHaveAttribute("href", /^\/\?ind=/);
+  });
+
+  test("見せ方の帯にラベルと説明文が付いている", async ({ page }) => {
+    await page.goto("/company/6861");
+    await expect(page.getByText("見せ方")).toBeVisible();
+    await expect(page.getByText("有価証券報告書の数値そのまま（平均年齢 35.0歳")).toBeVisible();
+    // 実測値でも年齢スイッチは残る（AC-11）。
+    await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
+  });
+});
