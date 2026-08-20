@@ -168,7 +168,12 @@ def fix_salary_typos(rows):
     平均年間給与は円単位のはずだが、千円単位の数字をそのまま入れている
     会社が実際にある。従業員数から見てあり得ない額を、10の冪で
     妥当な帯（200万〜3000万）に戻す。修正した会社は記録して後で目視する。
+
+    **大きすぎる側だけでなく小さすぎる側も直す。** 「7,196」のように千円単位の
+    数字を円の欄にタグ付けした書類があり、これは上限に当たらないので素通りする。
+    10年ぶんに広げて初めて5件見つかった（2026年には無い）。
     """
+    FLOOR = 2_000_000
     fixed = []
     for r in rows:
         s = r.get("avg_salary")
@@ -177,6 +182,18 @@ def fix_salary_typos(rows):
             continue
         # 従業員が少ない会社は本当に高額なことがある（役員数人の持株会社など）
         ceiling = 30_000_000 if emp >= 20 else 120_000_000
+        if s < FLOOR:
+            for mul in (10, 100, 1000, 10000):
+                if FLOOR <= s * mul <= ceiling:
+                    r["avg_salary"] = s * mul
+                    r["salary_fixed"] = f"{s:.0f}→{s * mul:.0f}"
+                    fixed.append(r)
+                    break
+            else:
+                r["salary_fixed"] = f"{s:.0f}→除外"
+                r["avg_salary"] = None
+                fixed.append(r)
+            continue
         if s <= ceiling:
             continue
         original = s

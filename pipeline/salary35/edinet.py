@@ -103,13 +103,29 @@ def annual_reports(start, end, verbose=True):
     return list(uniq.values())
 
 
-def fetch_csv(doc_id):
-    """CSV形式（type=5）のZIPを取得。中身はUTF-16LEのTSV。"""
+def fetch_csv(doc_id, retries=5):
+    """CSV形式（type=5）のZIPを取得。中身はUTF-16LEのTSV。
+
+    **EDINETは流量制限に HTTP 200 で応える。** 本文が
+    `{"StatusCode":"429","message":"Too Many Requests"}` の JSON になるだけなので、
+    `urlopen` は例外を投げない。中身を検めずに書くと、ZIPのつもりで50バイトの
+    エラーJSONがキャッシュに残り、後段の抽出だけが静かに欠ける（実際に17,719件中
+    5,195件がこれで、取得側は fail=0 と報告していた）。**先頭が `PK` であることを
+    確かめてから書く。**
+    """
     path = CACHE / f"{doc_id}.zip"
-    if not path.exists():
+    if path.exists():
+        return path
+    for i in range(retries):
         blob = _get(f"{BASE}/documents/{doc_id}", {"type": "5"}, timeout=120)
-        path.write_bytes(blob)
-        time.sleep(0.35)
+        if blob[:2] == b"PK":
+            path.write_bytes(blob)
+            time.sleep(0.35)
+            return path
+        # 429 などのエラー本文。待って引き直す（待ち時間は 2,4,8,16,32秒）
+        if i == retries - 1:
+            raise RuntimeError(f"{doc_id}: ZIPではない応答 {blob[:120]!r}")
+        time.sleep(2 ** (i + 1))
     return path
 
 
@@ -171,10 +187,14 @@ def to_record(meta, parsed):
 
     # 平均年間給与をタグ付けしていない会社（持株会社傘下の事業会社に多い）は
     # 「従業員の状況」本文から拾う
+    candidates = None
     if not (salary and age) and parsed.get("employees_textblock"):
         import textblock
         got = textblock.parse(parsed["employees_textblock"], emp_nc)
         if got:
+            # 読み方が割れた場合の他の候補。1書類の中では決められないので、
+            # 年をまたいで選び直す側（history.py）に渡す。
+            candidates = got.get("candidates")
             salary = salary or got["avg_salary"]
             age = age or got["avg_age"]
             tenure = tenure or got.get("avg_tenure")
@@ -193,4 +213,5 @@ def to_record(meta, parsed):
         "source": source,
         "employees_nonconsolidated": emp_nc,
         "employees_consolidated": emp_c,
+        "salary_candidates": candidates,
     }

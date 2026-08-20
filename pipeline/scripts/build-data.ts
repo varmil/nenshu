@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseUnifiedCsv } from "./lib/csv";
+import { parseUnifiedCsv, parseSalaryHistoryCsv } from "./lib/csv";
 import { makeId } from "./lib/slug";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -11,6 +11,7 @@ import { TARGET_AGES } from "../../web/features/ranking/types";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_ROW_COUNT = 1867;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
+const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -75,15 +76,19 @@ export function buildData(outDir: string) {
   };
 
   const stats = buildStats(companies, curves);
+  const history = buildHistory(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
   const curvesPath = resolve(outDir, "curves.json");
   const statsPath = resolve(outDir, "stats.json");
+  const historyPath = resolve(outDir, "history.json");
   const companiesJson = JSON.stringify(companies);
+  const historyJson = JSON.stringify(history);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
+  writeFileSync(historyPath, historyJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -92,7 +97,72 @@ export function buildData(outDir: string) {
     );
   }
 
-  return { companiesPath, curvesPath, statsPath, companies, curves, stats, gzipSize };
+  const historyGzipSize = gzipSync(historyJson).length;
+  if (historyGzipSize > HISTORY_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `history.json のgzipサイズが上限(150KB)を超えています: ${(historyGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
+  return {
+    companiesPath,
+    curvesPath,
+    statsPath,
+    historyPath,
+    companies,
+    curves,
+    stats,
+    history,
+    gzipSize,
+    historyGzipSize,
+  };
+}
+
+/**
+ * 平均年収の10年推移（T0・`docs/timeseries/spec.md` 1.3）。
+ *
+ * キーは**企業ID**（証券コード／EDINETコード、ADR-0006）で `companies.json` の
+ * `id` と一致する。CSV 側の主キーは `edinet_code`——証券コードは上場・廃止で
+ * 変わるが EDINETコードは年をまたいで変わらないため、名寄せはあちらで行い、
+ * ここで公開URLのIDに移し替える。
+ *
+ * **その年の有報が無ければ `null` を入れる。前後から内挿しない**（spec AC-4）。
+ * 欠けていること自体を企業詳細ページで見せるため。
+ *
+ * 全年 `null` の会社はキーごと落とす。1,867社ぶんの空配列を配る意味がない。
+ *
+ * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
+ */
+function buildHistory(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const csvPath = resolve(ROOT, "data/salary_history.csv");
+  const historyRows = parseSalaryHistoryCsv(readFileSync(csvPath, "utf-8"));
+
+  const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
+  const yearIndex = new Map(years.map((y, i) => [y, i]));
+
+  // edinet_code → その会社の年次配列
+  const byEdinetCode = new Map<string, (number | null)[]>();
+  for (const row of historyRows) {
+    let values = byEdinetCode.get(row.edinetCode);
+    if (values === undefined) {
+      values = new Array<number | null>(years.length).fill(null);
+      byEdinetCode.set(row.edinetCode, values);
+    }
+    values[yearIndex.get(row.year)!] = row.avgSalary;
+  }
+
+  // 企業ID に移し替える。companies.json と同じ順・同じIDで引けるようにする。
+  const byId: Record<string, (number | null)[]> = {};
+  rows.forEach((row, i) => {
+    const values = byEdinetCode.get(row.edinetCode);
+    if (values === undefined || values.every((v) => v === null)) return;
+    byId[companyRows[i][0] as string] = values;
+  });
+
+  return { years, byId };
 }
 
 interface CompaniesShape {
@@ -209,4 +279,8 @@ if (isMain) {
   console.log(`${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB`);
   console.log(result.curvesPath);
   console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
+  console.log(
+    `${result.historyPath}: ${Object.keys(result.history.byId).length}社 × ${result.history.years.length}年, ` +
+      `gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
+  );
 }
