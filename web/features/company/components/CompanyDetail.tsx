@@ -8,7 +8,11 @@ import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
 import { ControlBand } from "@/features/ranking/components/ControlBand";
 import { BasisSwitch } from "@/features/ranking/components/BasisSwitch";
 import { DEFAULT_TARGET_AGE } from "@/features/ranking/lib/urlState";
-import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
+import {
+  formatDecimal1,
+  formatInt,
+  formatManYen,
+} from "@/features/ranking/lib/format";
 import { TARGET_AGES, type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, SalaryHistory } from "../types";
 import {
@@ -23,11 +27,17 @@ import { AgeSalaryTable } from "./AgeSalaryTable";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
 import { CompanyLogoMark } from "@/features/ranking/components/CompanyLogoMark";
-import { buildCurveSummary, buildHighlights, buildHistorySummary } from "../lib/highlights";
+import {
+  buildCurveSummary,
+  buildHighlights,
+  buildHistorySummary,
+} from "../lib/highlights";
 
 function parseAge(raw: string | null): TargetAge | null {
   const n = Number(raw);
-  return (TARGET_AGES as readonly number[]).includes(n) ? (n as TargetAge) : null;
+  return (TARGET_AGES as readonly number[]).includes(n)
+    ? (n as TargetAge)
+    : null;
 }
 
 /**
@@ -80,7 +90,9 @@ export function CompanyDetail({
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
   const highlights = buildHighlights(view, current);
-  const historySummary = history ? buildHistorySummary(history.years, history.values) : null;
+  const historySummary = history
+    ? buildHistorySummary(history.years, history.values)
+    : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
 
   return (
@@ -143,7 +155,9 @@ export function CompanyDetail({
         >
           <BasisSwitch
             value={targetAge}
-            onChange={(basis) => setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)}
+            onChange={(basis) =>
+              setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)
+            }
             label="見せ方"
           />
         </ControlBand>
@@ -153,13 +167,17 @@ export function CompanyDetail({
           hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
         >
           {/* 実測値のときも消さずに無効化する（ADR-0007）。理由は AgeSwitch.tsx。 */}
-          <AgeSwitch value={targetAge} onChange={setTargetAge} disabled={isRaw} />
+          <AgeSwitch
+            value={targetAge}
+            onChange={setTargetAge}
+            disabled={isRaw}
+          />
         </ControlBand>
       </header>
 
       {/* PC は本文＋右サイドバー、モバイルは1カラム（アートボード 4b / 2b）。 */}
       <div className="flex flex-col gap-4 md:grid md:grid-cols-[1fr_19.75rem] md:items-start md:gap-6">
-        <div className="flex min-w-0 flex-col gap-6">
+        <div className="flex min-w-0 flex-col gap-12">
           {/*
             **カードは2カラム**（C3、アートボード 5b）。左が「いくらか」、右が
             「その額が母集団のどこか」。C2 は全部を縦に積んでいたため、金額と位置の
@@ -173,12 +191,16 @@ export function CompanyDetail({
                   {/* 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。 */}
                   <div className="flex items-center gap-1.5">
                     <span className="text-muted-foreground text-sm">
-                      {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
+                      {isRaw
+                        ? "平均年収（有価証券報告書・単体）"
+                        : `${targetAge}歳時点の推定年収`}
                     </span>
                     {!isRaw && <Badge variant="secondary">推定</Badge>}
                   </div>
-                  <p className="text-4xl font-bold tabular-nums">{formatManYen(current.salary)}</p>
-                  <p className="text-muted-foreground mt-1 text-sm">
+                  <p className="text-4xl font-bold tabular-nums">
+                    {formatManYen(current.salary)}
+                  </p>
+                  <p className="text-muted-foreground mt-1 mb-1 text-sm">
                     全体平均 {formatManYen(current.populationMean)} に対して{" "}
                     <span className="text-foreground font-medium">
                       {formatDiffFromMean(current.diffFromMean)}
@@ -267,11 +289,6 @@ export function CompanyDetail({
                   count={view.totalCount}
                   companyName={view.name}
                 />
-
-                <p className="text-muted-foreground text-xs">
-                  年収の分布は右に裾を引くため、偏差値は100を超えることがあります。水準は上の順位と
-                  併せて読んでください。
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -285,14 +302,14 @@ export function CompanyDetail({
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
             {/* 数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。 */}
-            <div className="flex flex-col gap-1.5">
+            <div className="flex flex-col gap-0.5">
               {curveSummary.map((sentence) => (
-                <p key={sentence} className="text-sm leading-relaxed">
+                <p key={sentence} className="text-sm">
                   {sentence}
                 </p>
               ))}
             </div>
-            <p className="text-muted-foreground text-center text-sm font-semibold">
+            <p className="text-muted-foreground text-center text-sm font-semibold mt-4">
               年齢別の推定年収の推移
             </p>
             <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
@@ -313,11 +330,15 @@ export function CompanyDetail({
             <dl className="bg-border border-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-4">
               <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">平均年収</dt>
-                <dd className="text-lg font-semibold tabular-nums">{formatManYen(view.avgSalary)}</dd>
+                <dd className="text-lg font-semibold tabular-nums">
+                  {formatManYen(view.avgSalary)}
+                </dd>
               </div>
               <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">平均年齢</dt>
-                <dd className="text-lg font-semibold tabular-nums">{formatDecimal1(view.avgAge)}歳</dd>
+                <dd className="text-lg font-semibold tabular-nums">
+                  {formatDecimal1(view.avgAge)}歳
+                </dd>
               </div>
               <div className="bg-background p-3">
                 <dt className="text-muted-foreground text-xs">在籍年数</dt>
@@ -326,8 +347,12 @@ export function CompanyDetail({
                 </dd>
               </div>
               <div className="bg-background p-3">
-                <dt className="text-muted-foreground text-xs">従業員数（単体）</dt>
-                <dd className="text-lg font-semibold tabular-nums">{formatInt(view.employees)}人</dd>
+                <dt className="text-muted-foreground text-xs">
+                  従業員数（単体）
+                </dt>
+                <dd className="text-lg font-semibold tabular-nums">
+                  {formatInt(view.employees)}人
+                </dd>
               </div>
             </dl>
           </section>
@@ -373,7 +398,8 @@ export function CompanyDetail({
 
       <footer className="text-muted-foreground flex flex-col gap-1 text-xs">
         <p>
-          出典: 金融庁 EDINET の有価証券報告書（2026年6〜7月提出。推移は2017〜2026年の各年）、厚生労働省「賃金構造基本統計調査」。
+          出典: 金融庁 EDINET
+          の有価証券報告書（2026年6〜7月提出。推移は2017〜2026年の各年）、厚生労働省「賃金構造基本統計調査」。
         </p>
         <p>
           {isRaw
