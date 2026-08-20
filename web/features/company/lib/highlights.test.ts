@@ -7,7 +7,7 @@ import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/ty
 import type { CompanyStatsData } from "../types";
 import { buildCompanyView } from "./view";
 import { statsForBasis } from "./stats";
-import { buildHighlights, buildHistorySummary } from "./highlights";
+import { buildCurveSummary, buildHighlights, buildHistorySummary } from "./highlights";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -53,6 +53,30 @@ describe("buildHighlights（AC-11）", () => {
   it("「本社のみ」の会社にはその断りが入る", () => {
     const badged = companies.rows.find((r) => r[8] === 1)!;
     expect(highlights(badged[0], null).join("")).toContain("本社のみ");
+  });
+});
+
+describe("buildCurveSummary", () => {
+  function byAge(id: string) {
+    const view = buildCompanyView(companies, curves, stats, id)!;
+    return view.byBasis.filter((s) => s.targetAge !== null);
+  }
+
+  it("最高水準の年齢と、伸びが最大の5歳区間を述べる", () => {
+    const sentences = buildCurveSummary(byAge("6861"), "キーエンス");
+    expect(sentences).toHaveLength(2);
+    expect(sentences[0]).toContain("55歳の2,699万円が最も高い水準");
+    expect(sentences[1]).toContain("25歳から30歳の伸びが最も大きく");
+  });
+
+  /*
+   * 末尾が下がる会社でも、下がる理由（補正に使う統計側のカーブが定年前後で
+   * 下向き）は書かない（Issue #95）。この会社の数値から導ける事実ではないため。
+   */
+  it("末尾が下がっても仕組みの説明は足さない", () => {
+    const ages = byAge("6861");
+    expect(ages[ages.length - 1].salary).toBeLessThan(ages[ages.length - 2].salary);
+    expect(buildCurveSummary(ages, "キーエンス").join("")).not.toContain("定年前後");
   });
 });
 

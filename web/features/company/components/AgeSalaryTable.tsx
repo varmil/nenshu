@@ -1,7 +1,6 @@
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -16,9 +15,11 @@ import type { CompanyAgeStats } from "../types";
 /**
  * 年齢別の推定年収の表（spec 1.14）。折れ線と同じ8点を数値で読ませる。
  *
- * **推定範囲 ±20% は目安の幅であって、統計的な信頼区間ではない。** 賃金カーブは
- * 会社間の差から作った1本の平均的な形で、1社ごとのばらつきを推定する仕組みを
- * 持っていない。この断りを表から外さない（AC-14）。
+ * **断り書きはこの表には置かない（Issue #95）。** 「目安の幅であって統計的な信頼区間
+ * ではない」は、同じ `section` の中にあるチャートの `figcaption` が持つ——表・説明文・
+ * チャートが縦に続く1つの塊なので、表の `caption` にも同じ文を置くと、一度の視界に
+ * 同じ断りが2つ並ぶ。**断り自体を消すのではない**（AC-14）ので、figcaption と
+ * `/about` の2か所は外さない。
  */
 export function AgeSalaryTable({
   byAge,
@@ -78,11 +79,6 @@ export function AgeSalaryTable({
             );
           })}
         </TableBody>
-        <TableCaption>
-          推定範囲は推定年収の ±{percent}% です。
-          <strong>目安の幅であって、統計的な信頼区間ではありません。</strong>
-          賃金カーブは会社間の差から作った1本の平均的な形で、1社ごとのばらつきを推定する仕組みを持っていません。
-        </TableCaption>
       </Table>
     </div>
   );

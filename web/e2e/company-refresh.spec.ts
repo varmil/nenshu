@@ -93,10 +93,18 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
     expect(Number(range[1])).toBe(Math.round(salary * 1.2));
   });
 
-  // ここを信頼区間として書いたら、この基準を逆向きに壊す。
-  test("信頼区間ではない旨が表とチャートの両方にある", async ({ page }) => {
+  /*
+   * ここを信頼区間として書いたら、この基準を逆向きに壊す。**ただし1か所だけ**——
+   * 表・説明文・チャートは1つの `section` に縦に続くので、表の caption にも同じ文を
+   * 置くと一度の視界に断りが2つ並ぶ（Issue #95 で表の caption を外した）。
+   */
+  test("信頼区間ではない旨が年齢別のチャートにある", async ({ page }) => {
     await page.goto("/company/6861");
-    await expect(page.getByText("統計的な信頼区間ではありません")).toHaveCount(2);
+    await expect(page.getByText("統計的な信頼区間ではありません")).toHaveCount(1);
+    const figcaption = page.locator("figcaption", { hasText: "統計的な信頼区間ではありません" });
+    await expect(figcaption).toBeVisible();
+    // 表の側には残っていない（同じ断りを2つ描かない）。
+    await expect(page.getByRole("table").locator("caption")).toHaveCount(0);
   });
 
   test("/about にも同じ断りがある", async ({ page }) => {
@@ -267,6 +275,11 @@ test.describe("C3 モックとの一致", () => {
     await page.goto("/company/6861?age=35");
     await expect(page.getByText("55歳の2,699万円が最も高い水準")).toBeVisible();
     await expect(page.getByText("25歳から30歳の伸びが最も大きく")).toBeVisible();
+    /*
+     * 末尾（60歳）が下がる会社だが、下がる理由は書かない（Issue #95）。補正の
+     * 仕組みの説明であって、この会社の数値から導ける事実ではないため。
+     */
+    await expect(page.getByText("定年前後")).toHaveCount(0);
   });
 
   test("チャートの縦軸が丸い目盛になっている", async ({ page }) => {
