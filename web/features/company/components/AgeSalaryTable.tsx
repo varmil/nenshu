@@ -36,11 +36,19 @@ export function AgeSalaryTable({
       罫線が無いと横に読むときに行を見失う。金額を右寄せにしないのは、列幅が
       内容より広く、右端に寄せると見出しと縦位置が揃わないため。
     */
-    <div className={TABLE_NO_VERTICAL_SCROLL}>
+    <div className={`@container ${TABLE_NO_VERTICAL_SCROLL}`}>
       <Table className="border-border border">
         <TableHeader>
           <TableRow className="bg-muted">
-            <TableHead className="border-border w-36 border text-center">年齢</TableHead>
+            {/*
+              **年齢の列は器が狭いとき内容ぶんに絞る。** 中身は「25歳」の3文字＝56pxしか
+              要らないのに `w-36`（144px）を敷いていたため、狭い器ではその1.6〜1.9倍を
+              取り、右の2列——とくに「1,190万円〜1,785万円」が入る推定範囲——が痩せて
+              余白の無いぎりぎりの帯になっていた。**`sm:` ではなく `@md:` で切る**のは、
+              SVGチャートの文字と同じ理由で**同じ768pxでもサイドバーの有無で器が608pxと
+              396pxに割れる**ため（器が396pxのときに144pxを敷くと狭い画面と同じになる）。
+            */}
+            <TableHead className="border-border w-14 border text-center @md:w-36">年齢</TableHead>
             <TableHead className="border-border border text-center">推定年収</TableHead>
             <TableHead className="border-border border text-center">
               推定範囲（±{percent}%）
