@@ -33,7 +33,13 @@ export function FilterSelect({
         onValueChange={(next) => onChange(next === ALL ? null : next)}
       >
         <SelectTrigger aria-label={label}>
-          <SelectValue placeholder={placeholder} />
+          {/*
+            **表示する文字列は自分で決める**（Issue #72）。`placeholder` に任せると、
+            未選択のときトリガーに `__all__` という内部値がそのまま出る——
+            `placeholder` は「値が無いとき」のもので、センチネル値を入れている以上
+            値はある、という扱いになるため。
+          */}
+          <SelectValue>{(current) => (current === ALL ? placeholder : String(current))}</SelectValue>
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={ALL}>{placeholder}</SelectItem>

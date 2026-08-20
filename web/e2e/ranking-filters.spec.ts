@@ -38,6 +38,20 @@ test.describe("初期表示（AC-1のスモーク確認）", () => {
     }
   });
 
+  /*
+   * Issue #72。未選択のとき `placeholder` に任せると、センチネル値の `__all__` が
+   * そのままトリガーに出ていた（公開中のサイトに出ていた表示崩れ）。
+   */
+  test("業種セレクトは未選択のとき「すべて」と出る（内部値を見せない）", async ({ page }) => {
+    await page.goto("/");
+    const trigger = page.getByRole("combobox", { name: "業種" });
+    await expect(trigger).toContainText("すべて");
+    await expect(trigger).not.toContainText("__all__");
+
+    await page.goto("/?ind=海運業");
+    await expect(page.getByRole("combobox", { name: "業種" })).toContainText("海運業");
+  });
+
   test("検索欄は共通ヘッダにある", async ({ page }) => {
     await page.goto("/");
     await expect(
