@@ -14,7 +14,6 @@ import type { CompanyView, SalaryHistory } from "../types";
 import {
   formatDeviation,
   formatDiffFromMean,
-  formatTopPercent,
   statsForBasis,
 } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
@@ -123,11 +122,13 @@ export function CompanyDetail({
               <h1 className="text-2xl font-bold sm:text-3xl">{view.name}</h1>
               {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
             </div>
-            {/* 順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても位置が分かる。 */}
+            {/*
+              順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても位置が分かる。
+              **上位◯%は出さない**（運営者の指示）。モックの言い回しに揃えてある。
+            */}
             <p className="text-muted-foreground text-sm">
-              {`${view.tse33}で${formatInt(current.rankIndustry)}位 / ${formatInt(view.industryCount)}社・` +
-                `全体で${formatInt(current.rankAll)}位 / ${formatInt(view.totalCount)}社` +
-                `（${formatTopPercent(current.topPercent)}）`}
+              {`${view.tse33} ・業界${formatInt(view.industryCount)}社中${formatInt(current.rankIndustry)}位` +
+                ` ・全体${formatInt(view.totalCount)}社中${formatInt(current.rankAll)}位`}
             </p>
           </div>
         </div>
@@ -185,35 +186,43 @@ export function CompanyDetail({
                   </p>
                 </div>
 
-                <dl className="border-border grid grid-cols-3 gap-3 border-t pt-3">
+                {/*
+                  **3つとも1行に収める。** ラベルも値も `whitespace-nowrap` にしてある——
+                  カードを2カラムにしたぶん1つあたり 110px ほどしか無く、既定のままだと
+                  「38位 /1,867社」と「従業員数（単体）」が2行に折れていた（報告あり）。
+                  偏差値に上位◯%は添えない（モックに無いものを足さない）。
+                */}
+                <dl className="border-border grid grid-cols-3 gap-2 border-t pt-3">
                   <div>
-                    <dt className="text-muted-foreground text-xs">全体順位</dt>
-                    <dd className="text-lg font-semibold tabular-nums">
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      全体順位
+                    </dt>
+                    <dd className="font-semibold whitespace-nowrap tabular-nums">
                       {formatInt(current.rankAll)}位
-                      <span className="text-muted-foreground text-xs font-normal">
+                      <span className="text-muted-foreground text-[0.7rem] font-normal">
                         {" "}
                         /{formatInt(view.totalCount)}社
                       </span>
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground text-xs">業界内順位</dt>
-                    <dd className="text-lg font-semibold tabular-nums">
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      業界内順位
+                    </dt>
+                    <dd className="font-semibold whitespace-nowrap tabular-nums">
                       {formatInt(current.rankIndustry)}位
-                      <span className="text-muted-foreground text-xs font-normal">
+                      <span className="text-muted-foreground text-[0.7rem] font-normal">
                         {" "}
                         /{formatInt(view.industryCount)}社
                       </span>
                     </dd>
                   </div>
                   <div>
-                    {/* 偏差値は単独で出さない（glossary）。上位◯%を必ず隣に置く。 */}
-                    <dt className="text-muted-foreground text-xs">年収偏差値</dt>
-                    <dd className="text-lg font-semibold tabular-nums">
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      年収偏差値
+                    </dt>
+                    <dd className="font-semibold whitespace-nowrap tabular-nums">
                       {formatDeviation(current.deviation)}
-                      <span className="text-muted-foreground block text-xs font-normal">
-                        {formatTopPercent(current.topPercent)}
-                      </span>
                     </dd>
                   </div>
                 </dl>
@@ -223,18 +232,30 @@ export function CompanyDetail({
                   下の「有価証券報告書の実測値」と重複するが、**金額の隣に無いと
                   「35.0歳の会社の2,178万円」という読み方ができない**。
                 */}
-                <dl className="border-border grid grid-cols-3 gap-3 border-t pt-3">
+                <dl className="border-border grid grid-cols-3 gap-2 border-t pt-3">
                   <div>
-                    <dt className="text-muted-foreground text-xs">平均年齢</dt>
-                    <dd className="tabular-nums">{formatDecimal1(view.avgAge)}歳</dd>
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      平均年齢
+                    </dt>
+                    <dd className="whitespace-nowrap tabular-nums">
+                      {formatDecimal1(view.avgAge)}歳
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground text-xs">在籍年数</dt>
-                    <dd className="tabular-nums">{formatDecimal1(view.avgTenure)}年</dd>
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      在籍年数
+                    </dt>
+                    <dd className="whitespace-nowrap tabular-nums">
+                      {formatDecimal1(view.avgTenure)}年
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-muted-foreground text-xs">従業員数（単体）</dt>
-                    <dd className="tabular-nums">{formatInt(view.employees)}人</dd>
+                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
+                      従業員数（単体）
+                    </dt>
+                    <dd className="whitespace-nowrap tabular-nums">
+                      {formatInt(view.employees)}人
+                    </dd>
                   </div>
                 </dl>
               </div>
@@ -248,8 +269,8 @@ export function CompanyDetail({
                 />
 
                 <p className="text-muted-foreground text-xs">
-                  年収の分布は右に裾を引くため、偏差値は100を超えることがあります。水準を読むときは
-                  「上位◯%」のほうが確かです。
+                  年収の分布は右に裾を引くため、偏差値は100を超えることがあります。水準は上の順位と
+                  併せて読んでください。
                 </p>
               </div>
             </CardContent>

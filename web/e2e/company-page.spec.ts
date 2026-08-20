@@ -26,8 +26,6 @@ test.describe("企業詳細ページ", () => {
     // 順位は実測値の分布に対する値。
     await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
     await expect(card(page).getByText("1位 /150社")).toBeVisible();
-    // 偏差値は単独で出さない（glossary）。上位◯%が同じ枠に添う。
-    await expect(card(page).getByText("上位0.1%未満")).toBeVisible();
     // 全体平均との差は C3 で `dl` の外の段落に移した。
     await expect(page.getByText("全体平均 719万円 に対して")).toBeVisible();
 
@@ -76,16 +74,19 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("button", { name: "25歳" })).toBeEnabled();
   });
 
-  test("AC-2: 偏差値には上位◯%と、100を超えうる理由の注記が添えられている", async ({ page }) => {
+  /*
+   * **上位◯%は併記しない**（運営者の指示。モックに無いものを足さない）。
+   * 100 を超えうる理由の注記と、位置バー・順位のほうで水準を読ませる。
+   */
+  test("AC-2: 偏差値は数字だけを出し、100を超えうる理由の注記が添えられている", async ({
+    page,
+  }) => {
     await page.goto("/company/6861?age=35");
 
     await expect(page.getByText("年収偏差値")).toBeVisible();
-
-    // 偏差値は単独で置かず、必ず「上位◯%」を隣に持つ（spec.md §1.4）。
-    // 同じ <dd> の中にあることでその隣接を確かめる。
-    const deviation = page.locator("dd").filter({ hasText: /^150\.0/ });
+    const deviation = page.locator("dd").filter({ hasText: /^150\.0$/ });
     await expect(deviation).toBeVisible();
-    await expect(deviation).toContainText("上位0.1%未満");
+    await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
 
     await expect(page.getByText("年収の分布は右に裾を引くため、偏差値は100を超えることがあります")).toBeVisible();
     await expect(page.getByText("＋1,549万円")).toBeVisible();
@@ -98,7 +99,6 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
     await expect(card(page).getByText("120位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("上位6.4%")).toBeVisible();
     await expect(card(page).getByText("2位 /71社")).toBeVisible();
   });
 
@@ -108,7 +108,6 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("1,006万円", { exact: true }).first()).toBeVisible();
     await expect(card(page).getByText("121位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("上位6.5%")).toBeVisible();
     await expect(card(page).getByText("2位 /71社")).toBeVisible();
   });
 
@@ -180,7 +179,6 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
     await expect(card(page).getByText("280位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("上位15.0%")).toBeVisible();
     await expect(card(page).getByText("17位 /82社")).toBeVisible();
   });
 

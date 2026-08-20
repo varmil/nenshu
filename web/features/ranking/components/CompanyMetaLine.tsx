@@ -3,7 +3,10 @@ import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
 
 /**
  * 社名の下に添える1行（U13、アートボード 5a）。
- * `業種 ・ 平均42.3歳 ・ 在籍17.0年 ・ 4,456人`。
+ * `平均42.3歳 ・ 在籍17.0年 ・ 4,456人`。
+ *
+ * **業種は出さない**（運営者の指示）。左のサイドバーで業種を選んでいる最中に
+ * 同じ語が全行に並ぶうえ、この行が長くなって末尾の従業員数が見切れていた。
  *
  * U12 まではこの4つが表の独立した列で、社名の列を 200px 弱まで押し込んでいた。
  * **どれも「この会社がどんな会社か」を言う属性で、金額のように行どうしを見比べる
@@ -26,7 +29,7 @@ export function CompanyMetaLine({
    */
   return (
     <span className="text-muted-foreground block truncate text-xs">
-      {company.tse33} ・ 平均{formatDecimal1(company.avgAge)}歳
+      平均{formatDecimal1(company.avgAge)}歳
       {!omitTenure && ` ・ 在籍${formatDecimal1(company.avgTenure)}年`} ・{" "}
       {formatInt(company.employees)}人
       {company.estimatedSalary !== null && ` ・ 実績 ${formatManYen(company.avgSalary)}`}

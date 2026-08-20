@@ -165,14 +165,12 @@ export function RankingApp({
                 targetAge={state.targetAge}
                 pageMaxSalary={pageMaxSalary}
                 population={basisPopulation}
-                populationCount={population.count}
               />
               <RankingCardList
                 companies={rankedCompanies}
                 targetAge={state.targetAge}
                 pageMaxSalary={pageMaxSalary}
                 population={basisPopulation}
-                populationCount={population.count}
               />
               <RankingPagination
                 state={state}

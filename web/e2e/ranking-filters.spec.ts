@@ -95,13 +95,13 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // U13 の列: 0 順位 / 1 会社名（業種・平均年齢・在籍年数・従業員数を下に添える）/
-    // 2 金額 / 3 偏差値。平均年齢は meta 行から読む。
+    // U13 の列: 0 順位 / 1 会社名（平均年齢・在籍年数・従業員数を下に添える）/
+    // 2 金額 / 3 偏差値。**業種は meta 行に出していない**ので、業種で絞れている
+    // ことは件数（情報・通信業 173社のうち平均年齢40歳未満）で見る。
+    expect(count).toBeLessThan(173);
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
-      const cells = rows.nth(i).locator("td");
-      await expect(cells.nth(1)).toContainText("情報・通信業");
-      const meta = (await cells.nth(1).textContent())!;
+      const meta = (await rows.nth(i).locator("td").nth(1).textContent())!;
       const avgAge = Number(meta.match(/平均([\d.]+)歳/)![1]);
       expect(avgAge).toBeLessThan(40);
     }

@@ -4,7 +4,7 @@ import {
   classifyTenure,
 } from "@/features/ranking/lib/filter";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
-import { formatTopPercent } from "./stats";
+import { formatDeviation } from "./stats";
 import type { CompanyAgeStats, CompanyView } from "../types";
 
 /**
@@ -24,9 +24,11 @@ export function buildHighlights(view: CompanyView, current: CompanyAgeStats): st
   const items: string[] = [];
   const basis = current.targetAge === null ? "有価証券報告書の平均年間給与" : `${current.targetAge}歳にそろえた推定年収`;
 
+  // 括弧に添えるのは偏差値（アートボード 4b の要点）。**上位◯%は出さない**
+  // ——モックに無いものを足さない、という運営者の指示。
   items.push(
     `${basis}は${formatManYen(current.salary)}。全${formatInt(view.totalCount)}社中` +
-      `${formatInt(current.rankAll)}位（${formatTopPercent(current.topPercent)}）で、` +
+      `${formatInt(current.rankAll)}位（偏差値${formatDeviation(current.deviation)}）で、` +
       `全体平均より${formatManYen(Math.abs(current.diffFromMean))}${
         current.diffFromMean >= 0 ? "高い" : "低い"
       }。`

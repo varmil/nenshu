@@ -77,6 +77,22 @@ export function formatBinLabel(distribution: DistributionData, index: number): s
 }
 
 /**
+ * ヒストグラムの横軸に置く短いラベル（アートボード 5b）。
+ *
+ * `formatBinLabel` は読み上げ用の完全な範囲（「500〜600万円」）を返すが、**9つ並べると
+ * 折り返して2行になり、軸の高さが階級ごとに変わって棒の下端が揃わなくなる**（報告あり）。
+ * 目で読む軸は区切りの位置さえ分かればよいので、下限だけを出す。両端は外側を
+ * 含むので `〜` と `+` を付ける。
+ */
+export function formatBinTick(distribution: DistributionData, index: number): string {
+  const man = (yen: number) => Math.round(yen / 10000).toLocaleString("ja-JP");
+  const lower = distribution.min + distribution.width * index;
+  if (index === 0) return `〜${man(lower + distribution.width)}`;
+  if (index === distribution.counts.length - 1) return `${man(lower)}+`;
+  return man(lower);
+}
+
+/**
  * 母集団の中でその金額がどのあたりかを 0〜100 で返す（位置バー）。
  *
  * **順位から出す。金額の絶対値からではない。** 年収の分布は右に強く裾を引くので、

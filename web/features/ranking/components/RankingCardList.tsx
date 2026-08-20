@@ -1,11 +1,6 @@
 import { NavLink } from "@/features/navigation/components/NavLink";
 import { Badge } from "@/design-system/ui/badge";
-import {
-  deviationScore,
-  formatDeviation,
-  formatTopPercent,
-  topPercent,
-} from "@/features/company/lib/stats";
+import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
@@ -25,14 +20,11 @@ export function RankingCardList({
   targetAge,
   pageMaxSalary,
   population,
-  populationCount,
 }: {
   companies: RankedCompany[];
   targetAge: TargetAge | null;
   pageMaxSalary: number;
   population: { mean: number; sd: number } | null;
-  /** 母集団の社数（1,867）。上位◯%の分母。 */
-  populationCount: number;
 }) {
   const isRaw = targetAge === null;
 
@@ -75,17 +67,11 @@ export function RankingCardList({
                 {!isRaw && (
                   <p className="text-muted-foreground text-[0.7rem]">{targetAge}歳・推定</p>
                 )}
-                {/* 偏差値は単独で出さない（glossary）。上位◯%を必ず隣に置く。 */}
+                {/* **数字だけを出す**（アートボード 5c）。モックに無いものを足さない。 */}
                 {population && (
-                  /*
-                    **2行に分けて縦に積む。** 括弧で1行に繋ぐと 150px 近くになり、
-                    その幅を右に取られて社名が2行に折り返していた（390px で実測）。
-                  */
-                  <p className="text-muted-foreground text-[0.7rem] leading-tight tabular-nums">
+                  <p className="text-muted-foreground text-[0.7rem] tabular-nums">
                     偏差値{" "}
                     {formatDeviation(deviationScore(salary, population.mean, population.sd))}
-                    <br />
-                    {formatTopPercent(topPercent(company.populationRank, populationCount))}
                   </p>
                 )}
               </div>
@@ -101,7 +87,7 @@ export function RankingCardList({
         {" "}
         帯はこのページの1位を100%とした相対の長さで、細い縦線は全体平均
         {population ? `（${formatManYen(population.mean)}）` : ""}の位置です。
-        偏差値は分布が右に裾を引くため100を超えることがあり、上位◯%を併記しています。
+        偏差値は分布が右に裾を引くため100を超えることがあります。水準は順位と併せて読んでください。
       </p>
     </div>
   );

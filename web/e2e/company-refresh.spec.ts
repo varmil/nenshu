@@ -12,7 +12,8 @@ test.describe("AC-11 この会社の要点", () => {
     await page.goto("/company/6861");
     const list = page.getByRole("heading", { name: "この会社の要点" }).locator("xpath=../ul");
     await expect(list.getByRole("listitem").first()).toContainText("2,178万円");
-    await expect(list.getByRole("listitem").first()).toContainText("上位0.1%未満");
+    // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
+    await expect(list.getByRole("listitem").first()).toContainText("偏差値122.9");
     await expect(list).toContainText("電気機器");
   });
 
@@ -200,7 +201,8 @@ test.describe("パンくずと見出し", () => {
 
   test("h1 の直下に業界内順位と全体順位が出る", async ({ page }) => {
     await page.goto("/company/6861");
-    await expect(page.getByText(/電気機器で1位 \/ 150社・全体で1位 \/ 1,867社/)).toBeVisible();
+    // モックの言い回し。上位◯%は添えない（運営者の指示）。
+    await expect(page.getByText("電気機器 ・業界150社中1位 ・全体1,867社中1位")).toBeVisible();
   });
 });
 
@@ -297,5 +299,73 @@ test.describe("C3 モックとの一致", () => {
     await expect(page.getByText("有価証券報告書の数値そのまま（平均年齢 35.0歳")).toBeVisible();
     // 実測値でも年齢スイッチは残る（AC-11）。
     await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
+  });
+});
+
+/*
+ * 公開後の指摘（2026-08-20）で直したもの。
+ * `docs/company/company-mock-alignment/design.md` の「公開後に直したもの」に対応する。
+ */
+test.describe("公開後の手直し", () => {
+  test("年齢別の表の器が縦スクロールを持たない", async ({ page }) => {
+    await page.goto("/company/6861");
+    const overflowY = await page
+      .locator('[data-slot="table-container"]')
+      .first()
+      .evaluate((el) => getComputedStyle(el).overflowY);
+    expect(["visible", "hidden", "clip"]).toContain(overflowY);
+  });
+
+  // 110px ほどの列に収める必要がある。折り返すと「38位 /1,867社」が2行になる（報告あり）。
+  test("カードの順位と実測値が1行に収まる", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/8725");
+
+    for (const dl of [page.locator("dl").nth(0), page.locator("dl").nth(1)]) {
+      const overflow = await dl.evaluate((el) =>
+        [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
+      );
+      for (const value of overflow) expect(value).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test("位置バーに見出しと偏差値が出る", async ({ page }) => {
+    await page.goto("/company/6861");
+    const figure = page.locator("figure").first();
+    await expect(figure).toContainText("全体1,867社の中の位置");
+    await expect(figure).toContainText("偏差値 122.9");
+  });
+
+  // ラベルが折り返すと軸の高さが階級ごとに変わり、棒の下端が揃わなくなる（報告あり）。
+  test("ヒストグラムの棒の幅が揃い、目盛が1行に収まる", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const widths = await page
+      .locator("figure")
+      .first()
+      .evaluate((el) =>
+        [...el.querySelectorAll('[role="presentation"] > div')].map(
+          (n) => Math.round(n.getBoundingClientRect().width * 10) / 10
+        )
+      );
+    expect(widths).toHaveLength(9);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+
+    const lines = await page
+      .locator("figure")
+      .first()
+      .evaluate((el) =>
+        [...el.querySelectorAll('[role="presentation"] > div > span:last-child')].map(
+          (n) => n.getClientRects().length
+        )
+      );
+    for (const count of lines) expect(count).toBe(1);
+  });
+
+  test("水準が近い会社に「本社のみ」バッジを出さない", async ({ page }) => {
+    await page.goto("/company/6861");
+    const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
+    await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
   });
 });
