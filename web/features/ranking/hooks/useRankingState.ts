@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
 import { buildRankedCompanies } from "../lib/rank";
 import { buildSearchParams, INITIAL_STATE, parseSearchParams } from "../lib/urlState";
+import { RANKING_STATE_CHANGED_EVENT } from "../lib/queryBroadcast";
 
 const QUERY_URL_UPDATE_DEBOUNCE_MS = 300;
 
@@ -12,6 +13,8 @@ export interface UseRankingStateResult {
   setState: Dispatch<SetStateAction<RankingState>>;
   rankedCompanies: RankedCompany[];
   totalCount: number;
+  /** 年収バーの基準（そのページの1位の金額）。 */
+  pageMaxSalary: number;
 }
 
 function readStateFromLocation(): RankingState {
@@ -33,9 +36,11 @@ function readStateFromLocation(): RankingState {
  * によるネットワーク発生・競合状態の問題。U5で確認済み、`docs/ranking/url-sync/design.md`
  * 参照）。`window.history.pushState`/`replaceState`を直接呼ぶ。
  *
- * - URL → state: `popstate`（ブラウザの戻る/進む）でだけ読み直す。`pushState`/
- *   `replaceState`は`popstate`を発火させないため、自分自身の書き込みで読み取りが
- *   再トリガーされることはない。
+ * - URL → state: `popstate`（ブラウザの戻る/進む）と、共通ヘッダの検索欄が投げる
+ *   `RANKING_STATE_CHANGED_EVENT`（`lib/queryBroadcast.ts`）で読み直す。ヘッダは
+ *   このコンポーネントの祖先ではないので、URLを介してしか届けられない。
+ *   `pushState`/`replaceState`は`popstate`を発火させないため、自分自身の書き込みで
+ *   読み取りが再トリガーされることはない。
  * - state → URL: stateが変わるたびに発火し、現在のURLと異なる場合だけhistoryを
  *   更新する（同一なら何もしない。マウント直後はinitialStateとURLが一致している
  *   ため、この分岐で自然に何もしない）。queryだけが変わった場合は`replaceState`
@@ -54,7 +59,11 @@ export function useRankingState(
       setState(readStateFromLocation());
     };
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener(RANKING_STATE_CHANGED_EVENT, onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener(RANKING_STATE_CHANGED_EVENT, onPopState);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,6 +79,7 @@ export function useRankingState(
       state.employeeSize === currentFromUrl.employeeSize &&
       state.tenure === currentFromUrl.tenure &&
       state.avgAgeBucket === currentFromUrl.avgAgeBucket &&
+      state.sort === currentFromUrl.sort &&
       state.query !== currentFromUrl.query;
 
     clearTimeout(debounceRef.current);
@@ -84,10 +94,10 @@ export function useRankingState(
     return () => clearTimeout(debounceRef.current);
   }, [state]);
 
-  const { companies: rankedCompanies, totalCount } = useMemo(
+  const { companies: rankedCompanies, totalCount, pageMaxSalary } = useMemo(
     () => buildRankedCompanies(companies, curves, state),
     [companies, curves, state]
   );
 
-  return { state, setState, rankedCompanies, totalCount };
+  return { state, setState, rankedCompanies, totalCount, pageMaxSalary };
 }

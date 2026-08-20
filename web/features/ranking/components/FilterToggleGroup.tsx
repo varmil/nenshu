@@ -14,6 +14,12 @@ export function FilterToggleGroup({
   onChange: (value: string | null) => void;
   options: { value: string; label: string }[];
 }) {
+  /*
+   * 3択が横に並ぶと 216px のサイドバーに収まらない。**プリミティブの既定は
+   * `w-fit flex-row` で折り返さないため、はみ出したボタンが本文の表に重なり、
+   * クリックが表側に吸われる**（U12 の E2E が実際に検出した）。折り返させる。
+   */
+
   return (
     <div className="flex flex-col gap-1">
       <span aria-hidden="true" className="text-muted-foreground text-xs">
@@ -23,6 +29,7 @@ export function FilterToggleGroup({
         aria-label={label}
         value={value ? [value] : []}
         onValueChange={(values) => onChange(values[0] ?? null)}
+        className="w-full flex-wrap"
       >
         {options.map((option) => (
           <ToggleGroupItem

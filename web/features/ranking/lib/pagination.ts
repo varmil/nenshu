@@ -25,3 +25,25 @@ export function getPaginationRange(currentPage: number, totalPages: number): Pag
   }
   return result;
 }
+
+/**
+ * 「1,867社 中 1〜100社目」の数字（spec.md 1B）。
+ *
+ * ページ番号は `buildRankedCompanies` と同じ規則で総ページ数にクランプする——
+ * 範囲外のページを直接開いても、件数表示だけが空ページを指す状態にしない。
+ */
+export function pageRange(
+  page: number,
+  totalCount: number,
+  pageSize: number
+): { from: number; to: number; page: number; totalPages: number } {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const current = Math.min(Math.max(1, page), totalPages);
+  if (totalCount === 0) return { from: 0, to: 0, page: current, totalPages };
+  return {
+    from: (current - 1) * pageSize + 1,
+    to: Math.min(current * pageSize, totalCount),
+    page: current,
+    totalPages,
+  };
+}

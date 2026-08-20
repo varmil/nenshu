@@ -154,6 +154,35 @@ describe("buildSearchParams", () => {
   });
 });
 
+describe("AC-12 並び替えのURL同期", () => {
+  it("既定（年収が高い順）は sort を出さない", () => {
+    expect(buildSearchParams(stateFor({ sort: "salary" })).toString()).toBe("");
+  });
+
+  it("平均年齢・従業員数は sort に出す", () => {
+    expect(buildSearchParams(stateFor({ sort: "age" })).toString()).toBe("sort=age");
+    expect(buildSearchParams(stateFor({ sort: "employees" })).toString()).toBe("sort=emp");
+  });
+
+  it("sort=emp から復元する", () => {
+    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toBe("employees");
+  });
+
+  it("未知の sort は無視して既定に倒れる", () => {
+    const restored = { ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("sort=zzz")) };
+    expect(restored.sort).toBe("salary");
+  });
+
+  // sort は page の前、q の後（カノニカル化）。
+  it("sort を含めても往復変換が一致する", () => {
+    const state = stateFor({ targetAge: 35, industry: "銀行業", sort: "age", page: 2 });
+    const first = buildSearchParams(state).toString();
+    expect(first).toBe("age=35&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&sort=age&page=2");
+    const parsed = parseSearchParams(new URLSearchParams(first));
+    expect(buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString()).toBe(first);
+  });
+});
+
 describe("searchParamsRecordToURLSearchParams", () => {
   it("プレーンオブジェクトをURLSearchParamsに変換する", () => {
     const params = searchParamsRecordToURLSearchParams({ age: "45", ind: "銀行業" });

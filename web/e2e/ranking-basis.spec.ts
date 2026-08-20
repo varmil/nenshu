@@ -127,12 +127,14 @@ test.describe("表示基準の切替", () => {
     await page.goto("/");
 
     // モバイルでは表（`hidden md:block`）ではなくカード一覧が出る。
+    // U12 でカードを高密度化し、金額のラベルは「有報」/「35歳・推定」に縮めた。
     const firstCard = page.locator('[data-slot="card"]').first();
-    await expect(firstCard).toContainText("平均年収（有報）");
+    await expect(firstCard).toContainText("有報");
     await expect(firstCard).toContainText("2,178万円");
+    await expect(firstCard).not.toContainText("推定");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(firstCard).toContainText("35歳時点の推定年収");
+    await expect(firstCard).toContainText("35歳・推定");
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth

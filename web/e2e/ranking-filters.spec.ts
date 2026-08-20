@@ -29,12 +29,20 @@ test.describe("初期表示（AC-1のスモーク確認）", () => {
     await expect(firstRow).toContainText("2,178万円");
   });
 
-  test("業種・従業員数・在籍年数・平均年齢・検索欄に可視ラベルが表示される", async ({ page }) => {
+  // U12 で絞り込みは左サイドバーへ、検索は共通ヘッダへ移った。
+  test("絞り込み4種の可視ラベルがサイドバーに出る", async ({ page }) => {
     await page.goto("/");
-    const header = page.getByRole("banner");
-    for (const label of ["業種", "従業員数", "在籍年数", "平均年齢", "会社名で検索"]) {
-      await expect(header.getByText(label, { exact: true })).toBeVisible();
+    const sidebar = page.locator("aside");
+    for (const label of ["業種", "従業員数", "在籍年数", "平均年齢"]) {
+      await expect(sidebar.getByText(label, { exact: true })).toBeVisible();
     }
+  });
+
+  test("検索欄は共通ヘッダにある", async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.getByRole("banner").getByRole("searchbox", { name: "会社名で検索" })
+    ).toBeVisible();
   });
 });
 
@@ -56,7 +64,7 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // 従業員数は表の最終列。「◯◯人」形式でカンマ区切り。
+    // 従業員数は表の最終列のまま（U12 で列は増えたが末尾は動かしていない）。
     const employeeCells = await rows.locator("td").last().allTextContents();
     for (const cell of employeeCells) {
       const employees = Number(cell.replace(/[^0-9]/g, ""));
@@ -73,10 +81,12 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
+    // U12 の列: 0 順位 / 1 会社名（業種を下に添える）/ 2 金額 / 3 偏差値 /
+    // 4 平均年齢 / 5 在籍年数 / 6 従業員数。
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
       const cells = rows.nth(i).locator("td");
-      await expect(cells.nth(2)).toHaveText("情報・通信業");
+      await expect(cells.nth(1)).toContainText("情報・通信業");
       const avgAgeText = await cells.nth(4).textContent();
       const avgAge = Number(avgAgeText?.replace("歳", ""));
       expect(avgAge).toBeLessThan(40);
