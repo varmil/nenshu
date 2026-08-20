@@ -76,25 +76,55 @@ export function RankingApp({
       <header className="flex flex-col gap-3">
         {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
         <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold">
+          {/* 見出しはモバイル 20px / PC 30px（アートボード 5c / 5a）。 */}
+          <h1 className="text-xl font-bold md:text-3xl">
             {isRaw ? "平均年収ランキング" : `${state.targetAge}歳年収ランキング`}
           </h1>
-          <p className="text-muted-foreground text-sm">
-            {isRaw
-              ? "有価証券報告書に載っている平均年間給与（単体）そのままで1,867社を並べています。年齢は会社ごとに違うため、若い会社は低めに出ます。"
-              : `有価証券報告書1,867社の平均年収を、業種ごとの賃金カーブで${state.targetAge}歳時点に補正して並べています。`}
+          {/*
+            **モバイルは先頭の1文だけを出す**（アートボード 5c、公開後の指摘）。
+            2文まとめて出すと 390px で3行になり、本文が下に押し出されていた。
+            同じ文を2つ書いて出し分けるのではなく、続きの1文だけを PC で足す。
+          */}
+          <p className="text-muted-foreground text-xs md:text-sm">
+            {isRaw ? (
+              <>
+                有価証券報告書の平均年間給与（単体）そのままで1,867社。
+                <span className="hidden md:inline">
+                  年齢は会社ごとに違うため、若い会社は低めに出ます。
+                </span>
+              </>
+            ) : (
+              <>
+                {`業種の賃金カーブで${state.targetAge}歳時点に補正した1,867社。`}
+                <span className="hidden md:inline">
+                  元になる金額は有価証券報告書の平均年間給与です。
+                </span>
+              </>
+            )}
           </p>
         </div>
         {/*
           表示基準と年齢は「何の列か」が分かる帯に入れる（U13、アートボード 5a）。
           年齢の帯は実測値のとき破線＋減光になる——**消さずに残す**のが AC-11。
         */}
+        {/*
+          説明文もモバイルは1文だけ（公開後の指摘）。帯の中で折り返すと、スイッチと
+          説明のどちらが主役なのか読み取りにくくなる。
+        */}
         <ControlBand
           label="並べ方"
           hint={
-            isRaw
-              ? "有価証券報告書の数値のまま。年齢の違いは補正していません。"
-              : "業種ごとの賃金カーブで、全社を同じ年齢に置き換えた推定値です。"
+            isRaw ? (
+              <>
+                有価証券報告書の数値のまま。
+                <span className="hidden md:inline">年齢の違いは補正していません。</span>
+              </>
+            ) : (
+              <>
+                業種の賃金カーブで補正した推定値です。
+                <span className="hidden md:inline">全社を同じ年齢に置き換えています。</span>
+              </>
+            )
           }
         >
           <BasisSwitch value={state.targetAge} onChange={handleBasisChange} label="並べ方" />

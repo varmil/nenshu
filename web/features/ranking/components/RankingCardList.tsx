@@ -14,6 +14,11 @@ import { SalaryBar } from "./SalaryBar";
  * **カードの枠を外して区切り線だけにする。** U12 は1社ごとに `Card` で囲んでいたが、
  * 枠が100本並ぶと枠自体が模様になり、行の切れ目が読み取りにくかった。上下の余白と
  * 1本の細い線のほうが、同じ密度でも境目がはっきりする。
+ *
+ * **行は「順位・ロゴ」と「それ以外」の2つに割れている。** 社名・金額の行、meta と
+ * 偏差値の行、年収バーの3段はすべて右側の列の中に積む。バーを行の全幅に伸ばすと
+ * 順位とロゴの下まで届き、**どの社名に対する帯なのかが読み取りにくくなる**
+ * （公開後の指摘）。順位は行の縦中央に置く。
  */
 export function RankingCardList({
   companies,
@@ -33,50 +38,65 @@ export function RankingCardList({
       {companies.map((company) => {
         const salary = displaySalary(company);
         return (
-          <div
-            key={company.id}
-            className="border-border flex flex-col gap-1.5 border-b py-2.5"
-          >
-            <div className="flex items-start gap-2">
-              <span className="w-7 shrink-0 pt-0.5 text-right text-base font-bold tabular-nums">
-                {company.rank}
-              </span>
-              <CompanyLogoMark name={company.name} />
-              <div className="min-w-0 flex-1">
-                <p className="flex flex-wrap items-center gap-1.5 font-medium">
-                  {/* prefetch={false} の理由は RankingTable.tsx を参照。 */}
-                  <NavLink
-                    href={`/company/${company.id}`}
-                    prefetch={false}
-                    className="text-primary hover:underline"
-                  >
-                    {company.name}
-                  </NavLink>
-                  {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}
-                </p>
-                <CompanyMetaLine company={company} omitTenure />
-              </div>
-              <div className="shrink-0 text-right">
-                <p className="text-lg font-bold tabular-nums">{formatManYen(salary)}</p>
+          <div key={company.id} className="border-border flex items-center gap-2.5 border-b py-2.5">
+            <span className="w-5 shrink-0 text-center text-[0.95rem] font-bold tabular-nums">
+              {company.rank}
+            </span>
+            <CompanyLogoMark name={company.name} />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <div className="flex items-baseline justify-between gap-2">
                 {/*
-                  **実測値のときは何も添えない**（アートボード 5c）。有報そのままの
-                  数字に注記を付けると、かえって加工したように見える。年齢そろえの
-                  ときだけ「推定」であることを行ごとに示す（AC-9）——モバイルには
-                  列見出しが無く、ここを省くとページ末尾の注記しか手掛かりが無くなる。
+                  **社名は1行で切る**（公開後の指摘）。折り返すと行の高さが会社ごとに
+                  変わり、一覧としての読みやすさが落ちる。`min-w-0` が無いと
+                  flex アイテムの最小幅が中身の幅になり、`truncate` が効かない。
                 */}
-                {!isRaw && (
-                  <p className="text-muted-foreground text-[0.7rem]">{targetAge}歳・推定</p>
-                )}
-                {/* **数字だけを出す**（アートボード 5c）。モックに無いものを足さない。 */}
-                {population && (
-                  <p className="text-muted-foreground text-[0.7rem] tabular-nums">
-                    偏差値{" "}
-                    {formatDeviation(deviationScore(salary, population.mean, population.sd))}
-                  </p>
-                )}
+                {/* prefetch={false} の理由は RankingTable.tsx を参照。 */}
+                <NavLink
+                  href={`/company/${company.id}`}
+                  prefetch={false}
+                  className="text-primary min-w-0 truncate text-sm font-medium hover:underline"
+                >
+                  {company.name}
+                </NavLink>
+                <span className="shrink-0 text-lg font-bold tabular-nums">
+                  {formatManYen(salary)}
+                </span>
               </div>
+
+              <div className="text-muted-foreground flex items-center justify-between gap-2 text-[0.7rem]">
+                {/*
+                  **「本社のみ」は社名の隣ではなく meta 行に置く。** 社名の行に並べると
+                  バッジのぶん社名が先に切れる（390px で「三菱商事株式…」になっていた）。
+                  意味は変わらないので、行の中で場所を譲る。
+                */}
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {company.hasBadge && (
+                    <Badge variant="outline" className="h-4 shrink-0 px-1.5 text-[0.65rem]">
+                      本社のみ
+                    </Badge>
+                  )}
+                  <CompanyMetaLine company={company} compact />
+                </span>
+                <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                  {/*
+                    **実測値のときは何も添えない**（アートボード 5c）。有報そのままの
+                    数字に注記を付けると、かえって加工したように見える。年齢そろえの
+                    ときだけ「推定」の一語を行に置く（AC-9）——モバイルには列見出しが
+                    無い。**年齢は書かない**。見出しと帯に出ているうえ、360px では
+                    この行が meta 側の幅を食って社名の下が読めなくなる。
+                  */}
+                  {!isRaw && <span>推定</span>}
+                  {population && (
+                    <span>
+                      偏差値{" "}
+                      {formatDeviation(deviationScore(salary, population.mean, population.sd))}
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <SalaryBar value={salary} max={pageMaxSalary} mean={population?.mean ?? null} />
             </div>
-            <SalaryBar value={salary} max={pageMaxSalary} mean={population?.mean ?? null} />
           </div>
         );
       })}

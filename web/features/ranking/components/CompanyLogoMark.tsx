@@ -20,7 +20,7 @@ export function CompanyLogoMark({
   size?: "default" | "lg";
 }) {
   const box =
-    size === "lg" ? "size-15 rounded-lg text-2xl" : "size-8 text-sm md:size-10 md:text-base";
+    size === "lg" ? "size-15 rounded-lg text-2xl" : "size-9.5 text-sm md:size-10 md:text-base";
 
   return (
     <span
