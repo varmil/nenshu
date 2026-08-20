@@ -382,3 +382,85 @@ test.describe("公開後の手直し", () => {
     await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
   });
 });
+
+/*
+ * 公開後の指摘（2巡目）。チャートまわりの3点。
+ *
+ * - 折れ線の文字がPCで大きすぎた（viewBoxの拡大に文字も乗るため実効20px）
+ * - 推移の節が「有価証券報告書の実測値」より上にあった（アートボード 4b では下）
+ * - どちらのチャートも縦が薄かった
+ */
+test.describe("公開後の手直し（2巡目・チャート）", () => {
+  test("推移の節は「有価証券報告書の実測値」より後ろにある", async ({ page }) => {
+    await page.goto("/company/6861");
+    const headings = await page.evaluate(() =>
+      [...document.querySelectorAll("h2")].map((h) => h.textContent?.trim() ?? "")
+    );
+    const raw = headings.indexOf("有価証券報告書の実測値");
+    const history = headings.indexOf("平均年収推移（過去10年間）");
+    expect(raw).toBeGreaterThanOrEqual(0);
+    expect(history).toBeGreaterThan(raw);
+  });
+
+  // 表示基準と独立であることは値で担保する（AC-8）。断り書きは節の説明から外した。
+  test("推移の説明は出典だけで、表示基準の断りを重ねない", async ({ page }) => {
+    await page.goto("/company/6861");
+    const section = page.locator("section", { hasText: "平均年収推移（過去10年間）" });
+    await expect(section).toContainText("実測値（提出会社単体）");
+    await expect(section.getByText("年齢そろえ")).toHaveCount(0);
+    await expect(section).toContainText("横軸は報告書の提出年です。");
+  });
+
+  /*
+   * 文字の大きさは**器の幅**で決まる。SVGはviewBoxごと拡大縮小するので、
+   * user unit をそのまま読んでも実効の大きさは分からない——倍率を掛けて測る。
+   */
+  test("折れ線の文字はPCで本文と同じ水準に収まり、モバイルでも読める大きさが残る", async ({
+    page,
+  }) => {
+    const measure = async () =>
+      page.getByRole("img", { name: /年齢別の推定年収/ }).evaluate((el) => {
+        const svg = el as unknown as SVGSVGElement;
+        const box = svg.getBoundingClientRect();
+        const scale = box.width / svg.viewBox.baseVal.width;
+        const sizes = [...svg.querySelectorAll("text")].map(
+          (t) => parseFloat(getComputedStyle(t).fontSize) * scale
+        );
+        return { min: Math.min(...sizes), max: Math.max(...sizes), height: box.height };
+      });
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861?age=35");
+    const pc = await measure();
+    expect(pc.max).toBeLessThanOrEqual(14.5);
+    expect(pc.min).toBeGreaterThanOrEqual(9);
+    // 縦を厚くした（270 → 340 ユニット）。
+    expect(pc.height).toBeGreaterThan(295);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const sp = await measure();
+    expect(sp.max).toBeLessThanOrEqual(12.5);
+    expect(sp.min).toBeGreaterThanOrEqual(8.5);
+  });
+
+  test("推移の棒はPCで高さを持ち、年のラベルが棒と揃う", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+    const figure = page.locator("figure", { hasText: "横軸は報告書の提出年です。" });
+
+    const bars = figure.locator('[role="presentation"]').first();
+    expect((await bars.boundingBox())!.height).toBeGreaterThanOrEqual(120);
+
+    // 棒と年ラベルは別の行なので、割り付けが違うと1本ずつずれる。
+    const [barX, yearX] = await figure.evaluate((el) => {
+      const rows = el.querySelectorAll('[role="presentation"]');
+      const centers = (row: Element) =>
+        [...row.children].map((n) => {
+          const r = n.getBoundingClientRect();
+          return Math.round(r.x + r.width / 2);
+        });
+      return [centers(rows[0]), centers(rows[1])];
+    });
+    expect(yearX).toEqual(barX);
+  });
+});
