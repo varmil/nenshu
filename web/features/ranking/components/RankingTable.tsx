@@ -104,7 +104,9 @@ export function RankingTable({
                           </Badge>
                         )}
                       </span>
-                      <CompanyMetaLine company={company} />
+                      <span className="text-xs">
+                        <CompanyMetaLine company={company} />
+                      </span>
                     </span>
                   </span>
                 </TableCell>

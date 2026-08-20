@@ -335,14 +335,15 @@ test.describe("U13 モックとの一致", () => {
   test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByText("並べ方")).toBeVisible();
+    // 2文目はPCだけ（モバイルは1行に収める）。ここはPC幅で見ている。
+    await expect(page.getByText("有価証券報告書の数値のまま。")).toBeVisible();
+    // 同じ文が脚注にもあるので、帯の中のものを厳密に指す。
     await expect(
-      page.getByText("有価証券報告書の数値のまま。年齢の違いは補正していません。")
+      page.getByText("年齢の違いは補正していません。", { exact: true })
     ).toBeVisible();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(
-      page.getByText("業種ごとの賃金カーブで、全社を同じ年齢に置き換えた推定値です。")
-    ).toBeVisible();
+    await expect(page.getByText("業種の賃金カーブで補正した推定値です。")).toBeVisible();
   });
 
   // 実測値でも年齢スイッチは消さない（AC-11）。使えないことは見た目で示す。
@@ -467,5 +468,60 @@ test.describe("公開後の手直し", () => {
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(rows(page).first()).toContainText("株式会社キーエンス");
+  });
+});
+
+/*
+ * モバイルの行の形（アートボード 5c）。公開後の指摘で並べ直したので、要素の
+ * 位置関係そのものを固定する。
+ */
+test.describe("公開後の手直し（モバイルの行）", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  const firstRow = (page: import("@playwright/test").Page) =>
+    page.locator("div.md\\:hidden > div").first();
+
+  test("社名は1行で切れ、折り返さない", async ({ page }) => {
+    await page.goto("/?q=大和証券");
+    const name = firstRow(page).getByRole("link").first();
+    // 折り返していれば行が2つになる。切り詰めなら1つ。
+    expect(await name.evaluate((el) => el.getClientRects().length)).toBe(1);
+    expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  });
+
+  test("年収バーは社名の列の中にあり、順位とロゴの下まで伸びない", async ({ page }) => {
+    await page.goto("/");
+    const row = firstRow(page);
+    const bar = row.locator('[aria-hidden="true"]').last();
+    const logo = row.locator("span").first();
+
+    const barBox = (await bar.boundingBox())!;
+    const rowBox = (await row.boundingBox())!;
+    const logoBox = (await logo.boundingBox())!;
+    // 左端が順位・ロゴより右にある。
+    expect(barBox.x).toBeGreaterThan(logoBox.x + logoBox.width);
+    // 右端は行の右端に揃う。
+    expect(Math.abs(barBox.x + barBox.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(2);
+  });
+
+  test("順位は行の縦中央にある", async ({ page }) => {
+    await page.goto("/");
+    const row = firstRow(page);
+    const rank = row.locator("span").first();
+    const rowBox = (await row.boundingBox())!;
+    const rankBox = (await rank.boundingBox())!;
+    const rowCenter = rowBox.y + rowBox.height / 2;
+    const rankCenter = rankBox.y + rankBox.height / 2;
+    expect(Math.abs(rowCenter - rankCenter)).toBeLessThanOrEqual(2);
+  });
+
+  test("見出しと説明文がそれぞれ1行に収まる", async ({ page }) => {
+    await page.goto("/");
+    const lines = async (locator: import("@playwright/test").Locator) =>
+      locator.evaluate((el) => el.getClientRects().length);
+
+    expect(await lines(page.getByRole("heading", { level: 1 }))).toBe(1);
+    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）そのままで1,867社。"))).toBe(1);
+    expect(await lines(page.getByText("有価証券報告書の数値のまま。"))).toBe(1);
   });
 });

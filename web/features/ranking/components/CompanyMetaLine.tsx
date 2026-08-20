@@ -17,22 +17,27 @@ import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
  */
 export function CompanyMetaLine({
   company,
-  omitTenure = false,
+  compact = false,
 }: {
   company: RankedCompany;
-  /** モバイルは幅が足りないので在籍年数を落とす（アートボード 5c）。 */
-  omitTenure?: boolean;
+  /**
+   * モバイル向け。**在籍年数と「実績」を落とす**（アートボード 5c）。
+   * 390px ではこの2つを入れると平均年齢と従業員数まで省略記号に飲まれる。
+   */
+  compact?: boolean;
 }) {
   /*
    * `block`。`truncate` は `overflow: hidden` を効かせるが、インラインのままでは
    * はみ出した文字がそのまま外へ出る（360px でページに横スクロールが出た）。
    */
   return (
-    <span className="text-muted-foreground block truncate text-xs">
+    <span className="text-muted-foreground block truncate text-[inherit]">
       平均{formatDecimal1(company.avgAge)}歳
-      {!omitTenure && ` ・ 在籍${formatDecimal1(company.avgTenure)}年`} ・{" "}
+      {!compact && ` ・ 在籍${formatDecimal1(company.avgTenure)}年`} ・{" "}
       {formatInt(company.employees)}人
-      {company.estimatedSalary !== null && ` ・ 実績 ${formatManYen(company.avgSalary)}`}
+      {!compact &&
+        company.estimatedSalary !== null &&
+        ` ・ 実績 ${formatManYen(company.avgSalary)}`}
     </span>
   );
 }

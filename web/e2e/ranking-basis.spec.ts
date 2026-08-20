@@ -129,13 +129,13 @@ test.describe("表示基準の切替", () => {
     // モバイルでは表（`hidden md:block`）ではなく行の一覧が出る。
     // U13 でカードの枠を外したので、行は `md:hidden` の一覧の中の div になった。
     // **実測値では行に注記を付けない**（アートボード 5c）。年齢そろえのときだけ
-    // 「35歳・推定」が出る。
+    // 「推定」の一語が出る（年齢は見出しと帯に出ているので行には書かない）。
     const firstRow = page.locator("div.md\\:hidden > div").first();
     await expect(firstRow).toContainText("2,178万円");
     await expect(firstRow).not.toContainText("推定");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(firstRow).toContainText("35歳・推定");
+    await expect(firstRow).toContainText("推定");
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
