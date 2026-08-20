@@ -1,4 +1,5 @@
 import type { TargetAge } from "@/features/ranking/types";
+import type { NeighborCompany } from "./lib/neighbors";
 
 /**
  * 企業詳細ページが使う母集団統計。`pipeline/scripts/build-data.ts` が生成する。
@@ -21,12 +22,32 @@ export interface CompanyStatsData {
   count: number;
   /** 円・整数。bases と同じ並び。sd は母標準偏差（n で割る）。 */
   population: { mean: number; sd: number }[];
+  /** bases と同じ並びの分布（C2）。中位と9ビンのヒストグラム。 */
+  distribution: DistributionData[];
   /** companies.industries と同じ並びの社数。 */
   industryCounts: number[];
   /** [行][表示基準] の全体順位。同額は同順位。 */
   rankAll: number[][];
   /** [行][表示基準] の業界内順位。 */
   rankIndustry: number[][];
+}
+
+/**
+ * 1つの表示基準における母集団の分布（`docs/company/spec.md` 1.13）。
+ *
+ * **階級は表示基準ごとに違う。** 25歳そろえは 249〜788万円、実測値は
+ * 332〜2,178万円で、同じ区切りを当てると片方は9ビンのうち7つが空になる。
+ * 生成の規則は `pipeline/scripts/build-data.ts` の `buildDistribution`。
+ */
+export interface DistributionData {
+  /** 中位（円）。実在する会社の金額をそのまま採っている。 */
+  median: number;
+  /** 先頭ビンの下限（円）。**これ未満はすべて先頭ビンに入る。** */
+  min: number;
+  /** 階級幅（円）。 */
+  width: number;
+  /** 9ビンの社数。**末尾ビンは `min + width×8` 以上をすべて含む。** */
+  counts: number[];
 }
 
 /** 1つの表示基準における、その会社の位置。 */
@@ -45,6 +66,31 @@ export interface CompanyAgeStats {
   diffFromMean: number;
   /** 母集団の平均（円）。 */
   populationMean: number;
+  /** 母集団の中位（円）。位置バーの印に使う。 */
+  populationMedian: number;
+  /** その表示基準の母集団の分布。ヒストグラムに使う。 */
+  distribution: DistributionData;
+  /** その会社が入るビンの添字（0〜8）。 */
+  bin: number;
+  /**
+   * 同じ業種で金額が近い会社（spec 1.12）。**表示基準ごとに別の5社**になる。
+   *
+   * サーバーで9基準ぶんまとめて出しておく。クライアントで出すには
+   * `companies.json` 全件が要り、「送るのは当該1社ぶんだけ」（spec 2.）を壊す。
+   */
+  neighbors: NeighborCompany[];
+}
+
+/**
+ * 平均年収の10年推移（timeseries 施策・T1）。
+ *
+ * **表示基準と独立。** 年齢そろえを選んでも過去の有報の数字は変わらないので、
+ * `byBasis` の中ではなくここに置く（`docs/timeseries/spec.md` 2.2）。
+ * その年の有報が無ければ `null`。内挿しない。
+ */
+export interface SalaryHistory {
+  years: number[];
+  values: (number | null)[];
 }
 
 /** 企業詳細ページに渡す1社ぶんのすべて。8年齢ぶんを最初から持たせる。 */

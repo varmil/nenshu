@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { statsForBasis } from "@/features/company/lib/stats";
 import { buildCompanyView } from "@/features/company/lib/view";
-import type { CompanyStatsData } from "@/features/company/types";
+import type { CompanyStatsData, SalaryHistory } from "@/features/company/types";
 import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
 import {
   TARGET_AGES,
@@ -14,10 +14,22 @@ import {
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
+import historyData from "../../../public/data/history.json";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
 const stats = statsData as CompanyStatsData;
+/**
+ * 10年推移（T1）。**`app/page.tsx` からは import しない**——トップページは
+ * 1,867社ぶんを既に抱えており、ここを足す理由がない（Issue #22・timeseries spec 3.）。
+ * 渡すのは当該1社ぶんの10件だけ。
+ */
+const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
+
+function historyFor(id: string): SalaryHistory | null {
+  const values = history.byId[id];
+  return values === undefined ? null : { years: history.years, values };
+}
 
 /**
  * `age` が無い・不正なら `null`（実測値・既定）に倒す。`age` の有無が表示基準を
@@ -74,5 +86,11 @@ export default async function CompanyPage({ params, searchParams }: Props) {
   const view = buildCompanyView(companies, curves, stats, (await params).id);
   if (view === null) notFound();
 
-  return <CompanyDetail view={view} initialAge={parseAge((await searchParams).age)} />;
+  return (
+    <CompanyDetail
+      view={view}
+      history={historyFor(view.id)}
+      initialAge={parseAge((await searchParams).age)}
+    />
+  );
 }

@@ -2,7 +2,8 @@ import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/ty
 import { curveValuesInYen } from "@/features/ranking/lib/curve";
 import { estimateSalary } from "@/features/ranking/lib/salary";
 import type { CompanyAgeStats, CompanyStatsData, CompanyView } from "../types";
-import { deviationScore, topPercent } from "./stats";
+import { binOf, deviationScore, topPercent } from "./stats";
+import { findNeighbors } from "./neighbors";
 
 /**
  * 企業詳細ページ1枚ぶんの表示データを作る。
@@ -37,6 +38,7 @@ export function buildCompanyView(
         : estimateSalary(avgSalary, avgAge, curveValues, curves.agePoints, targetAge);
     const { mean, sd } = stats.population[k];
     const rankAll = stats.rankAll[index][k];
+    const distribution = stats.distribution[k];
     return {
       targetAge,
       salary,
@@ -46,6 +48,11 @@ export function buildCompanyView(
       deviation: deviationScore(salary, mean, sd),
       diffFromMean: salary - mean,
       populationMean: mean,
+      populationMedian: distribution.median,
+      distribution,
+      bin: binOf(distribution, salary),
+      // 9基準ぶんまとめて出す。1業種は最大173社なので、実測 0.05ms/基準に収まる。
+      neighbors: findNeighbors(companies, curves, rowId, targetAge),
     };
   });
 

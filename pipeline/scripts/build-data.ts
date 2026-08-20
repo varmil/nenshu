@@ -228,6 +228,10 @@ function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; cu
     return { mean: Math.round(mean), sd: Math.round(Math.sqrt(variance)) };
   });
 
+  // 中位と分布の形（C2・`docs/company/spec.md` 1.13）。平均との差だけでは、右に
+  // 強く裾を引く分布の中でその会社が「やや上」なのか「裾のほう」なのかが分からない。
+  const distribution = bases.map((_, k) => buildDistribution(estimates.map((e) => e[k])));
+
   const industryCounts = companies.industries.map(
     (_, i) => rows.filter((row) => row[2] === i).length
   );
@@ -264,10 +268,47 @@ function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; cu
     bases,
     count: rows.length,
     population,
+    distribution,
     industryCounts,
     rankAll,
     rankIndustry,
   };
+}
+
+/** ヒストグラムの階級幅の候補（円）。読者が読める丸い数字だけを使う。 */
+const HISTOGRAM_WIDTH_LADDER = [10, 20, 25, 50, 100, 200, 250, 500, 1000].map((v) => v * 10_000);
+const HISTOGRAM_BINS = 9;
+
+/**
+ * 1つの表示基準ぶんの中位と9ビンのヒストグラム（spec 1.13）。
+ *
+ * **階級を固定値にできない。** 25歳そろえの分布は 249〜788万円、実測値は
+ * 332〜2,178万円で、同じ区切りを当てると片方は9ビンのうち7つが空になる。
+ * 表示基準ごとに幅と下限を決める。
+ *
+ * 幅は「2〜95パーセンタイルが9ビンに収まる最小の丸い数字」。**両端のビンは外側を
+ * 吸収する**（`min` 未満は先頭、`min + 幅×8` 以上は末尾）——最大2,178万円まで
+ * 等間隔で並べると、実データの9割が最初の2ビンに潰れるため。ラベルは
+ * 「◯万円未満」「◯万円以上」になる。
+ */
+function buildDistribution(values: number[]) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const at = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * sorted.length))];
+  const span = at(0.95) - at(0.02);
+  const width =
+    HISTOGRAM_WIDTH_LADDER.find((w) => w * HISTOGRAM_BINS >= span) ??
+    HISTOGRAM_WIDTH_LADDER[HISTOGRAM_WIDTH_LADDER.length - 1];
+  const min = Math.floor(at(0.02) / width) * width;
+
+  const counts = new Array<number>(HISTOGRAM_BINS).fill(0);
+  for (const value of sorted) {
+    const bin = Math.floor((value - min) / width);
+    counts[Math.max(0, Math.min(HISTOGRAM_BINS - 1, bin))] += 1;
+  }
+
+  // 中位は実在する会社の金額をそのまま採る（偶数件でも中央2件を平均しない）。
+  // 「この会社が中位」と言えるほうが読者に説明しやすい。
+  return { median: sorted[Math.floor(sorted.length / 2)], min, width, counts };
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;

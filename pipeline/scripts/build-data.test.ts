@@ -199,6 +199,39 @@ describe("buildData", () => {
     expect(rows[topIndex][1]).toBe("株式会社キーエンス");
   });
 
+  /*
+   * 分布（C2・`docs/company/spec.md` 1.13）。**階級は表示基準ごとに違う**——
+   * 25歳そろえは 249〜788万円、実測値は 332〜2,178万円で、同じ区切りを当てると
+   * 片方は9ビンのうち7つが空になる。
+   */
+  it("stats.json の分布が9ビンで、合計が母集団の社数になる", () => {
+    expect(result.stats.distribution).toHaveLength(result.stats.bases.length);
+    for (const d of result.stats.distribution) {
+      expect(d.counts).toHaveLength(9);
+      expect(d.counts.reduce((a, b) => a + b, 0)).toBe(result.stats.count);
+      expect(d.width).toBeGreaterThan(0);
+    }
+  });
+
+  it("stats.json の実測値の中位が有報の平均年間給与の中央値と一致する", () => {
+    const values = result.companies.rows.map((row) => row[6] as number).sort((a, b) => a - b);
+    expect(result.stats.distribution[0].median).toBe(values[Math.floor(values.length / 2)]);
+  });
+
+  it("stats.json の階級幅が表示基準ごとに選び直される", () => {
+    const raw = result.stats.distribution[0];
+    const at25 = result.stats.distribution[result.stats.bases.indexOf(25)];
+    expect(at25.width).toBeLessThan(raw.width);
+  });
+
+  // 両端のビンは外側を吸収する。中の7ビンだけで母集団を覆えている必要はない。
+  it("stats.json の分布は真ん中のビンに偏りすぎない", () => {
+    for (const d of result.stats.distribution) {
+      const nonEmpty = d.counts.filter((n) => n > 0).length;
+      expect(nonEmpty).toBeGreaterThanOrEqual(7);
+    }
+  });
+
   it("補間は代表年齢の範囲外で端の値に頭打ちになる", () => {
     const points = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
     const values = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000];

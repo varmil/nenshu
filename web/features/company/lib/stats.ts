@@ -1,5 +1,5 @@
 import type { TargetAge } from "@/features/ranking/types";
-import type { CompanyAgeStats, CompanyView } from "../types";
+import type { CompanyAgeStats, CompanyView, DistributionData } from "../types";
 
 /**
  * 年収偏差値。`50 + 10 ×（推定年収 − 母集団の平均）÷ 母集団の標準偏差`。
@@ -55,4 +55,50 @@ export function statsForBasis(view: CompanyView, targetAge: TargetAge | null): C
     throw new Error(`表示基準 ${targetAge ?? "実測値"} が byBasis にありません`);
   }
   return found;
+}
+
+/**
+ * 金額が入るビンの添字（0〜8）。**両端は外側を吸収する**——`min` 未満は先頭、
+ * `min + width×8` 以上は末尾（`DistributionData` の注記）。
+ */
+export function binOf(distribution: DistributionData, value: number): number {
+  const last = distribution.counts.length - 1;
+  const bin = Math.floor((value - distribution.min) / distribution.width);
+  return Math.max(0, Math.min(last, bin));
+}
+
+/** ビンの範囲を読める形にする。先頭は「◯万円未満」、末尾は「◯万円以上」。 */
+export function formatBinLabel(distribution: DistributionData, index: number): string {
+  const man = (yen: number) => Math.round(yen / 10000).toLocaleString("ja-JP");
+  const lower = distribution.min + distribution.width * index;
+  if (index === 0) return `${man(lower + distribution.width)}万円未満`;
+  if (index === distribution.counts.length - 1) return `${man(lower)}万円以上`;
+  return `${man(lower)}〜${man(lower + distribution.width)}万円`;
+}
+
+/**
+ * 母集団の中でその金額がどのあたりかを 0〜100 で返す（位置バー）。
+ *
+ * **順位から出す。金額の絶対値からではない。** 年収の分布は右に強く裾を引くので、
+ * 金額を最小〜最大に線形で当てると上位1社の外れ値だけで帯の9割が空く。
+ */
+export function positionPercent(rank: number, count: number): number {
+  if (count <= 1) return 0;
+  return ((count - rank) / (count - 1)) * 100;
+}
+
+/**
+ * ±20% の推定範囲（`docs/company/spec.md` 1.14）。
+ *
+ * **目安の幅であって、統計的な信頼区間ではない。** 賃金カーブは会社間の差から
+ * 作った1本の平均的な形で、1社ごとのばらつきを推定する仕組みを持っていない。
+ * この断りを外さずに使うこと。
+ */
+export const ESTIMATE_RANGE_RATIO = 0.2;
+
+export function estimateRange(salary: number): { low: number; high: number } {
+  return {
+    low: salary * (1 - ESTIMATE_RANGE_RATIO),
+    high: salary * (1 + ESTIMATE_RANGE_RATIO),
+  };
 }
