@@ -74,7 +74,8 @@ test.describe("計算方法ページ（/about）", () => {
 
   test("「本社のみ」バッジの意味が実例付きで書かれている", async ({ page }) => {
     await page.goto("/about");
-    const table = page.getByRole("table");
+    // 「2つの表示基準」の表も同じページにあるので、バッジの実例の表に絞る。
+    const table = page.getByRole("table").filter({ hasText: "単体従業員数" });
     await expect(table).toContainText("株式会社みずほフィナンシャルグループ");
     await expect(table).toContainText("株式会社みずほ銀行");
     await expect(table).toContainText("本社のみ");
@@ -102,5 +103,19 @@ test.describe("計算方法ページ（/about）", () => {
     expect(html).toContain("令和5年賃金構造基本統計調査");
     expect(html).toContain("同じ業種の2社は必ず同じカーブを引きます");
     expect(html).toContain("株式会社みずほ銀行");
+  });
+
+  // ADR-0007: 既定が実測値になったことと、2つの表示基準の違いをここで説明する。
+  test("2つの表示基準と、既定が実測値であることが書かれている", async ({ page }) => {
+    await page.goto("/about");
+
+    await expect(page.getByRole("heading", { name: "2つの表示基準" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "実測値（既定）" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "年齢そろえ" })).toBeVisible();
+
+    // 平均年齢のばらつきと、母集団平均が基準ごとに違うことを数値で示す。
+    await expect(page.getByText("27.1歳から", { exact: false })).toBeVisible();
+    await expect(page.getByText("実測値のままだと平均年齢の高い会社が上に来ます")).toBeVisible();
+    await expect(page.getByText("719万円", { exact: false }).first()).toBeVisible();
   });
 });

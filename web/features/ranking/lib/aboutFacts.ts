@@ -78,6 +78,10 @@ export interface AboutFacts {
   formulaExample: FormulaExample;
   /** 限界の節で使う、モデルの偏りを表す数値。 */
   modelBias: ModelBiasFacts;
+  /** 掲載範囲。表示基準の節で「平均年齢は会社ごとに違う」ことを示すのに使う。 */
+  coverage: { minAvgAge: number; maxAvgAge: number };
+  /** 表示基準ごとの母集団の平均年収（円）。順位・偏差値が基準ごとに変わる根拠。 */
+  population: { rawMean: number; age35Mean: number };
 }
 
 /** 式の実例で使う目標年齢。ランキングの初期値と揃える。 */
@@ -133,6 +137,42 @@ export function buildAboutFacts(companies: CompaniesData, curves: CurvesData): A
     operatingExample,
     formulaExample: buildFormulaExample(companies, curves, operatingRow, operatingExample),
     modelBias: buildModelBiasFacts(companies, curves),
+    coverage: buildCoverage(companies),
+    population: buildPopulationMeans(companies, curves),
+  };
+}
+
+function buildCoverage(companies: CompaniesData): AboutFacts["coverage"] {
+  const ages = companies.rows.map((row) => row[4]);
+  return { minAvgAge: Math.min(...ages), maxAvgAge: Math.max(...ages) };
+}
+
+/**
+ * 実測値と35歳そろえの母集団平均。ADR-0007 で表示基準が2つになり、順位も偏差値も
+ * 基準ごとに別の分布に対して出るようになった。その差を本文で示すために使う。
+ *
+ * `stats.json` にも同じ値が入っているが、こちらは読まない——`/about` は静的
+ * レンダリング（`○`）で、`stats.json` を import すると 1,867×9 の順位表まで
+ * バンドルに引き込むことになる。ここで要るのは平均2つだけなので自分で出す。
+ */
+function buildPopulationMeans(
+  companies: CompaniesData,
+  curves: CurvesData
+): AboutFacts["population"] {
+  const mean = (values: number[]) => Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  return {
+    rawMean: mean(companies.rows.map((row) => row[6])),
+    age35Mean: mean(
+      companies.rows.map((row) =>
+        estimateSalary(
+          row[6],
+          row[4],
+          curveValuesFor(companies, curves, row),
+          curves.agePoints,
+          FORMULA_EXAMPLE_TARGET_AGE
+        )
+      )
+    ),
   };
 }
 

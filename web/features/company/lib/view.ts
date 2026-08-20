@@ -1,5 +1,4 @@
-import type { CompaniesData, CurvesData } from "@/features/ranking/types";
-import { TARGET_AGES } from "@/features/ranking/types";
+import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
 import { curveValuesInYen } from "@/features/ranking/lib/curve";
 import { estimateSalary } from "@/features/ranking/lib/salary";
 import type { CompanyAgeStats, CompanyStatsData, CompanyView } from "../types";
@@ -28,24 +27,24 @@ export function buildCompanyView(
     companies.rows[index];
   const curveValues = curveValuesInYen(curves.curves[companies.curveKeys[curveIdx]]);
 
-  const byAge: CompanyAgeStats[] = TARGET_AGES.map((targetAge, k) => {
-    const estimatedSalary = estimateSalary(
-      avgSalary,
-      avgAge,
-      curveValues,
-      curves.agePoints,
-      targetAge
-    );
+  // stats.json の `bases`（先頭が実測値、続いて8年齢）と同じ並びで作る。
+  // ここで並びがずれると別の表示基準の順位を出すことになる（ADR-0007）。
+  const byBasis: CompanyAgeStats[] = stats.bases.map((basis, k) => {
+    const targetAge = basis === null ? null : (basis as TargetAge);
+    const salary =
+      targetAge === null
+        ? avgSalary
+        : estimateSalary(avgSalary, avgAge, curveValues, curves.agePoints, targetAge);
     const { mean, sd } = stats.population[k];
     const rankAll = stats.rankAll[index][k];
     return {
       targetAge,
-      estimatedSalary,
+      salary,
       rankAll,
       rankIndustry: stats.rankIndustry[index][k],
       topPercent: topPercent(rankAll, stats.count),
-      deviation: deviationScore(estimatedSalary, mean, sd),
-      diffFromMean: estimatedSalary - mean,
+      deviation: deviationScore(salary, mean, sd),
+      diffFromMean: salary - mean,
       populationMean: mean,
     };
   });
@@ -61,7 +60,7 @@ export function buildCompanyView(
     employees,
     totalCount: stats.count,
     industryCount: stats.industryCounts[tse33Idx],
-    byAge,
+    byBasis,
   };
 }
 

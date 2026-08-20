@@ -1,6 +1,7 @@
 "use client";
 
 import { useRankingState } from "../hooks/useRankingState";
+import { DEFAULT_TARGET_AGE } from "../lib/urlState";
 import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
 import type {
   AvgAgeBucket,
@@ -12,6 +13,7 @@ import type {
   TenureBucket,
 } from "../types";
 import { AgeSwitch } from "./AgeSwitch";
+import { BasisSwitch } from "./BasisSwitch";
 import { FilterSelect } from "./FilterSelect";
 import { FilterToggleGroup } from "./FilterToggleGroup";
 import { SearchInput } from "./SearchInput";
@@ -38,6 +40,16 @@ export function RankingApp({
     setState((prev) => ({ ...prev, targetAge, page: 1 }));
   };
 
+  const handleBasisChange = (basis: "raw" | "age") => {
+    setState((prev) => ({
+      ...prev,
+      targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE,
+      page: 1,
+    }));
+  };
+
+  const isRaw = state.targetAge === null;
+
   const handlePageChange = (page: number) => {
     setState((prev) => ({ ...prev, page }));
   };
@@ -51,9 +63,25 @@ export function RankingApp({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
       <header className="flex flex-col gap-3">
         {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
-        <h1 className="text-2xl font-bold">年齢補正年収ランキング</h1>
-        <div className="overflow-x-auto">
-          <AgeSwitch value={state.targetAge} onChange={handleAgeChange} />
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold">
+            {isRaw ? "平均年収ランキング" : `${state.targetAge}歳年収ランキング`}
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            {isRaw
+              ? "有価証券報告書に載っている平均年間給与（単体）そのままで1,867社を並べています。年齢は会社ごとに違うため、若い会社は低めに出ます。"
+              : `有価証券報告書1,867社の平均年収を、業種ごとの賃金カーブで${state.targetAge}歳時点に補正して並べています。`}
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <BasisSwitch value={state.targetAge} onChange={handleBasisChange} label="並べ方" />
+          <div className="overflow-x-auto">
+            {/*
+              実測値のときも年齢スイッチは消さずに無効化する（ADR-0007）。
+              「年齢そろえ」に切り替えると何が使えるようになるかを見せておく。
+            */}
+            <AgeSwitch value={state.targetAge} onChange={handleAgeChange} disabled={isRaw} />
+          </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <FilterSelect

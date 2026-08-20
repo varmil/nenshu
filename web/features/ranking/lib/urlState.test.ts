@@ -18,7 +18,22 @@ describe("parseSearchParams", () => {
     expect(parsed.industry).toBe("銀行業");
   });
 
-  it("不正なageは無視する（TARGET_AGESに無い値）", () => {
+  // ADR-0007: `age` の有無そのものが表示基準を表す。
+  it("ageが無いURLは実測値（targetAge=null）になる", () => {
+    expect(INITIAL_STATE.targetAge).toBeNull();
+    const parsed = parseSearchParams(new URLSearchParams("ind=銀行業"));
+    expect(parsed.targetAge).toBeUndefined();
+    expect({ ...INITIAL_STATE, ...parsed }.targetAge).toBeNull();
+  });
+
+  it("age=35 は「年齢そろえの35歳」として復元される（実測値ではない）", () => {
+    const parsed = parseSearchParams(new URLSearchParams("age=35"));
+    expect(parsed.targetAge).toBe(35);
+  });
+
+  it("不正なageは無視され実測値に倒れる（TARGET_AGESに無い値）", () => {
+    expect({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("age=33")) }.targetAge).toBeNull();
+    expect({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("age=abc")) }.targetAge).toBeNull();
     const parsed = parseSearchParams(new URLSearchParams("age=999"));
     expect(parsed.targetAge).toBeUndefined();
   });
@@ -63,6 +78,25 @@ describe("buildSearchParams", () => {
     expect(buildSearchParams(INITIAL_STATE).toString()).toBe("");
   });
 
+  // ADR-0007: 35歳を既定として省いていた頃と違い、年齢そろえなら35歳でも出す。
+  // 省くと実測値のURLと区別が付かなくなる。
+  it("年齢そろえの35歳は age=35 を出す", () => {
+    expect(buildSearchParams(stateFor({ targetAge: 35 })).toString()).toBe("age=35");
+  });
+
+  it("実測値（targetAge=null）は age を出さない", () => {
+    expect(buildSearchParams(stateFor({ targetAge: null })).has("age")).toBe(false);
+    expect(buildSearchParams(stateFor({ targetAge: null, industry: "銀行業" })).toString()).toBe(
+      "ind=%E9%8A%80%E8%A1%8C%E6%A5%AD"
+    );
+  });
+
+  it("実測値と年齢そろえ35歳が別のURLになる", () => {
+    expect(buildSearchParams(stateFor({ targetAge: null })).toString()).not.toBe(
+      buildSearchParams(stateFor({ targetAge: 35 })).toString()
+    );
+  });
+
   it("バケット系フィルタを範囲表記でエンコードする", () => {
     const params = buildSearchParams(
       stateFor({ employeeSize: "1000plus", tenure: "under13", avgAgeBucket: "40to43" })
@@ -95,6 +129,15 @@ describe("buildSearchParams", () => {
     const parsed = parseSearchParams(new URLSearchParams(first));
     const second = buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString();
     expect(second).toBe(first);
+  });
+
+  it("実測値でも往復変換が一致する", () => {
+    const state = stateFor({ targetAge: null, industry: "銀行業", query: "商船", page: 2 });
+    const first = buildSearchParams(state).toString();
+    const parsed = parseSearchParams(new URLSearchParams(first));
+    const restored = { ...INITIAL_STATE, ...parsed };
+    expect(restored.targetAge).toBeNull();
+    expect(buildSearchParams(restored).toString()).toBe(first);
   });
 
   it("並び順はフィルタを適用した順序に関係なく常に同じになる（カノニカル化）", () => {

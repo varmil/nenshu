@@ -141,3 +141,27 @@ describe("buildAboutFacts のモデルの偏り（限界の節で使う数値）
     expect(Math.round(b.oldestMaxEstimate / 10000)).toBe(2213);
   });
 });
+
+// ADR-0007 で表示基準が2つになった。計算方法ページはその差を数値で示すので、
+// ここでハードコードでないこと（実データと一致すること）を固定する。
+describe("表示基準の節に使う数値", () => {
+  it("平均年齢の範囲を実データから出す", () => {
+    const ages = companies.rows.map((row) => row[4]);
+    expect(facts.coverage.minAvgAge).toBe(Math.min(...ages));
+    expect(facts.coverage.maxAvgAge).toBe(Math.max(...ages));
+    expect(facts.coverage.minAvgAge).toBeCloseTo(27.1, 1);
+    expect(facts.coverage.maxAvgAge).toBeCloseTo(60.6, 1);
+  });
+
+  it("実測値の母集団平均は有報の平均年間給与の単純平均", () => {
+    const values = companies.rows.map((row) => row[6]);
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    expect(facts.population.rawMean).toBe(Math.round(mean));
+    expect(Math.round(facts.population.rawMean / 10000)).toBe(719);
+  });
+
+  it("35歳そろえの母集団平均は実測値の平均と異なる", () => {
+    expect(Math.round(facts.population.age35Mean / 10000)).toBe(629);
+    expect(facts.population.age35Mean).not.toBe(facts.population.rawMean);
+  });
+});

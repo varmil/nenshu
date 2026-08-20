@@ -24,13 +24,44 @@ function stateFor(
 }
 
 describe("buildRankedCompanies", () => {
-  it("AC-1: 初期状態（35歳・絞り込みなし）で上位100件、1位はキーエンスで推定年収2,178万円", () => {
-    const { companies: ranked, totalCount } = buildRankedCompanies(companies, curves, stateFor(35));
+  // ADR-0007 で既定になった表示基準。補正を一切通さないので estimatedSalary は null。
+  it("AC-1: 初期状態（実測値・絞り込みなし）で上位100件、1位はキーエンスで有報のまま2,178万円", () => {
+    const { companies: ranked, totalCount } = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(null)
+    );
     expect(ranked).toHaveLength(100);
     expect(totalCount).toBe(companies.rows.length);
     expect(ranked[0].name).toBe("株式会社キーエンス");
     expect(ranked[0].rank).toBe(1);
-    expect(Math.round(ranked[0].estimatedSalary / 10000)).toBe(2178);
+    expect(ranked[0].estimatedSalary).toBeNull();
+    expect(Math.round(ranked[0].avgSalary / 10000)).toBe(2178);
+  });
+
+  it("実測値では有報の平均年間給与の降順に並ぶ", () => {
+    const { companies: ranked } = buildRankedCompanies(companies, curves, stateFor(null));
+    for (let i = 1; i < ranked.length; i++) {
+      expect(ranked[i].avgSalary).toBeLessThanOrEqual(ranked[i - 1].avgSalary);
+      expect(ranked[i].estimatedSalary).toBeNull();
+    }
+  });
+
+  // 平均年齢の高い会社が実測値では上に来る。これが「年齢そろえ」を用意する理由そのもの。
+  it("実測値と35歳そろえで並びが変わる", () => {
+    const raw = buildRankedCompanies(companies, curves, stateFor(null)).companies;
+    const at35 = buildRankedCompanies(companies, curves, stateFor(35)).companies;
+    expect(raw.map((c) => c.id)).not.toEqual(at35.map((c) => c.id));
+
+    // 三菱商事（平均42.3歳）は実測値のほうが順位が高い。
+    const rankOf = (list: typeof raw, id: string) => list.find((c) => c.id === id)?.rank;
+    expect(rankOf(raw, "8058")).toBeLessThan(rankOf(at35, "8058")!);
+  });
+
+  it("AC-2前半: 35歳そろえで1位はキーエンスの推定年収2,178万円", () => {
+    const { companies: ranked } = buildRankedCompanies(companies, curves, stateFor(35));
+    expect(ranked[0].name).toBe("株式会社キーエンス");
+    expect(Math.round(ranked[0].estimatedSalary! / 10000)).toBe(2178);
   });
 
   // 2点モデル（ADR-0005）では平均年齢が違う会社どうしの順序が動きうるので、

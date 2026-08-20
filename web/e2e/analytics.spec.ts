@@ -13,7 +13,7 @@ test.describe("アクセス解析", () => {
     const requests: string[] = [];
     page.on("request", (req) => requests.push(req.url()));
     await page.goto("/");
-    await page.getByRole("button", { name: "45歳" }).click();
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
 
     expect(requests.filter((url) => url.includes("clarity"))).toEqual([]);
   });

@@ -9,7 +9,7 @@ import {
   formatDeviation,
   formatDiffFromMean,
   formatTopPercent,
-  statsForAge,
+  statsForBasis,
 } from "./stats";
 import { buildCompanyView } from "./view";
 
@@ -23,8 +23,8 @@ function view(id: string) {
   return v;
 }
 
-function at(id: string, age: TargetAge) {
-  return statsForAge(view(id), age);
+function at(id: string, age: TargetAge | null) {
+  return statsForBasis(view(id), age);
 }
 
 /** `docs/company/spec.md` AC-1〜AC-6 の数値をそのまま固定する。 */
@@ -41,8 +41,8 @@ describe("buildCompanyView", () => {
     expect(v.totalCount).toBe(1867);
     expect(v.industryCount).toBe(150);
 
-    const s = statsForAge(v, 35);
-    expect(formatManYen(s.estimatedSalary)).toBe("2,178万円");
+    const s = statsForBasis(v, 35);
+    expect(formatManYen(s.salary)).toBe("2,178万円");
     expect(s.rankAll).toBe(1);
     expect(s.rankIndustry).toBe(1);
   });
@@ -61,8 +61,8 @@ describe("buildCompanyView", () => {
     expect(v.tse33).toBe("輸送用機器");
     expect(v.industryCount).toBe(71);
 
-    const s = statsForAge(v, 35);
-    expect(formatManYen(s.estimatedSalary)).toBe("859万円");
+    const s = statsForBasis(v, 35);
+    expect(formatManYen(s.salary)).toBe("859万円");
     expect(s.rankAll).toBe(120);
     expect(formatTopPercent(s.topPercent)).toBe("上位6.4%");
     expect(s.rankIndustry).toBe(2);
@@ -71,18 +71,19 @@ describe("buildCompanyView", () => {
 
   it("AC-3: キーエンスの25歳と60歳", () => {
     const s25 = at("6861", 25);
-    expect(formatManYen(s25.estimatedSalary)).toBe("788万円");
+    expect(formatManYen(s25.salary)).toBe("788万円");
     expect(formatDeviation(s25.deviation)).toBe("127.3");
     expect(formatDiffFromMean(s25.diffFromMean)).toBe("＋369万円");
 
     const s60 = at("6861", 60);
-    expect(formatManYen(s60.estimatedSalary)).toBe("2,213万円");
+    expect(formatManYen(s60.salary)).toBe("2,213万円");
   });
 
-  it("AC-4: 25〜60歳の8点がそろっている", () => {
+  it("AC-4: 実測値＋25〜60歳の9点がそろっている", () => {
     const v = view("6861");
-    expect(v.byAge.map((s) => s.targetAge)).toEqual([25, 30, 35, 40, 45, 50, 55, 60]);
-    expect(v.byAge.map((s) => formatManYen(s.estimatedSalary))).toEqual([
+    // 先頭が実測値（ADR-0007）。続いて8年齢。
+    expect(v.byBasis.map((s) => s.targetAge)).toEqual([null, 25, 30, 35, 40, 45, 50, 55, 60]);
+    expect(v.byBasis.slice(1).map((s) => formatManYen(s.salary))).toEqual([
       "788万円",
       "1,487万円",
       "2,178万円",
@@ -101,8 +102,8 @@ describe("buildCompanyView", () => {
     expect(v.tse33).toBe("銀行業");
     expect(v.industryCount).toBe(82);
 
-    const s = statsForAge(v, 35);
-    expect(formatManYen(s.estimatedSalary)).toBe("755万円");
+    const s = statsForBasis(v, 35);
+    expect(formatManYen(s.salary)).toBe("755万円");
     expect(s.rankAll).toBe(280);
     expect(formatTopPercent(s.topPercent)).toBe("上位15.0%");
     expect(s.rankIndustry).toBe(17);
@@ -113,7 +114,7 @@ describe("buildCompanyView", () => {
     const v = view("8058");
     expect(v.name).toBe("三菱商事株式会社");
     expect(v.hasBadge).toBe(true);
-    expect(statsForAge(v, 35).rankAll).toBe(3);
+    expect(statsForBasis(v, 35).rankAll).toBe(3);
   });
 
   it("AC-7: 存在しないIDと旧形式の書類IDは null", () => {
@@ -126,7 +127,7 @@ describe("buildCompanyView", () => {
     for (const row of companies.rows) {
       const v = buildCompanyView(companies, curves, stats, row[0]);
       expect(v).not.toBeNull();
-      for (const s of v!.byAge) {
+      for (const s of v!.byBasis) {
         expect(s.rankAll).toBeGreaterThanOrEqual(1);
         expect(s.rankAll).toBeLessThanOrEqual(v!.totalCount);
         expect(s.rankIndustry).toBeGreaterThanOrEqual(1);
@@ -135,7 +136,32 @@ describe("buildCompanyView", () => {
     }
   });
 
-  it("statsForAge は8点に無い年齢で例外を投げる", () => {
-    expect(() => statsForAge(view("6861"), 33 as TargetAge)).toThrow(/33/);
+  it("statsForBasis は8点に無い年齢で例外を投げる", () => {
+    expect(() => statsForBasis(view("6861"), 33 as TargetAge)).toThrow(/33/);
+  });
+
+  // ADR-0007 で既定になった表示基準。有報の平均年間給与そのままで、順位も偏差値も
+  // 実測値の分布に対して出す（年齢そろえのそれとは別の値になる）。
+  it("実測値（targetAge=null）は有報の平均年間給与そのままで、順位も実測値の分布で出す", () => {
+    const v = view("6861");
+    const raw = statsForBasis(v, null);
+    expect(raw.salary).toBe(v.avgSalary);
+    expect(formatManYen(raw.salary)).toBe("2,178万円");
+    expect(raw.rankAll).toBe(1);
+    expect(raw.rankIndustry).toBe(1);
+
+    // 実測値の母集団は年齢そろえ（35歳）のそれと別物。
+    const at35 = statsForBasis(v, 35);
+    expect(raw.populationMean).not.toBe(at35.populationMean);
+    expect(formatManYen(raw.populationMean)).toBe("719万円");
+  });
+
+  it("平均年齢が高い会社は実測値と35歳そろえで順位が入れ替わる", () => {
+    // 三菱商事は平均42.3歳。実測値では上位だが、35歳にそろえると下がる。
+    const v = view("8058");
+    const raw = statsForBasis(v, null);
+    const at35 = statsForBasis(v, 35);
+    expect(raw.salary).toBeGreaterThan(at35.salary);
+    expect(raw.rankAll).toBeLessThan(at35.rankAll);
   });
 });

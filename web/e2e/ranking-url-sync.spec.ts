@@ -36,14 +36,18 @@ test.describe("URLクエリとの同期", () => {
     await expect(page).toHaveURL(/\/$/);
   });
 
+  // 既定は実測値で年齢スイッチは無効なので、まず「年齢そろえ」に切り替える（ADR-0007）。
   test("フィルタを操作するとURLにクエリが反映される", async ({ page }) => {
     await page.goto("/");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
+
     await page.getByRole("button", { name: "45歳" }).click();
     await expect(page).toHaveURL(/[?&]age=45/);
   });
 
   test("ブラウザの戻るを押すと一つ前の絞り込み状態に戻る", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?age=35");
 
     await page.getByRole("button", { name: "45歳" }).click();
     await expect(page).toHaveURL(/[?&]age=45/);
@@ -58,16 +62,35 @@ test.describe("URLクエリとの同期", () => {
     await expect(page.getByRole("button", { name: "45歳" })).toHaveAttribute("aria-pressed", "true");
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/$/);
+    await expect(page).toHaveURL(/[?&]age=35/);
     await expect(page.getByRole("button", { name: "35歳" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("フィルタ操作中にネットワークリクエストが発生しない", async ({ page }) => {
+  // 実測値 ⇄ 年齢そろえ の切替も履歴に積まれる。
+  test("年齢そろえに切り替えたあと戻ると実測値に戻る", async ({ page }) => {
     await page.goto("/");
+    await expect(page).toHaveURL(/\/$/);
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByRole("button", { name: "45歳" })).toBeDisabled();
+  });
+
+  test("フィルタ操作中にネットワークリクエストが発生しない", async ({ page }) => {
+    await page.goto("/?age=35");
 
     const requests: string[] = [];
     page.on("request", (req) => requests.push(req.url()));
 
+    await page.getByRole("button", { name: "実測値" }).click();
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
     await page.getByRole("button", { name: "45歳" }).click();
     await page.getByRole("combobox", { name: "業種" }).click();
     await page.getByRole("option", { name: "海運業", exact: true }).click();
@@ -76,13 +99,13 @@ test.describe("URLクエリとの同期", () => {
   });
 
   test("並び順は操作した順序に関係なく常に同じクエリ文字列になる（カノニカル化）", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?age=35");
     await page.getByRole("combobox", { name: "業種" }).click();
     await page.getByRole("option", { name: "海運業", exact: true }).click();
     await page.getByRole("button", { name: "45歳" }).click();
     const urlA = new URL(page.url()).search;
 
-    await page.goto("/");
+    await page.goto("/?age=35");
     await page.getByRole("button", { name: "45歳" }).click();
     await page.getByRole("combobox", { name: "業種" }).click();
     await page.getByRole("option", { name: "海運業", exact: true }).click();

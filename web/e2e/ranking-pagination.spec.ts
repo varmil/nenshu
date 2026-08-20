@@ -17,7 +17,8 @@ test.describe("0件・端の状態と段階表示", () => {
     await page.getByRole("button", { name: "次のページへ" }).click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(firstRow).toContainText("戸田建設株式会社");
+    // 既定は実測値なので、2ページ目の先頭は実測値の並びで101位の会社になる。
+    await expect(firstRow).toContainText("オリックス株式会社");
     await expect(firstRow).not.toContainText("株式会社キーエンス");
   });
 

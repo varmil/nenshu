@@ -17,8 +17,10 @@ export function RankingTable({
   targetAge,
 }: {
   companies: RankedCompany[];
-  targetAge: TargetAge;
+  targetAge: TargetAge | null;
 }) {
+  const isRaw = targetAge === null;
+
   return (
     <div className="hidden md:block">
       <Table>
@@ -28,13 +30,21 @@ export function RankingTable({
             <TableHead>会社名</TableHead>
             <TableHead>業種</TableHead>
             <TableHead>
-              <span className="flex items-center gap-1.5">
-                {targetAge}歳時点の推定年収
-                <Badge variant="secondary">推定</Badge>
-              </span>
+              {/*
+                実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。
+                有報そのままの数字に推定の体裁を被せない。
+              */}
+              {isRaw ? (
+                "平均年収（有報）"
+              ) : (
+                <span className="flex items-center gap-1.5">
+                  {targetAge}歳時点の推定年収
+                  <Badge variant="secondary">推定</Badge>
+                </span>
+              )}
             </TableHead>
             <TableHead>平均年齢</TableHead>
-            <TableHead>平均年収（実績）</TableHead>
+            {!isRaw && <TableHead>平均年収（実績）</TableHead>}
             <TableHead>在籍年数</TableHead>
             <TableHead>従業員数</TableHead>
           </TableRow>
@@ -68,15 +78,17 @@ export function RankingTable({
               <TableCell className="text-muted-foreground">{company.tse33}</TableCell>
               <TableCell>
                 <span className="text-2xl font-bold">
-                  {formatManYen(company.estimatedSalary)}
+                  {formatManYen(company.estimatedSalary ?? company.avgSalary)}
                 </span>
               </TableCell>
               <TableCell className="text-muted-foreground">
                 {formatDecimal1(company.avgAge)}歳
               </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {formatManYen(company.avgSalary)}
-              </TableCell>
+              {!isRaw && (
+                <TableCell className="text-muted-foreground text-sm">
+                  {formatManYen(company.avgSalary)}
+                </TableCell>
+              )}
               <TableCell className="text-muted-foreground">
                 {formatDecimal1(company.avgTenure)}年
               </TableCell>
@@ -87,7 +99,9 @@ export function RankingTable({
           ))}
         </TableBody>
         <TableCaption>
-          推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。
+          {isRaw
+            ? "有価証券報告書の平均年間給与（提出会社単体）そのままです。年齢の違いは補正していません。"
+            : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}
         </TableCaption>
       </Table>
     </div>

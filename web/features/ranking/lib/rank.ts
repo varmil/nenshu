@@ -15,6 +15,9 @@ export interface RankedCompaniesResult {
 /**
  * フィルタ→補正年収の計算→ソート→ランク付与→ページ切り出し、の順で行う。
  * 要求されたpageが総ページ数を超える場合は最終ページにクランプする（空ページを見せない）。
+ *
+ * **`state.targetAge` が `null`（実測値）なら補正を一切行わない**（ADR-0007）。
+ * `estimatedSalary` は `null` のままで、並べ替えも表示も有報の `avgSalary` を使う。
  */
 export function buildRankedCompanies(
   companies: CompaniesData,
@@ -36,11 +39,19 @@ export function buildRankedCompanies(
     return values;
   };
 
+  const targetAge = state.targetAge;
   const withSalary: Omit<RankedCompany, "rank">[] = filteredRows.map((row) => {
     const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees, badge] = row;
-    const curveKey = companies.curveKeys[curveIdx];
-    const curveValues = curveValuesFor(curveKey);
-    const estimatedSalary = estimateSalary(avgSalary, avgAge, curveValues, curves.agePoints, state.targetAge);
+    const estimatedSalary =
+      targetAge === null
+        ? null
+        : estimateSalary(
+            avgSalary,
+            avgAge,
+            curveValuesFor(companies.curveKeys[curveIdx]),
+            curves.agePoints,
+            targetAge
+          );
 
     return {
       id,
@@ -55,7 +66,9 @@ export function buildRankedCompanies(
     };
   });
 
-  const sorted = withSalary.sort((a, b) => b.estimatedSalary - a.estimatedSalary);
+  const sorted = withSalary.sort(
+    (a, b) => (b.estimatedSalary ?? b.avgSalary) - (a.estimatedSalary ?? a.avgSalary)
+  );
 
   const ranked: RankedCompany[] = sorted.map((company, index) => ({
     ...company,

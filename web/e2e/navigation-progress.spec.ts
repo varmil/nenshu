@@ -43,7 +43,7 @@ test.describe("遷移中の読み込み表示", () => {
 
   test("プログレスバーは固定配置なので、出ても本文の位置がずれない", async ({ page }) => {
     await page.goto("/");
-    const heading = page.getByRole("heading", { name: "年齢補正年収ランキング" });
+    const heading = page.getByRole("heading", { name: "平均年収ランキング" });
     const before = await heading.boundingBox();
 
     await delayNavigationTo(page, /\/company\/6861/, 2000);

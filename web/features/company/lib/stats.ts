@@ -43,16 +43,16 @@ export function formatDiffFromMean(diffYen: number): string {
 }
 
 /**
- * 年齢スイッチの現在値に対応する1件を引く。
+ * 表示基準の現在値に対応する1件を引く。`null` は実測値（ADR-0007）。
  *
  * `view.ts`（`buildCompanyView`）ではなくこちらに置いている。`CompanyDetail` は
  * Client Component で、`view.ts` を import すると 1,867行を走査する
  * `buildCompanyView` がクライアントバンドルに死にコードとして混ざるため。
  */
-export function statsForAge(view: CompanyView, targetAge: TargetAge): CompanyAgeStats {
-  const found = view.byAge.find((s) => s.targetAge === targetAge);
+export function statsForBasis(view: CompanyView, targetAge: TargetAge | null): CompanyAgeStats {
+  const found = view.byBasis.find((s) => s.targetAge === targetAge);
   if (found === undefined) {
-    throw new Error(`目標年齢 ${targetAge} が byAge にありません`);
+    throw new Error(`表示基準 ${targetAge ?? "実測値"} が byBasis にありません`);
   }
   return found;
 }

@@ -12,32 +12,36 @@ import type { TargetAge } from "@/features/ranking/types";
  * そのまま使えるため。
  */
 export interface CompanyStatsData {
-  /** TARGET_AGES と同じ8点。 */
-  ages: number[];
+  /**
+   * 表示基準の並び。**先頭の `null` が「実測値」**で、続いて TARGET_AGES と同じ8点
+   * （ADR-0007）。population / rankAll / rankIndustry はすべてこの並びの添字で引く。
+   */
+  bases: (number | null)[];
   /** 母集団の社数。 */
   count: number;
-  /** 円・整数。ages と同じ並び。sd は母標準偏差（n で割る）。 */
+  /** 円・整数。bases と同じ並び。sd は母標準偏差（n で割る）。 */
   population: { mean: number; sd: number }[];
   /** companies.industries と同じ並びの社数。 */
   industryCounts: number[];
-  /** [行][年齢] の全体順位。同額は同順位。 */
+  /** [行][表示基準] の全体順位。同額は同順位。 */
   rankAll: number[][];
-  /** [行][年齢] の業界内順位。 */
+  /** [行][表示基準] の業界内順位。 */
   rankIndustry: number[][];
 }
 
-/** 1つの目標年齢における、その会社の位置。 */
+/** 1つの表示基準における、その会社の位置。 */
 export interface CompanyAgeStats {
-  targetAge: TargetAge;
-  /** 年齢補正後の推定年収（円）。 */
-  estimatedSalary: number;
+  /** `null` は実測値（有報の平均年間給与そのまま）。ADR-0007。 */
+  targetAge: TargetAge | null;
+  /** その表示基準での金額（円）。実測値なら有報の平均年間給与そのもの。 */
+  salary: number;
   rankAll: number;
   rankIndustry: number;
   /** 全体順位 ÷ 母集団の社数 × 100。 */
   topPercent: number;
-  /** 50 + 10 ×（推定年収 − 平均）÷ 標準偏差。分布が右に裾を引くため100を超える。 */
+  /** 50 + 10 ×（金額 − 平均）÷ 標準偏差。分布が右に裾を引くため100を超える。 */
   deviation: number;
-  /** 推定年収 − 母集団の平均（円）。 */
+  /** 金額 − 母集団の平均（円）。 */
   diffFromMean: number;
   /** 母集団の平均（円）。 */
   populationMean: number;
@@ -57,6 +61,9 @@ export interface CompanyView {
   totalCount: number;
   /** 同じ業種の社数。 */
   industryCount: number;
-  /** TARGET_AGES と同じ並びの8件。年齢スイッチはこれを引くだけ。 */
-  byAge: CompanyAgeStats[];
+  /**
+   * `stats.json` の `bases` と同じ並びの9件（先頭が実測値、続いて8年齢）。
+   * 表示基準スイッチはこれを引くだけ。
+   */
+  byBasis: CompanyAgeStats[];
 }

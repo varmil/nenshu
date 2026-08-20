@@ -104,19 +104,27 @@ interface CompaniesShape {
 /**
  * 企業詳細ページ（`/company/[id]`）が使う母集団統計。
  *
- * 順位は「その年齢時点の推定年収で全1,867社を並べたときの位置」なので、1社ぶんを
- * 出すにも母集団全体の推定が要る。リクエストのたびに 1,867社 × 8年齢 ＝ 約15,000回
- * の補間を回すのは、Workers Free の CPU 10ms/リクエスト制約に対して割に合わない
+ * 順位は「その表示基準で全1,867社を並べたときの位置」なので、1社ぶんを出すにも
+ * 母集団全体の値が要る。リクエストのたびに 1,867社 × 8年齢 ＝ 約15,000回の補間を
+ * 回すのは、Workers Free の CPU 10ms/リクエスト制約に対して割に合わない
  * （`docs/ranking/ssr-migration/design.md` の実測でトップページが既に20〜28ms）。
  * ビルド時に確定させ、リクエスト時は当該1社ぶんの16回の補間だけにする。
  *
+ * **表示基準は `bases` の並び（先頭が実測値、続いて8年齢）**（ADR-0007）。実測値の
+ * 順位・偏差値は有報の平均年間給与そのままの分布に対する値で、年齢そろえのそれとは
+ * 別物になる。
+ *
  * 会社IDをキーにした辞書ではなく `rows` と同じ並びの配列にしている。ページは
  * id から行番号を引く必要が既にあり、その添字をそのまま使えるため。
- * **行がずれると別の会社の順位を出してしまうので、`companies` を組み立てたのと
- * 同じ配列から作る。**
+ * **行がずれると別の会社の順位を、列がずれると別の表示基準の順位を出してしまうので、
+ * `companies` を組み立てたのと同じ配列から作り、`build-data.test.ts` で固定する。**
  */
 function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; curves: Record<string, number[]> }) {
   const ages = [...TARGET_AGES];
+  // 表示基準の並び。先頭の null が「実測値」（有報の平均年間給与そのまま）で、
+  // 残りが「年齢そろえ」の8年齢。population / rankAll / rankIndustry はすべて
+  // この並びの添字で引く（ADR-0007）。
+  const bases: (number | null)[] = [null, ...ages];
   const rows = companies.rows;
 
   // 円に直したカーブは産業大分類ごとに1本しかない。1,867行ぶん作り直さない。
@@ -130,15 +138,18 @@ function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; cu
     return values;
   };
 
-  // [行][年齢] の推定年収。
+  // [行][表示基準] の金額。実測値の列だけは補正を通さず avgSalary をそのまま入れる。
   const estimates = rows.map((row) => {
     const curveValues = curveValuesFor(companies.curveKeys[row[3] as number]);
-    return ages.map((age) =>
-      estimateSalary(row[6] as number, row[4] as number, curveValues, curves.agePoints, age)
+    const avgSalary = row[6] as number;
+    return bases.map((basis) =>
+      basis === null
+        ? avgSalary
+        : estimateSalary(avgSalary, row[4] as number, curveValues, curves.agePoints, basis)
     );
   });
 
-  const population = ages.map((_, k) => {
+  const population = bases.map((_, k) => {
     const values = estimates.map((e) => e[k]);
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     // 母標準偏差（n で割る）。対象は「掲載している1,867社」そのもので、
@@ -170,9 +181,9 @@ function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; cu
     allIndexes.filter((j) => rows[j][2] === i)
   );
 
-  const rankAll = rows.map(() => new Array<number>(ages.length));
-  const rankIndustry = rows.map(() => new Array<number>(ages.length));
-  for (let k = 0; k < ages.length; k++) {
+  const rankAll = rows.map(() => new Array<number>(bases.length));
+  const rankIndustry = rows.map(() => new Array<number>(bases.length));
+  for (let k = 0; k < bases.length; k++) {
     for (const [i, rank] of rankWithin(allIndexes, k)) rankAll[i][k] = rank;
     for (const members of industryIndexes) {
       for (const [i, rank] of rankWithin(members, k)) rankIndustry[i][k] = rank;
@@ -180,7 +191,7 @@ function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; cu
   }
 
   return {
-    ages,
+    bases,
     count: rows.length,
     population,
     industryCounts,
@@ -197,5 +208,5 @@ if (isMain) {
   const result = buildData(outDir);
   console.log(`${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB`);
   console.log(result.curvesPath);
-  console.log(`${result.statsPath}: ${result.stats.ages.length}年齢 × ${result.stats.count}社`);
+  console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
 }

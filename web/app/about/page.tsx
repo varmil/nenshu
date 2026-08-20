@@ -48,12 +48,60 @@ export default function AboutPage() {
         </NavLink>
         <h1 className="text-2xl font-bold">計算方法</h1>
         <p>
-          このサイトは、有価証券報告書に載っている「平均年間給与」を、賃金カーブを使って
-          <strong>選んだ年齢の時点の金額に読み替えて</strong>並べています。
+          このサイトは、有価証券報告書に載っている「平均年間給与」をそのまま並べることを
+          <strong>既定</strong>にしています。そのうえで、賃金カーブを使って
+          <strong>選んだ年齢の時点の金額に読み替える</strong>モードを用意しています。
           ここではその計算を全部公開します。数字の出どころも、
           この方法で何が言えて何が言えないかも隠しません。
         </p>
       </header>
+
+      <Section title="2つの表示基準">
+        <p>
+          ランキングにも企業詳細ページにも、金額の出し方が2つあります。
+          <strong>既定は「実測値」</strong>です。
+        </p>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>表示基準</TableHead>
+              <TableHead>出している数字</TableHead>
+              <TableHead>URL</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell className="font-medium">実測値（既定）</TableCell>
+              <TableCell>
+                有価証券報告書の平均年間給与（提出会社単体）そのまま。補正を一切かけていません
+              </TableCell>
+              <TableCell className="font-mono text-xs">/</TableCell>
+            </TableRow>
+            <TableRow>
+              <TableCell className="font-medium">年齢そろえ</TableCell>
+              <TableCell>
+                下の式で、選んだ年齢の時点に読み替えた<strong>推定値</strong>
+              </TableCell>
+              <TableCell className="font-mono text-xs">/?age=35</TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+        <p>
+          実測値を既定にしているのは、それが<strong>検証できる一次情報</strong>だからです。
+          EDINET で有価証券報告書を開けば同じ数字が載っています。
+          ただし会社によって従業員の平均年齢が違うので（
+          {formatDecimal1(facts.coverage.minAvgAge)}歳から
+          {formatDecimal1(facts.coverage.maxAvgAge)}歳まであります）、
+          <strong>実測値のままだと平均年齢の高い会社が上に来ます。</strong>
+          年齢をそろえて比べたいときに「年齢そろえ」を選んでください。
+        </p>
+        <p>
+          順位と年収偏差値も表示基準ごとに計算し直しています。母集団の平均は実測値で
+          {formatManYen(facts.population.rawMean)}、35歳そろえで
+          {formatManYen(facts.population.age35Mean)}です。同じ会社でも、
+          どちらで見ているかによって順位が変わります。
+        </p>
+      </Section>
 
       <Section title="補正の式">
         <p>
