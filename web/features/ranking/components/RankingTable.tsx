@@ -9,15 +9,11 @@ import {
 } from "@/design-system/ui/table";
 import { NavLink } from "@/features/navigation/components/NavLink";
 import { Badge } from "@/design-system/ui/badge";
-import {
-  deviationScore,
-  formatDeviation,
-  formatTopPercent,
-  topPercent,
-} from "@/features/company/lib/stats";
+import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
+import { TABLE_NO_SCROLL } from "@/design-system/tableContainer";
 import { CompanyLogoMark } from "./CompanyLogoMark";
 import { CompanyMetaLine } from "./CompanyMetaLine";
 import { SalaryBar } from "./SalaryBar";
@@ -27,7 +23,6 @@ export function RankingTable({
   targetAge,
   pageMaxSalary,
   population,
-  populationCount,
 }: {
   companies: RankedCompany[];
   targetAge: TargetAge | null;
@@ -35,13 +30,12 @@ export function RankingTable({
   pageMaxSalary: number;
   /** 現在の表示基準の母集団。偏差値と全体平均の線に使う。 */
   population: { mean: number; sd: number } | null;
-  /** 母集団の社数（1,867）。上位◯%の分母。 */
-  populationCount: number;
 }) {
   const isRaw = targetAge === null;
 
   return (
-    <div className="hidden md:block">
+    /* 器のスクロールは止める。`table-fixed` で列幅を先に決めているのではみ出さない（tableContainer.ts）。 */
+    <div className={`hidden md:block ${TABLE_NO_SCROLL}`}>
       {/*
         `table-fixed`。既定の自動レイアウトだと社名の列が中身の幅まで伸び、
         2カラムにしたぶん狭くなった本文からはみ出す（実測 978px / 枠 752px）。
@@ -55,7 +49,7 @@ export function RankingTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-11">順位</TableHead>
-            <TableHead>会社名・業種</TableHead>
+            <TableHead>会社名</TableHead>
             <TableHead className="w-44">
               {/*
                 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。
@@ -124,23 +118,18 @@ export function RankingTable({
                     />
                   </div>
                 </TableCell>
-                <TableCell className="text-muted-foreground text-right">
+                <TableCell className="text-right">
                   {/*
-                    偏差値は単独で出さない（glossary）。分布が右に裾を引くので100を
-                    超え、数字だけでは水準が伝わらない。上位◯%を必ず隣に置く。
-                    **モックは数字だけだが、ここは合わせない**（design.md の対照表）。
+                    **数字だけを出す**（アートボード 5a）。以前は「上位◯%」を下に
+                    添えていたが、モックに無いものを足さない（運営者の指示）。
+                    100 を超えうることと順位の読み方は表の脚注に置いてある。
                   */}
                   {population ? (
-                    <span className="flex flex-col leading-tight">
-                      <span className="text-foreground text-sm font-medium tabular-nums">
-                        {formatDeviation(deviationScore(salary, population.mean, population.sd))}
-                      </span>
-                      <span className="text-[0.65rem]">
-                        {formatTopPercent(topPercent(company.populationRank, populationCount))}
-                      </span>
+                    <span className="text-sm font-medium tabular-nums">
+                      {formatDeviation(deviationScore(salary, population.mean, population.sd))}
                     </span>
                   ) : (
-                    "—"
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
               </TableRow>
@@ -154,7 +143,7 @@ export function RankingTable({
           {" "}
           帯はこのページの1位を100%とした相対の長さで、細い縦線は全体平均
           {population ? `（${formatManYen(population.mean)}）` : ""}の位置です。
-          偏差値は分布が右に裾を引くため100を超えることがあり、上位◯%を併記しています。
+          偏差値は分布が右に裾を引くため100を超えることがあります。水準は順位と併せて読んでください。
         </TableCaption>
       </Table>
     </div>

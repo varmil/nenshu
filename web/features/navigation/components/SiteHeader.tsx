@@ -1,3 +1,4 @@
+import { BrandLink } from "./BrandLink";
 import { NavLink } from "./NavLink";
 import { HeaderSearch } from "./HeaderSearch";
 import { ThemeToggle } from "@/features/theme/components/ThemeToggle";
@@ -20,14 +21,8 @@ export function SiteHeader() {
   return (
     <header className="border-border border-b">
       <div className="mx-auto grid w-full max-w-5xl grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-4 sm:gap-6 lg:gap-15">
-        {/*
-          prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
-          ページ（gzip 64KB）。全ページのヘッダから先読みさせる価値はない。
-          理由の詳細は RankingTable.tsx。
-        */}
-        <NavLink href="/" prefetch={false} className="text-base font-bold sm:text-lg">
-          OpenReport
-        </NavLink>
+        {/* `/` の上では遷移せず、絞り込みを解いて最初の状態に戻す。詳細は BrandLink.tsx。 */}
+        <BrandLink />
         {/*
           会社名検索は全ページのヘッダに置く（U12）。`/` の上では状態を更新するだけ、
           それ以外のページでは `/?q=` への遷移になる。詳細は HeaderSearch.tsx。

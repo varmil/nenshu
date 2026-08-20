@@ -24,7 +24,8 @@ describe("buildHighlights（AC-11）", () => {
     const items = highlights("6861", null);
     expect(items[0]).toContain("2,178万円");
     expect(items[0]).toContain("1位");
-    expect(items[0]).toContain("上位0.1%未満");
+    // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
+    expect(items[0]).toContain("偏差値122.9");
     expect(items[1]).toContain("電気機器");
   });
 

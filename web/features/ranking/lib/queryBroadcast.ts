@@ -26,3 +26,17 @@ export function pushRankingQuery(query: string) {
   window.history.pushState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
   window.dispatchEvent(new Event(RANKING_STATE_CHANGED_EVENT));
 }
+
+/**
+ * 絞り込み・並び替え・表示基準をすべて初期状態に戻す（ヘッダのサイト名から）。
+ *
+ * **`/` の上でサイト名を押したときに、URL だけが `/` になって表示が変わらない**
+ * という食い違いがあった。`<Link href="/">` は同じルートへの遷移なので
+ * `RankingApp` が作り直されず、`useRankingState` が持っている状態がそのまま残る。
+ * URL を正にしている以上、URL を書き換えたらこの合図で読み直させる。
+ */
+export function pushRankingReset() {
+  if (window.location.pathname === "/" && window.location.search === "") return;
+  window.history.pushState(null, "", "/");
+  window.dispatchEvent(new Event(RANKING_STATE_CHANGED_EVENT));
+}

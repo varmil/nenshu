@@ -1,5 +1,5 @@
 import { formatInt, formatManYen } from "@/features/ranking/lib/format";
-import { formatBinLabel, formatTopPercent, positionPercent } from "../lib/stats";
+import { formatBinLabel, formatBinTick, formatDeviation, positionPercent } from "../lib/stats";
 import type { CompanyAgeStats } from "../types";
 
 /**
@@ -25,8 +25,21 @@ export function SalaryDistributionChart({
   const medianPosition = 50;
 
   return (
-    <figure className="flex flex-col gap-3">
+    <figure className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
+        {/*
+          帯が何の帯かを言う見出し（アートボード 5b）。カードの左側にある偏差値と
+          同じ値をここにも置くのは、**帯の右端＝偏差値の大きさ**という対応を
+          その場で見せるため。
+        */}
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs font-semibold">
+            全体{formatInt(count)}社の中の位置
+          </span>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            偏差値 {formatDeviation(current.deviation)}
+          </span>
+        </div>
         <div className="bg-muted relative h-2 w-full overflow-hidden rounded-full">
           <div
             className="from-muted to-chart-1 h-full bg-gradient-to-r"
@@ -51,9 +64,14 @@ export function SalaryDistributionChart({
         </div>
       </div>
 
+      {/*
+        `min-w-0` と `basis-0`。**ラベルの文字数で列が押し広げられ、棒の太さが
+        階級ごとに違っていた**（報告あり）。`flex-1` だけでは中身の最小幅が効くので、
+        基準を0に固定して9等分にする。
+      */}
       <div className="flex items-end gap-1" role="presentation">
         {distribution.counts.map((n, i) => (
-          <div key={i} className="flex flex-1 flex-col items-center gap-1">
+          <div key={i} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1">
             {/*
               社数を棒の上に出す（C3、アートボード 4b）。**棒の高さは相対値でしか
               読めない**ので、9本の形だけでは「170社」なのか「17社」なのかが分からない。
@@ -69,12 +87,17 @@ export function SalaryDistributionChart({
               className={`w-full rounded-t-sm ${i === bin ? "bg-primary" : "bg-chart-1 dark:bg-chart-3"}`}
               style={{ height: `${Math.max(2, (n / maxCount) * 72)}px` }}
             />
+            {/*
+              **軸のラベルは1行に収める。** 完全な範囲（「500〜600万円」）を9つ並べると
+              折り返して2行になり、階級ごとに軸の高さが変わって棒の下端が揃わなかった。
+              読み上げ用の完全な範囲は下の `sr-only` の一覧にある。
+            */}
             <span
-              className={`text-center text-[0.6rem] leading-tight ${
-                i === bin ? "text-primary font-medium" : "text-muted-foreground"
+              className={`text-[0.6rem] whitespace-nowrap tabular-nums ${
+                i === bin ? "text-primary font-bold" : "text-muted-foreground"
               }`}
             >
-              {formatBinLabel(distribution, i).replace("万円", "").replace("以上", "〜")}
+              {formatBinTick(distribution, i)}
             </span>
           </div>
         ))}
@@ -90,8 +113,9 @@ export function SalaryDistributionChart({
       </ul>
 
       <figcaption className="text-muted-foreground text-xs">
-        全{count.toLocaleString("ja-JP")}社の分布（単位は万円）。色の濃い階級が{companyName}の位置で、
-        {formatTopPercent(current.topPercent)}にあたります。両端の階級はそれより外側をすべて含みます。
+        全{formatInt(count)}社の分布（単位は万円）。{companyName}は
+        {formatBinLabel(distribution, bin)}の帯（{formatInt(distribution.counts[bin])}社）にいます。
+        両端の階級はそれより外側をすべて含みます。
       </figcaption>
     </figure>
   );

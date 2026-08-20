@@ -7,6 +7,7 @@ import {
   deviationScore,
   estimateRange,
   formatBinLabel,
+  formatBinTick,
   formatDeviation,
   formatDiffFromMean,
   formatTopPercent,
@@ -183,5 +184,22 @@ describe("niceTicks", () => {
   it("幅が0以下なら空を返す（全点が同額でも落ちない）", () => {
     expect(niceTicks(5, 5)).toEqual([]);
     expect(niceTicks(9, 3)).toEqual([]);
+  });
+});
+
+describe("formatBinTick", () => {
+  const distribution = { median: 0, min: 5_000_000, width: 1_000_000, counts: new Array(9).fill(0) };
+
+  it("先頭は上限、末尾は下限＋、中間は下限だけを返す", () => {
+    expect(formatBinTick(distribution, 0)).toBe("〜600");
+    expect(formatBinTick(distribution, 1)).toBe("600");
+    expect(formatBinTick(distribution, 8)).toBe("1,300+");
+  });
+
+  // 9つ並べたときに折り返さないことが目的なので、長さを固定しておく。
+  it("どのラベルも7文字以内に収まる", () => {
+    for (let i = 0; i < 9; i++) {
+      expect(formatBinTick(distribution, i).length).toBeLessThanOrEqual(7);
+    }
   });
 });

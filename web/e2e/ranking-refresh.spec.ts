@@ -148,22 +148,27 @@ test.describe("AC-14 偏差値", () => {
     await expect(page.getByRole("table").locator("caption")).toContainText("100を超える");
   });
 
-  // 偏差値は単独で出さない（docs/product/glossary.md）。
-  test("上位◯%が必ず併記される", async ({ page }) => {
+  /*
+   * **上位◯%は併記しない**（運営者の指示。モックに無いものを足さない）。
+   * 100 を超えうることと、順位と併せて読むことは表の脚注に置いてある。
+   */
+  test("偏差値の列は数字だけで、上位◯%を出さない", async ({ page }) => {
     await page.goto("/");
-    await expect(rows(page).first().locator("td").nth(3)).toContainText("上位0.1%未満");
+    const cell = rows(page).first().locator("td").nth(3);
+    await expect(cell).toHaveText("122.9");
+    await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
   });
 
   /*
-   * 上位◯%の分母は絞り込み後の件数ではなく全1,867社。海運業7社に絞ったときに
-   * 「上位14%」のような値が出たら、母集団を取り違えている。
+   * 偏差値の母集団は絞り込み後ではなく全1,867社。海運業7社に絞ったときの1位が
+   * 「50.0」付近になったら、絞り込んだ集団で計算してしまっている。
    */
-  test("絞り込んでも上位◯%は全体の中での位置のまま", async ({ page }) => {
+  test("絞り込んでも偏差値は全体の分布に対する値のまま", async ({ page }) => {
     await page.goto("/?ind=海運業");
     await expect(rows(page)).toHaveCount(7);
     const first = rows(page).first().locator("td");
     await expect(first.first()).toHaveText("1");
-    await expect(first.nth(3)).not.toContainText("上位14.3%");
+    await expect(first.nth(3)).toHaveText("97.0");
   });
 });
 
@@ -306,7 +311,7 @@ test.describe("U13 モックとの一致", () => {
 
     const headers = page.getByRole("table").locator("thead th");
     await expect(headers).toHaveCount(4);
-    await expect(headers.nth(1)).toHaveText("会社名・業種");
+    await expect(headers.nth(1)).toHaveText("会社名");
 
     // 社名のリンクが、割り当てられた列の中に収まっている（はみ出すと … で切れる）。
     const link = rows(page).first().getByRole("link").first();
@@ -314,10 +319,12 @@ test.describe("U13 モックとの一致", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
+  // 業種は meta 行に出さない（運営者の指示。行が長くなって末尾が見切れていた）。
   test("平均年齢・在籍年数・従業員数は社名の下の1行にまとまっている", async ({ page }) => {
     await page.goto("/");
     const meta = rows(page).first().locator("td").nth(1);
-    await expect(meta).toContainText("電気機器 ・ 平均35.0歳 ・ 在籍11.3年 ・ 3,306人");
+    await expect(meta).toContainText("平均35.0歳 ・ 在籍11.3年 ・ 3,306人");
+    await expect(meta).not.toContainText("電気機器");
   });
 
   test("年齢そろえのときは meta 行に実測値が併記される", async ({ page }) => {
@@ -407,5 +414,58 @@ test.describe("U13 モックとの一致（モバイル）", () => {
   test("行はカードの枠を持たず、区切り線で並ぶ", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator('[data-slot="card"]')).toHaveCount(0);
+  });
+});
+
+/*
+ * 公開後の指摘（2026-08-20）で直したもの。
+ * `docs/ranking/ranking-mock-alignment/design.md` の「公開後に直したもの」に対応する。
+ */
+test.describe("公開後の手直し", () => {
+  /*
+   * `Table` の器は `overflow-x-auto` だけを持つ。CSS の仕様では片方が `visible` で
+   * ないと `visible` は `auto` に計算されるため、**縦にも `auto` になっていて、
+   * 端数で1pxはみ出すと表だけがスクロールする小窓になっていた**（報告あり）。
+   */
+  test("表の器が縦スクロールを持たない", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    const overflowY = await page
+      .locator('[data-slot="table-container"]')
+      .first()
+      .evaluate((el) => getComputedStyle(el).overflowY);
+    expect(["visible", "hidden", "clip"]).toContain(overflowY);
+  });
+
+  /*
+   * サイト名は「最初の状態に戻る」入口。`<Link href="/">` に任せると同じルートへの
+   * 遷移で `RankingApp` が作り直されず、**URL だけ `/` になって表は絞り込まれたまま**
+   * になっていた（報告あり）。
+   */
+  test("サイト名を押すと絞り込みも並び替えも解けて、ネットワークが発生しない", async ({
+    page,
+  }) => {
+    await page.goto("/?ind=海運業&sort=age&age=35&q=商船");
+    await expect(rows(page)).toHaveCount(1);
+
+    const requests: string[] = [];
+    page.on("request", (r) => requests.push(r.url()));
+
+    await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText("1,867社 中 1〜100社目")).toBeVisible();
+    await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(requests).toHaveLength(0);
+  });
+
+  test("/about からサイト名を押すとランキングへ遷移する", async ({ page }) => {
+    await page.goto("/about");
+    await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(rows(page).first()).toContainText("株式会社キーエンス");
   });
 });

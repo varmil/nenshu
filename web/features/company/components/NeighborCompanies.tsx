@@ -1,5 +1,4 @@
 import { NavLink } from "@/features/navigation/components/NavLink";
-import { Badge } from "@/design-system/ui/badge";
 import { CompanyLogoMark } from "@/features/ranking/components/CompanyLogoMark";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import type { NeighborCompany } from "../lib/neighbors";
@@ -40,21 +39,18 @@ export function NeighborCompanies({
           >
             <CompanyLogoMark name={company.name} />
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-1.5">
-                {/* prefetch={false} の理由は RankingTable.tsx。 */}
-                <NavLink
-                  href={`/company/${company.id}`}
-                  prefetch={false}
-                  className="text-primary min-w-0 truncate text-sm hover:underline"
-                >
-                  {company.name}
-                </NavLink>
-                {company.hasBadge && (
-                  <Badge variant="outline" className="shrink-0">
-                    本社のみ
-                  </Badge>
-                )}
-              </div>
+              {/*
+                **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと
+                社名がそのぶん切れる。バッジの意味はその会社のページで説明している。
+              */}
+              {/* prefetch={false} の理由は RankingTable.tsx。 */}
+              <NavLink
+                href={`/company/${company.id}`}
+                prefetch={false}
+                className="text-primary block truncate text-sm hover:underline"
+              >
+                {company.name}
+              </NavLink>
               <p className="text-muted-foreground text-[0.7rem]">
                 業界{formatInt(company.industryRank)}位・平均{formatDecimal1(company.avgAge)}歳
               </p>

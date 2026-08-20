@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/design-system/ui/table";
 import { Badge } from "@/design-system/ui/badge";
+import { TABLE_NO_VERTICAL_SCROLL } from "@/design-system/tableContainer";
 import { buildAboutFacts } from "@/features/ranking/lib/aboutFacts";
 import {
   formatDecimal1,
@@ -61,7 +62,8 @@ export default function AboutPage() {
           ランキングにも企業詳細ページにも、金額の出し方が2つあります。
           <strong>既定は「実測値」</strong>です。
         </p>
-        <Table>
+        <div className={TABLE_NO_VERTICAL_SCROLL}>
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>表示基準</TableHead>
@@ -85,7 +87,8 @@ export default function AboutPage() {
               <TableCell className="font-mono text-xs">/?age=35</TableCell>
             </TableRow>
           </TableBody>
-        </Table>
+          </Table>
+        </div>
         <p>
           実測値を既定にしているのは、それが<strong>検証できる一次情報</strong>だからです。
           EDINET で有価証券報告書を開けば同じ数字が載っています。
@@ -228,6 +231,7 @@ export default function AboutPage() {
           {formatInt(facts.badgeCount)}社）。その会社の数字がグループ全体を代表していないことを示します。
         </p>
         <div className="overflow-x-auto">
+          <div className={TABLE_NO_VERTICAL_SCROLL}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -249,7 +253,8 @@ export default function AboutPage() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+        </div>
         </div>
         <p>
           持株会社の本体には管理職が中心に在籍するため、平均年間給与は高く出ます。実際に人を雇っている事業会社のほうが、その会社で働く実態に近い数字になります。同じグループでも
