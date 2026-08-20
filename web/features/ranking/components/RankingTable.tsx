@@ -17,8 +17,9 @@ import {
 } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
-import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
+import { formatManYen } from "../lib/format";
 import { CompanyLogoMark } from "./CompanyLogoMark";
+import { CompanyMetaLine } from "./CompanyMetaLine";
 import { SalaryBar } from "./SalaryBar";
 
 export function RankingTable({
@@ -44,14 +45,18 @@ export function RankingTable({
       {/*
         `table-fixed`。既定の自動レイアウトだと社名の列が中身の幅まで伸び、
         2カラムにしたぶん狭くなった本文からはみ出す（実測 978px / 枠 752px）。
-        列幅を先に決めて、入らない社名は省略記号で切る。
+
+        **列は4つ**（U13、アートボード 5a）。平均年齢・在籍年数・従業員数は
+        社名の下の1行に移した——U12 の7列では社名の列に 200px 弱しか残らず、
+        「三菱商事…」のように**一覧で最も重要な情報が省略記号で切れていた**。
+        同じ数字が meta 行に移るだけなので、読める情報は減らない。
       */}
       <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-10 text-right">順位</TableHead>
-            <TableHead>会社名</TableHead>
-            <TableHead className="w-56">
+            <TableHead className="w-11">順位</TableHead>
+            <TableHead>会社名・業種</TableHead>
+            <TableHead className="w-44">
               {/*
                 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。
                 有報そのままの数字に推定の体裁を被せない。
@@ -60,15 +65,12 @@ export function RankingTable({
                 "平均年収（有報）"
               ) : (
                 <span className="flex items-center gap-1.5">
-                  {targetAge}歳時点の推定年収
+                  推定年収（{targetAge}歳）
                   <Badge variant="secondary">推定</Badge>
                 </span>
               )}
             </TableHead>
-            <TableHead className="w-14 text-right">偏差値</TableHead>
-            <TableHead className="w-16 text-right">平均年齢</TableHead>
-            <TableHead className="w-16 text-right">在籍年数</TableHead>
-            <TableHead className="w-24 text-right">従業員数</TableHead>
+            <TableHead className="w-20 text-right">偏差値</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -76,11 +78,13 @@ export function RankingTable({
             const salary = displaySalary(company);
             return (
               <TableRow key={company.id}>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {company.rank}
-                </TableCell>
+                {/*
+                  順位は行の目印なので、他の数字より大きく太くする（アートボード 5a）。
+                  並び替えても振り直さないため、平均年齢順では 1,204 / 87 / … と飛ぶ。
+                */}
+                <TableCell className="text-lg font-bold tabular-nums">{company.rank}</TableCell>
                 <TableCell>
-                  <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex min-w-0 items-center gap-2.5">
                     <CompanyLogoMark name={company.name} />
                     <span className="flex min-w-0 flex-col">
                       <span className="flex min-w-0 items-center gap-1.5">
@@ -96,15 +100,17 @@ export function RankingTable({
                         <NavLink
                           href={`/company/${company.id}`}
                           prefetch={false}
-                          className="text-primary truncate hover:underline"
+                          className="text-primary truncate font-medium hover:underline"
                         >
                           {company.name}
                         </NavLink>
-                        {company.hasBadge && <Badge variant="outline">本社のみ</Badge>}
+                        {company.hasBadge && (
+                          <Badge variant="outline" className="shrink-0">
+                            本社のみ
+                          </Badge>
+                        )}
                       </span>
-                      <span className="text-muted-foreground truncate text-xs">
-                        {company.tse33}
-                      </span>
+                      <CompanyMetaLine company={company} />
                     </span>
                   </span>
                 </TableCell>
@@ -122,10 +128,11 @@ export function RankingTable({
                   {/*
                     偏差値は単独で出さない（glossary）。分布が右に裾を引くので100を
                     超え、数字だけでは水準が伝わらない。上位◯%を必ず隣に置く。
+                    **モックは数字だけだが、ここは合わせない**（design.md の対照表）。
                   */}
                   {population ? (
                     <span className="flex flex-col leading-tight">
-                      <span className="tabular-nums">
+                      <span className="text-foreground text-sm font-medium tabular-nums">
                         {formatDeviation(deviationScore(salary, population.mean, population.sd))}
                       </span>
                       <span className="text-[0.65rem]">
@@ -135,15 +142,6 @@ export function RankingTable({
                   ) : (
                     "—"
                   )}
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {formatDecimal1(company.avgAge)}歳
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {formatDecimal1(company.avgTenure)}年
-                </TableCell>
-                <TableCell className="text-muted-foreground text-right tabular-nums">
-                  {formatInt(company.employees)}人
                 </TableCell>
               </TableRow>
             );

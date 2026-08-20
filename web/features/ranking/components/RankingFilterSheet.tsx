@@ -29,10 +29,19 @@ export function RankingFilterSheet({ state, onChange, industries }: FilterPanelP
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger
         render={
-          <Button variant="outline" size="sm" className="md:hidden">
+          /*
+            並び替えチップと同じ丸い形にして1行に並べる（アートボード 5c）。
+            件数は括弧付きだと 390px で行から溢れるので数字だけにした。
+          */
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={count > 0 ? `絞り込み（${count}件適用中）` : "絞り込み"}
+            className="h-7.5 shrink-0 rounded-full px-2.5 text-xs md:hidden"
+          >
             <SlidersHorizontalIcon />
             絞り込み
-            {count > 0 && <span className="text-muted-foreground">（{count}）</span>}
+            {count > 0 && <span className="text-primary font-bold">{count}</span>}
           </Button>
         }
       />

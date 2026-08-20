@@ -15,7 +15,7 @@ export function CompanyLogoMark({ name }: { name: string }) {
   return (
     <span
       aria-hidden="true"
-      className="border-border text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-md border border-dashed text-sm"
+      className="border-border text-muted-foreground bg-muted flex size-8 shrink-0 items-center justify-center rounded-md border border-dashed text-sm font-bold md:size-10 md:text-base"
     >
       {initialOf(name)}
     </span>

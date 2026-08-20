@@ -1,5 +1,6 @@
 "use client";
 
+import { CheckIcon } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/design-system/ui/toggle-group";
 import type { TargetAge } from "../types";
 import { TAB_TOGGLE_SELECTED_CLASS } from "./tabToggleClass";
@@ -13,6 +14,12 @@ import { TAB_TOGGLE_SELECTED_CLASS } from "./tabToggleClass";
  *
  * 「年齢そろえ」を押したときにどの年齢にするかは呼び出し側が決める
  * （ランキングは直前の年齢を覚えていないので `DEFAULT_TARGET_AGE`）。
+ *
+ * **枠と地を持つセグメントにする**（U13、アートボード 5a）。選択中にチェックを
+ * 添えるのは、2つのうちどちらが効いているかを色だけに頼らないため——`--primary`
+ * の塗りはダークでは背景との差が小さく、色覚特性によっては読み取りにくい。
+ * **モバイルでは全幅の2分割**にする（5c）。ページの主題を決めるスイッチなので、
+ * 他のチップと同じ大きさで並べると押し損ねる。
  */
 export function BasisSwitch({
   value,
@@ -35,13 +42,23 @@ export function BasisSwitch({
         // 選択中をもう一度押すと空配列が来る。表示基準は必ずどちらかなので無視する。
         if (next === "raw" || next === "age") onChange(next);
       }}
+      className="bg-background border-border w-full rounded-lg border p-0.75 sm:w-fit"
     >
-      <ToggleGroupItem value="raw" className={TAB_TOGGLE_SELECTED_CLASS}>
-        実測値
-      </ToggleGroupItem>
-      <ToggleGroupItem value="age" className={TAB_TOGGLE_SELECTED_CLASS}>
-        年齢そろえ
-      </ToggleGroupItem>
+      {(
+        [
+          { value: "raw", label: "実測値" },
+          { value: "age", label: "年齢そろえ" },
+        ] as const
+      ).map((option) => (
+        <ToggleGroupItem
+          key={option.value}
+          value={option.value}
+          className={`${TAB_TOGGLE_SELECTED_CLASS} h-8 flex-1 px-3 font-semibold sm:flex-none`}
+        >
+          {current === option.value && <CheckIcon aria-hidden="true" />}
+          {option.label}
+        </ToggleGroupItem>
+      ))}
     </ToggleGroup>
   );
 }

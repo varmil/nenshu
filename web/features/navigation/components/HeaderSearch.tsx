@@ -2,6 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { usePathname } from "next/navigation";
+import { SearchIcon } from "lucide-react";
+import { Button } from "@/design-system/ui/button";
 import { Input } from "@/design-system/ui/input";
 import { pushRankingQuery } from "@/features/ranking/lib/queryBroadcast";
 
@@ -42,7 +44,17 @@ export function HeaderSearch() {
   };
 
   return (
-    <form action="/" method="get" onSubmit={handleSubmit} role="search">
+    /*
+      **入力欄と虫めがねボタンを1つの丸い帯にする**（U13、アートボード 5a）。
+      2つの角丸を突き合わせて境界の罫線を1本にするので、`Input` の右罫線を
+      落としてボタン側の罫線に寄せている。
+
+      ボタンは `/` の上では押しても何も起きない（打つそばから絞り込んでいるため
+      submit しても同じ結果になる）。それでも置くのは、**検索欄だと分かる形**に
+      するためと、`/about`・`/company/[id]` からは実際にこれが送信ボタンになるため。
+      モバイルでは横幅が足りないので帯の右半分を落とし、入力欄だけを残す。
+    */
+    <form action="/" method="get" onSubmit={handleSubmit} role="search" className="flex min-w-0">
       {/*
         `value` は常に渡して制御コンポーネントに統一する。`/` かどうかで
         `value` と `defaultValue` を出し分けると、React が「非制御から制御へ
@@ -59,8 +71,16 @@ export function HeaderSearch() {
           // ランキングの上では打つそばから絞り込む（従来の検索欄と同じ挙動）。
           if (isRanking) pushRankingQuery(e.target.value);
         }}
-        className="h-8 w-32 sm:w-48"
+        className="h-9 min-w-0 flex-1 rounded-full px-4 sm:rounded-r-none sm:border-r-0"
       />
+      <Button
+        type="submit"
+        variant="outline"
+        aria-label="検索"
+        className="bg-muted hidden h-9 w-14 rounded-l-none rounded-r-full sm:inline-flex"
+      >
+        <SearchIcon />
+      </Button>
     </form>
   );
 }
