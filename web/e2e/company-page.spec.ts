@@ -167,7 +167,7 @@ test.describe("企業詳細ページ", () => {
     await expect(chart.locator("circle")).toHaveCount(8);
 
     await expect(
-      page.getByText("このカーブは1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません", {
+      page.getByText("1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません", {
         exact: false,
       })
     ).toBeVisible();

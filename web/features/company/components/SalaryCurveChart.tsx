@@ -4,16 +4,36 @@ import type { CompanyAgeStats } from "../types";
 import { ESTIMATE_RANGE_RATIO, estimateRange, niceTicks } from "../lib/stats";
 
 const WIDTH = 720;
-const HEIGHT = 270;
+// 縦を厚くする（公開後の指摘）。C3 までは 720×270 で、PC では高さ 244px しか
+// 取れず、8点の折れ線が横に潰れていた。340 にすると PC で約 308px になる。
+const HEIGHT = 340;
 // 左右の余白は端の点のラベル幅ぶん要る。中央揃えのラベルが viewBox の外に
-// はみ出すと、そこだけ切れて表示される（「2,213」で右に14ユニット出ていた）。
+// はみ出すと、そこだけ切れて表示される（「2,213」で右に14ユニット出ていた）ので、
+// **両端の金額だけは内側に寄せて揃える**（左端は start、右端は end）。
 // 左は縦軸の目盛ラベルぶんを広げてある（C2 で目盛を足した）。
 // 下の余白は「年齢の目盛」と「（歳）」の2行ぶん要る（C3）。1行に詰めると
 // 右端の「60」と「（歳）」が重なる（実測）。
-const PADDING = { top: 34, right: 40, bottom: 58, left: 96 };
-// viewBox は固定なので、狭い画面ではSVG全体が縮む。375px幅では約0.48倍になり、
-// 13px で書くと実効7px弱で読めない。22 にすると実効10〜11pxになる。
-const FONT_SIZE = 22;
+const PADDING = { top: 34, right: 40, bottom: 52, left: 84 };
+
+/*
+ * 文字の大きさは**画面の幅ではなく器の幅で決める**（コンテナクエリ）。
+ *
+ * viewBox が固定なのでSVG全体が器の幅に合わせて拡大縮小し、user unit で書いた
+ * 文字も同じ倍率で伸び縮みする。C3 までは一律 22 で、**PC では実効 20px** になり
+ * 本文（14px）より大きい数字が並んでいた（公開後の指摘）。かといって PC に
+ * 合わせて 13 と書くと、375px 幅では実効 6px になって読めない。倍率の逆数で
+ * 刻んで、どの幅でも実効 10〜13px に収める。
+ *
+ * **`md:` のような画面幅の変種は使えない。** 同じ 768px でも、サイドバーが出る
+ * 直前（器 735px）と出た直後（器 396px）で幅が倍近く違う。見ているものが器の幅で
+ * ある以上、条件も器の幅で書く。
+ *
+ * 金額のラベルだけは点の間隔（85ユニット）に収まる必要がある。「2,213万」は
+ * 約3.75em ぶんの幅なので、22 を超えると隣と重なる。
+ */
+const TEXT_TICK = "text-[22px] @md:text-[18px] @lg:text-[16px] @xl:text-[14px] @2xl:text-[12px]";
+const TEXT_VALUE = "text-[22px] @md:text-[19px] @lg:text-[17px] @xl:text-[15.5px] @2xl:text-[13.5px]";
+const TEXT_UNIT = "text-[19px] @md:text-[16px] @lg:text-[14px] @xl:text-[12.5px] @2xl:text-[11px]";
 
 /**
  * 25〜60歳の推定年収の折れ線。
@@ -69,7 +89,7 @@ export function SalaryCurveChart({
   const ticks = niceTicks(low, high);
 
   return (
-    <figure className="flex flex-col gap-2">
+    <figure className="@container flex flex-col gap-2">
       <svg
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-auto w-full"
@@ -78,20 +98,18 @@ export function SalaryCurveChart({
           .map((s) => `${s.targetAge}歳 ${formatManYen(s.salary)}`)
           .join("、")}`}
       >
-        <text
-          x={PADDING.left - 10}
-          y={PADDING.top - 14}
-          textAnchor="end"
-          fontSize={FONT_SIZE}
-          fill="var(--color-muted-foreground)"
-        >
+        {/*
+          単位は左端から書き出す。右揃えにすると、器が狭くて文字が大きいときに
+          「（万円）」の4文字が viewBox の左に出て切れる。
+        */}
+        <text x={2} y={PADDING.top - 14} className={TEXT_UNIT} fill="var(--color-muted-foreground)">
           （万円）
         </text>
         <text
           x={WIDTH - 4}
           y={HEIGHT - 6}
           textAnchor="end"
-          fontSize={FONT_SIZE}
+          className={TEXT_UNIT}
           fill="var(--color-muted-foreground)"
         >
           （歳）
@@ -106,11 +124,13 @@ export function SalaryCurveChart({
               stroke="var(--color-border)"
               strokeWidth={1}
             />
+            {/* 文字の大きさが器で変わるので、線への中心合わせは baseline に任せる。 */}
             <text
               x={PADDING.left - 10}
-              y={y(value) + FONT_SIZE / 3}
+              y={y(value)}
               textAnchor="end"
-              fontSize={FONT_SIZE}
+              dominantBaseline="central"
+              className={TEXT_TICK}
               fill="var(--color-muted-foreground)"
             >
               {Math.round(value / 10000).toLocaleString("ja-JP")}
@@ -128,6 +148,8 @@ export function SalaryCurveChart({
         />
         {byAge.map((s, i) => {
           const isSelected = s.targetAge === selectedAge;
+          const isFirst = i === 0;
+          const isLast = i === byAge.length - 1;
           return (
             <g key={s.targetAge}>
               <circle
@@ -138,11 +160,13 @@ export function SalaryCurveChart({
                 stroke="var(--color-primary)"
                 strokeWidth={2}
               />
+              {/* 点からの距離は `dy` の em で取る。ユニット固定だと、文字が小さい幅で離れすぎる。 */}
               <text
-                x={x(i)}
-                y={y(s.salary) - 14}
-                textAnchor="middle"
-                fontSize={FONT_SIZE}
+                x={isFirst ? x(i) + 6 : x(i)}
+                y={y(s.salary)}
+                dy="-0.85em"
+                textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
+                className={TEXT_VALUE}
                 fontWeight={isSelected ? 700 : 400}
                 fill={isSelected ? "var(--color-primary)" : "var(--color-muted-foreground)"}
               >
@@ -152,7 +176,7 @@ export function SalaryCurveChart({
                 x={x(i)}
                 y={HEIGHT - 28}
                 textAnchor="middle"
-                fontSize={FONT_SIZE}
+                className={TEXT_TICK}
                 fontWeight={isSelected ? 700 : 400}
                 fill={isSelected ? "var(--color-primary)" : "var(--color-muted-foreground)"}
               >
@@ -170,10 +194,9 @@ export function SalaryCurveChart({
         ))}
       </ul>
       <figcaption className="text-muted-foreground text-xs">
-        横軸は年齢（歳）、縦軸と数値は推定年収（万円）です。縦軸は0からではなく、8点と帯が収まる範囲で描いています。
-        薄い帯は ±{Math.round(ESTIMATE_RANGE_RATIO * 100)}% の推定範囲で、
-        <strong>目安の幅であって統計的な信頼区間ではありません。</strong>
-        このカーブは1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません。
+        薄い帯は推定値の ±{Math.round(ESTIMATE_RANGE_RATIO * 100)}%
+        の範囲で、目安の幅であって統計的な信頼区間ではありません。縦軸は0起点ではありません。
+        1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません。
       </figcaption>
     </figure>
   );
