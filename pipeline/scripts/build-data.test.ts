@@ -109,33 +109,38 @@ describe("buildData", () => {
   // stats.json は企業詳細ページ（`/company/[id]`）が使う母集団統計。順位を
   // リクエストごとに計算しないための事前計算で、companies.json と行の並びが
   // 一致していることが正しさの前提になる。
-  it("stats.json が8年齢 × 1,867社ぶんの順位を持つ", () => {
-    const { ages, count, rankAll, rankIndustry, population, industryCounts } = result.stats;
-    expect(ages).toEqual([25, 30, 35, 40, 45, 50, 55, 60]);
+  it("stats.json が9表示基準（実測値＋8年齢） × 1,867社ぶんの順位を持つ", () => {
+    const { bases, count, rankAll, rankIndustry, population, industryCounts } = result.stats;
+    // 先頭の null が実測値。ADR-0007。
+    expect(bases).toEqual([null, 25, 30, 35, 40, 45, 50, 55, 60]);
     expect(count).toBe(1867);
     expect(rankAll.length).toBe(1867);
     expect(rankIndustry.length).toBe(1867);
-    expect(population.length).toBe(8);
+    expect(population.length).toBe(9);
     expect(industryCounts.length).toBe(result.companies.industries.length);
     expect(industryCounts.reduce((a, b) => a + b, 0)).toBe(1867);
-    for (const row of rankAll) expect(row.length).toBe(8);
-    for (const row of rankIndustry) expect(row.length).toBe(8);
+    for (const row of rankAll) expect(row.length).toBe(9);
+    for (const row of rankIndustry) expect(row.length).toBe(9);
   });
 
-  it("stats.json の順位が推定年収の降順と一致する", () => {
+  it("stats.json の順位が各表示基準の金額の降順と一致する", () => {
     const { agePoints, curves } = result.curves;
-    const { ages, rankAll, rankIndustry, industryCounts } = result.stats;
+    const { bases, rankAll, rankIndustry, industryCounts } = result.stats;
     const rows = result.companies.rows;
 
-    for (let k = 0; k < ages.length; k++) {
+    for (let k = 0; k < bases.length; k++) {
+      const basis = bases[k];
+      // 実測値の列は補正を通さず avgSalary そのもの。
       const estimates = rows.map((row) =>
-        estimateSalary(
-          row[6],
-          row[4],
-          curveValuesInYen(curves[result.companies.curveKeys[row[3]]]),
-          agePoints,
-          ages[k]
-        )
+        basis === null
+          ? row[6]
+          : estimateSalary(
+              row[6],
+              row[4],
+              curveValuesInYen(curves[result.companies.curveKeys[row[3]]]),
+              agePoints,
+              basis
+            )
       );
       for (let i = 0; i < rows.length; i++) {
         // 同額は同順位（自分より高い会社の数 ＋ 1）。
@@ -168,9 +173,30 @@ describe("buildData", () => {
     const sd = Math.sqrt(
       estimates.reduce((s, x) => s + (x - mean) ** 2, 0) / estimates.length
     );
-    const at35 = result.stats.population[result.stats.ages.indexOf(35)];
+    const at35 = result.stats.population[result.stats.bases.indexOf(35)];
     expect(at35.mean).toBe(Math.round(mean));
     expect(at35.sd).toBe(Math.round(sd));
+  });
+
+  // 実測値（ADR-0007 で既定になった表示基準）の母集団統計。年齢そろえのそれとは
+  // 別の分布なので、平均も標準偏差も別の値になる。
+  it("stats.json の実測値の母集団統計が有報の平均年間給与そのものと一致する", () => {
+    const rows = result.companies.rows;
+    const values = rows.map((row) => row[6]);
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const sd = Math.sqrt(values.reduce((s, x) => s + (x - mean) ** 2, 0) / values.length);
+
+    const raw = result.stats.population[0];
+    expect(result.stats.bases[0]).toBeNull();
+    expect(raw.mean).toBe(Math.round(mean));
+    expect(raw.sd).toBe(Math.round(sd));
+  });
+
+  it("stats.json の実測値の全体1位が有報の平均年間給与が最も高い会社になる", () => {
+    const rows = result.companies.rows;
+    const topIndex = rows.reduce((best, row, i) => (row[6] > rows[best][6] ? i : best), 0);
+    expect(result.stats.rankAll[topIndex][0]).toBe(1);
+    expect(rows[topIndex][1]).toBe("株式会社キーエンス");
   });
 
   it("補間は代表年齢の範囲外で端の値に頭打ちになる", () => {

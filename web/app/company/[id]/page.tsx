@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
-import { statsForAge } from "@/features/company/lib/stats";
+import { statsForBasis } from "@/features/company/lib/stats";
 import { buildCompanyView } from "@/features/company/lib/view";
 import type { CompanyStatsData } from "@/features/company/types";
 import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
@@ -19,12 +19,14 @@ const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
 const stats = statsData as CompanyStatsData;
 
-const DEFAULT_AGE: TargetAge = 35;
-
-function parseAge(raw: string | string[] | undefined): TargetAge {
+/**
+ * `age` が無い・不正なら `null`（実測値・既定）に倒す。`age` の有無が表示基準を
+ * 表す（ADR-0007）。ランキング側の `parseSearchParams` と同じ扱いにしてある。
+ */
+function parseAge(raw: string | string[] | undefined): TargetAge | null {
   const first = Array.isArray(raw) ? raw[0] : raw;
   const n = Number(first);
-  return (TARGET_AGES as readonly number[]).includes(n) ? (n as TargetAge) : DEFAULT_AGE;
+  return (TARGET_AGES as readonly number[]).includes(n) ? (n as TargetAge) : null;
 }
 
 type Props = {
@@ -37,12 +39,26 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   if (view === null) return { title: "見つかりませんでした" };
 
   const targetAge = parseAge((await searchParams).age);
-  const current = statsForAge(view, targetAge);
+  const current = statsForBasis(view, targetAge);
+  const position =
+    `全${view.totalCount.toLocaleString("ja-JP")}社中${current.rankAll}位、` +
+    `${view.tse33}${view.industryCount}社中${current.rankIndustry}位。`;
+
+  // 実測値（既定）では推定の語を出さない。有報そのままの数字であることを書く。
+  if (targetAge === null) {
+    return {
+      title: `${view.name}の平均年収 | 有価証券報告書は${formatManYen(current.salary)}`,
+      description:
+        `${view.name}（${view.tse33}）の平均年間給与は${formatManYen(current.salary)}` +
+        `（平均年齢${formatDecimal1(view.avgAge)}歳・平均勤続${formatDecimal1(view.avgTenure)}年）。${position}` +
+        `金融庁 EDINET の有価証券報告書に載っている提出会社単体の実測値です。`,
+    };
+  }
+
   return {
-    title: `${view.name}の年収 | ${targetAge}歳時点の推定は${formatManYen(current.estimatedSalary)}`,
+    title: `${view.name}の年収 | ${targetAge}歳時点の推定は${formatManYen(current.salary)}`,
     description:
-      `${view.name}（${view.tse33}）の${targetAge}歳時点の推定年収は${formatManYen(current.estimatedSalary)}。` +
-      `全${view.totalCount.toLocaleString("ja-JP")}社中${current.rankAll}位、${view.tse33}${view.industryCount}社中${current.rankIndustry}位。` +
+      `${view.name}（${view.tse33}）の${targetAge}歳時点の推定年収は${formatManYen(current.salary)}。${position}` +
       `有価証券報告書の平均年間給与${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）を年齢で補正した推定値です。`,
   };
 }

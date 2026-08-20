@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent, CardHeader } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
+import { BasisSwitch } from "@/features/ranking/components/BasisSwitch";
+import { DEFAULT_TARGET_AGE } from "@/features/ranking/lib/urlState";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import { TARGET_AGES, type TargetAge } from "@/features/ranking/types";
 import type { CompanyView } from "../types";
@@ -12,11 +14,9 @@ import {
   formatDeviation,
   formatDiffFromMean,
   formatTopPercent,
-  statsForAge,
+  statsForBasis,
 } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
-
-const DEFAULT_AGE: TargetAge = 35;
 
 function parseAge(raw: string | null): TargetAge | null {
   const n = Number(raw);
@@ -24,7 +24,7 @@ function parseAge(raw: string | null): TargetAge | null {
 }
 
 /**
- * 年齢スイッチと `?age=` の同期。
+ * 表示基準と `?age=` の同期。`null` は実測値で、既定（ADR-0007）。
  *
  * `useRouter()` は使わない（RSCペイロード再フェッチによるネットワーク発生・競合状態。
  * U5 で踏んだ。`docs/ranking/url-sync/design.md`）。`window.history.pushState` を直接呼ぶ。
@@ -33,21 +33,22 @@ function parseAge(raw: string | null): TargetAge | null {
  * 企業ページに存在しない概念になる。ここは値が1つなのでデバウンスも
  * `pushState`/`replaceState` の出し分けも要らない。
  */
-function useTargetAge(initialAge: TargetAge) {
-  const [targetAge, setTargetAge] = useState<TargetAge>(initialAge);
+function useTargetAge(initialAge: TargetAge | null) {
+  const [targetAge, setTargetAge] = useState<TargetAge | null>(initialAge);
 
   useEffect(() => {
     const onPopState = () => {
       const params = new URLSearchParams(window.location.search);
-      setTargetAge(parseAge(params.get("age")) ?? DEFAULT_AGE);
+      setTargetAge(parseAge(params.get("age")));
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   useEffect(() => {
-    // 既定値の35歳はURLに出さない。
-    const next = targetAge === DEFAULT_AGE ? "" : `?age=${targetAge}`;
+    // 実測値（既定）は `age` を出さない。年齢そろえなら35歳でも出す——
+    // `age` の有無そのものが表示基準を表しているため（ADR-0007）。
+    const next = targetAge === null ? "" : `?age=${targetAge}`;
     if (next === window.location.search) return;
     window.history.pushState(null, "", `${window.location.pathname}${next}`);
   }, [targetAge]);
@@ -60,10 +61,14 @@ export function CompanyDetail({
   initialAge,
 }: {
   view: CompanyView;
-  initialAge: TargetAge;
+  initialAge: TargetAge | null;
 }) {
   const { targetAge, setTargetAge } = useTargetAge(initialAge);
-  const current = statsForAge(view, targetAge);
+  const current = statsForBasis(view, targetAge);
+  const isRaw = targetAge === null;
+  // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
+  // 8年齢ぶんだけを渡して選択中の点は無しにする。
+  const byAge = view.byBasis.filter((s) => s.targetAge !== null);
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
@@ -91,20 +96,29 @@ export function CompanyDetail({
           <h1 className="text-2xl font-bold">{view.name}</h1>
           {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
         </div>
-        <div className="overflow-x-auto">
-          <AgeSwitch value={targetAge} onChange={setTargetAge} />
+        <div className="flex flex-col gap-2">
+          <BasisSwitch
+            value={targetAge}
+            onChange={(basis) => setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)}
+            label="見せ方"
+          />
+          <div className="overflow-x-auto">
+            {/* 実測値のときも消さずに無効化する（ADR-0007）。理由は AgeSwitch.tsx。 */}
+            <AgeSwitch value={targetAge} onChange={setTargetAge} disabled={isRaw} />
+          </div>
         </div>
       </header>
 
       <Card>
         <CardHeader>
+          {/* 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。 */}
           <div className="flex items-center gap-1.5">
-            <span className="text-muted-foreground text-sm">{targetAge}歳時点の推定年収</span>
-            <Badge variant="secondary">推定</Badge>
+            <span className="text-muted-foreground text-sm">
+              {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
+            </span>
+            {!isRaw && <Badge variant="secondary">推定</Badge>}
           </div>
-          <p className="text-4xl font-bold">
-            {formatManYen(current.estimatedSalary)}
-          </p>
+          <p className="text-4xl font-bold">{formatManYen(current.salary)}</p>
         </CardHeader>
         <CardContent>
           <dl className="grid gap-3 sm:grid-cols-2">
@@ -158,13 +172,15 @@ export function CompanyDetail({
 
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-bold">年齢別の推定年収</h2>
-        <SalaryCurveChart byAge={view.byAge} selectedAge={targetAge} />
+        <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
       </section>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-lg font-bold">有価証券報告書の実測値</h2>
         <p className="text-muted-foreground text-xs">
-          ここから下は補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。
+          {isRaw
+            ? "補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
+            : "ここから下は補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"}
         </p>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-4">
           <div>
@@ -191,7 +207,9 @@ export function CompanyDetail({
           出典: 金融庁 EDINET の有価証券報告書（2026年6〜7月提出）、厚生労働省「賃金構造基本統計調査」。
         </p>
         <p>
-          推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。
+          {isRaw
+            ? "実測値モードでは補正を行っていません。年齢別の推定年収だけが推定値です。"
+            : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}
           <NavLink href="/about" className="text-primary ml-1 underline">
             計算方法と限界
           </NavLink>

@@ -75,7 +75,8 @@ test.describe("配色トークン", () => {
   });
 
   test("選択中の年齢タブは Primary で塗りつぶされる", async ({ page }) => {
-    await page.goto("/");
+    // 既定は実測値で年齢スイッチが無効・未選択なので、年齢そろえの状態で見る（ADR-0007）。
+    await page.goto("/?age=35");
 
     // exact 指定は必須。「40歳」は平均年齢フィルタの「〜40歳」にも一致してしまう。
     const selected = page.getByRole("button", { name: "35歳", exact: true });
@@ -325,7 +326,7 @@ test.describe("共通ヘッダ", () => {
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "年齢補正年収ランキング" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "平均年収ランキング" })).toBeVisible();
   });
 
   test("AC-9: モバイル幅でヘッダが横スクロールを起こさない", async ({ page }) => {

@@ -34,7 +34,15 @@ export interface CurvesData {
 }
 
 export interface RankingState {
-  targetAge: TargetAge;
+  /**
+   * 表示基準。`null` は「実測値」＝有報の平均年間給与そのまま（既定）で、
+   * 数値なら「年齢そろえ」＝その年齢に補正した推定年収を出す（ADR-0007）。
+   *
+   * モードと年齢を別々のフィールドに分けていない。分けると「実測値なのに年齢が
+   * 入っている」状態が表現できてしまい、どちらを優先するかの分岐がURL・state・
+   * 描画のそれぞれに要る。1つの値にすれば矛盾した状態を型の上で作れない。
+   */
+  targetAge: TargetAge | null;
   industry: string | null;
   employeeSize: EmployeeSizeBucket | null;
   tenure: TenureBucket | null;
@@ -53,6 +61,7 @@ export interface RankedCompany {
   avgTenure: number;
   avgSalary: number;
   employees: number;
-  estimatedSalary: number;
+  /** 年齢そろえのときの推定年収（円）。実測値のときは `null`（`avgSalary` を出す）。 */
+  estimatedSalary: number | null;
   rank: number;
 }

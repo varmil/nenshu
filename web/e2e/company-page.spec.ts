@@ -3,25 +3,65 @@ import { test, expect } from "@playwright/test";
 // 数値は `docs/company/spec.md` §3 の受け入れ基準（2026-06 版データの実測値）。
 
 test.describe("企業詳細ページ", () => {
-  test("AC-1: /company/6861 にキーエンスの35歳時点の数値が出る", async ({ page }) => {
+  // 既定は実測値（ADR-0007）。有報の平均年間給与そのままで、順位も偏差値も
+  // 実測値の分布に対して出す。
+  test("AC-1: /company/6861 は既定で有報の実測値を出す", async ({ page }) => {
     await page.goto("/company/6861");
 
     await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
 
+    // 順位は実測値の分布に対する値。
     await expect(page.getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
     await expect(page.getByText("業界内順位（電気機器）")).toBeVisible();
     await expect(page.getByText("1位 / 150社")).toBeVisible();
+    await expect(page.getByText("全体平均 719万円")).toBeVisible();
 
-    // 実測値（補正していない側）。
+    // 実測値では「推定」の語を出さない（spec AC-9）。
+    await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
+
     await expect(page.getByText("35.0歳")).toBeVisible();
     await expect(page.getByText("11.3年")).toBeVisible();
     await expect(page.getByText("3,306人")).toBeVisible();
   });
 
-  test("AC-2: 偏差値には上位◯%と、100を超えうる理由の注記が添えられている", async ({ page }) => {
+  test("AC-1: /company/6861?age=35 でキーエンスの35歳時点の数値が出る", async ({ page }) => {
+    await page.goto("/company/6861?age=35");
+
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("1位 / 1,867社（上位0.1%未満）")).toBeVisible();
+    await expect(page.getByText("1位 / 150社")).toBeVisible();
+  });
+
+  // 実測値のとき年齢スイッチは消さずに無効化する（ADR-0007）。
+  test("AC-11: 実測値では年齢スイッチが無効で、押しても状態が変わらない", async ({ page }) => {
     await page.goto("/company/6861");
+
+    const age25 = page.getByRole("button", { name: "25歳" });
+    await expect(age25).toBeVisible();
+    await expect(age25).toBeDisabled();
+
+    await age25.click({ force: true });
+    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
+  });
+
+  test("見せ方を「年齢そろえ」に切り替えると35歳の推定になり、URLに age=35 が出る", async ({
+    page,
+  }) => {
+    await page.goto("/company/6861");
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+
+    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(page.getByRole("button", { name: "25歳" })).toBeEnabled();
+  });
+
+  test("AC-2: 偏差値には上位◯%と、100を超えうる理由の注記が添えられている", async ({ page }) => {
+    await page.goto("/company/6861?age=35");
 
     await expect(page.getByText("年収偏差値")).toBeVisible();
 
@@ -37,7 +77,7 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-2: /company/7203（トヨタ）の順位", async ({ page }) => {
-    await page.goto("/company/7203");
+    await page.goto("/company/7203?age=35");
 
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
@@ -45,10 +85,19 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("2位 / 71社")).toBeVisible();
   });
 
+  // 実測値と年齢そろえで順位が変わることを、平均年齢が高めのトヨタで固定する。
+  test("AC-2: トヨタは実測値では1,006万円・121位", async ({ page }) => {
+    await page.goto("/company/7203");
+
+    await expect(page.getByText("1,006万円", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("121位 / 1,867社（上位6.5%）")).toBeVisible();
+    await expect(page.getByText("2位 / 71社")).toBeVisible();
+  });
+
   test("AC-3: 年齢スイッチで25歳を選ぶと金額と偏差値が変わり、ネットワークリクエストが発生しない", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    await page.goto("/company/6861?age=35");
 
     const requests: string[] = [];
     page.on("request", (req) => requests.push(req.url()));
@@ -71,20 +120,28 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("2,213万円", { exact: true }).first()).toBeVisible();
   });
 
-  test("既定の35歳はURLに出さない。戻るで一つ前の年齢に戻る", async ({ page }) => {
+  // 既定（実測値）は age を出さない。年齢そろえなら35歳でも出す（ADR-0007）。
+  test("実測値はURLにageを出さない。戻ると実測値に戻る", async ({ page }) => {
     await page.goto("/company/6861");
     await expect(page).toHaveURL(/\/company\/6861$/);
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
 
     await page.getByRole("button", { name: "45歳" }).click();
     await expect(page).toHaveURL(/[?&]age=45/);
 
     await page.goBack();
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(/[?&]age=35/);
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
   });
 
   test("AC-4: 25〜60歳のチャートが8点ぶんの金額と注記を持つ", async ({ page }) => {
-    await page.goto("/company/6861");
+    await page.goto("/company/6861?age=35");
 
     const chart = page.getByRole("img", { name: /年齢別の推定年収/ });
     await expect(chart).toBeVisible();
@@ -100,7 +157,7 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-5: 非上場のみずほ銀行はEDINETコードのURLで開ける", async ({ page }) => {
-    await page.goto("/company/E03532");
+    await page.goto("/company/E03532?age=35");
 
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
@@ -129,8 +186,8 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
   });
 
-  test("AC-9: 推定であることの明示と、計算方法ページへの導線がある", async ({ page }) => {
-    await page.goto("/company/6861");
+  test("AC-9: 年齢そろえでは推定であることを明示し、計算方法ページへ導線がある", async ({ page }) => {
+    await page.goto("/company/6861?age=35");
 
     await expect(page.getByText("推定", { exact: true }).first()).toBeVisible();
     await expect(
@@ -142,6 +199,22 @@ test.describe("企業詳細ページ", () => {
     );
     // 実額は「有価証券報告書の実測値」の節にまとめ、推定年収と同じ書式で並べない。
     await expect(page.getByRole("heading", { name: "有価証券報告書の実測値" })).toBeVisible();
+  });
+
+  // 実測値では推定バッジも「推定年収は…」の断りも出さない。出すと有報そのままの
+  // 数字に推定の体裁を被せることになる（spec AC-9）。
+  test("AC-9: 実測値では「推定」バッジも推定の断りも出さない", async ({ page }) => {
+    await page.goto("/company/6861");
+
+    await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("推定年収は年齢補正後の推定値です", { exact: false })).toHaveCount(
+      0
+    );
+    await expect(page.getByText("実測値モードでは補正を行っていません", { exact: false })).toBeVisible();
+    await expect(page.getByRole("link", { name: "計算方法と限界" })).toHaveAttribute(
+      "href",
+      "/about"
+    );
   });
 
   test("AC-10: JS実行前のHTMLに金額が入っている（SSR）", async ({ request }) => {

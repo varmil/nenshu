@@ -1,8 +1,12 @@
 import { TARGET_AGES } from "../types";
 import type { AvgAgeBucket, EmployeeSizeBucket, RankingState, TargetAge, TenureBucket } from "../types";
 
+/** 「年齢そろえ」に切り替えたときに選ばれる年齢。 */
+export const DEFAULT_TARGET_AGE: TargetAge = 35;
+
 export const INITIAL_STATE: RankingState = {
-  targetAge: 35,
+  // 既定は実測値（ADR-0007）。`age` が無いURLはこのモードになる。
+  targetAge: null,
   industry: null,
   employeeSize: null,
   tenure: null,
@@ -39,10 +43,14 @@ const PARAM_TO_AVG_AGE = invert(AVG_AGE_TO_PARAM);
  * 常に age → ind → emp → ten → aage → q → page の順で組み立てる（カノニカル化）。
  * フィルタを適用した順序に関係なく、同じ絞り込みなら常に同じ文字列になる。
  * 初期値と同じ項目はクエリに出さない。
+ *
+ * **`age` は「年齢そろえ」のときだけ出す。** 35歳を既定として省略していた頃と違い、
+ * 年齢そろえなら35歳でも `age=35` を出す——`age` の有無そのものが表示基準を
+ * 表しているので、省くと実測値と区別が付かなくなる（ADR-0007）。
  */
 export function buildSearchParams(state: RankingState): URLSearchParams {
   const params = new URLSearchParams();
-  if (state.targetAge !== INITIAL_STATE.targetAge) params.set("age", String(state.targetAge));
+  if (state.targetAge !== null) params.set("age", String(state.targetAge));
   if (state.industry !== null) params.set("ind", state.industry);
   if (state.employeeSize !== null) params.set("emp", EMPLOYEE_SIZE_TO_PARAM[state.employeeSize]);
   if (state.tenure !== null) params.set("ten", TENURE_TO_PARAM[state.tenure]);
@@ -55,6 +63,9 @@ export function buildSearchParams(state: RankingState): URLSearchParams {
 /**
  * 不正・未知の値は無視する（該当フィールドはINITIAL_STATEの値に倒れる）。
  * エラー画面は出さない。
+ *
+ * `age` が無い・`age=abc`・`age=33` のようにTARGET_AGESに無い値のURLは、いずれも
+ * `targetAge` が未設定のまま INITIAL_STATE の `null` ＝ 実測値になる（ADR-0007）。
  */
 export function parseSearchParams(params: URLSearchParams): Partial<RankingState> {
   const result: Partial<RankingState> = {};

@@ -30,9 +30,9 @@ export function SalaryCurveChart({
   selectedAge,
 }: {
   byAge: CompanyAgeStats[];
-  selectedAge: TargetAge;
+  selectedAge: TargetAge | null;
 }) {
-  const values = byAge.map((s) => s.estimatedSalary);
+  const values = byAge.map((s) => s.salary);
   const min = Math.min(...values);
   const max = Math.max(...values);
   // 全点が同額でも高さ0で割らないようにする。
@@ -45,7 +45,7 @@ export function SalaryCurveChart({
   const x = (i: number) => PADDING.left + (innerWidth * i) / (byAge.length - 1);
   const y = (v: number) => PADDING.top + innerHeight * (1 - (v - low) / (high - low));
 
-  const line = byAge.map((s, i) => `${x(i)},${y(s.estimatedSalary)}`).join(" ");
+  const line = byAge.map((s, i) => `${x(i)},${y(s.salary)}`).join(" ");
 
   return (
     <figure className="flex flex-col gap-2">
@@ -54,7 +54,7 @@ export function SalaryCurveChart({
         className="h-auto w-full"
         role="img"
         aria-label={`年齢別の推定年収。${byAge
-          .map((s) => `${s.targetAge}歳 ${formatManYen(s.estimatedSalary)}`)
+          .map((s) => `${s.targetAge}歳 ${formatManYen(s.salary)}`)
           .join("、")}`}
       >
         <polyline
@@ -71,7 +71,7 @@ export function SalaryCurveChart({
             <g key={s.targetAge}>
               <circle
                 cx={x(i)}
-                cy={y(s.estimatedSalary)}
+                cy={y(s.salary)}
                 r={isSelected ? 6 : 3.5}
                 fill={isSelected ? "var(--color-primary)" : "var(--color-background)"}
                 stroke="var(--color-primary)"
@@ -79,13 +79,13 @@ export function SalaryCurveChart({
               />
               <text
                 x={x(i)}
-                y={y(s.estimatedSalary) - 14}
+                y={y(s.salary) - 14}
                 textAnchor="middle"
                 fontSize={FONT_SIZE}
                 fontWeight={isSelected ? 700 : 400}
                 fill={isSelected ? "var(--color-primary)" : "var(--color-muted-foreground)"}
               >
-                {Math.round(s.estimatedSalary / 10000).toLocaleString("ja-JP")}
+                {Math.round(s.salary / 10000).toLocaleString("ja-JP")}
               </text>
               <text
                 x={x(i)}
@@ -104,7 +104,7 @@ export function SalaryCurveChart({
       <ul className="sr-only">
         {byAge.map((s) => (
           <li key={s.targetAge}>
-            {s.targetAge}歳 {formatManYen(s.estimatedSalary)}
+            {s.targetAge}歳 {formatManYen(s.salary)}
           </li>
         ))}
       </ul>
