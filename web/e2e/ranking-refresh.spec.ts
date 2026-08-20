@@ -11,18 +11,29 @@ import { test, expect } from "@playwright/test";
 const rows = (page: import("@playwright/test").Page) =>
   page.getByRole("table").locator("tbody tr");
 
+/**
+ * U13 で表は4列（順位 / 会社名・業種 / 金額 / 偏差値）になり、平均年齢・在籍年数・
+ * 従業員数は社名の下の meta 行に移った。数値はそこから読む。
+ */
+const metaValues = async (page: import("@playwright/test").Page, pattern: RegExp) => {
+  const cells = await rows(page).locator("td").nth(1).allTextContents();
+  return cells.map((text) => Number(text.match(pattern)![1].replace(/,/g, "")));
+};
+
 test.describe("AC-12 並び替え", () => {
   test("平均年齢が若い順に並び替えても、順位は1から振り直されない", async ({ page }) => {
     await page.goto("/");
     await expect(rows(page).first()).toContainText("株式会社キーエンス");
 
-    await page.getByRole("group", { name: "並び替え" }).getByRole("button", { name: "平均年齢が若い順" }).click();
+    await page
+      .getByRole("group", { name: "並び替え" })
+      .getByRole("button", { name: "平均年齢 若い順" })
+      .click();
 
     await expect(page).toHaveURL(/[?&]sort=age/);
 
-    // 平均年齢（5列目 = index 4）が昇順に並ぶ。
-    const ages = await rows(page).locator("td").nth(4).allTextContents();
-    const values = ages.map((t) => Number(t.replace("歳", "")));
+    // meta 行の平均年齢が昇順に並ぶ。
+    const values = await metaValues(page, /平均([\d.]+)歳/);
     expect(values).toEqual([...values].sort((a, b) => a - b));
 
     // 順位（1列目）は金額基準のまま。1,2,3… にはならない。
@@ -34,13 +45,11 @@ test.describe("AC-12 並び替え", () => {
     await page.goto("/");
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "従業員数が多い順" })
+      .getByRole("button", { name: "従業員数 多い順" })
       .click();
 
     await expect(page).toHaveURL(/[?&]sort=emp/);
-    const employees = (await rows(page).locator("td").last().allTextContents()).map((t) =>
-      Number(t.replace(/[^0-9]/g, ""))
-    );
+    const employees = await metaValues(page, /・\s*([\d,]+)人/);
     expect(employees).toEqual([...employees].sort((a, b) => b - a));
   });
 
@@ -48,7 +57,7 @@ test.describe("AC-12 並び替え", () => {
     await page.goto("/?sort=age");
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "年収が高い順" })
+      .getByRole("button", { name: "平均年収 高い順" })
       .click();
     await expect(page).toHaveURL(/\/$/);
   });
@@ -57,7 +66,7 @@ test.describe("AC-12 並び替え", () => {
     await page.goto("/?page=2");
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "平均年齢が若い順" })
+      .getByRole("button", { name: "平均年齢 若い順" })
       .click();
     await expect(page).toHaveURL(/[?&]sort=age/);
     await expect(page).not.toHaveURL(/[?&]page=/);
@@ -70,7 +79,7 @@ test.describe("AC-12 並び替え", () => {
 
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "従業員数が多い順" })
+      .getByRole("button", { name: "従業員数 多い順" })
       .click();
     await expect(page).toHaveURL(/[?&]sort=emp/);
 
@@ -215,7 +224,7 @@ test.describe("業種チップ", () => {
 
     await page
       .getByRole("navigation", { name: "業種から見る" })
-      .getByRole("link", { name: "海運業", exact: true })
+      .getByRole("link", { name: "海運業 7社", exact: true })
       .click();
 
     await expect(page).toHaveURL(/ind=%E6%B5%B7%E9%81%8B%E6%A5%AD/);
@@ -260,7 +269,9 @@ test.describe("モバイルの絞り込みシート", () => {
 
   test("シートを開いて絞り込め、閉じると結果に反映されている", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("aside")).toBeHidden();
+    // U13 で `aside` はモバイルでも「適用中」を載せるため消えない。
+    // シートに移るのは絞り込みの中身のほう。
+    await expect(page.locator("aside").getByRole("group", { name: "従業員数" })).toBeHidden();
 
     await page.getByRole("button", { name: /絞り込み/ }).click();
     const dialog = page.getByRole("dialog");
@@ -280,5 +291,121 @@ test.describe("モバイルの絞り込みシート", () => {
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );
     expect(overflow).toBeLessThanOrEqual(0);
+  });
+});
+
+/*
+ * U13（Issue #88）でモックに合わせ直した見た目。**機能ではなく形**を固定する。
+ * ここが動くと Claude Design の 5a / 5c とまた食い違うので、変えるときは
+ * `docs/ranking/ranking-mock-alignment/design.md` の対照表も直すこと。
+ */
+test.describe("U13 モックとの一致", () => {
+  test("表は4列で、社名は省略記号で切れない", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const headers = page.getByRole("table").locator("thead th");
+    await expect(headers).toHaveCount(4);
+    await expect(headers.nth(1)).toHaveText("会社名・業種");
+
+    // 社名のリンクが、割り当てられた列の中に収まっている（はみ出すと … で切れる）。
+    const link = rows(page).first().getByRole("link").first();
+    const overflow = await link.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("平均年齢・在籍年数・従業員数は社名の下の1行にまとまっている", async ({ page }) => {
+    await page.goto("/");
+    const meta = rows(page).first().locator("td").nth(1);
+    await expect(meta).toContainText("電気機器 ・ 平均35.0歳 ・ 在籍11.3年 ・ 3,306人");
+  });
+
+  test("年齢そろえのときは meta 行に実測値が併記される", async ({ page }) => {
+    await page.goto("/?age=35");
+    await expect(rows(page).first().locator("td").nth(1)).toContainText("実績 2,178万円");
+  });
+
+  test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText("並べ方")).toBeVisible();
+    await expect(
+      page.getByText("有価証券報告書の数値のまま。年齢の違いは補正していません。")
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(
+      page.getByText("業種ごとの賃金カーブで、全社を同じ年齢に置き換えた推定値です。")
+    ).toBeVisible();
+  });
+
+  // 実測値でも年齢スイッチは消さない（AC-11）。使えないことは見た目で示す。
+  test("実測値では年齢の帯が残り、ヒントが出て、押せない", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
+    await expect(page.getByRole("button", { name: "35歳" })).toBeDisabled();
+  });
+
+  test("業種チップに社数が併記され、本文カラムの中にある", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const nav = page.getByRole("navigation", { name: "業種から見る" });
+    await expect(nav.getByRole("link", { name: "海運業 7社", exact: true })).toBeVisible();
+
+    // 表と左端が揃っている＝サイドバーの下ではなく本文カラムの中にいる。
+    const navBox = (await nav.boundingBox())!;
+    const tableBox = (await page.getByRole("table").boundingBox())!;
+    expect(Math.abs(navBox.x - tableBox.x)).toBeLessThanOrEqual(1);
+  });
+
+  test("ヘッダの検索は入力欄と検索ボタンが1つの帯になっている", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const banner = page.getByRole("banner");
+    const input = banner.getByRole("searchbox", { name: "会社名で検索" });
+    const button = banner.getByRole("button", { name: "検索" });
+    await expect(button).toBeVisible();
+
+    const inputBox = (await input.boundingBox())!;
+    const buttonBox = (await button.boundingBox())!;
+    // 罫線を突き合わせて1つの帯にしている（隙間が無い）。
+    expect(Math.abs(inputBox.x + inputBox.width - buttonBox.x)).toBeLessThanOrEqual(1);
+    // 中央の列を取るので、入力欄はブランドより広い。
+    expect(inputBox.width).toBeGreaterThan(300);
+  });
+});
+
+test.describe("U13 モックとの一致（モバイル）", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("並び替えと絞り込みが1行に収まり、横スクロールが出ない", async ({ page }) => {
+    await page.goto("/");
+
+    const group = page.getByRole("group", { name: "並び替え" });
+    const filter = page.getByRole("button", { name: /絞り込み/ });
+    const groupBox = (await group.boundingBox())!;
+    const filterBox = (await filter.boundingBox())!;
+    // 同じ行にいる（上端がほぼ揃う）。
+    expect(Math.abs(groupBox.y - filterBox.y)).toBeLessThanOrEqual(2);
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("ヘッダが1段に収まる", async ({ page }) => {
+    await page.goto("/");
+    const brand = page.getByRole("banner").getByRole("link", { name: "OpenReport" });
+    const about = page.getByRole("banner").getByRole("link", { name: "計算方法" });
+    const brandBox = (await brand.boundingBox())!;
+    const aboutBox = (await about.boundingBox())!;
+    expect(Math.abs(brandBox.y - aboutBox.y)).toBeLessThanOrEqual(4);
+  });
+
+  test("行はカードの枠を持たず、区切り線で並ぶ", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator('[data-slot="card"]')).toHaveCount(0);
   });
 });

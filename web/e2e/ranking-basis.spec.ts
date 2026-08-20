@@ -29,7 +29,7 @@ test.describe("表示基準の切替", () => {
     await page.goto("/");
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
+    await expect(page.getByText("推定年収（35歳）")).toHaveCount(0);
     // 同じ文言が表の caption（PC）とカード一覧の注記（モバイル）の両方にある。
     await expect(
       page.getByText("有価証券報告書の平均年間給与（提出会社単体）そのままです", { exact: false }).first()
@@ -46,7 +46,7 @@ test.describe("表示基準の切替", () => {
 
     await expect(page).toHaveURL(/[?&]age=35/);
     await expect(page.getByRole("heading", { name: "35歳年収ランキング", level: 1 })).toBeVisible();
-    await expect(table.getByRole("columnheader", { name: /35歳時点の推定年収/ })).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: /推定年収（35歳）/ })).toBeVisible();
 
     const ageOrder = await table.locator("tbody tr td:nth-child(2)").allInnerTexts();
     expect(ageOrder).not.toEqual(rawOrder);
@@ -126,15 +126,16 @@ test.describe("表示基準の切替", () => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/");
 
-    // モバイルでは表（`hidden md:block`）ではなくカード一覧が出る。
-    // U12 でカードを高密度化し、金額のラベルは「有報」/「35歳・推定」に縮めた。
-    const firstCard = page.locator('[data-slot="card"]').first();
-    await expect(firstCard).toContainText("有報");
-    await expect(firstCard).toContainText("2,178万円");
-    await expect(firstCard).not.toContainText("推定");
+    // モバイルでは表（`hidden md:block`）ではなく行の一覧が出る。
+    // U13 でカードの枠を外したので、行は `md:hidden` の一覧の中の div になった。
+    // **実測値では行に注記を付けない**（アートボード 5c）。年齢そろえのときだけ
+    // 「35歳・推定」が出る。
+    const firstRow = page.locator("div.md\\:hidden > div").first();
+    await expect(firstRow).toContainText("2,178万円");
+    await expect(firstRow).not.toContainText("推定");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(firstCard).toContainText("35歳・推定");
+    await expect(firstRow).toContainText("35歳・推定");
 
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth

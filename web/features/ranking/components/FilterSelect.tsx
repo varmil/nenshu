@@ -32,7 +32,7 @@ export function FilterSelect({
         value={value ?? ALL}
         onValueChange={(next) => onChange(next === ALL ? null : next)}
       >
-        <SelectTrigger aria-label={label}>
+        <SelectTrigger aria-label={label} className="w-full">
           {/*
             **表示する文字列は自分で決める**（Issue #72）。`placeholder` に任せると、
             未選択のときトリガーに `__all__` という内部値がそのまま出る——

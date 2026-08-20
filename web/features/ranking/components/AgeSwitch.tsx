@@ -26,7 +26,11 @@ export function AgeSwitch({
     <ToggleGroup
       aria-label="目標年齢"
       value={value === null ? [] : [String(value)]}
-      className={disabled ? "opacity-50" : undefined}
+      /*
+        **折り返す。** 8つを1行に固定すると 390px で横スクロールが出る（U13 で実測）。
+        帯の中なので折り返しても列が崩れない。
+      */
+      className={`w-full min-w-0 flex-wrap sm:w-auto${disabled ? " opacity-50" : ""}`}
       onValueChange={(values) => {
         const next = values[0];
         if (next) onChange(Number(next) as TargetAge);
@@ -38,7 +42,7 @@ export function AgeSwitch({
           value={String(age)}
           aria-label={`${age}歳`}
           disabled={disabled}
-          className={TAB_TOGGLE_SELECTED_CLASS}
+          className={`${TAB_TOGGLE_SELECTED_CLASS} border-border h-7.5 min-w-8 border px-2 text-xs sm:min-w-9 sm:px-2.5 sm:text-sm data-[state=on]:border-transparent aria-pressed:border-transparent`}
         >
           {age}
         </ToggleGroupItem>

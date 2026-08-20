@@ -78,10 +78,10 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // 従業員数は表の最終列のまま（U12 で列は増えたが末尾は動かしていない）。
-    const employeeCells = await rows.locator("td").last().allTextContents();
-    for (const cell of employeeCells) {
-      const employees = Number(cell.replace(/[^0-9]/g, ""));
+    // U13 で列は4つになり、従業員数は社名の下の meta 行に移った。
+    const metaCells = await rows.locator("td").nth(1).allTextContents();
+    for (const cell of metaCells) {
+      const employees = Number(cell.match(/・\s*([\d,]+)人/)![1].replace(/,/g, ""));
       expect(employees).toBeGreaterThanOrEqual(1000);
     }
   });
@@ -95,14 +95,14 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // U12 の列: 0 順位 / 1 会社名（業種を下に添える）/ 2 金額 / 3 偏差値 /
-    // 4 平均年齢 / 5 在籍年数 / 6 従業員数。
+    // U13 の列: 0 順位 / 1 会社名（業種・平均年齢・在籍年数・従業員数を下に添える）/
+    // 2 金額 / 3 偏差値。平均年齢は meta 行から読む。
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
       const cells = rows.nth(i).locator("td");
       await expect(cells.nth(1)).toContainText("情報・通信業");
-      const avgAgeText = await cells.nth(4).textContent();
-      const avgAge = Number(avgAgeText?.replace("歳", ""));
+      const meta = (await cells.nth(1).textContent())!;
+      const avgAge = Number(meta.match(/平均([\d.]+)歳/)![1]);
       expect(avgAge).toBeLessThan(40);
     }
   });

@@ -22,6 +22,10 @@ export interface FilterPanelProps {
  *
  * 幅の狭い場所に縦積みで入る前提で、`FilterSelect` / `FilterToggleGroup` を
  * そのまま縦に並べているだけにしてある。器（サイドバーかシートか）は外側が決める。
+ *
+ * **並びは 業種 → 従業員数 → 平均年齢 → 在籍年数**（U13、アートボード 5a）。
+ * 会社を思い浮かべるときに先に出てくる順（何をしている会社か → どれくらいの
+ * 規模か → どんな人が居るか）に合わせてある。
  */
 export function RankingFilters({ state, onChange, industries }: FilterPanelProps) {
   return (
@@ -41,18 +45,18 @@ export function RankingFilters({ state, onChange, industries }: FilterPanelProps
         options={EMPLOYEE_SIZE_OPTIONS}
       />
       <FilterToggleGroup
-        label="在籍年数"
-        value={state.tenure}
-        onChange={(tenure) => onChange({ tenure: tenure as TenureBucket | null })}
-        options={TENURE_OPTIONS}
-      />
-      <FilterToggleGroup
         label="平均年齢"
         value={state.avgAgeBucket}
         onChange={(avgAgeBucket) =>
           onChange({ avgAgeBucket: avgAgeBucket as AvgAgeBucket | null })
         }
         options={AVG_AGE_OPTIONS}
+      />
+      <FilterToggleGroup
+        label="在籍年数"
+        value={state.tenure}
+        onChange={(tenure) => onChange({ tenure: tenure as TenureBucket | null })}
+        options={TENURE_OPTIONS}
       />
     </div>
   );
