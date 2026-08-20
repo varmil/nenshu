@@ -63,15 +63,58 @@ def _get(url, params, timeout=60, retries=3):
     raise last
 
 
-def list_documents(day):
-    """指定日に提出された書類一覧。"""
+def _list_status(data):
+    """書類一覧の応答を仕分ける。`"ok"` / `"empty"` / `None`（不正）。
+
+    流量制限の本文 `{"statusCode":"429","message":"Too Many Requests"}` は JSON と
+    しては妥当なので `json.loads` を通ってしまう。**`metadata` の中身まで見ないと、
+    エラー本文が「その日は提出0件」として通る。** 429 の本文には `metadata` が無い
+    ので、そこで落ちる。
+
+    `status` が `"404"` の日（未来日・保持期間外）は**エラーではなく「取れない」と
+    いう正しい答え**なので、そのまま置いて引き直さない。`results` を持たないため
+    呼び出し側の `data.get("results") or []` が空として扱う。
+    """
+    if not isinstance(data, dict):
+        return None
+    meta = data.get("metadata")
+    if not isinstance(meta, dict):
+        return None
+    status = str(meta.get("status"))
+    if status == "200" and "results" in data:
+        return "ok"
+    if status == "404":
+        return "empty"
+    return None
+
+
+def list_documents(day, retries=5):
+    """指定日に提出された書類一覧。
+
+    **EDINETは流量制限に HTTP 200 で応える**（`fetch_csv` の注記と同じ）。
+    一覧はZIPと違い応答がJSONなので、検めずに書くと `{"statusCode":"429"}` が
+    そのまま `cache/list_<date>.json` に残る。**その日の提出書類が丸ごと0件と
+    して扱われ、母集団から会社が静かに消える。** 中身を確かめてから書く。
+    """
     cache = CACHE / f"list_{day.isoformat()}.json"
     if cache.exists():
-        return json.loads(cache.read_text())
-    raw = _get(f"{BASE}/documents.json", {"date": day.isoformat(), "type": "2"})
-    data = json.loads(raw.decode("utf-8"))
-    cache.write_text(json.dumps(data, ensure_ascii=False))
-    return data
+        data = json.loads(cache.read_text())
+        if _list_status(data):
+            return data
+        # 検証を入れる前に置かれたエラー本文。捨てて取り直す。
+        cache.unlink()
+    for i in range(retries):
+        raw = _get(f"{BASE}/documents.json", {"date": day.isoformat(), "type": "2"})
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except ValueError:
+            data = None
+        if data is not None and _list_status(data):
+            cache.write_text(json.dumps(data, ensure_ascii=False))
+            return data
+        if i == retries - 1:
+            raise RuntimeError(f"{day.isoformat()}: 書類一覧ではない応答 {raw[:120]!r}")
+        time.sleep(2 ** (i + 1))
 
 
 def annual_reports(start, end, verbose=True):
