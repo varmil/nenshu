@@ -107,8 +107,12 @@ export function buildHistorySummary(years: number[], values: (number | null)[]):
  * **`buildHighlights` と同じ線を守る——数値から機械的に導ける事実だけ。** 表と
  * チャートに出ている8点を、読者が自分で見つけなくてよい形に言い直すだけである。
  *
- * 3文を返しうる。最高水準の年齢／伸びが最大の5歳区間／末尾で下がる理由。
- * **末尾が下がっていなければ3文目は出さない**（該当しない項目は出さない）。
+ * 2文を返しうる。最高水準の年齢と、伸びが最大の5歳区間。**伸びが1度も無ければ
+ * 2文目は出さない**（該当しない項目は出さない）。
+ *
+ * **末尾が下がる理由は書かない（Issue #95）。** 「60歳で下がるのは統計側の賃金カーブが
+ * 定年前後で下向きになるため」は、この会社の数値から導ける事実ではなく補正の仕組みの
+ * 説明で、上の線から外れる。仕組みの話は `/about` にある。
  */
 export function buildCurveSummary(byAge: CompanyAgeStats[], name: string): string[] {
   if (byAge.length < 2) return [];
@@ -130,15 +134,6 @@ export function buildCurveSummary(byAge: CompanyAgeStats[], name: string): strin
     sentences.push(
       `5歳刻みで比べると${jump.from.targetAge}歳から${jump.to.targetAge}歳の伸びが最も大きく、` +
         `＋${formatManYen(jump.diff)}でした。`
-    );
-  }
-
-  // 定年前後でカーブが下向きになる会社だけ、下がって見える理由を添える。
-  const last = byAge[byAge.length - 1];
-  const previous = byAge[byAge.length - 2];
-  if (last.salary < previous.salary) {
-    sentences.push(
-      `${last.targetAge}歳で下がるのは、補正に使う統計側の賃金カーブが定年前後で下向きになるためです。`
     );
   }
 
