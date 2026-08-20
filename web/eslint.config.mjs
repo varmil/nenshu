@@ -20,6 +20,11 @@ const eslintConfig = defineConfig([
     ".open-next/**",
     // wranglerのローカル実行時の一時ファイル
     ".wrangler/**",
+    // design-sync（Claude Design との同期ツール）の生成物。
+    // `.design-sync/build-design-system-package.mjs` が作り直せるので手で直さない。
+    // web/.gitignore でも追跡対象から外している。
+    ".ds-sync/**",
+    "ds-bundle/**",
   ]),
   {
     // ページ間の遷移は features/navigation の NavLink を使う。next/link を直接使うと、
