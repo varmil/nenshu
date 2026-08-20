@@ -75,10 +75,13 @@ test.describe("企業詳細ページ", () => {
   });
 
   /*
-   * **上位◯%は併記しない**（運営者の指示。モックに無いものを足さない）。
-   * 100 を超えうる理由の注記と、位置バー・順位のほうで水準を読ませる。
+   * **上位◯%も、100を超えうる理由の注記も、このページには置かない**（運営者の判断。
+   * 2026-08-20 の `d041d01`）。水準は同じ視界にある順位と位置バーで読ませる——
+   * **偏差値だけが単独で置かれた画面を作らない**線（glossary）はこれで保たれている。
+   * 注記そのものはランキングの表・カードの脚注と `/about` に残っており、そちらは
+   * `e2e/ranking-refresh.spec.ts` と `e2e/about.spec.ts` が持つ。
    */
-  test("AC-2: 偏差値は数字だけを出し、100を超えうる理由の注記が添えられている", async ({
+  test("AC-2: 偏差値は数字だけを出し、順位と位置バーが同じ視界にある", async ({
     page,
   }) => {
     await page.goto("/company/6861?age=35");
@@ -87,8 +90,13 @@ test.describe("企業詳細ページ", () => {
     const deviation = page.locator("dd").filter({ hasText: /^150\.0$/ });
     await expect(deviation).toBeVisible();
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
+    await expect(page.getByText("偏差値は100を超えることがあります")).toHaveCount(0);
+    await expect(page.getByText(/偏差値は分布が右に裾を引くため/)).toHaveCount(0);
 
-    await expect(page.getByText("年収の分布は右に裾を引くため、偏差値は100を超えることがあります")).toBeVisible();
+    // 偏差値と同じ視界に置く順位・位置バーは残っている（単独で置かないための担保）。
+    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
+    await expect(page.getByText("全体1,867社の中の位置")).toBeVisible();
+
     await expect(page.getByText("＋1,549万円")).toBeVisible();
     await expect(page.getByText("全体平均 629万円")).toBeVisible();
   });
@@ -166,11 +174,18 @@ test.describe("企業詳細ページ", () => {
     await expect(chart.locator("circle[r='6']")).toHaveCount(1);
     await expect(chart.locator("circle")).toHaveCount(8);
 
+    /*
+     * **figcaption に残る注記は ±20% の帯の意味だけ**（運営者の判断。`d041d01`）。
+     * 「0起点ではない」は各点の金額を数値で併記していることで、「個人の軌跡ではない」は
+     * `/about` の同じ文で担保する（`e2e/about.spec.ts`）。**帯だけを見ると信頼区間に
+     * 見える**ので、図の側の断りはここから外さない。
+     */
     await expect(
-      page.getByText("1社の中の年齢ごとの水準であって、同じ人が歳を取っていく軌跡ではありません", {
-        exact: false,
-      })
+      page.getByText("目安の幅であって統計的な信頼区間ではありません", { exact: false })
     ).toBeVisible();
+    await expect(page.getByText(/歳を取っていく軌跡/)).toHaveCount(0);
+    // 0起点ではない代わりの併記——8点ぶんの金額が数値で読める。
+    await expect(chart.locator("text").filter({ hasText: /^2,178$/ })).toHaveCount(1);
   });
 
   test("AC-5: 非上場のみずほ銀行はEDINETコードのURLで開ける", async ({ page }) => {
