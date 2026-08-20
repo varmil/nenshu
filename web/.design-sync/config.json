@@ -1,0 +1,16 @@
+{
+  "projectId": "7a477da9-3e45-454e-b5da-24ee58c76d69",
+  "shape": "package",
+  "pkg": "design-system",
+  "globalName": "OpenReportDS",
+  "entry": "./.ds-sync/pkgscratch/index.mjs",
+  "buildCmd": "node .design-sync/build-design-system-package.mjs",
+  "tsconfig": "../../tsconfig.json",
+  "cssEntry": "compiled.css",
+  "runtimeFontPrefixes": ["ヒラギノ角ゴシック", "ヒラギノ角ゴ ProN W3", "メイリオ", "Hiragino", "Noto Sans CJK JP", "Meiryo"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Select": { "cardMode": "single", "primaryStory": "Open" },
+    "ToggleGroup": { "cardMode": "column" }
+  }
+}
