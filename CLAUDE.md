@@ -118,7 +118,7 @@ Unit の実装を終えたら、次の順で進める。
 - 実測値のとき年齢スイッチは**消さずに `disabled` にする**——消すと切り替えて何が増えるのか分からないため
 - 経緯と実測値は `docs/ranking/salary-basis/design.md` と ADR-0007 にある
 
-**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。ドメインは未取得。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
+**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。**ドメインは `openreport.net` が最有力だが未取得**（2026-08-20 時点）——U8 の canonical・sitemap の基点になるので、決まるまで `metadataBase` は1か所に閉じておく。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 
