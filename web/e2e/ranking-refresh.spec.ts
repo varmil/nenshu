@@ -484,8 +484,8 @@ test.describe("公開後の手直し", () => {
 });
 
 /*
- * モバイルの行の形（アートボード 5c）。公開後の指摘で並べ直したので、要素の
- * 位置関係そのものを固定する。
+ * モバイルの行の形（アートボード 2a、Issue #119）。要素の位置関係そのものを固定する。
+ * `docs/ranking/ranking-mock-alignment/design.md` の「モバイルの行を4カラムにする」に対応。
  */
 test.describe("公開後の手直し（モバイルの行）", () => {
   test.use({ viewport: { width: 390, height: 844 } });
@@ -503,19 +503,144 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
   });
 
-  test("年収バーは社名の列の中にあり、順位とロゴの下まで伸びない", async ({ page }) => {
+  /*
+   * バーは**金額ブロックの中**に収まる（Issue #119）。行の全幅に伸ばすと順位とロゴの
+   * 下まで掛かり、どの社名に対する帯なのかが読めない。
+   */
+  test("年収バーは金額ブロックの幅に収まり、金額と左端が揃う", async ({ page }) => {
     await page.goto("/");
     const row = firstRow(page);
     const bar = row.locator('[aria-hidden="true"]').last();
-    const logo = row.locator("span").first();
+    const salary = row.getByText("2,178万円");
 
     const barBox = (await bar.boundingBox())!;
     const rowBox = (await row.boundingBox())!;
-    const logoBox = (await logo.boundingBox())!;
-    // 左端が順位・ロゴより右にある。
-    expect(barBox.x).toBeGreaterThan(logoBox.x + logoBox.width);
+    const salaryBox = (await salary.boundingBox())!;
+
+    // 金額ブロックは 96px（w-24）。
+    expect(barBox.width).toBeCloseTo(96, 0);
+    // **数値の左端とバーの左端が揃う。** 金額を左寄せにした狙いがこれで、桁数の少ない
+    // 会社でも崩れない（下の「金額の左端はどの行でも同じ」で全行を見ている）。
+    expect(Math.abs(barBox.x - salaryBox.x)).toBeLessThanOrEqual(1);
     // 右端は行の右端に揃う。
     expect(Math.abs(barBox.x + barBox.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(2);
+    // 行の半分より右——順位・ロゴ・社名の下には掛からない。
+    expect(barBox.x).toBeGreaterThan(rowBox.x + rowBox.width / 2);
+  });
+
+  test("金額の左端はどの行でも同じで、バーの左端と揃う", async ({ page }) => {
+    await page.goto("/");
+    const lefts = await page
+      .locator("div.md\\:hidden > div")
+      .evaluateAll((els) =>
+        els.slice(0, 9).map((el) => {
+          const block = el.lastElementChild!;
+          const amount = block.firstElementChild!;
+          const bar = block.lastElementChild!;
+          return [
+            Math.round(amount.getBoundingClientRect().left),
+            Math.round(bar.getBoundingClientRect().left),
+          ];
+        })
+      );
+    expect(lefts).toHaveLength(9);
+    // 9行ぶん、金額の左端もバーの左端も1つの値に収束する。
+    expect(new Set(lefts.flat()).size).toBe(1);
+  });
+
+  /*
+   * **金額を2行に折り返させない。** このサイトは webfont を持たず OS のフォントで組む
+   * ので、「2,178万円」の実測幅は環境で変わる。80px に詰めていたとき「円」だけが2行目に
+   * 落ちた（報告あり）。ここで見るのは幅の値ではなく**1行に収まっていること**である。
+   */
+  test("金額は1行に収まり、折り返さない", async ({ page }) => {
+    await page.goto("/");
+    const lines = await page
+      .locator("div.md\\:hidden > div")
+      .evaluateAll((els) =>
+        els.slice(0, 9).map((el) => el.lastElementChild!.firstElementChild!.getClientRects().length)
+      );
+    expect(lines).toEqual(Array(9).fill(1));
+  });
+
+  /*
+   * meta 行は `justify-between` ではなく**小さなギャップで隣り合う**（アートボード 2a）。
+   * 両端に振ると、社名が短い行では平均年齢と偏差値が離れて別々の情報に見える。
+   */
+  test("平均年齢と偏差値は隣り合い、両端に振り分けられない", async ({ page }) => {
+    // 社名が短く、meta 行に余白が残る会社で見る。
+    await page.goto("/?q=ディスコ");
+    const row = firstRow(page);
+    const age = row.getByText(/^平均/);
+    const deviation = row.getByText(/^偏差値/);
+
+    const ageBox = (await age.boundingBox())!;
+    const deviationBox = (await deviation.boundingBox())!;
+    // gap-2（8px）ぶんしか空いていない。
+    expect(deviationBox.x - (ageBox.x + ageBox.width)).toBeLessThanOrEqual(12);
+    expect(deviationBox.x).toBeGreaterThan(ageBox.x + ageBox.width - 1);
+  });
+
+  test("行は 順位 / ロゴ / 社名 / 金額 の4カラムに左から並ぶ", async ({ page }) => {
+    await page.goto("/");
+    const row = firstRow(page);
+
+    const rank = row.locator("span").first();
+    const logo = row.locator('[data-logo="image"], [data-logo="initial"]');
+    const name = row.getByRole("link").first();
+    const salary = row.getByText("2,178万円");
+
+    const boxes = await Promise.all(
+      [rank, logo, name, salary].map(async (l) => (await l.boundingBox())!)
+    );
+    const lefts = boxes.map((b) => Math.round(b.x));
+    expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
+    // 重なっていない（それぞれ独立した列にいる）。
+    for (let i = 0; i < boxes.length - 1; i++) {
+      expect(boxes[i].x + boxes[i].width).toBeLessThanOrEqual(boxes[i + 1].x + 1);
+    }
+  });
+
+  test("ロゴの器はこの行だけ 68×48 で、全行そろう", async ({ page }) => {
+    await page.goto("/");
+    const sizes = await page
+      .locator('div.md\\:hidden [data-logo="image"], div.md\\:hidden [data-logo="initial"]')
+      .evaluateAll((els) => [
+        ...new Set(
+          els.map((el) => {
+            const b = el.getBoundingClientRect();
+            return `${Math.round(b.width)}x${Math.round(b.height)}`;
+          })
+        ),
+      ]);
+    expect(sizes).toEqual(["68x48"]);
+  });
+
+  test("行の高さはロゴで決まり、9社ぶんが等間隔になる", async ({ page }) => {
+    await page.goto("/");
+    const heights = await page
+      .locator("div.md\\:hidden > div")
+      .evaluateAll((els) =>
+        els.slice(0, 9).map((el) => Math.round(el.getBoundingClientRect().height))
+      );
+    expect(heights).toHaveLength(9);
+    // 社名の長さによらず同じ高さ。ロゴ48px＋py-2.5（上下10px）＋区切り線が下限。
+    expect(new Set(heights).size).toBe(1);
+    expect(heights[0]).toBeGreaterThanOrEqual(68);
+  });
+
+  test("「本社のみ」はモバイルの行に出ない（PCの表には残る）", async ({ page }) => {
+    // 三菱商事は hasBadge を持つ会社（`about.spec.ts` の実例と同じ）。
+    await page.goto("/?q=三菱商事");
+    await expect(page.locator("div.md\\:hidden").getByText("本社のみ")).toHaveCount(0);
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(rows(page).first().getByText("本社のみ")).toBeVisible();
+  });
+
+  test("順位は 12px で、社名より弱い", async ({ page }) => {
+    await page.goto("/");
+    await expect(firstRow(page).locator("span").first()).toHaveCSS("font-size", "12px");
   });
 
   test("順位は行の縦中央にある", async ({ page }) => {
@@ -550,3 +675,72 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     expect(await lines(page.getByText("有価証券報告書の数値のまま。"))).toBe(1);
   });
 });
+
+
+/*
+ * 受け入れ条件（Issue #119）——**社名が切れても偏差値と金額は常に全部見える**。
+ * 360px は最も狭い実機の幅で、ここで偏差値が省略記号に飲まれると「他社と見比べる」
+ * 数値が2つとも読めなくなる。実測値・年齢そろえの両モードで見る（年齢そろえは
+ * 「推定」の一語が増えるぶん meta 行が長い）。
+ */
+for (const width of [390, 360]) {
+  test.describe(`モバイルの行が縮んでも数値が残る（${width}px）`, () => {
+    test.use({ viewport: { width, height: 844 } });
+
+    for (const [label, path] of [
+      ["実測値", "/?q=ジャパンエレベーター"],
+      ["年齢そろえ", "/?q=ジャパンエレベーター&age=35"],
+    ] as const) {
+      test(`${label}: 偏差値と金額が切り詰められない`, async ({ page }) => {
+        await page.goto(path);
+        const row = page.locator("div.md\\:hidden > div").first();
+
+        // 社名は切れてよい（切れていること自体は別テストで見ている）。
+        const deviation = row.getByText(/^偏差値/);
+        const salary = row.getByText(/万円$/);
+        const rowBox = (await row.boundingBox())!;
+
+        for (const target of [deviation, salary]) {
+          await expect(target).toBeVisible();
+          /*
+             インライン要素の `clientWidth` は 0 なので、切り詰めは `scrollWidth` では
+             測れない。**描かれた箱と、中身の文字が本来必要とする幅を比べる。**
+          */
+          const fits = await target.evaluate((el) => {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const box = el.getBoundingClientRect();
+            return {
+              drawn: box.width,
+              needed: range.getBoundingClientRect().width,
+              left: box.left,
+              right: box.right,
+              lines: el.getClientRects().length,
+            };
+          });
+          // 1行に収まり、必要な幅がそのまま与えられている（省略記号に飲まれない）。
+          expect(fits.lines).toBe(1);
+          expect(fits.drawn).toBeGreaterThanOrEqual(fits.needed - 0.5);
+          // 行の中に収まっている（押し出されていない）。
+          expect(fits.left).toBeGreaterThanOrEqual(rowBox.x - 0.5);
+          expect(fits.right).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
+        }
+
+        // ページに横スクロールが出ない。
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+        );
+        expect(overflow).toBeLessThanOrEqual(0);
+      });
+    }
+
+    test("年齢そろえでは「推定」が出て、実測値では出ない", async ({ page }) => {
+      await page.goto("/");
+      const list = page.locator("div.md\\:hidden");
+      await expect(list.getByText("推定", { exact: true })).toHaveCount(0);
+
+      await page.goto("/?age=35");
+      await expect(list.getByText("推定", { exact: true }).first()).toBeVisible();
+    });
+  });
+}

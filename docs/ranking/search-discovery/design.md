@@ -173,4 +173,19 @@ Cloudflare の管理robots.txt が Content Signals のコメントを挿して�
 
 `openreport.net`（apex）に Worker Custom Domain を付けてあり、`www` は Redirect Rule で apex へ 301 する（パスとクエリを保持）。`wrangler.jsonc` の `"workers_dev": false` は、**wrangler がルート指定の無い Worker に対して既定で workers.dev を有効にする**ため必要になる。これが無いと、デプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る。
 
+**`"preview_urls": true` を対で書く**（2026-08-21 に追加）。`preview_urls` の既定値は `preview_urls = workers_dev` なので（wrangler 4.44.0 以降。当リポジトリは 4.123.0）、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで巻き添えで無効になる**。さらにこの既定は**デプロイのたびに適用される**ので、ダッシュボードで有効に戻しても次のデプロイでまた落ちる。
+
+消したいのは**公開ホストとしての** `nenshu.<subdomain>.workers.dev` であって、`<ブランチ名>-nenshu.<subdomain>.workers.dev` は本番に入れる前に実機で見るための経路である。プレビューも workers.dev の上にある以上、原理的には検索エンジンから見える。ただし全ページが `SITE_ORIGIN` の canonical を出すので、拾われても評価は正規URLへ寄る——`?emp=` などを robots.txt で止めず canonical だけで寄せているのと同じ考え方である。
+
+**この2つに限らず、Cloudflare の設定をダッシュボード側だけで直さないこと。** `wrangler.jsonc` に書いていない設定は、次のデプロイで wrangler の既定値に戻される。
+
+### 未解決: ブランチのプレビューURLが出ない
+
+Issue #119 の作業中、ブランチのプレビューURLが**1回出たあと消える**症状を2度観測した（有効化 → 次のビルドで Preview URL の列が出る → その次のビルドで消える）。`preview_urls: true` を入れても戻らず、**`preview_urls` だけが原因ではない**ことが分かっている（`true` の状態で2回デプロイしても列が出ない）。
+
+**残りは Workers Builds 側（ダッシュボード）の設定で、リポジトリからは表現できない。** 確かめる先は次の2つ。
+
+- **非本番ブランチのビルド／デプロイの扱い。** Preview URL が出た1回だけ、Workers Builds のコメントに Commit Preview URL（`<バージョン>-nenshu…`）と Branch Preview URL（`<ブランチ名>-nenshu…`）の両方が並んだ。これはプレビュー版のアップロードに対応する形で、通常のデプロイでは出ない
+- **非本番ブランチのデプロイコマンド。** `package.json` の `deploy` は `opennextjs-cloudflare deploy`（＝`wrangler deploy`）で、**本番へのデプロイ**である。非本番ブランチもこれを走らせているなら、PRブランチへの push が `openreport.net` に出ていることになる。プレビューに留めたいなら、非本番ブランチ側は `wrangler versions upload` に当たるコマンドに分ける
+
 Cloudflare 側の設定（Always Use HTTPS・HSTS・www の Redirect Rule・SPF/DMARC）はダッシュボード／API に置いてあり、リポジトリには入らない。`workers_dev` だけがコード側で表現できる部分である。
