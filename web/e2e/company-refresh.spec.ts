@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 /**
  * C2（Issue #83）で足したもの——この会社の要点・水準が近い会社・分布・年齢別の表と
@@ -50,8 +51,7 @@ test.describe("AC-12 水準が近い会社", () => {
 
   test("表示基準の切替でページ遷移が発生しない", async ({ page }) => {
     await page.goto("/company/6861");
-    const requests: string[] = [];
-    page.on("request", (r) => requests.push(r.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);

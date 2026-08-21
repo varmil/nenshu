@@ -4,7 +4,7 @@ import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
-import { CompanyLogoMark } from "./CompanyLogoMark";
+import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
 import { SalaryBar } from "./SalaryBar";
 
@@ -42,7 +42,7 @@ export function RankingCardList({
             <span className="w-5 shrink-0 text-center text-[0.95rem] font-bold tabular-nums">
               {company.rank}
             </span>
-            <CompanyLogoMark name={company.name} />
+            <CompanyLogo id={company.id} name={company.name} size="sm" />
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-baseline justify-between gap-2">
                 {/*

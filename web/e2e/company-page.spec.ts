@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 // 数値は `docs/company/spec.md` §3 の受け入れ基準（2026-06 版データの実測値）。
 //
@@ -124,8 +125,7 @@ test.describe("企業詳細ページ", () => {
   }) => {
     await page.goto("/company/6861?age=35");
 
-    const requests: string[] = [];
-    page.on("request", (req) => requests.push(req.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "25歳" }).click();
 

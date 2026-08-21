@@ -26,7 +26,7 @@ import { SalaryHistoryChart } from "./SalaryHistoryChart";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
-import { CompanyLogoMark } from "@/features/ranking/components/CompanyLogoMark";
+import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import {
   buildCurveSummary,
   buildHighlights,
@@ -127,7 +127,7 @@ export function CompanyDetail({
           C2 では h1 の中に小さなマークが並んでいて、社名の一部のように見えていた。
         */}
         <div className="flex items-start gap-3.5">
-          <CompanyLogoMark name={view.name} size="lg" />
+          <CompanyLogo id={view.id} name={view.name} size="lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               {/* 390px では 28px だと社名が2行に折れる（実測）。モバイルは1段落とす。 */}

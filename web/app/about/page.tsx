@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/design-system/ui/badge";
 import { TABLE_NO_VERTICAL_SCROLL } from "@/design-system/tableContainer";
 import { buildAboutFacts } from "@/features/ranking/lib/aboutFacts";
+import { attributionCredits, creditCounts, type LogoEntry } from "@/features/logo/lib/credits";
 import {
   formatDecimal1,
   formatInt,
@@ -20,6 +21,16 @@ import {
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
+import logosData from "../../public/data/logos.json";
+
+const companies = companiesData as CompaniesData;
+const logoEntries = logosData.byId as Record<string, LogoEntry>;
+/**
+ * ロゴの帰属表示（AC-14）。**ビルド時に確定する**——`/about` は静的ページで、
+ * `logos.json`（gzip 41.7KB）はここで消費されクライアントには渡らない。
+ */
+const logoCredits = attributionCredits(companies.rows, logoEntries);
+const logoCounts = creditCounts(logoEntries);
 
 export const metadata: Metadata = {
   title: "計算方法 | OpenReport",
@@ -37,7 +48,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function AboutPage() {
-  const facts = buildAboutFacts(companiesData as CompaniesData, curvesData as CurvesData);
+  const facts = buildAboutFacts(companies, curvesData as CurvesData);
   const { formulaExample: ex, holdingExample, operatingExample, modelBias: bias } = facts;
   const extrapolation = new Map(bias.meanExtrapolationByAge.map((x) => [x.age, x.distance]));
 
@@ -408,6 +419,37 @@ export default function AboutPage() {
             経由で取得
           </li>
         </ul>
+      </Section>
+
+      <Section title="企業ロゴの出典">
+        <p>
+          会社名の左に出しているロゴは、{formatInt(logoCounts.total)}社ぶんを2つの出典から取得し、当サイトで配信しています。
+          {formatInt(logoCounts.commons)}社は Wikimedia Commons に自由なライセンスで公開されているもの、
+          {formatInt(logoCounts.site)}社は各社の公式サイトに掲載されているものです。
+          いずれも大きさをそろえる以外の加工はしていません。ロゴを持たない会社は社名の頭文字を代わりに出しています。
+        </p>
+        <p>
+          <strong>ロゴは各社の商標です。</strong>
+          掲載は当該企業を識別するためのもので、当サイトと各社の提携・推奨を示すものではありません。
+        </p>
+        {logoCredits.length > 0 && (
+          <>
+            <p>
+              このうち次の{formatInt(logoCredits.length)}社のロゴは、作者の表示が求められるライセンスで公開されているものです。
+            </p>
+            <ul className="flex flex-col gap-1 text-sm">
+              {logoCredits.map((credit) => (
+                <li key={credit.id}>
+                  {credit.name} —{" "}
+                  <a href={credit.from} className="text-primary underline" target="_blank" rel="noreferrer">
+                    {credit.license}
+                  </a>
+                  {credit.author && `（${credit.author}）`}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </Section>
 
       <footer>

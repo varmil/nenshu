@@ -37,6 +37,7 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-logo-surface: var(--logo-surface);
 
   /* 角丸: 基準値 --radius から比率で導出 */
   --radius-sm: calc(var(--radius) * 0.6);
@@ -111,6 +112,12 @@
   --foreground: oklch(0.148 0.004 228.8);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.148 0.004 228.8);
+  /* 企業ロゴを載せる面。**ライトとダークでほぼ同じ明るさに保つ。**
+     ロゴは透明背景で、ダークの地に置くと濃い色のワードマークが沈んで読めない
+     （実測）。加工して色を反転させる案は採らない——商標をそのままの形で出す
+     と決めてある（ADR-0008 決定1）。ダーク側だけわずかに落とすのは、
+     1ページに30枚並ぶと白のままでは眩しいため。 */
+  --logo-surface: oklch(1 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.148 0.004 228.8);
   /* シート・ダイアログの背後に敷く幕。ダークは背景自体が暗いので濃くしないと
@@ -149,6 +156,7 @@
   --foreground: oklch(0.987 0.002 197.1);
   --card: oklch(0.218 0.008 223.9);
   --card-foreground: oklch(0.987 0.002 197.1);
+  --logo-surface: oklch(0.93 0.002 197.1);
   --popover: oklch(0.218 0.008 223.9);
   --popover-foreground: oklch(0.987 0.002 197.1);
   --overlay: oklch(0 0 0 / 60%);

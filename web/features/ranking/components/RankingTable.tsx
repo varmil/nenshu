@@ -14,7 +14,7 @@ import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
 import { TABLE_NO_SCROLL } from "@/design-system/tableContainer";
-import { CompanyLogoMark } from "./CompanyLogoMark";
+import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
 import { SalaryBar } from "./SalaryBar";
 
@@ -79,7 +79,7 @@ export function RankingTable({
                 <TableCell className="text-lg font-bold tabular-nums">{company.rank}</TableCell>
                 <TableCell>
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <CompanyLogoMark name={company.name} />
+                    <CompanyLogo id={company.id} name={company.name} />
                     <span className="flex min-w-0 flex-col">
                       <span className="flex min-w-0 items-center gap-1.5">
                         {/*
