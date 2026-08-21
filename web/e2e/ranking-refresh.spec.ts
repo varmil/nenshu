@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 /**
  * U12（Issue #80）で足したもの——並び替え・年収バー・偏差値・サイドバー・
@@ -74,8 +75,7 @@ test.describe("AC-12 並び替え", () => {
 
   test("並び替えでネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
-    const requests: string[] = [];
-    page.on("request", (r) => requests.push(r.url()));
+    const requests = collectPageRequests(page);
 
     await page
       .getByRole("group", { name: "並び替え" })
@@ -224,8 +224,7 @@ test.describe("業種チップ", () => {
 
   test("クリックしても遷移せず、ネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
-    const requests: string[] = [];
-    page.on("request", (r) => requests.push(r.url()));
+    const requests = collectPageRequests(page);
 
     await page
       .getByRole("navigation", { name: "業種から見る" })
@@ -241,8 +240,7 @@ test.describe("業種チップ", () => {
 test.describe("ヘッダの検索", () => {
   test("/ の上ではネットワークリクエストなしで絞り込む", async ({ page }) => {
     await page.goto("/");
-    const requests: string[] = [];
-    page.on("request", (r) => requests.push(r.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("banner").getByRole("searchbox", { name: "会社名で検索" }).fill("商船三井");
 
@@ -464,8 +462,7 @@ test.describe("公開後の手直し", () => {
     await page.goto("/?ind=海運業&sort=age&age=35&q=商船");
     await expect(rows(page)).toHaveCount(1);
 
-    const requests: string[] = [];
-    page.on("request", (r) => requests.push(r.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
 

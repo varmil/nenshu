@@ -1,5 +1,5 @@
 import { NavLink } from "@/features/navigation/components/NavLink";
-import { CompanyLogoMark } from "@/features/ranking/components/CompanyLogoMark";
+import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import type { NeighborCompany } from "../lib/neighbors";
 
@@ -37,7 +37,7 @@ export function NeighborCompanies({
             key={company.id}
             className="border-border flex items-center gap-2.5 border-t py-2.5 first:border-t-0 first:pt-0"
           >
-            <CompanyLogoMark name={company.name} />
+            <CompanyLogo id={company.id} name={company.name} size="sm" />
             <div className="min-w-0 flex-1">
               {/*
                 **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと

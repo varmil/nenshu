@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { statsForBasis } from "@/features/company/lib/stats";
 import { buildCompanyView } from "@/features/company/lib/view";
-import type { CompanyStatsData, SalaryHistory } from "@/features/company/types";
+import type { CompanyStatsData, CompanyView, SalaryHistory } from "@/features/company/types";
 import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
 import {
   TARGET_AGES,
@@ -15,6 +15,8 @@ import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
+import logosData from "../../../public/data/logos.json";
+import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -25,6 +27,21 @@ const stats = statsData as CompanyStatsData;
  * 渡すのは当該1社ぶんの10件だけ。
  */
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
+
+const logoIds = logosData.byId as Record<string, unknown>;
+
+/**
+ * この画面に出る会社（自身と、9基準ぶんの近傍5社）のうちロゴを持つIDだけを配る。
+ * **ランキングと違ってマスクは送らない**——出るのは多くても46社で、1,867文字を
+ * 送るほうが大きい。
+ */
+function logoIdsOnPage(view: CompanyView): string[] {
+  const ids = new Set<string>([view.id]);
+  for (const basis of view.byBasis) {
+    for (const neighbor of basis.neighbors) ids.add(neighbor.id);
+  }
+  return [...ids].filter((id) => logoIds[id]);
+}
 
 function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
@@ -87,10 +104,12 @@ export default async function CompanyPage({ params, searchParams }: Props) {
   if (view === null) notFound();
 
   return (
-    <CompanyDetail
-      view={view}
-      history={historyFor(view.id)}
-      initialAge={parseAge((await searchParams).age)}
-    />
+    <LogoIdsProvider ids={logoIdsOnPage(view)}>
+      <CompanyDetail
+        view={view}
+        history={historyFor(view.id)}
+        initialAge={parseAge((await searchParams).age)}
+      />
+    </LogoIdsProvider>
   );
 }

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 /**
  * 表示基準（実測値 / 年齢そろえ）の切替。ADR-0007。
@@ -113,8 +114,7 @@ test.describe("表示基準の切替", () => {
   test("切替でネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
 
-    const requests: string[] = [];
-    page.on("request", (req) => requests.push(req.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);

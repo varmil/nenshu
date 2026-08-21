@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 test.describe("0件・端の状態と段階表示", () => {
   test("AC-8: 0件のとき条件を緩める案内が出る（エラー表示にはならない）", async ({ page }) => {
@@ -67,8 +68,7 @@ test.describe("0件・端の状態と段階表示", () => {
   test("ページ送り操作中にネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
 
-    const requests: string[] = [];
-    page.on("request", (req) => requests.push(req.url()));
+    const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "次のページへ" }).click();
     await expect(page).toHaveURL(/[?&]page=2/);

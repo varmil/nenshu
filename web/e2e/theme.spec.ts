@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { collectPageRequests } from "./network";
 
 /*
  * 配色トークンが実際にブラウザまで届いていることを固定する（Issue #62）。
@@ -263,8 +264,7 @@ test.describe("表示モード", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const requests: string[] = [];
-      page.on("request", (request) => requests.push(request.url()));
+      const requests = collectPageRequests(page);
 
       await page.getByRole("button", { name: "ダークモードに切り替える" }).click();
       await expect(page.locator("html")).toHaveClass(/\bdark\b/);
