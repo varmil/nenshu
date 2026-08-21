@@ -107,7 +107,9 @@ Unit の実装を終えたら、次の順で進める。
 - **デプロイ直後の全画面エラー（"This page couldn't load"）の成立条件は「古いHTMLがネットワークから届き、かつそのブラウザに旧ビルドのチャンクが無い」の1つだけ。** デプロイでチャンク名が入れ替わり（連続2デプロイの実測で4件が別名。旧名は`404`を`text/html`で返す）、`ChunkLoadError`でルートのエラー境界がページ全体を差し替える。**ブラウザキャッシュ経由の再訪・戻る/進む・F5・タブを開いたままの操作と遷移は、実際にサーバーを差し替えて試して全部壊れなかった**——`_next/static/*`が`immutable`なのでHTMLとチャンクが揃って古く、辻褄が合うため。**つまり原因はエッジがデプロイ前のHTMLを配ったとき**で、ここは未決着（ADR-0004「残っている問題」に確認手順あり）。**ビルドID不一致ガードはクライアント遷移しか守らない**ので`deploymentId`を足しても直らない
 - **ブラウザにHTMLを持たせない**（`max-age=0, must-revalidate`）。ただし**これは上のエラーの対処ではない**。再訪した読者が最大1時間ぶん古い数字を見るのを防ぐのが主目的
 - **`RSC`ヘッダ付きで`_rsc`の無いリクエストにはキャッシュ可能なヘッダを返さない。** Cloudflareは`Vary`を見ないため、Next.jsが返す`307 → /?_rsc`が素の`/`のキャッシュを上書きし、ふつうの読者が`/?_rsc`へ飛ばされる（本番で再現）。**この規則は配列の末尾に置く。`headers()`は後勝ちで、先頭だと後続の`{ source: "/" }`に上書きされる**（`routes-manifest.json`上は正しく見えるので気づけない）
-- **`Cache-Control`はE2Eで検証できない**——devサーバーが`no-cache, must-revalidate`で上書きするため。E2Eは`Cloudflare-CDN-Cache-Control`を見る（`e2e/cache-headers.spec.ts`）。ブラウザ向けの値は`lib/cache/headers.test.ts`で担保する
+- **`headers()`の`has`/`missing`はdevサーバーと本番で評価する実装が違う。** 本番はOpenNextのマッチャで、`type: "query"`のときだけキーの存在を確かめない（`value`未指定だと`new RegExp("").test("")`で常に`true`。`header`の分岐には存在チェックがある）。そのため`missing: [{ type: "query", key: "_rsc" }]`は**`next start`では動くのにWorker上では規則が永久に不成立**になる。`value: ".+"`を必ず付ける。**プレビューへデプロイして初めて発覚した**
+- **だから`headers()`を触ったらE2EをWorkerに向けて回す。** `playwright.config.ts`が`E2E_BASE_URL`を見る（渡すとdevサーバーを起動しない）。`npx opennextjs-cloudflare build` → `npx wrangler dev --port 3801 --local` → `E2E_BASE_URL=http://127.0.0.1:3801 npx playwright test e2e/cache-headers.spec.ts`。デプロイ済みのプレビューURLを渡してもよい
+- **`Cache-Control`はdev相手のE2Eでは検証できない**——devサーバーが`no-cache, must-revalidate`で上書きするため。E2Eは`Cloudflare-CDN-Cache-Control`を見る（`e2e/cache-headers.spec.ts`）。ブラウザ向けの値は`lib/cache/headers.test.ts`で担保する
 
 **アクセス解析は Microsoft Clarity**（Issue #44）。`web/lib/analytics/clarity.ts` にタグを置き、`app/layout.tsx` から `next/script` の `strategy="afterInteractive"` で読む。npmパッケージは使わない（同じタグを注入するだけでJSバンドルが増えるため）。**本番ビルドでのみ有効**（`isClarityEnabled`）——開発サーバーとE2Eの実行ぶんが実セッションとして計測に混ざるのを防ぐため、またE2Eの「操作中にネットワークリクエストが発生しない」テスト（リクエスト数を0で固定）を壊さないため。
 

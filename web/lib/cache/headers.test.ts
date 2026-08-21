@@ -52,7 +52,9 @@ describe("cacheHeaderRules", () => {
 
     it("`RSC` ヘッダがあり、かつ `_rsc` クエリが無いときだけ当たる", () => {
       expect(rsc.has).toEqual([{ type: "header", key: "RSC" }]);
-      expect(rsc.missing).toEqual([{ type: "query", key: "_rsc" }]);
+      // `value` を落とすと OpenNext のマッチャ側で規則が永久に不成立になる。
+      // `next start` では動いてしまうので、ローカルでは気づけない。
+      expect(rsc.missing).toEqual([{ type: "query", key: "_rsc", value: ".+" }]);
     });
 
     it("当たったらブラウザにもエッジにも保存させない", () => {

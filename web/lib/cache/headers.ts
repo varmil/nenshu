@@ -61,11 +61,22 @@ const CACHE_HEADERS = [
  *
  * **この規則は必ず配列の末尾に置く。** `headers()` は後勝ちで、先頭に置くと
  * 後続の `{ source: "/" }` に `Cache-Control` を上書きされる（実測）。
+ *
+ * **`missing` の `_rsc` には `value: ".+"` を必ず付ける。** OpenNext のマッチャ
+ * （`@opennextjs/aws/dist/core/routing/matcher.js` の `routeHasMatcher`）は
+ * `type: "query"` のときだけキーの存在を確かめず、`value` 未指定だと
+ * `new RegExp("").test("")` すなわち常に `true` を返す。`missing` は反転なので
+ * **規則が永久に不成立になる**。`header` の分岐には存在チェックがあるので、
+ * この崩れ方は query 限定である。
+ *
+ * **`next start` では正しく動くので、この不具合はローカルでは見えない。**
+ * Next.js 本体のマッチャにはこの穴が無く、Worker 上でだけ落ちる。実際に
+ * プレビューへデプロイして初めて発覚した（2026-08-21）。
  */
 const RSC_BYPASS_RULE: HeaderRule = {
   source: "/:path*",
   has: [{ type: "header", key: "RSC" }],
-  missing: [{ type: "query", key: "_rsc" }],
+  missing: [{ type: "query", key: "_rsc", value: ".+" }],
   headers: [
     { key: "Cache-Control", value: "private, no-store" },
     { key: "Cloudflare-CDN-Cache-Control", value: "private, no-store" },

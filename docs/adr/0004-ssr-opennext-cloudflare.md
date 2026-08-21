@@ -120,7 +120,36 @@ SSRに切り替えた結果、**「同じURLに対して何を、どこに、ど
 }
 ```
 
-**この規則は必ず配列の末尾に置く。`headers()` は後勝ちで、先頭に置くと後続の `{ source: "/" }` に上書きされる**（実際に先頭で組んで効かなかった。`routes-manifest.json` 上は正しくコンパイルされているので、マニフェストを見ても気づけない）。順序は `lib/cache/headers.test.ts` と `e2e/cache-headers.spec.ts` の両方で固定してある。
+**この規則は必ず配列の末尾に置く。`headers()` は後勝ちで、先頭に置くと後続の `{ source: "/" }` に上書きされる**（実際に先頭で組んで効かなかった。`routes-manifest.json` 上は正しくコンパイルされているので、マニフェストを見ても気づけない）。
+
+**`missing` の `_rsc` には `value: ".+"` を必ず付ける。** OpenNext のマッチャ（`@opennextjs/aws/dist/core/routing/matcher.js` の `routeHasMatcher`）は、`type: "query"` のときだけキーの存在を確かめない。
+
+```js
+case "header":
+    return (!!headers?.[redirect.key.toLowerCase()] &&      // ← 存在チェックあり
+            new RegExp(redirect.value ?? "").test(...));
+case "query":
+    return ... : new RegExp(redirect.value ?? "").test(query[redirect.key] ?? "");
+    //           ↑ 無い。value 未指定だと new RegExp("").test("") で常に true
+```
+
+`missing` は反転なので、**規則が永久に不成立になる**。`value: ".+"` を与えると値の有無で判定されるようになり、意図どおり動く。
+
+**この不具合は `next start` では見えない。** 評価するのが Next.js 本体のマッチャに変わり、そちらには穴が無いため。プレビューへデプロイして初めて発覚した（2026-08-21）。
+
+### E2E は Worker に向けて回せる
+
+上のとおり、**`headers()` の `has`/`missing` は dev サーバーと本番で評価する実装が違う。** dev サーバーに対する E2E では、Worker 上でだけ落ちる不具合を捕まえられない。
+
+`playwright.config.ts` は `E2E_BASE_URL` を見る。渡すと dev サーバーを起動せず、その宛先に対してそのまま流す。
+
+```bash
+npx opennextjs-cloudflare build
+npx wrangler dev --port 3801 --local
+E2E_BASE_URL=http://127.0.0.1:3801 npx playwright test e2e/cache-headers.spec.ts
+```
+
+デプロイ済みのプレビューURLを渡してもよい。**`headers()` を触ったときはこれを回す。** `value` を落とした状態でこの手順を踏むと、実際に該当のテストだけが落ちることを確認済み。
 
 **性能への影響は無い。** 正規のルーターは必ず `_rsc` を付けるので（遷移の実測で確認）、この規則に当たるのは手動リクエストとスキャナだけ。ページ遷移のRSC応答は今までどおりエッジに乗る。
 
