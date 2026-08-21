@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
       { source: "/", headers: cacheHeaders },
       { source: "/about", headers: cacheHeaders },
       { source: "/company/:id", headers: cacheHeaders },
+      // sitemap・robots も中身がビルド時に確定する（U8）。クローラが取りに来る
+      // たびにWorkerを起こす理由がないので、同じキャッシュに乗せる。
+      { source: "/sitemap.xml", headers: cacheHeaders },
+      { source: "/robots.txt", headers: cacheHeaders },
     ];
   },
 };

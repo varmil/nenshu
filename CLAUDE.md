@@ -118,7 +118,7 @@ Unit の実装を終えたら、次の順で進める。
 - 実測値のとき年齢スイッチは**消さずに `disabled` にする**——消すと切り替えて何が増えるのか分からないため
 - 経緯と実測値は `docs/ranking/salary-basis/design.md` と ADR-0007 にある
 
-**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。**ドメインは `openreport.net` が最有力だが未取得**（2026-08-20 時点）——U8 の canonical・sitemap の基点になるので、決まるまで `metadataBase` は1か所に閉じておく。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
+**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。**ドメインは `openreport.net`**（2026-08-21 取得）。canonical・sitemap の基点は `web/lib/seo/site.ts` の `SITE_ORIGIN` 1か所だけで、他の場所にオリジンを書かない。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 
@@ -144,7 +144,19 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → U8（#53）。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+
+**検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
+
+- **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・将来のOGPが全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——Next.js が `alternates.canonical: "/"` を `https://openreport.net` と正規化するため、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる
+- **canonical の判断は `lib/seo/ranking.ts` の `rankingCanonical()` 1か所。** インデックスさせるのは `/`・`/about`・`/?age=N` 8件・`/?ind=X` 33件・`/company/[id]` 1,867件の計1,910 URL だけ。**`?age=N&ind=X` は業種側（`/?ind=X`）へ寄せる**——同じ会社が同じ順で並ぶ near-duplicate は業種側で、`/?age=N` は1,867行の別ページだから（ADR-0006 の追記で年齢側から変更）。`/company/[id]?age=N` は素の `/company/[id]` へ
+- **`?page=N` は `/` へ寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく別の30社が並ぶ。**どのページからも `<a href>` で辿れる企業ページは30件だけで、残り1,837社への内部リンクはページ2〜63の中にしか無い**——先頭へ寄せるとその経路を細める。Google のページネーション指針も先頭ページへ寄せるなと明記している。sitemap には1ページ目しか載せないので、インデックスを勧めているわけではない
+- **ページ送りは範囲外のページへ `href` を出さない。** `RankingPagination` は `state.page` を総ページ数に丸める。丸める前は `?page=999` が200で最終ページを返しつつ `?page=1000` へリンクしており、クローラが際限なく歩けた（実測）。**`aria-disabled` と `pointer-events-none` はクローラに効かない**
+- **sitemap と canonical は `agePath()`・`industryPath()` を共有する。** 別々に組み立てると載せるURLと canonical が1文字ずれても気づかない
+- **robots.txt でクロールを止めない。** `?emp=` などを `Disallow` にすると Google が canonical を読めなくなり、正規URLへ評価が渡らないまま宙に浮く。寄せるのは canonical だけでやる
+- **「有価証券報告書」は全ページの description に入れ、タイトルは `/` だけに入れる。** 競合6社（Zaimiru・OpenMoney・OpenWork・Yahoo!しごとカタログ・Ullet・J-LiC）のタイトルを実測すると、競っているのは鮮度と規模で、有報を置いているものは1つも無かった。うち3社はデータ元が同じ有報である——**「有報ベース」はデータ源として独自なのではなく、それを明示していることが差別化になる**（口コミベースの数字と並んだときに読者が見分けられる）。`?age=N`・`?ind=X` に入れないのは「◯歳」「業種名」のほうが情報量が高いため
+- **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを `app/layout.tsx` ではなく `app/page.tsx` の `generateMetadata` が組み立てているのはそのため
+- **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
 
 **Issue #21（UI改善・Claude Design の `改善案.dc.html`）に着手中。** アートボード 5a/5b/5c（実測値モード）は U11、4a/2a/5c（レイアウト刷新）は **U12（Issue #80）で実装済み**。残りは、**C2（Issue #83）も実装済みで、Issue #21 のアートボードは全て実装した**（T0・T1 も込み）。計画は `~/.claude/plans/tingly-sleeping-puppy.md`。
 

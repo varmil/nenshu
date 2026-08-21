@@ -14,7 +14,7 @@
 | U5 | URLクエリとの同期 | U3, U4 | AC-7 | ※共有: 絞り込み状態 |
 | U6 | 0件・端の状態と段階表示 | U3, U4 | AC-8 | |
 | U7 | 計算方法ページ | U1 | AC-10 | ロジックなし。文章が本体 |
-| U8 | 検索エンジン向け導線 | U7, company施策のC1 | — | canonical・sitemap・robots・リンクハブ（ADR-0006） |
+| U8 | 検索エンジン向け導線 | U7, company施策のC1 | — | canonical・sitemap・robots（ADR-0006）。実装済み・`docs/ranking/search-discovery/` |
 | U9 | SSR移行 | U5 | AC-7 | Bolt 1 の途中で足した。`@opennextjs/cloudflare` でフルSSR（ADR-0004）。Issue #37 |
 | U10 | 推定モデルの改良 | U2 | AC-9 | Bolt 1 の後に足した。22歳アンカーの2点モデル（ADR-0005）。Issue #42・#46 |
 | U11 | 実測値モードと既定化 | U5, C1 | AC-1, AC-2, AC-7, AC-9, AC-11 | 既定を有報の実測値にする（ADR-0007）。企業詳細ページにも同時に適用する。Issue #71 |
@@ -96,7 +96,11 @@ ADR-0006 で決めたインデックス戦略を実装する Unit。
 - `app/robots.ts`
 - `/` の `generateMetadata` — searchParams から title・description・canonical を組み立てる。`?age=N` のみと `?ind=X` のみは自己canonical、`?age=N&ind=X` は `/?age=N` へ、`emp`・`ten`・`aage`・`q`・`page` を含むURLは `/` へ寄せる
 - リンクハブ — **U12 で業種33件のチップを出すので、U8 では作らない。** 年齢8件ぶんが U12 の年齢スイッチで出ているかを確かめ、足りなければそこだけ足す
-- `metadataBase` を1か所に閉じる（独自ドメインが未決のため。spec.md 5.）
+- `metadataBase` を1か所に閉じる（`web/lib/seo/site.ts` の `SITE_ORIGIN`。ドメインは 2026-08-21 に `openreport.net` を取得済み。spec.md 5.）
+
+**`?age=N&ind=X` の寄せ先は業種側（`/?ind=X`）に決め直した**（ADR-0006 の追記）。ADR-0006 が「U8 の実装時に再考する」としていた1点で、根拠は「主軸がどちらか」ではなく「どちらと重複しているか」に置いた。**`page` は `/` へ寄せず自己canonical にした**のも同じ追記にある。詳細は `docs/ranking/search-discovery/design.md`。
+
+**OGP はこの Unit に含めない。** ADR-0006 が決めたのは canonical・sitemap・robots で、OG画像・構造化データ（JSON-LD）は別の Unit として起票する。
 
 ## Bolt 2 以降
 

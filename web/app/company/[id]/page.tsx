@@ -69,6 +69,11 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   const targetAge = parseAge((await searchParams).age);
   const current = statsForBasis(view, targetAge);
+
+  // 自己canonical。**`?age=N` は付けない**——`/company/[id]?age=N` は同じ会社の
+  // 同じ内容を表示基準だけ変えたページで、1,867社×9基準の16,803 URLをインデックス
+  // させる意味がない。sitemap に載せるのも素の `/company/[id]` だけ（ADR-0006）。
+  const alternates = { canonical: `/company/${view.id}` };
   const position =
     `全${view.totalCount.toLocaleString("ja-JP")}社中${current.rankAll}位、` +
     `${view.tse33}${view.industryCount}社中${current.rankIndustry}位。`;
@@ -76,6 +81,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // 実測値（既定）では推定の語を出さない。有報そのままの数字であることを書く。
   if (targetAge === null) {
     return {
+      alternates,
       title: `${view.name}の平均年収 | 有価証券報告書は${formatManYen(current.salary)}`,
       description:
         `${view.name}（${view.tse33}）の平均年間給与は${formatManYen(current.salary)}` +
@@ -85,6 +91,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   }
 
   return {
+    alternates,
     title: `${view.name}の年収 | ${targetAge}歳時点の推定は${formatManYen(current.salary)}`,
     description:
       `${view.name}（${view.tse33}）の${targetAge}歳時点の推定年収は${formatManYen(current.salary)}。${position}` +

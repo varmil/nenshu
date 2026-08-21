@@ -9,11 +9,17 @@ import {
   buildClarityScript,
   isClarityEnabled,
 } from "@/lib/analytics/clarity";
+import { METADATA_BASE } from "@/lib/seo/site";
 
 export const metadata: Metadata = {
-  title: "OpenReport | 年収ランキング",
+  // 相対パスで書いた canonical をこの起点で絶対URLにする（ADR-0006・U8）。
+  // オリジンの定義は `lib/seo/site.ts` の1か所だけに置いてある。
+  metadataBase: METADATA_BASE,
+  // 各ページが自分で title・description を返すので、ここは受け皿（`/_not-found` など）。
+  // `/` の分は `app/page.tsx` の `generateMetadata` が社数つきで組み立てる。
+  title: "OpenReport | 有価証券報告書ベースの平均年収ランキング",
   description:
-    "有価証券報告書の平均年間給与を年齢で補正し、その年齢時点の年収でランキングを比較する。上場・非上場1,867社。",
+    "金融庁 EDINET の有価証券報告書に載っている平均年間給与そのままの実測値で、上場・非上場の年収を比較する。平均年齢の違いをならした推定年収に切り替えて並べ直すこともできる。",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

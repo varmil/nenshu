@@ -1,6 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nenshu",
+  // 公開URLは `openreport.net` の1本だけにする（ADR-0006・U8）。
+  // **`false` を明示しないと wrangler が既定で `workers.dev` を有効にし直す**。
+  // カスタムドメインを付けたあとも `nenshu.<subdomain>.workers.dev` が本番と
+  // 同じHTMLを200で返し続けており、Googleから見て同じサイトが2つのホストにある
+  // 状態になる（2026-08-21 に実際にそうなっていた）。
+  "workers_dev": false,
   "compatibility_date": "2026-08-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "main": ".open-next/worker.js",

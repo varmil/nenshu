@@ -64,6 +64,40 @@ U5 の時点では `/age/25`・`/industry/銀行業` を静的ページとして
 
 **ADR-0007 で `age` の有無が表示基準（実測値 / 年齢そろえ）を表すようになったが、この表はそのまま有効である。** `/` は「実測値・フィルタ無しの一覧1枚」になり、Google のファセットナビゲーション指針が推奨する形により素直に合う。`/?age=N` 8件が年齢そろえのページとして自己canonical を持つ点も変わらない。ただし**上の「年齢補正がこのサイトの主軸」という前提は弱まった**ので、`?age=N&ind=X` をどちらに寄せるかは U8（Issue #53）の実装時に再考する。
 
+**【U8（Issue #53）で決め直した／2026-08-21】`?age=N&ind=X` の canonical は `/?ind=X`（業種側）に変えた。** 上の表の当該行を読み替える。決め手は「主軸がどちらか」ではなく、**どちらと重複しているか**に置いた。
+
+| URL | 並ぶ会社 | 金額の基準 |
+| --- | --- | --- |
+| `/?ind=銀行業` | 銀行業のN社 | 実測値 |
+| `/?age=35` | 全1,867社 | 35歳そろえ |
+| `/?age=35&ind=銀行業` | 銀行業のN社 | 35歳そろえ |
+
+`/?age=35&ind=銀行業` は `/?ind=銀行業` と**同じ会社が同じ順で並ぶ** near-duplicate で、`/?age=35` とは行数から違う別のページである。canonical は重複している相手を指すものなので、業種側が正しい。「銀行業 年収 ランキング」という検索の受け皿が `/?ind=銀行業` である点も同じ向きを指す。
+
+**`/company/[id]?age=N` は素の `/company/[id]` へ寄せる**（上の表に無かった行）。1,867社×9基準＝16,803 URL をインデックスさせる意味がない。sitemap に載せるのも素の1,867件だけで、表の `/company/[id]` の行と一致する。
+
+**【U8 で決め直した／2026-08-21】`page` を含むURLは `/` へ寄せない。自己canonical にする。** 上の表の「`emp`・`ten`・`aage`・`q`・`page` を含むURL → `/`」の行から `page` を外す。`page` はファセットではなく、同じ一覧の続きである。
+
+| URL | canonical |
+| --- | --- |
+| `/?page=3` | 自己 |
+| `/?age=N&page=M` | 自己 |
+| `/?ind=X&page=M` | 自己 |
+| `/?age=N&ind=X&page=M` | `/?ind=X&page=M` |
+| `emp`・`ten`・`aage`・`q`・`sort` を含むURL | `/`（`page` ごと落とす） |
+| 総ページ数を超える `page` | ページを落として先頭へ |
+
+理由は2つある。
+
+1. **`/?page=2` は `/` の複製ではない。** 別の30社が並ぶ。実測すると `/` の会社リンクは30件、`/?page=2` も30件で、**1社も重ならない**。
+2. **どのページからも `<a href>` で辿れる企業ページは30件しかない。** 残り1,837社への内部リンクは、ページ2〜63の中にしか存在しない（`RankingPagination` は `<a href="?page=N">` の実体を持つ）。ここを `/` の複製だと宣言すると Google はページ2以降のクロール頻度を落とし、**1,837社への内部リンク経路を自分で細める**ことになる。sitemap には1,867件載せてあるが、sitemap は発見の手段であって内部リンクのように評価を渡さない。
+
+Google のページネーション指針も「連番の各ページに自分自身の canonical を与え、先頭ページに寄せるな」と明記している（[Pagination and incremental page loading](https://developers.google.com/search/docs/specialty/ecommerce/pagination-and-incremental-page-loading)）。**sitemap には1ページ目しか載せない**ので、インデックスを勧めているわけではない——辿り着ける道を残すだけである。
+
+合わせて、`RankingPagination` が範囲外のページへリンクしている問題を直した。`?page=999` は200で最終ページの7社を返しつつ `?page=1000` へのリンクを出しており、クローラが際限なく歩ける状態だった（実測）。`aria-disabled` と `pointer-events-none` はクローラには効かないので、総ページ数に丸めて `href` そのものを出さないようにしている。
+
+**総ページ数はフィルタを実際に走らせなくても出せる。** 行数は業種でしか変わらない——年齢は金額を書き換えるだけで行は減らない。`emp`・`ten`・`aage`・`q` が効いているURLは丸ごと `/` へ寄せるため、canonical の判断に総ページ数を見るのは「全体」と「業種」の2通りだけになり、どちらも `companies.json` から数えられる。
+
 ### 2. 企業詳細ページは `/company/[id]`、ID は 証券コード / EDINETコード
 
 - 証券コードがあればそれを使う（1,760社。`6861`・新形式の `285A` を含む）
@@ -88,7 +122,7 @@ EDINETコードは提出者に対して振られる識別子で、年をまた�
 - `docs/ranking/intent.md` の仮説 H2 の検証方法（「`/age/[age]` を公開して3ヶ月後」）を `?age=` のURL群での計測に書き換える。Search Console はクエリ付きURLを別のページとして報告するため、計測方法としては成立する。
 - `makeId` の変更で全社のIDが確定するが、**現行の `id` は React の `key` にしか使われていない**（`RankingTable.tsx`・`RankingCardList.tsx`）ため、ランキングの表示は変わらない。
 - パイプライン側に `edinet_code` 列を足す。上場は証券コード、非上場は正規化した社名で EDINETコードリストと突合する。**突合できない行があれば社名を列挙して異常終了させる**（空のIDを黙って作らない）。
-- `metadataBase`（canonical の絶対URLの基点）を1か所に閉じる。独自ドメインは `docs/ranking/spec.md` 5. の未決事項のままで、移行時の変更範囲をそこだけにする。
+- `metadataBase`（canonical の絶対URLの基点）を1か所に閉じる。**ドメインは 2026-08-21 に `openreport.net` を取得済み**で、`web/lib/seo/site.ts` の `SITE_ORIGIN` がその1か所になった（U8）。公開ホストは apex 1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する。`wrangler.jsonc` の `"workers_dev": false` は、wrangler がルート指定の無い Worker に対して既定で workers.dev を有効にするため必要になる——無いとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを返す状態に戻り、同じサイトが2つのホストにある状態になる。
 - `next.config.ts` の `headers()` は `/` と `/about` を列挙する形なので、`/company/:id`・`/sitemap.xml`・`/robots.txt` を追加する。
 
 ## 却下案

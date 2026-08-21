@@ -35,7 +35,9 @@ const logoCounts = creditCounts(logoEntries);
 export const metadata: Metadata = {
   title: "計算方法 | OpenReport",
   description:
-    "年齢補正の式、賃金カーブの作り方と出典、対象範囲、そしてこの方法で何が言えて何が言えないかを全部公開しています。",
+    "金融庁 EDINET の有価証券報告書から平均年収をどう取り、年齢でどう補正しているか。式と賃金カーブの出典、対象範囲、そしてこの方法で何が言えて何が言えないかまで全部公開しています。",
+  // 自己canonical（ADR-0006 の表）。`metadataBase` は `app/layout.tsx`。
+  alternates: { canonical: "/about" },
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
