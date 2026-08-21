@@ -122,6 +122,8 @@ Unit の実装を終えたら、次の順で進める。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 
+**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置く。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
+
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
 - **モードによる描き分けは JS でやらない。** アイコンも読み上げ名も両方をHTMLに出し、`dark:` バリアントで見せ分ける。以前はモードをJSで読んでサーバー側ではアイコンを出さない実装にしており、**ボタンが約86ms 空のまま残ってからアイコンが現れる**ちらつきになっていた（実測）。`e2e/theme.spec.ts` が生のHTTPレスポンスに両アイコンが入っていることで固定している
