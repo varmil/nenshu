@@ -1,7 +1,7 @@
 "use client";
 
 import { NavLink } from "@/features/navigation/components/NavLink";
-import { useEffect, useState } from "react";
+import { useLocationSyncedState } from "@/lib/history/useLocationSyncedState";
 import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
@@ -40,35 +40,37 @@ function parseAge(raw: string | null): TargetAge | null {
     : null;
 }
 
+/** URL → 表示基準。`age` が無ければ実測値（既定、ADR-0007）。 */
+function readTargetAge(params: URLSearchParams): TargetAge | null {
+  return parseAge(params.get("age"));
+}
+
 /**
- * 表示基準と `?age=` の同期。`null` は実測値で、既定（ADR-0007）。
+ * 表示基準 → 検索文字列。実測値（既定）は `age` を出さない。年齢そろえなら
+ * 35歳でも出す——`age` の有無そのものが表示基準を表しているため（ADR-0007）。
+ */
+function targetAgeSearch(targetAge: TargetAge | null): string {
+  return targetAge === null ? "" : `age=${targetAge}`;
+}
+
+/**
+ * 表示基準と `?age=` の同期。
  *
- * `useRouter()` は使わない（RSCペイロード再フェッチによるネットワーク発生・競合状態。
- * U5 で踏んだ。`docs/ranking/url-sync/design.md`）。`window.history.pushState` を直接呼ぶ。
+ * 規則はランキングと同じもの（`lib/history/useLocationSyncedState`）を使う。
+ * **以前はここに同じ処理を書き写していて、ランキング側だけを直すと企業詳細に
+ * 同じ壊れ方が残る形になっていた**（Issue #108: ランキングへ遷移してから戻ると、
+ * 抜けていく途中のこのフックがランキングのURLを `?age=` だけに書き潰し、
+ * 画面は企業ページのまま動かなくなっていた）。
  *
- * `useRankingState` を共用しない。あちらは7つの値とページ番号を持ち、その大半は
- * 企業ページに存在しない概念になる。ここは値が1つなのでデバウンスも
- * `pushState`/`replaceState` の出し分けも要らない。
+ * `useRankingState` を共用しないのは変わらない。あちらは7つの値とページ番号を持ち、
+ * その大半は企業ページに存在しない概念になる。
  */
 function useTargetAge(initialAge: TargetAge | null) {
-  const [targetAge, setTargetAge] = useState<TargetAge | null>(initialAge);
-
-  useEffect(() => {
-    const onPopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      setTargetAge(parseAge(params.get("age")));
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
-
-  useEffect(() => {
-    // 実測値（既定）は `age` を出さない。年齢そろえなら35歳でも出す——
-    // `age` の有無そのものが表示基準を表しているため（ADR-0007）。
-    const next = targetAge === null ? "" : `?age=${targetAge}`;
-    if (next === window.location.search) return;
-    window.history.pushState(null, "", `${window.location.pathname}${next}`);
-  }, [targetAge]);
+  const [targetAge, setTargetAge] = useLocationSyncedState(
+    initialAge,
+    readTargetAge,
+    targetAgeSearch
+  );
 
   return { targetAge, setTargetAge };
 }

@@ -124,3 +124,97 @@ test.describe("URLクエリとの同期", () => {
     expect(urlA).toBe(urlB);
   });
 });
+
+/**
+ * ページを跨いだ戻る/進む（Issue #108）。
+ *
+ * 戻ったときの `RankingApp` は**サーバーが渡した初期値では作り直されない**——
+ * Next.js はルーターキャッシュに載っている RSC ツリーをそのまま返すので、初期値は
+ * 「そのツリーを作ったときのURL」の値になる。URL を正として読み直せているか、
+ * そして**抜けていくページが行き先のURLを書き潰していないか**をここで固定する。
+ */
+test.describe("ページを跨いだ戻る/進む", () => {
+  test("2ページ目から企業ページへ入って戻ると、2ページ目に戻る", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "次のページへ" }).click();
+    await expect(page).toHaveURL(/[?&]page=2/);
+
+    const firstRow = page.getByRole("table").locator("tbody tr a[href^='/company/']").first();
+    const name = (await firstRow.textContent())?.trim();
+    await firstRow.click();
+    await expect(page).toHaveURL(/\/company\//);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/[?&]page=2/);
+    // URL だけでなく中身も2ページ目であること（1ページ目に描き替わっていない）。
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("ランキング");
+    await expect(
+      page.getByRole("table").locator("tbody tr a[href^='/company/']").first()
+    ).toHaveText(name!);
+
+    // 進むで企業ページへ戻れる（戻った先で pushState すると進む先が消える）。
+    await page.goForward();
+    await expect(page).toHaveURL(/\/company\//);
+  });
+
+  test("絞り込んだ状態から企業ページへ入って戻ると、絞り込みが残る", async ({ page }) => {
+    await page.goto("/?age=35&ind=銀行業");
+    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+
+    await page.getByRole("table").locator("tbody tr a[href^='/company/']").first().click();
+    await expect(page).toHaveURL(/\/company\//);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/[?&]ind=/);
+    // 企業ページ側の `?age=` 同期がランキングのURLを書き潰していないこと。
+    // 書き潰すと Next.js は浅い遷移として扱い、**画面は企業ページのまま**になる。
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("35歳年収ランキング");
+    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+  });
+
+  test("クエリの並びが正規形でないURLでも、履歴が増えず、戻ればランキングに戻る", async ({
+    page,
+  }) => {
+    // `?ind=…&age=…` は `buildSearchParams` の並び（age → ind）と違う。
+    // 正規形に書き直して pushState すると、**戻っても同じページに留まる**
+    // 履歴が1件挟まる（しかもハイドレート中に積まれるためルーター状態を持たず、
+    // 戻ってもページが切り替わらない行き止まりになる）。
+    await page.goto("/about"); // 履歴の基準を作る
+    const before = await page.evaluate(() => history.length);
+
+    await page.goto("/?ind=銀行業&age=35");
+    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await page.waitForTimeout(300);
+
+    expect(await page.evaluate(() => history.length)).toBe(before + 1);
+    await expect(page).toHaveURL(/ind=.*age=35/);
+
+    // 行き止まりの履歴を挟んでいると、戻っても**画面が企業ページのまま**動かない。
+    await page.getByRole("table").locator("tbody tr a[href^='/company/']").first().click();
+    await expect(page).toHaveURL(/\/company\//);
+    await page.goBack();
+    await expect(page).toHaveURL(/ind=/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("35歳年収ランキング");
+  });
+
+  test("検索欄に打った文字数だけ履歴が増えない", async ({ page }) => {
+    await page.goto("/");
+    const before = await page.evaluate(() => history.length);
+
+    await page.getByRole("searchbox", { name: "会社名で検索" }).pressSequentially("トヨタ自動車", {
+      delay: 60,
+    });
+    await expect(page).toHaveURL(/[?&]q=/);
+    await page.waitForTimeout(300);
+
+    // 6文字打っても履歴は1件（検索を始めた1回ぶん）。
+    expect(await page.evaluate(() => history.length)).toBe(before + 1);
+
+    // 戻ると検索を始める前の一覧に戻る。
+    await page.goBack();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("searchbox", { name: "会社名で検索" })).toHaveValue("");
+  });
+});
