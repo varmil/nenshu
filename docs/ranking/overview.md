@@ -100,7 +100,7 @@ ADR-0006 で決めたインデックス戦略を実装する Unit。
 
 **`?age=N&ind=X` の寄せ先は業種側（`/?ind=X`）に決め直した**（ADR-0006 の追記）。ADR-0006 が「U8 の実装時に再考する」としていた1点で、根拠は「主軸がどちらか」ではなく「どちらと重複しているか」に置いた。**`page` は `/` へ寄せず自己canonical にした**のも同じ追記にある。詳細は `docs/ranking/search-discovery/design.md`。
 
-**OGP はこの Unit に含めない。** ADR-0006 が決めたのは canonical・sitemap・robots で、OG画像・構造化データ（JSON-LD）は別の Unit として起票する。
+**OGP はこの Unit に含めない。** ADR-0006 が決めたのは canonical・sitemap・robots で、OG画像・構造化データ（JSON-LD）は **site-chrome 施策の S2** として起票した（`docs/site-chrome/spec.md` 4.）。**`og:url` は U8 の `rankingCanonical()` を通す**ので、S2 はこの Unit の後になる。
 
 ## Bolt 2 以降
 
