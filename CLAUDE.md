@@ -159,6 +159,7 @@ Unit の実装を終えたら、次の順で進める。
 - **「有価証券報告書」は全ページの description に入れ、タイトルは `/` だけに入れる。** 競合6社（Zaimiru・OpenMoney・OpenWork・Yahoo!しごとカタログ・Ullet・J-LiC）のタイトルを実測すると、競っているのは鮮度と規模で、有報を置いているものは1つも無かった。うち3社はデータ元が同じ有報である——**「有報ベース」はデータ源として独自なのではなく、それを明示していることが差別化になる**（口コミベースの数字と並んだときに読者が見分けられる）。`?age=N`・`?ind=X` に入れないのは「◯歳」「業種名」のほうが情報量が高いため
 - **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを `app/layout.tsx` ではなく `app/page.tsx` の `generateMetadata` が組み立てているのはそのため
 - **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
+- **`workers_dev` と `preview_urls` は対で書く。** `preview_urls` の既定値は `preview_urls = workers_dev`（wrangler 4.44.0 以降）なので、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで無効になる**。しかもこの既定は**デプロイのたびに適用される**ため、ダッシュボードで有効にしても次のデプロイで落ちる——2026-08-21 に「ブランチデプロイが勝手にOFFになる」として2度踏んだ。**Cloudflare の設定はダッシュボードで直さない。`wrangler.jsonc` に書かないと次のデプロイで戻る**
 
 **Issue #21（UI改善・Claude Design の `改善案.dc.html`）に着手中。** アートボード 5a/5b/5c（実測値モード）は U11、4a/2a/5c（レイアウト刷新）は **U12（Issue #80）で実装済み**。残りは、**C2（Issue #83）も実装済みで、Issue #21 のアートボードは全て実装した**（T0・T1 も込み）。計画は `~/.claude/plans/tingly-sleeping-puppy.md`。
 
