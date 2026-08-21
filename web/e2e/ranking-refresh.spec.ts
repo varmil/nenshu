@@ -517,8 +517,8 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     const rowBox = (await row.boundingBox())!;
     const salaryBox = (await salary.boundingBox())!;
 
-    // 金額ブロックは 88px（w-22）。
-    expect(barBox.width).toBeCloseTo(88, 0);
+    // 金額ブロックは 80px（w-20）。4桁のとき金額とバーの幅が揃うことを狙った値。
+    expect(barBox.width).toBeCloseTo(80, 0);
     // **バーは PC の表の半分の3px**（Issue #119）。88px の器で6pxだと金額より強い。
     expect(barBox.height).toBeCloseTo(3, 0);
     // **数値の左端とバーの左端が揃う。** 金額を左寄せにした狙いがこれで、桁数の少ない
