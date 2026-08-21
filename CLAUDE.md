@@ -238,7 +238,7 @@ Unit の実装を終えたら、次の順で進める。
 - **`/` に `logos.json` を丸ごと渡さない**（gzip 41.7KB）。渡すのは**ロゴの有無だけ**——`companies.rows` と同じ並びの1,867文字の文字列（gzip 約250B）。**縦横比は渡さない**——器の寸法が固定で中身は `object-contain` なので、画像が届いてもレイアウトは動かない。企業詳細ページはマスクではなくその画面に出る46社ぶんのIDだけを渡す
 - **器は横長。** 表 88×40／モバイルと近傍5社 48×38／企業詳細 136×62。**高さはモックのまま、幅だけ広げてある**（`features/logo/components/CompanyLogo.tsx`）。**モバイルを48pxに留めたのは、56px以上にすると meta 行の従業員数が丸ごと消えるため**（実測。器を広げる前から10pxはみ出していた）
 - **ダークで濃いロゴが沈むので、器に `--logo-surface` の明るい面を敷く。** 色を反転させる加工はしない（商標をそのままの形で出す）。**ダークだけ少し落としてある**——白のままだと1ページに30枚並んで眩しい。E2E は `getComputedStyle` が `lab()` を返すので、**キャンバスに描いて sRGB に開いてから**明るさを測っている
-- **E2E の「リクエスト数0」は画像だけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。6ファイル9箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像はこれに反しない
+- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。8ファイル11箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
 - **`/about` の帰属表示は `attr: true` の44社だけ。** パブリックドメインの394社は並べない（本当に帰属が要るものが埋もれる）
 
 **戻る/進むは `web/lib/history/useLocationSyncedState.ts` の3規則が正**（U14・`docs/ranking/back-navigation/`、親 Issue #108・Issue #121）。ページを跨いで戻ると絞り込み・ページ番号・表示基準が消えていたのを直した。
