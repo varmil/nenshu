@@ -11,6 +11,8 @@
 | C2 | 企業詳細ページのレイアウト刷新 | C1, U12, T0 | AC-11〜AC-16 | Claude Design のアートボード 4b/2b。**timeseries 施策の T1（AC-6〜AC-11）を同梱する**。`buildStats` に中位とヒストグラムを足す。Issue #83 |
 | C3 | 企業詳細のモック合わせ | C2, U13 | AC-11〜AC-16 | Claude Design のアートボード 4b/2b/5b を直接読んで見た目を合わせる。Issue #89 |
 
+**戻る/進むでの表示基準の復元は ranking 施策の U14（Issue #121）で直した。** ランキングを見てから戻ったときに `?age=` が失われ、**画面が企業ページのまま URL だけランキングになる**壊れ方があった（親 Issue #108）。`useTargetAge` の同期は `web/lib/history/useLocationSyncedState.ts` を使う形になっている——**規則をここに書き写さないこと**が修正の要点なので、`?age=` の扱いを変えるときはそちらを読む（`docs/ranking/back-navigation/design.md`）。
+
 **表示基準（実測値 / 年齢そろえ）の追加は ranking 施策の U11（Issue #71）で行った。** 施策としては company だが、既定の表示基準が2ページで食い違う期間を作らないため、ランキングと同じ Unit・同じ PR で企業詳細ページも変えている（ADR-0007、`docs/ranking/salary-basis/`）。AC-1〜AC-3・AC-4・AC-5・AC-9 がこれに合わせて改訂された。
 
 `docs/ranking/overview.md` の **U8（検索エンジン向け導線）は C1 に依存する**（sitemap に企業ページのURLを載せるため）。施策は別だが順序としては C1 の後になる。
