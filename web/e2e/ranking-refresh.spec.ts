@@ -517,8 +517,10 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     const rowBox = (await row.boundingBox())!;
     const salaryBox = (await salary.boundingBox())!;
 
-    // 金額ブロックは 96px（w-24）。
-    expect(barBox.width).toBeCloseTo(96, 0);
+    // 金額ブロックは 88px（w-22）。
+    expect(barBox.width).toBeCloseTo(88, 0);
+    // **バーは PC の表の半分の3px**（Issue #119）。88px の器で6pxだと金額より強い。
+    expect(barBox.height).toBeCloseTo(3, 0);
     // **数値の左端とバーの左端が揃う。** 金額を左寄せにした狙いがこれで、桁数の少ない
     // 会社でも崩れない（下の「金額の左端はどの行でも同じ」で全行を見ている）。
     expect(Math.abs(barBox.x - salaryBox.x)).toBeLessThanOrEqual(1);
@@ -526,6 +528,13 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     expect(Math.abs(barBox.x + barBox.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(2);
     // 行の半分より右——順位・ロゴ・社名の下には掛からない。
     expect(barBox.x).toBeGreaterThan(rowBox.x + rowBox.width / 2);
+  });
+
+  test("PC の表のバーは 6px のまま（細くしたのはモバイルの行だけ）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+    const bar = rows(page).first().locator('[aria-hidden="true"]').last();
+    expect((await bar.boundingBox())!.height).toBeCloseTo(6, 0);
   });
 
   test("金額の左端はどの行でも同じで、バーの左端と揃う", async ({ page }) => {
