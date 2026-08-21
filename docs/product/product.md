@@ -27,6 +27,7 @@
 | company | 企業詳細ページ | 着手中 | `docs/company/` |
 | site-chrome | サイト共通の外装（ヘッダ・表示モード） | 着手中 | `docs/site-chrome/` |
 | timeseries | 平均年収の10年推移 | 着手中 | `docs/timeseries/` |
+| logo | 企業ロゴ | 着手中 | `docs/logo/` |
 | market-data | 株価推移・信用格付け | 未着手（データ調達の可否から） | — |
 | monetize | 収益化（広告・アフィリエイト） | 未着手 | — |
 
