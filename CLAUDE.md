@@ -61,6 +61,10 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 - `package.json`（ルート・`pipeline/`・`web/` それぞれ）を変更したら、その場で `npm install` を実行して対応する `package-lock.json` を更新し、同じコミット・同じPRに含める。ロックファイルが `package.json` とずれた状態でマージしない。
 - **`web/` のロックファイルを更新したら、ローカルのnpmバージョンではなく `npx npm@10.9.2 ci`（Cloudflareのビルド環境が使うバージョン。変わっていたらビルドログの `Detected the following tools` 行で確認）で `npm ci` が通ることを確認する。** ローカルのnpmが新しいと、optionalDependencies（`@emnapi/*` 等）の解決がnpmバージョン間で微妙に異なり、ローカルでは通るのにCloudflareの `npm ci` だけ「lock fileとずれている」で失敗することがある（実際に2回発生した）。**このルールは `web/` に限る。** Cloudflareがビルドするのは `web/` だけで、ルートと `pipeline/` はCIの対象外のため、ローカルのnpmで `npm ci` が通ることの確認で足りる。
 - **見た目（レイアウト・レスポンシブ・キーボード操作等）または機能に変更があるときは、Unitテスト（統合テスト含む）とE2Eテスト（`web/e2e/`, `npm run test:e2e`）の両方を書き、リポジトリに残す。** その場限りの動作確認で済ませない。ロジックの正しさはUnitテストで固定し、実際にブラウザでどう描画・動作するか（型チェック・Unitテストでは検出できない領域）はE2Eで固定する。U3でこの運用により実際にモバイル幅の横スクロールバグを検出できた（`docs/ranking/ranking-filters/design.md`参照）。既存のE2Eファイル（例: `web/e2e/ranking-filters.spec.ts`）に該当する変更なら新規ファイルを増やさずそこに追記してよい。
+- **Claude Code on the web のセッションは `.claude/hooks/session-start.sh` が整える。** コンテナは毎回まっさらでクローンされるので、これが無いと `node_modules` が無い状態から始まる。中身は3つのワークスペースの `npm ci` と、`PLAYWRIGHT_CHROMIUM_PATH` を `$CLAUDE_ENV_FILE` に書くこと。**`$CLAUDE_CODE_REMOTE` で囲ってあるのでローカルでは何もしない。** 依存を足したりコマンドを増やしたらこのフックも直す
+  - **`npm install` ではなく `npm ci`。** lock を書き換えないので、セッション開始時点で作業ツリーが汚れない（上の2つの約束と同じ理由）
+  - **ルートの `npm ci` が husky の `prepare` を走らせ、`.husky/pre-commit`（lint-staged → lint・typecheck・vitest）を有効にする。** これが無いと web セッションのコミットだけがゲートを素通りする（実際に素通りしていた）
+  - **Playwright の Chromium はコンテナのものを使う。** Playwright 1.62 が同梱を期待するのは 151（rev 1234）だが、入っているのは 141（rev 1194）だけ。`playwright.config.ts` の `PLAYWRIGHT_CHROMIUM_PATH` に渡して通す。**取り直さない**——環境側が `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` で止めている
 
 ## Unit の起票（着手前）
 
@@ -242,7 +246,7 @@ Unit の実装を終えたら、次の順で進める。
 - **`/` に `logos.json` を丸ごと渡さない**（gzip 41.7KB）。渡すのは**ロゴの有無だけ**——`companies.rows` と同じ並びの1,867文字の文字列（gzip 約250B）。**縦横比は渡さない**——器の寸法が固定で中身は `object-contain` なので、画像が届いてもレイアウトは動かない。企業詳細ページはマスクではなくその画面に出る46社ぶんのIDだけを渡す
 - **器は横長。** 表 88×40／近傍5社 48×38／モバイルのランキング行 68×48（`size="row"`）／企業詳細 136×62。**高さはモックのまま、幅だけ広げてある**（`features/logo/components/CompanyLogo.tsx`）。**モバイルは 48×38 に留めていた**——56px以上にすると meta 行の従業員数が丸ごと消えたため（実測）。**Issue #119 で行を4カラムにして meta から従業員数を落としたので、この制約は外れた**（削られる相手が無くなった）
 - **ダークで濃いロゴが沈むので、器に `--logo-surface` の明るい面を敷く。** 色を反転させる加工はしない（商標をそのままの形で出す）。**ダークだけ少し落としてある**——白のままだと1ページに30枚並んで眩しい。E2E は `getComputedStyle` が `lab()` を返すので、**キャンバスに描いて sRGB に開いてから**明るさを測っている
-- **E2E の「リクエスト数0」は画像だけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。6ファイル9箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像はこれに反しない
+- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。8ファイル11箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
 - **`/about` の帰属表示は `attr: true` の44社だけ。** パブリックドメインの394社は並べない（本当に帰属が要るものが埋もれる）
 
 **戻る/進むは `web/lib/history/useLocationSyncedState.ts` の3規則が正**（U14・`docs/ranking/back-navigation/`、親 Issue #108・Issue #121）。ページを跨いで戻ると絞り込み・ページ番号・表示基準が消えていたのを直した。
