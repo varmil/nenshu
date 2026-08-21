@@ -43,7 +43,7 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 
 理由は ADR-0001・ADR-0002・ADR-0004にある（ADR-0004がADR-0001の「サーバー実行環境は要らない」・ADR-0002の`output:'export'`を一部supersede）。
 
-**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ（`useRankingState`参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、現状1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持しているため、`<Link>`にする意味が無く使っていない（U6・Issue #22参照）。
+**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ。**規則は`web/lib/history/useLocationSyncedState.ts`の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、現状1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持しているため、`<Link>`にする意味が無く使っていない（U6・Issue #22参照）。
 
 ## エージェントが従う優先順位
 
@@ -146,7 +146,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
@@ -242,6 +242,14 @@ Unit の実装を終えたら、次の順で進める。
 - **ダークで濃いロゴが沈むので、器に `--logo-surface` の明るい面を敷く。** 色を反転させる加工はしない（商標をそのままの形で出す）。**ダークだけ少し落としてある**——白のままだと1ページに30枚並んで眩しい。E2E は `getComputedStyle` が `lab()` を返すので、**キャンバスに描いて sRGB に開いてから**明るさを測っている
 - **E2E の「リクエスト数0」は画像だけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。6ファイル9箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像はこれに反しない
 - **`/about` の帰属表示は `attr: true` の44社だけ。** パブリックドメインの394社は並べない（本当に帰属が要るものが埋もれる）
+
+**戻る/進むは `web/lib/history/useLocationSyncedState.ts` の3規則が正**（U14・`docs/ranking/back-navigation/`、親 Issue #108・Issue #121）。ページを跨いで戻ると絞り込み・ページ番号・表示基準が消えていたのを直した。
+
+- **マウント時は URL が正。** 戻ると Next.js はルーターキャッシュの RSC ツリーをそのまま返すので、サーバーが渡す `initialState` は**そのツリーを作ったときのURL**の値（＝古い）になる。これで URL を上書きすると `?page=2` が `/` に戻り、**進む先の履歴まで消える**
+- **URL へ書くのは、アプリ側の操作で値が変わったときだけ**（setter を包んで印を付けている）。**「マウント後の1回目だけ飛ばす」という数え方にしない**——開発サーバーの StrictMode は effect を2回走らせるので2回目が漏れる（実際に漏れていた）
+- **自分のパスを離れたら書かない・読まない。** **Next.js は `pushState` を浅い遷移として扱う**ので、抜けていくページが行き先のURLを書くと**URLだけ次のページ・画面は前のページ**の行き止まりになる（企業詳細 → ランキングの戻るで実際に起きていた）
+- **検索語だけはフックを通さない。** `q` が付く／外れる境目だけ `push`、打ち替えは `replace`（`queryBroadcast.ts` の `buildQueryLocation`）。以前は1文字ごとに `pushState` していて「トヨタ自動車」で履歴が6件増えていた
+- **スクロール位置は自前で復元しない。** ブラウザが正しく戻している。E2E で戻らないように見えたのは、**Playwright の `click()` がクリック前に対象をビューポートへスクロールする**ため——戻る/進むの位置を測るときは画面内にある要素を押すこと
 
 **未解決の課題:**
 

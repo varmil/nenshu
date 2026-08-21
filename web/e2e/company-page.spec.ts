@@ -282,3 +282,27 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("combobox", { name: "業種" })).toContainText("電気機器");
   });
 });
+
+/**
+ * 企業ページを離れて戻ってくる（Issue #108）。表示基準はURLの `?age=` が正なので、
+ * ルーターキャッシュから復元された古い初期値（実測値）で上書きしない。
+ */
+test.describe("ランキングとの行き来", () => {
+  test("年齢そろえにしてランキングへ行き、戻ると年齢そろえのまま", async ({ page }) => {
+    await page.goto("/company/6861");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
+
+    await page.getByRole("link", { name: "ランキング" }).first().click();
+    await expect(page).toHaveURL(/\/$/);
+
+    await page.goBack();
+
+    await expect(page).toHaveURL(/\/company\/6861\?age=35$/);
+    await expect(page.getByRole("button", { name: "年齢そろえ" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+  });
+});
