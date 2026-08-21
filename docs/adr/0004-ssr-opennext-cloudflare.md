@@ -87,6 +87,8 @@ SSRに切り替えた結果、**「同じURLに対して何を、どこに、ど
 
 **`_next/static/*` が `immutable` で1年持つことが効いている。** 古いHTMLを持っているブラウザは、たいてい古いチャンクも持っている。**両方が揃っていれば古いまま正しく動く。** 壊れるのは片方だけ古いときで、それは「HTMLがネットワークから来て、チャンクは手元に無い」＝**エッジがデプロイ前のHTMLを配ったとき**にあたる。
 
+**そして下の実測のとおり、現在のエッジはデプロイをまたがない。** つまり**この成立条件に届く経路は、いま確認できる範囲では残っていない。** 2026-08-18 の記録（デプロイをまたいだ実測）が当時は成立していたのなら、症状はCloudflare側の挙動が変わった時点で解消しているはずである。**原因を断定はしない**——症状が再発したら、まず下の手順でエントリの出自を確かめること。
+
 **Next.js のビルドID不一致ガードは遷移だけを守る。** `fetch-server-response.js` に検出があり、クライアント遷移では自動でフルリロードに落ちる（旧ビルドのタブから会社ページへ飛ぶ実験で `doMpaNavigation` が働き、正常に表示された）。**初回ロードのHTMLが古い場合は守られない。** だから `deploymentId` を足しても解決しない。
 
 ### ブラウザにHTMLを持たせない（2026-08-21）
@@ -155,34 +157,36 @@ E2E_BASE_URL=http://127.0.0.1:3801 npx playwright test e2e/cache-headers.spec.ts
 
 「RSC応答を一律キャッシュ対象外にする」案は採らない。`_rsc` のハッシュはルーター状態ツリーから決まり、`/` から会社ページへ飛ぶときの値は全読者で共通なので、今エッジで共有できているものを捨てることになる。
 
-### 残っている問題: エッジがデプロイ前のHTMLを配りうるか（未決着）
+### エッジはデプロイをまたがない（2026-08-21 実測）
 
-**上の再現条件から、全画面エラーの原因はここに絞られる。** この節が本ADRで唯一開いている論点である。
+**上の再現条件から、全画面エラーの原因は「エッジがデプロイ前のHTMLを配りうるか」に絞られていた。** 本ADRで唯一開いていた論点で、[Cloudflare公式](https://developers.cloudflare.com/workers/cache/configuration/)の「Workers Cache のキャッシュキーにWorkerのバージョンが入る」（"a new deployment starts from an empty cache and never serves responses written by a previous version"）と、2026-08-18の実測（デプロイ直後に `/?age=25` が `cf-cache-status: HIT` / `age: 519` で旧ビルドの値を返した）が食い違っていた。
 
-[Cloudflare公式](https://developers.cloudflare.com/workers/cache/configuration/)は、Workers Cache のキャッシュキーにWorkerのバージョンが入ると明記している（"Each deployed version has its own isolated cache, so a new deployment starts from an empty cache and never serves responses written by a previous version"）。跨がせるには `cache.cross_version_cache: true` が要る（既定 `false`、未設定）。**これが本当なら、エッジは原理的にデプロイ前のHTMLを配れず、エラーは起きないはずである。**
+**プレビュー環境で偶然その比較ができ、公式の説明どおりだった。** RSC汚染の検証中に、ブランチのプレビューURLに `307 → /?_rsc` をキャッシュさせた。その約13分後に次のコミットをデプロイすると、`s-maxage=86400` がまだ生きているにもかかわらずエントリは消えていた。
 
-**しかし、それと矛盾する実測が2026-08-18に記録されている。** ADR-0005（推定式の変更）のデプロイ直後、`/?age=25` が `cf-cache-status: HIT` / `age: 519` で旧ビルドの値を返した（`docs/ranking/ssr-migration/design.md`）。運営者が実際に全画面エラーを見ているという報告とも整合する。
+| ホスト | デプロイ | 汚染したエントリ |
+| --- | --- | --- |
+| プレビュー | 汚染の13分後に新バージョンをデプロイ | **消えた**（`cf-cache-status: MISS`、正しいHTMLを返す） |
+| 本番 | デプロイなし | **残っている**（`cf-cache-status: HIT` / `age: 9504`、汚染したまま） |
 
-2026-08-21 時点の観測では矛盾は再現していない。最終デプロイは 13:06:15Z で、その時点でキャッシュされていた4URL（`/`・`/sitemap.xml`・`/robots.txt` ほか）の `age` はいずれもデプロイ以降に作られた値だった。**ただしトラフィックが少ないので「古いエントリが無い」ことの証明にはならない。**
+対照になっているので、消えた理由はTTL切れでも偶然の追い出しでもなく**デプロイである**と読める。
 
-**次のデプロイ直後に、この手順で決着させる。**
+**結論として、現在のエッジはデプロイ前のHTMLを配らない。** 2026-08-18 の記録との食い違いは、Cloudflare 側の挙動がその後に変わった（`cross_version_cache` オプション自体が wrangler 4.107.0 以降の新しい追加である）ためと考えるのが自然だが、当時の記録を再検証する手立ては無い。
+
+**したがって `s-maxage` を下げる必要もデプロイ時パージを入れる必要も無い。** ただし**この挙動に依存した設計にはしない**——ブラウザにHTMLを持たせない判断は、バージョン分割の有無と無関係に成り立つ理由（再訪時の鮮度）で決めている。
+
+デプロイ直後に疑わしい挙動を見たときは、次の手順でエントリの出自を確かめる。
 
 ```bash
 # デプロイ時刻を取る（Zone ではなく Account スコープ）
 curl -sS -H "Authorization: Bearer $CF_TOKEN" \
   "https://api.cloudflare.com/client/v4/accounts/$CF_ACCT/workers/scripts/nenshu/deployments"
-# age がデプロイからの経過秒数を超えるエントリがあれば、キャッシュはデプロイを跨いでいる
+# age がデプロイからの経過秒数を超えていれば、そのエントリはデプロイを跨いでいる
 curl -sSI https://openreport.net/ | grep -iE "cf-cache-status|age"
 ```
 
-**跨いでいると分かった場合の手当ては2つ。** どちらも運営者の判断が要る。
-
-- **デプロイ時に `purge_cache` を叩く。** Zone の Cache Purge 権限を持つ専用トークンをビルド環境に置き、デプロイコマンドの後段で実行する
-- **`s-maxage` を下げる。** 数分まで下げればデプロイが行き渡る時間もそれだけになる。ただし**これは2026-08-18に「下げない」と判断した事項**（Worker の呼び出し回数を消費する側に振ることになるため）なので、事実が確定してから改めて決める
-
 ### やらないと決めたもの
 
-- **デプロイ時のキャッシュパージ。** 公式どおり Workers Cache がバージョンで分かれるなら不要（"each deployment already starts from a cold cache"）。**上の未決着が「跨ぐ」側に確定したら、これが第一候補になる。** 現時点で入れないのは、効果があるかどうかが確かめられていない対策をビルド環境の秘密情報と引き換えに足すことになるため
+- **デプロイ時のキャッシュパージ。** 上の実測どおりエッジがデプロイをまたがないので不要（公式も "each deployment already starts from a cold cache"）。入れればビルド環境に Zone の Cache Purge 権限を持つトークンを置くことになる。効果の無い対策と引き換えにする理由が無い
 - **`deploymentId` / OpenNext の `skewProtection`。** ビルドIDによる不一致検出が既に動いており（同一コミットの2回のビルドでBUILD_IDが別物になることも確認済み＝毎回ランダム）、守られる範囲は同じ。`skewProtection` は `run_worker_first: true` を要求するため**静的アセットのリクエストが全部Workerの呼び出し数に乗る**うえ、[opennextjs-cloudflare #1183](https://github.com/opennextjs/opennextjs-cloudflare/issues/1183) が Next.js 16.2 以降で壊れると報告している（本プロジェクトは 16.3.1）
 - **ゾーンの Cache Rules（"Cache Everything"）。** 2026-08-21 に一度入れて外した。ゾーンのCDNキャッシュは Workers Cache とは別物で**バージョン分割されない**ため、Workers Cache が防いでいるものをわざわざ持ち込むことになる。またキャッシュキーもTTLも変えないので、上の2つの問題には効かない
 
