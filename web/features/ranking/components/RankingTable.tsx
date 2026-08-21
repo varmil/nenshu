@@ -52,17 +52,11 @@ export function RankingTable({
             <TableHead>会社名</TableHead>
             <TableHead className="w-44">
               {/*
-                実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。
-                有報そのままの数字に推定の体裁を被せない。
+                実測値では「推定」の語を出さない（spec AC-9）。有報そのままの数字に
+                推定の体裁を被せない。年齢そろえのときも**見出しの語の隣にバッジを
+                重ねない**——「推定年収（35歳）推定」と同じ語が2つ並ぶ（Issue #128）。
               */}
-              {isRaw ? (
-                "平均年収（有報）"
-              ) : (
-                <span className="flex items-center gap-1.5">
-                  推定年収（{targetAge}歳）
-                  <Badge variant="secondary">推定</Badge>
-                </span>
-              )}
+              {isRaw ? "平均年収（有報）" : `推定年収（${targetAge}歳）`}
             </TableHead>
             <TableHead className="w-20 text-right">偏差値</TableHead>
           </TableRow>

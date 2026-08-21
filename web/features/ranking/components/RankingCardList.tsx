@@ -80,12 +80,11 @@ export function RankingCardList({
                 <CompanyMetaLine company={company} compact />
                 <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
                   {/*
-                    **実測値のときは何も添えない**（アートボード 5c）。有報そのままの
-                    数字に注記を付けると、かえって加工したように見える。年齢そろえの
-                    ときだけ「推定」の一語を行に置く（AC-9）——モバイルには列見出しが
-                    無い。**年齢は書かない**。見出しと帯に出ているため。
+                    **表示基準の語は行に置かない**（Issue #128）。以前は年齢そろえの
+                    ときだけ「推定」の一語を添えていたが、行は30件ぶん縦に繰り返される
+                    ので同じ語が30回並ぶ。推定であることは帯（`ControlBand` のヒント）
+                    と一覧の脚注に出ており、AC-9 はそちらで満たしている。
                   */}
-                  {!isRaw && <span>推定</span>}
                   {population && (
                     <span>
                       偏差値{" "}
