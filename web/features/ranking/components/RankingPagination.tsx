@@ -40,13 +40,32 @@ export function RankingPagination({
 
   if (totalPages <= 1) return null;
 
+  /**
+   * 範囲外の `page` は総ページ数に丸める。行の描画（`buildRankedCompanies`）と
+   * 件数表示（`pageRange`）は既に丸めているので、ここだけ生の `state.page` を
+   * 使っていると表示と番号がずれる。
+   *
+   * **丸めないと無限のクロール空間になる。** `?page=999` は200で最終ページの
+   * 7社を返しつつ `?page=998` と `?page=1000` へのリンクを出しており、
+   * クローラが `?page=1001`・`?page=1002`… とどこまでも歩いてしまう（実測）。
+   */
+  const current = Math.min(Math.max(1, state.page), totalPages);
+
   const hrefFor = (page: number) => {
     const qs = buildSearchParams({ ...state, page }).toString();
     return qs ? `?${qs}` : "/";
   };
 
+  /**
+   * 端では自分自身に向ける。`aria-disabled` と `pointer-events-none` は
+   * **クローラには効かない**——`href` があれば辿るので、`?page=0` や
+   * `?page={totalPages + 1}` を出さないこと自体で防ぐ。
+   */
+  const prevHref = current <= 1 ? hrefFor(current) : hrefFor(current - 1);
+  const nextHref = current >= totalPages ? hrefFor(current) : hrefFor(current + 1);
+
   const goTo = (page: number) => {
-    if (page < 1 || page > totalPages || page === state.page) return;
+    if (page < 1 || page > totalPages || page === current) return;
     startTransition(() => onPageChange(page));
     // 押した位置は表の下（1ページぶん下）なので、そのままだと入れ替わった行が
     // 視界に入らない。ページが実際に変わるときだけ最上部へ戻す（Issue #96）。
@@ -61,16 +80,16 @@ export function RankingPagination({
             <PaginationPrevious
               text="前へ"
               aria-label="前のページへ"
-              href={hrefFor(state.page - 1)}
-              aria-disabled={state.page <= 1}
-              className={state.page <= 1 ? "pointer-events-none opacity-50" : undefined}
+              href={prevHref}
+              aria-disabled={current <= 1}
+              className={current <= 1 ? "pointer-events-none opacity-50" : undefined}
               onClick={(e) => {
                 e.preventDefault();
-                goTo(state.page - 1);
+                goTo(current - 1);
               }}
             />
           </PaginationItem>
-          {getPaginationRange(state.page, totalPages).map((item, index) =>
+          {getPaginationRange(current, totalPages).map((item, index) =>
             item === "ellipsis" ? (
               <PaginationItem key={`ellipsis-${index}`}>
                 <PaginationEllipsis />
@@ -79,7 +98,7 @@ export function RankingPagination({
               <PaginationItem key={item}>
                 <PaginationLink
                   href={hrefFor(item)}
-                  isActive={item === state.page}
+                  isActive={item === current}
                   onClick={(e) => {
                     e.preventDefault();
                     goTo(item);
@@ -94,12 +113,12 @@ export function RankingPagination({
             <PaginationNext
               text="次へ"
               aria-label="次のページへ"
-              href={hrefFor(state.page + 1)}
-              aria-disabled={state.page >= totalPages}
-              className={state.page >= totalPages ? "pointer-events-none opacity-50" : undefined}
+              href={nextHref}
+              aria-disabled={current >= totalPages}
+              className={current >= totalPages ? "pointer-events-none opacity-50" : undefined}
               onClick={(e) => {
                 e.preventDefault();
-                goTo(state.page + 1);
+                goTo(current + 1);
               }}
             />
           </PaginationItem>

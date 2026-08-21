@@ -1,11 +1,14 @@
+import type { Metadata } from "next";
 import { RankingApp } from "@/features/ranking/components/RankingApp";
 import type { CompaniesData, CurvesData, PopulationStats } from "@/features/ranking/types";
+import { industryCounts } from "@/features/ranking/lib/industryCounts";
 import { pickPopulationStats } from "@/features/ranking/lib/population";
 import {
   INITIAL_STATE,
   parseSearchParams,
   searchParamsRecordToURLSearchParams,
 } from "@/features/ranking/lib/urlState";
+import { rankingMetadata } from "@/lib/seo/ranking";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 import { buildLogoMask } from "@/features/logo/lib/mask";
 import companiesData from "../public/data/companies.json";
@@ -21,6 +24,29 @@ const companies = companiesData as CompaniesData;
  * モジュールの読み込み時に1度だけ作る——`/` はリクエストごとに描画されるため。
  */
 const logoMask = buildLogoMask(companies.rows, logosData.byId);
+
+/**
+ * 業種ごとの社数をモジュールの初期化で1度だけ数える——`generateMetadata` は
+ * リクエストごとに走るので、そこで数え直すと Workers の CPU 予算（10ms）を
+ * description 1行のために使うことになる。
+ */
+const INDUSTRY_COUNTS = industryCounts(companies);
+const COUNT_BY_INDUSTRY = new Map(
+  companies.industries.map((industry, index) => [industry, INDUSTRY_COUNTS[index]])
+);
+
+/**
+ * title・description・canonical を searchParams から組み立てる（ADR-0006・U8）。
+ * 判断は `lib/seo/ranking.ts` に閉じてあり、ここは値を渡すだけにしてある。
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}): Promise<Metadata> {
+  const params = searchParamsRecordToURLSearchParams(await searchParams);
+  return rankingMetadata(params, companies, (industry) => COUNT_BY_INDUSTRY.get(industry) ?? 0);
+}
 
 export default async function Home({
   searchParams,

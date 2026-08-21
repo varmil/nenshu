@@ -417,6 +417,6 @@ And 偏差値は全1,867社の分布に対する値のまま（1位が50.0付近
 
 ## 5. 未決事項
 
-- ドメイン名。**`openreport.net` が最有力だが未取得**（2026-08-20 時点。運営者が取る）。canonical・sitemap・OGP の基点になるため、U8 はこれが決まるまで `metadataBase` を1か所に閉じた形で進める。
+- ~~ドメイン名~~ → **`openreport.net` を取得済み**（2026-08-21）。canonical・sitemap の基点は `web/lib/seo/site.ts` の `SITE_ORIGIN` 1か所に閉じてある（U8）。公開ホストは apex 1本で、`www` は apex へ 301 する。**OGP は未着手**（U8 の範囲外・別 Unit）。
 - ~~サイト名~~ → **OpenReport に決定**（`docs/site-chrome/spec.md` 1）。glossary の「使わない語」に抵触しないことを確認済み。
 - ファーストビューに数値以外の説明をどれだけ置くか。SEO と直帰率のどちらを優先するかで変わる。
