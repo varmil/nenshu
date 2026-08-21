@@ -105,6 +105,44 @@ test.describe("計算方法ページ（/about）", () => {
     expect(html).toContain("株式会社みずほ銀行");
   });
 
+  // Issue #120: 390px で式が行の途中で折り返し、続きの行では字下げが消えていた。
+  test("計算式はモバイル幅でも折り返さず、ブロックの中だけを横に送れる", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/about");
+
+    for (const label of ["補正の式", "年収の定義"]) {
+      const formula = page.getByRole("group", { name: label });
+      await expect(formula).toBeVisible();
+
+      // 折り返さない。折り返すと2行目以降の字下げが消えて式の構造が読めなくなる。
+      await expect(formula).toHaveCSS("white-space", "pre");
+
+      // はみ出したぶんは器の中に残っていて、
+      const size = await formula.evaluate((el) => ({
+        scrollWidth: el.scrollWidth,
+        clientWidth: el.clientWidth,
+      }));
+      expect(size.scrollWidth).toBeGreaterThan(size.clientWidth);
+
+      // 実際に横へ送れる。
+      await formula.evaluate((el) => {
+        el.scrollLeft = el.scrollWidth;
+      });
+      expect(await formula.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+
+      // マウスを持たない読者も送れるよう、器そのものに焦点が当たる。
+      await formula.focus();
+      await expect(formula).toBeFocused();
+    }
+
+    // ページごと横に流れてはいない（はみ出しは器の中に閉じている）。
+    const doc = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }));
+    expect(doc.scrollWidth).toBe(doc.innerWidth);
+  });
+
   // ADR-0007: 既定が実測値になったことと、2つの表示基準の違いをここで説明する。
   test("2つの表示基準と、既定が実測値であることが書かれている", async ({ page }) => {
     await page.goto("/about");

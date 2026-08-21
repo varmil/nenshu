@@ -49,6 +49,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/**
+ * 計算式の器（Issue #120）。**折り返さず、はみ出したら器の中だけを横に送る。**
+ *
+ * `<p>` に `<br />` で組んでいた頃は、390px で
+ * `×（カーブ（目標年齢）− カーブ（22` / `歳））` のように行の途中で折り返し、
+ * 続きの行では字下げが消えて式の構造が読めなくなっていた（Issue #120 の報告）。
+ * 折り返しを止めるだけでは画面ごとはみ出すので、`overflow-x-auto` と対で使う。
+ *
+ * `<pre>` にしているのは、字下げ（全角スペース）と改行をそのまま残すため。
+ * **JSX のテキストは行頭の空白と改行を畳んでしまう**ので、中身はテンプレート
+ * リテラルで渡す。
+ *
+ * スクロールする器はキーボードでも送れる必要があるため `tabIndex` を持たせ、
+ * 素の `<pre>` に焦点が当たっても何なのか分かるよう名前を付ける。
+ */
+function Formula({ label, children }: { label: string; children: string }) {
+  return (
+    <pre
+      role="group"
+      aria-label={label}
+      tabIndex={0}
+      className="bg-muted overflow-x-auto rounded-md p-4 font-mono text-sm"
+    >
+      {children}
+    </pre>
+  );
+}
+
 export default function AboutPage() {
   const facts = buildAboutFacts(companies, curvesData as CurvesData);
   const { formulaExample: ex, holdingExample, operatingExample, modelBias: bias } = facts;
@@ -135,22 +163,14 @@ export default function AboutPage() {
           式は2つあります。選んだ目標年齢が、その会社の平均年齢より
           <strong>下（若い側）か上か</strong>で変わります。
         </p>
-        <p className="bg-muted overflow-x-auto rounded-md p-4 font-mono text-sm">
-          目標年齢 ≦ 平均年齢:
-          <br />
-          推定年収 ＝ カーブ（{ex.anchorAge}歳）
-          <br />
-          　　　　　＋（平均年間給与 − カーブ（{ex.anchorAge}歳））
-          <br />
-          　　　　　　×（カーブ（目標年齢）− カーブ（{ex.anchorAge}歳））
-          <br />
-          　　　　　　÷（カーブ（平均年齢）− カーブ（{ex.anchorAge}歳））
-          <br />
-          <br />
-          目標年齢 ＞ 平均年齢:
-          <br />
-          推定年収 ＝ 平均年間給与 × カーブ（目標年齢）÷ カーブ（平均年齢）
-        </p>
+        <Formula label="補正の式">{`目標年齢 ≦ 平均年齢:
+推定年収 ＝ カーブ（${ex.anchorAge}歳）
+　　　　　＋（平均年間給与 − カーブ（${ex.anchorAge}歳））
+　　　　　　×（カーブ（目標年齢）− カーブ（${ex.anchorAge}歳））
+　　　　　　÷（カーブ（平均年齢）− カーブ（${ex.anchorAge}歳））
+
+目標年齢 ＞ 平均年齢:
+推定年収 ＝ 平均年間給与 × カーブ（目標年齢）÷ カーブ（平均年齢）`}</Formula>
         <p>
           若い側は、その会社の賃金カーブが<strong>2つの点を通る</strong>と置いています。
           {ex.anchorAge}歳では業種平均の水準、平均年齢ではその会社の実測の平均年間給与。
@@ -199,9 +219,7 @@ export default function AboutPage() {
           0003425893）。一般労働者・男女計・学歴計・企業規模計・民営事業所の値を使っています。
         </p>
         <p>年収は次の定義で組み立てています。</p>
-        <p className="bg-muted rounded-md p-4 font-mono text-sm">
-          年収 ＝ きまって支給する現金給与額 × 12 ＋ 年間賞与その他特別給与額
-        </p>
+        <Formula label="年収の定義">{`年収 ＝ きまって支給する現金給与額 × 12 ＋ 年間賞与その他特別給与額`}</Formula>
         <p>
           有価証券報告書の「平均年間給与」も賞与と時間外手当を含むため、定義を揃えています。
         </p>
