@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
       {
         source: "/",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=3600" },
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
           {
             key: "Cloudflare-CDN-Cache-Control",
             value: "public, s-maxage=86400, stale-while-revalidate=604800",
@@ -56,24 +56,24 @@ export default nextConfig;
 initOpenNextCloudflareForDev();
 ```
 
-### デプロイしてもエッジの古いHTMLは消えない（既知・許容している）
+### デプロイしてもエッジの古いHTMLは消えない（2026-08-21 に見直した）
 
-`s-maxage=86400` なので、**デプロイ直前にキャッシュされたURLは最大24時間ぶん古い内容を返し続ける。** `/` は `searchParams` ごとに別のキャッシュエントリになるため、年齢・フィルタの組み合わせごとに個別に古いまま残る。
+**ここに書いていた「デプロイ直前にキャッシュされたURLは最大24時間ぶん古い内容を返し続ける」は、Cloudflare公式の説明と食い違っている。** Workers Cache はキャッシュキーにWorkerのバージョンを含むため、本来デプロイのたびに空から始まるはずである。決着していない。経緯・現時点の観測・確認手順は **ADR-0004「デプロイとエッジキャッシュの関係は決着していない」** にまとめた。
 
-ADR-0005（推定式の変更）のデプロイ直後に実際に踏んだ。Worker自体は新しいコードなのに `/?age=25` が `cf-cache-status: HIT` / `age: 519` で旧値の1,642万円を返し、キャッシュを避けるクエリを足すと新値の788万円が返る、という状態になった。同じ時点で `/about` は新しい内容だった（そちらはキャッシュが入れ替わっていた）ため、**ランキングの金額と `/about` の式が食い違って見えうる**。
+当時の実測は次のとおり（記録として残す）。ADR-0005（推定式の変更）のデプロイ直後、Worker自体は新しいコードなのに `/?age=25` が `cf-cache-status: HIT` / `age: 519` で旧値の1,642万円を返し、キャッシュを避けるクエリを足すと新値の788万円が返った。同じ時点で `/about` は新しい内容だった。
 
-`nenshu.fkmks-247.workers.dev` はCloudflare側のゾーンで、こちらのAPIトークンではパージできない。設定でしか対処できない。
-
-**それでもTTLは短くしない（ユーザー判断・2026-08-18）。** データ更新は年1回、コードのデプロイも頻繁ではなく、最大24時間の遅延は許容する。`s-maxage` を300〜600秒に下げればデプロイが数分で行き渡るが、Worker の呼び出し回数（無料枠100k req/day、CPU 10ms/req）を消費する側に振ることになる。
+**TTLは短くしない（ユーザー判断・2026-08-18）。** データ更新は年1回、コードのデプロイも頻繁ではない。`s-maxage` を300〜600秒に下げればデプロイが数分で行き渡るが、Worker の呼び出し回数（無料枠100k req/day、CPU 10ms/req）を消費する側に振ることになる。
 
 表示金額が全面的に変わる変更をデプロイしたときは、**しばらく古い値が見えることを前提に確認する**こと。キャッシュを避けた確認には一意なクエリ文字列を足す。
 
 ```bash
-curl -s "https://nenshu.fkmks-247.workers.dev/?age=25&cachebust=$RANDOM"
+curl -s "https://openreport.net/?age=25&cachebust=$RANDOM"
 ```
 
+**なお、ブラウザ側のキャッシュは2026-08-21に無くした**（`max-age=3600` → `max-age=0, must-revalidate`）。デプロイ直後の全画面エラーの原因がこれだった。ADR-0004「なぜブラウザに持たせないか」を参照。
+
 - `output: 'export'`を削除する。これがADR-0004の中核（ADR-0002を一部supersede）。
-- ブラウザ向け`Cache-Control`（1時間）とエッジ向け`Cloudflare-CDN-Cache-Control`（1日、1週間はstale-while-revalidateで許容）を分ける。データは年1回しか変わらないため、この程度の粒度で十分。
+- ブラウザ向け`Cache-Control`とエッジ向け`Cloudflare-CDN-Cache-Control`を分ける。**ブラウザには持たせず（`max-age=0`）、エッジには1日（stale-while-revalidateで1週間）持たせる。** 規則の本体は`web/lib/cache/headers.ts`にあり、値と理由はADR-0004「キャッシュの設計」が正。
 - `initOpenNextCloudflareForDev()`はadapterの推奨手順。今回Cloudflareのバインディング（KV/D1/R2等）は使わないため実質的な効果は薄いが、`next dev`実行時にadapterの前提を壊さないための標準的な追加。
 
 ## `open-next.config.ts`（新規）
@@ -269,7 +269,7 @@ U5時点では、静的HTML（`output:'export'`）が常にビルド時の初期
 
 データはビルド時に確定し、実行中は変わらない（更新は年1回、ADR-0001）。フィルタ済みURLごとの応答は「同じクエリなら常に同じ中身」なので、エッジでキャッシュしてよい。
 
-- `next.config.ts`の`headers()`で`Cache-Control`（ブラウザ、1時間）と`Cloudflare-CDN-Cache-Control`（エッジ、1日・stale-while-revalidateで1週間）を設定する（前述）。
+- `next.config.ts`の`headers()`で`Cache-Control`（ブラウザ、持たせない）と`Cloudflare-CDN-Cache-Control`（エッジ、1日・stale-while-revalidateで1週間）を設定する（前述）。規則の本体は`web/lib/cache/headers.ts`。
 - **Cloudflareの既定のキャッシュ挙動はHTMLを自動でキャッシュしない場合がある。** 本番デプロイ後、`curl -I`で`CF-Cache-Status`ヘッダーを確認し、実際にキャッシュされているか検証する。
 
 ### 追記: 本番デプロイ後に判明した罠 — `Cache-Control`ヘッダーだけでは自動キャッシュされない
