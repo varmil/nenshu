@@ -4,12 +4,16 @@
   "type": "module",
   "scripts": {
     "build:data": "tsx scripts/build-data.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:logos": "tsx scripts/build-logos.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "sharp": "^0.34.4"
   }
 }
