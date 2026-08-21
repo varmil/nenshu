@@ -151,7 +151,7 @@ export function CompanyDetail({
           label="見せ方"
           hint={
             isRaw
-              ? `有価証券報告書の数値そのまま（平均年齢 ${formatDecimal1(view.avgAge)}歳の会社全体の平均）`
+              ? "有価証券報告書の数値そのまま"
               : `業種の賃金カーブで${targetAge}歳の水準に置き換えた推定値`
           }
         >
@@ -190,15 +190,14 @@ export function CompanyDetail({
             <CardContent className="grid gap-6 p-5 md:grid-cols-2">
               <div className="flex flex-col gap-4">
                 <div>
-                  {/* 実測値では「推定」バッジも「推定」の語も出さない（spec AC-9）。 */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground text-sm">
-                      {isRaw
-                        ? "平均年収（有価証券報告書・単体）"
-                        : `${targetAge}歳時点の推定年収`}
-                    </span>
-                    {!isRaw && <Badge variant="secondary">推定</Badge>}
-                  </div>
+                  {/*
+                    実測値では「推定」の語を出さない（spec AC-9）。年齢そろえの
+                    ときは見出しが「35歳時点の推定年収」なので、**同じ語を繰り返す
+                    バッジは置かない**（Issue #128）。
+                  */}
+                  <span className="text-muted-foreground text-sm">
+                    {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
+                  </span>
                   <p className="text-4xl font-bold tabular-nums">
                     {formatManYen(current.salary)}
                   </p>

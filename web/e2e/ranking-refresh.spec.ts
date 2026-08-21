@@ -689,8 +689,8 @@ test.describe("公開後の手直し（モバイルの行）", () => {
 /*
  * 受け入れ条件（Issue #119）——**社名が切れても偏差値と金額は常に全部見える**。
  * 360px は最も狭い実機の幅で、ここで偏差値が省略記号に飲まれると「他社と見比べる」
- * 数値が2つとも読めなくなる。実測値・年齢そろえの両モードで見る（年齢そろえは
- * 「推定」の一語が増えるぶん meta 行が長い）。
+ * 数値が2つとも読めなくなる。実測値・年齢そろえの両モードで見る（金額の桁が
+ * 基準で変わるため）。
  */
 for (const width of [390, 360]) {
   test.describe(`モバイルの行が縮んでも数値が残る（${width}px）`, () => {
@@ -743,13 +743,18 @@ for (const width of [390, 360]) {
       });
     }
 
-    test("年齢そろえでは「推定」が出て、実測値では出ない", async ({ page }) => {
+    // 行は30件ぶん縦に繰り返されるので、表示基準の語をそこに置かない（Issue #128）。
+    // 推定であることは帯と一覧の脚注が持つ（AC-9）。
+    test("行には「推定」の一語を置かない（どちらの表示基準でも）", async ({ page }) => {
       await page.goto("/");
-      const list = page.locator("div.md\\:hidden");
-      await expect(list.getByText("推定", { exact: true })).toHaveCount(0);
+      const rows = page.locator("div.md\\:hidden > div");
+      await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
 
       await page.goto("/?age=35");
-      await expect(list.getByText("推定", { exact: true }).first()).toBeVisible();
+      await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
+      await expect(
+        page.getByText("業種の賃金カーブで補正した推定値です。")
+      ).toBeVisible();
     });
   });
 }

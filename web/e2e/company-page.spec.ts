@@ -224,7 +224,10 @@ test.describe("企業詳細ページ", () => {
   test("AC-9: 年齢そろえでは推定であることを明示し、計算方法ページへ導線がある", async ({ page }) => {
     await page.goto("/company/6861?age=35");
 
-    await expect(page.getByText("推定", { exact: true }).first()).toBeVisible();
+    // 見出しそのものが「35歳時点の推定年収」なので、隣に「推定」バッジは重ねない
+    // （Issue #128）。AC-9 は見出しの語と下の断り書きで満たしている。
+    await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(
       page.getByText("推定年収は年齢補正後の推定値です", { exact: false })
     ).toBeVisible();
@@ -236,9 +239,9 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "有価証券報告書の実測値" })).toBeVisible();
   });
 
-  // 実測値では推定バッジも「推定年収は…」の断りも出さない。出すと有報そのままの
+  // 実測値では「推定」の語も「推定年収は…」の断りも出さない。出すと有報そのままの
   // 数字に推定の体裁を被せることになる（spec AC-9）。
-  test("AC-9: 実測値では「推定」バッジも推定の断りも出さない", async ({ page }) => {
+  test("AC-9: 実測値では「推定」の語も推定の断りも出さない", async ({ page }) => {
     await page.goto("/company/6861");
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);

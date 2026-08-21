@@ -309,7 +309,8 @@ test.describe("C3 モックとの一致", () => {
   test("見せ方の帯にラベルと説明文が付いている", async ({ page }) => {
     await page.goto("/company/6861");
     await expect(page.getByText("見せ方")).toBeVisible();
-    await expect(page.getByText("有価証券報告書の数値そのまま（平均年齢 35.0歳")).toBeVisible();
+    // 平均年齢はカードの中にも出ているので、帯のヒントには繰り返さない（Issue #128）。
+    await expect(page.getByText("有価証券報告書の数値そのまま", { exact: true })).toBeVisible();
     // 実測値でも年齢スイッチは残る（AC-11）。
     await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
   });

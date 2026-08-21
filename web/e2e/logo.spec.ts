@@ -93,6 +93,24 @@ test.describe("AC-9 混在しても列が揃う", () => {
   });
 });
 
+/*
+  器の高さは表示箇所ごとに決めてよい（ADR-0008 決定4は「収め方」を共通にすると
+  決めているだけで、寸法は共通ではない）。ランキングの表だけモックの40pxより
+  大きい50pxにしてある（運営者の指示・Issue #128）ので、値をここで固定する。
+  高さが変わると行の高さも変わるため、CSS の一括変更で黙って戻るのを防ぐ。
+*/
+test.describe("ランキングの表（PC）の器", () => {
+  test("ロゴの器の高さが50pxで、ロゴの有無によらず揃う", async ({ page }) => {
+    await page.goto("/");
+    const heights = await page
+      .locator('table [data-logo="image"], table [data-logo="initial"]')
+      .evaluateAll((els) => [
+        ...new Set(els.map((el) => Math.round(el.getBoundingClientRect().height))),
+      ]);
+    expect(heights).toEqual([50]);
+  });
+});
+
 test.describe("AC-10 モバイル", () => {
   test.use({ viewport: { width: 360, height: 800 } });
 
