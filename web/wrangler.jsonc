@@ -17,10 +17,9 @@
   // 経路である。全ページが `openreport.net` を指す canonical を出す（`lib/seo/site.ts`）
   // ので、プレビューが拾われても評価は正規URLへ寄る。
   //
-  // **これだけではブランチのプレビューURLは戻らなかった**（2026-08-21・Issue #119）。
-  // `true` にした状態で2回デプロイしても Workers Builds のコメントに Preview URL の
-  // 列が出ない。**残りは Workers Builds 側（ダッシュボード）の設定で、リポジトリから
-  // は表現できない。** ここは「wrangler が上書きしてくる罠を塞ぐ」ぶんだけの意味。
+  // **この設定はブランチのビルドでは反映されない。main に入って本番デプロイが走って
+  // 初めて効く**（2026-08-21・Issue #119）。ブランチで3回デプロイしてもプレビューURLは
+  // 出ず、マージ直後のビルドで出た。ここを触るときはブランチでの結果で判断しないこと。
   "preview_urls": true,
   "compatibility_date": "2026-08-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],

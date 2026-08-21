@@ -101,17 +101,33 @@ export function RankingCardList({
               右寄せだと桁数の少ない会社ほど数値の左端が右へずれ、真下のバーの起点と
               合わなくなる。
 
-              **幅は 96px 固定で、金額の実測幅には合わせない。** このサイトは webfont を
-              持たず OS のフォントで組む（Issue #67）ので、「2,178万円」の幅は読者の環境で
-              変わる。実測に詰めた 80px では**環境によっては「円」だけが2行目に落ちた**
-              （報告あり）。`whitespace-nowrap` と併せて、折り返しは起こさず余りは右に残す。
-              バーが全行で同じ幅であることは、長さを見比べる前提そのものなので崩せない。
+              **幅は 80px 固定。** 4桁（`2,178万円`）のときに金額とバーの幅が揃うことを
+              狙った値である（運営者の指示）。
+
+              **`whitespace-nowrap` を外さないこと。** このサイトは webfont を持たず OS の
+              フォントで組む（Issue #67）ので「2,178万円」の実測幅は読者の環境で変わり、
+              80px では**環境によっては「円」だけが2行目に落ちる**（実機で起きた）。
+              `nowrap` があると、収まらない環境では折り返す代わりに右へわずかにはみ出す
+              ——ページの左右パディング16px（`RankingApp` の `p-4`）の中に収まる範囲なので、
+              横スクロールにはならない。**幅を詰めるほど、失敗の出方が「2行になる」から
+              「行からはみ出す」に変わる。**
+
+              器の幅を中身に合わせる（`w-fit`）逃げ方は採れない。**バーが全行で同じ幅で
+              あることは、長さを見比べる前提そのもの**だからである。
+
+              **バーは `size="row"` で3px**（PC の表の半分）。80px の中で6pxの帯を引くと、
+              バーのほうが金額より強く目に入る。
             */}
-            <div className="flex w-24 shrink-0 flex-col gap-1">
+            <div className="flex w-20 shrink-0 flex-col gap-1">
               <span className="text-base font-bold whitespace-nowrap tabular-nums">
                 {formatManYen(salary)}
               </span>
-              <SalaryBar value={salary} max={pageMaxSalary} mean={population?.mean ?? null} />
+              <SalaryBar
+                value={salary}
+                max={pageMaxSalary}
+                mean={population?.mean ?? null}
+                size="row"
+              />
             </div>
           </div>
         );
