@@ -16,9 +16,9 @@ import { SalaryBar } from "./SalaryBar";
  *
  * **行は「順位 / ロゴ / 社名＋meta / 金額ブロック」の4カラム。** アートボード 5c の
  * 頃は社名・meta・年収バーを右の1列に縦積みしており、バーだけが行の全幅に伸びていた。
- * **バーは金額ブロックの幅（80px）に収める**——金額の直下にあれば「この数字の帯」と
- * 読めるが、行いっぱいに伸びると順位とロゴの下にも掛かり、何に対する帯なのかが
- * 曖昧になる。80px は最大値「2,178万円」の実測幅で、バーの左端が数値の左端に揃う。
+ * **バーは金額ブロックの幅に収める**——金額の直下にあれば「この数字の帯」と読めるが、
+ * 行いっぱいに伸びると順位とロゴの下にも掛かり、何に対する帯なのかが曖昧になる。
+ * **金額は左寄せで、バーと左端が揃う。**
  *
  * **縮むのは社名と平均年齢だけ。** 金額ブロックと偏差値は `shrink-0` で、360px でも
  * 省略記号に飲まれない（受け入れ条件）。行の高さはロゴの48pxと `py` で決まるので、
@@ -45,7 +45,7 @@ export function RankingCardList({
       {companies.map((company) => {
         const salary = displaySalary(company);
         return (
-          <div key={company.id} className="border-border flex items-center gap-2.5 border-b py-2.5">
+          <div key={company.id} className="border-border flex items-center gap-1.5 border-b py-2.5">
             {/*
               順位は 12px。18px（`text-[0.95rem]`）だと社名と同じ強さで目に入り、
               「何位の会社か」より先に数字だけが読まれる。行の縦中央に置く。
@@ -76,7 +76,7 @@ export function RankingCardList({
                 （PC の表には残る）——4カラムにして社名の列が 390px で 160px 前後まで
                 狭まったので、バッジのぶんは社名か偏差値のどちらかを削ることになる。
               */}
-              <div className="text-muted-foreground flex items-baseline justify-between gap-1.5 text-[0.7rem]">
+              <div className="text-muted-foreground flex items-baseline gap-2 text-[0.7rem]">
                 <CompanyMetaLine company={company} compact />
                 <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
                   {/*
@@ -97,12 +97,20 @@ export function RankingCardList({
             </div>
 
             {/*
-              金額ブロック。幅は 80px 固定で、中の金額とバーが同じ左端・右端を持つ。
-              バーの意味は PC の表と同じ——このページの1位を100%とした相対の長さで、
-              細い縦線が全体平均の位置（`SalaryBar`）。
+              金額ブロック。**金額は左寄せで、バーと左端を揃える**（アートボード 2a）。
+              右寄せだと桁数の少ない会社ほど数値の左端が右へずれ、真下のバーの起点と
+              合わなくなる。
+
+              **幅は 96px 固定で、金額の実測幅には合わせない。** このサイトは webfont を
+              持たず OS のフォントで組む（Issue #67）ので、「2,178万円」の幅は読者の環境で
+              変わる。実測に詰めた 80px では**環境によっては「円」だけが2行目に落ちた**
+              （報告あり）。`whitespace-nowrap` と併せて、折り返しは起こさず余りは右に残す。
+              バーが全行で同じ幅であることは、長さを見比べる前提そのものなので崩せない。
             */}
-            <div className="flex w-20 shrink-0 flex-col gap-1 text-right">
-              <span className="text-base font-bold tabular-nums">{formatManYen(salary)}</span>
+            <div className="flex w-24 shrink-0 flex-col gap-1">
+              <span className="text-base font-bold whitespace-nowrap tabular-nums">
+                {formatManYen(salary)}
+              </span>
               <SalaryBar value={salary} max={pageMaxSalary} mean={population?.mean ?? null} />
             </div>
           </div>

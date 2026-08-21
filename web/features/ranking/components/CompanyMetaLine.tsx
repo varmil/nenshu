@@ -33,9 +33,13 @@ export function CompanyMetaLine({
   /*
    * `block`。`truncate` は `overflow: hidden` を効かせるが、インラインのままでは
    * はみ出した文字がそのまま外へ出る（360px でページに横スクロールが出た）。
+   *
+   * `min-w-0`。モバイルの行ではこれが flex アイテムになる。**flex アイテムの最小幅は
+   * 既定で中身の幅**なので、これが無いと縮まず、隣の偏差値を押し出す（`justify-between`
+   * をやめて隣り合わせたので、押し出す先がある）。flex の外では何もしない。
    */
   return (
-    <span className="text-muted-foreground block truncate text-[inherit]">
+    <span className="text-muted-foreground block min-w-0 truncate text-[inherit]">
       平均{formatDecimal1(company.avgAge)}歳
       {!compact && (
         <>

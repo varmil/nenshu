@@ -507,7 +507,7 @@ test.describe("公開後の手直し（モバイルの行）", () => {
    * バーは**金額ブロックの中**に収まる（Issue #119）。行の全幅に伸ばすと順位とロゴの
    * 下まで掛かり、どの社名に対する帯なのかが読めない。
    */
-  test("年収バーは金額ブロックの幅に収まり、金額と左端・右端が揃う", async ({ page }) => {
+  test("年収バーは金額ブロックの幅に収まり、金額と左端が揃う", async ({ page }) => {
     await page.goto("/");
     const row = firstRow(page);
     const bar = row.locator('[aria-hidden="true"]').last();
@@ -517,15 +517,68 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     const rowBox = (await row.boundingBox())!;
     const salaryBox = (await salary.boundingBox())!;
 
-    // 金額ブロックは 80px（w-20）。
-    expect(barBox.width).toBeCloseTo(80, 0);
-    expect(salaryBox.width).toBeCloseTo(80, 0);
-    // 数値の左端とバーの左端が揃う（w-20 を選んだ狙い）。
+    // 金額ブロックは 96px（w-24）。
+    expect(barBox.width).toBeCloseTo(96, 0);
+    // **数値の左端とバーの左端が揃う。** 金額を左寄せにした狙いがこれで、桁数の少ない
+    // 会社でも崩れない（下の「金額の左端はどの行でも同じ」で全行を見ている）。
     expect(Math.abs(barBox.x - salaryBox.x)).toBeLessThanOrEqual(1);
     // 右端は行の右端に揃う。
     expect(Math.abs(barBox.x + barBox.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(2);
     // 行の半分より右——順位・ロゴ・社名の下には掛からない。
     expect(barBox.x).toBeGreaterThan(rowBox.x + rowBox.width / 2);
+  });
+
+  test("金額の左端はどの行でも同じで、バーの左端と揃う", async ({ page }) => {
+    await page.goto("/");
+    const lefts = await page
+      .locator("div.md\\:hidden > div")
+      .evaluateAll((els) =>
+        els.slice(0, 9).map((el) => {
+          const block = el.lastElementChild!;
+          const amount = block.firstElementChild!;
+          const bar = block.lastElementChild!;
+          return [
+            Math.round(amount.getBoundingClientRect().left),
+            Math.round(bar.getBoundingClientRect().left),
+          ];
+        })
+      );
+    expect(lefts).toHaveLength(9);
+    // 9行ぶん、金額の左端もバーの左端も1つの値に収束する。
+    expect(new Set(lefts.flat()).size).toBe(1);
+  });
+
+  /*
+   * **金額を2行に折り返させない。** このサイトは webfont を持たず OS のフォントで組む
+   * ので、「2,178万円」の実測幅は環境で変わる。80px に詰めていたとき「円」だけが2行目に
+   * 落ちた（報告あり）。ここで見るのは幅の値ではなく**1行に収まっていること**である。
+   */
+  test("金額は1行に収まり、折り返さない", async ({ page }) => {
+    await page.goto("/");
+    const lines = await page
+      .locator("div.md\\:hidden > div")
+      .evaluateAll((els) =>
+        els.slice(0, 9).map((el) => el.lastElementChild!.firstElementChild!.getClientRects().length)
+      );
+    expect(lines).toEqual(Array(9).fill(1));
+  });
+
+  /*
+   * meta 行は `justify-between` ではなく**小さなギャップで隣り合う**（アートボード 2a）。
+   * 両端に振ると、社名が短い行では平均年齢と偏差値が離れて別々の情報に見える。
+   */
+  test("平均年齢と偏差値は隣り合い、両端に振り分けられない", async ({ page }) => {
+    // 社名が短く、meta 行に余白が残る会社で見る。
+    await page.goto("/?q=ディスコ");
+    const row = firstRow(page);
+    const age = row.getByText(/^平均/);
+    const deviation = row.getByText(/^偏差値/);
+
+    const ageBox = (await age.boundingBox())!;
+    const deviationBox = (await deviation.boundingBox())!;
+    // gap-2（8px）ぶんしか空いていない。
+    expect(deviationBox.x - (ageBox.x + ageBox.width)).toBeLessThanOrEqual(12);
+    expect(deviationBox.x).toBeGreaterThan(ageBox.x + ageBox.width - 1);
   });
 
   test("行は 順位 / ロゴ / 社名 / 金額 の4カラムに左から並ぶ", async ({ page }) => {
