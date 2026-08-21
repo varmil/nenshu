@@ -5,7 +5,9 @@ coverage
 # APIキー
 salary35/.edinet_key
 salary35/.estat_key
+salary35/.gbiz_key
 
 # パイプラインの生成物
 salary35/cache/
+logo-cache/
 salary35/out/
