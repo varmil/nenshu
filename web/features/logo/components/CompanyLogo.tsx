@@ -1,7 +1,7 @@
 import { initialOf } from "../lib/initial";
 import { useHasLogo } from "./LogoIdsProvider";
 
-export type LogoSize = "sm" | "default" | "lg";
+export type LogoSize = "sm" | "row" | "default" | "lg";
 
 /**
  * 器の寸法。**高さはモックのまま（ランキング40px・企業詳細62px）で、幅だけ広げる。**
@@ -12,18 +12,32 @@ export type LogoSize = "sm" | "default" | "lg";
  * で収め、拡大しない——のほうである。
  */
 const BOX: Record<LogoSize, string> = {
-  // 近傍5社（316pxの列）とモバイルの行。ここだけは幅を詰める
+  // 近傍5社（316pxの列）。ここだけは幅を詰める
   sm: "h-9.5 w-12",
+  /*
+    モバイルのランキング行（アートボード 2a、Issue #119）。**この行だけ器を大きくする。**
+    社名・meta・年収バーを1つの列に縦積みしていた頃は行の高さが中身で決まっており、
+    器を広げると meta 行が押し出されていた（`h-9.5 w-12` に留めていた理由）。4カラムに
+    分けてバーを金額の下に移したことで、行の高さは**この器の48pxが決める**ようになり、
+    幅を広げても隣の列を削らない。
+  */
+  row: "h-12 w-17",
   // ランキングの表。モバイルは sm 相当に落とす
   default: "h-9.5 w-12 md:h-10 md:w-22",
   // 企業詳細の見出し（アートボード 4b の62px）
   lg: "h-15.5 w-34",
 };
 
-const RADIUS: Record<LogoSize, string> = { sm: "rounded-md", default: "rounded-md", lg: "rounded-lg" };
+const RADIUS: Record<LogoSize, string> = {
+  sm: "rounded-md",
+  row: "rounded-md",
+  default: "rounded-md",
+  lg: "rounded-lg",
+};
 
 const INITIAL_TEXT: Record<LogoSize, string> = {
   sm: "text-sm",
+  row: "text-base",
   default: "text-sm md:text-base",
   lg: "text-2xl",
 };
