@@ -13,12 +13,18 @@ const rows = (page: import("@playwright/test").Page) =>
   page.getByRole("table").locator("tbody tr");
 
 /**
- * U13 で表は4列（順位 / 会社名・業種 / 金額 / 偏差値）になり、平均年齢・在籍年数・
- * 従業員数は社名の下の meta 行に移った。数値はそこから読む。
+ * 表は3列（順位・会社名 / 金額 / 偏差値）。平均年齢・在籍年数・従業員数は社名の下の
+ * meta 行にあり、順位はロゴ左上のバッジなので**順位の列は無い**。数値は1列目から読む。
  */
 const metaValues = async (page: import("@playwright/test").Page, pattern: RegExp) => {
-  const cells = await rows(page).locator("td").nth(1).allTextContents();
+  const cells = await rows(page).locator("td").first().allTextContents();
   return cells.map((text) => Number(text.match(pattern)![1].replace(/,/g, "")));
+};
+
+/** 順位バッジの数字。読み上げ用の「位」が textContent に混ざるので落とす。 */
+const rankValues = async (page: import("@playwright/test").Page) => {
+  const texts = await rows(page).locator("[data-rank-badge]").allTextContents();
+  return texts.map((text) => Number(text.replace("位", "")));
 };
 
 test.describe("AC-12 並び替え", () => {
@@ -38,8 +44,8 @@ test.describe("AC-12 並び替え", () => {
     const values = await metaValues(page, /平均([\d.]+)歳/);
     expect(values).toEqual([...values].sort((a, b) => b - a));
 
-    // 順位（1列目）は金額基準のまま。1,2,3… にはならない。
-    const ranks = (await rows(page).locator("td").first().allTextContents()).map(Number);
+    // 順位バッジは金額基準のまま。1,2,3… にはならない。
+    const ranks = await rankValues(page);
     expect(ranks).not.toEqual(ranks.map((_, i) => i + 1));
   });
 
@@ -105,8 +111,8 @@ test.describe("AC-12 並び替え", () => {
       .click();
 
     await expect(page).toHaveURL(/[?&]sort=salary-asc/);
-    // 順位は金額基準のまま。低い順の先頭は最下位（1,867位）。
-    await expect(rows(page).first().locator("td").first()).toHaveText("1867");
+    // 順位は金額基準のまま。低い順の先頭は最下位（1,867位）。読み上げ用の「位」が付く。
+    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1867位");
   });
 
   test("逆向きの軸から別の軸へ移ると、その軸の既定の向きになる", async ({ page }) => {
@@ -229,12 +235,12 @@ test.describe("AC-13 年収バー", () => {
 test.describe("AC-14 偏差値", () => {
   test("実測値のキーエンスは122.9、年齢そろえ35歳では150.0", async ({ page }) => {
     await page.goto("/");
-    // 偏差値は4列目（index 3）。上位◯%が下に添う。
-    await expect(rows(page).first().locator("td").nth(3)).toContainText("122.9");
+    // 偏差値は3列目（index 2）。順位の列を廃した（アートボード 4d）ぶん1つ左。
+    await expect(rows(page).first().locator("td").nth(2)).toContainText("122.9");
 
     await page.goto("/?age=35");
     await expect(rows(page).first()).toContainText("株式会社キーエンス");
-    await expect(rows(page).first().locator("td").nth(3)).toContainText("150.0");
+    await expect(rows(page).first().locator("td").nth(2)).toContainText("150.0");
   });
 
   test("100を超えうることが脚注に書いてある", async ({ page }) => {
@@ -248,7 +254,7 @@ test.describe("AC-14 偏差値", () => {
    */
   test("偏差値の列は数字だけで、上位◯%を出さない", async ({ page }) => {
     await page.goto("/");
-    const cell = rows(page).first().locator("td").nth(3);
+    const cell = rows(page).first().locator("td").nth(2);
     await expect(cell).toHaveText("122.9");
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
   });
@@ -260,9 +266,8 @@ test.describe("AC-14 偏差値", () => {
   test("絞り込んでも偏差値は全体の分布に対する値のまま", async ({ page }) => {
     await page.goto("/?ind=海運業");
     await expect(rows(page)).toHaveCount(7);
-    const first = rows(page).first().locator("td");
-    await expect(first.first()).toHaveText("1");
-    await expect(first.nth(3)).toHaveText("97.0");
+    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1位");
+    await expect(rows(page).first().locator("td").nth(2)).toHaveText("97.0");
   });
 });
 
@@ -397,13 +402,13 @@ test.describe("モバイルの絞り込みシート", () => {
  * `docs/ranking/ranking-mock-alignment/design.md` の対照表も直すこと。
  */
 test.describe("U13 モックとの一致", () => {
-  test("表は4列で、社名は省略記号で切れない", async ({ page }) => {
+  test("表は3列で、社名は省略記号で切れない", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
     const headers = page.getByRole("table").locator("thead th");
-    await expect(headers).toHaveCount(4);
-    await expect(headers.nth(1)).toHaveText("会社名");
+    await expect(headers).toHaveCount(3);
+    await expect(headers.first()).toHaveText("順位・会社名");
 
     // 社名のリンクが、割り当てられた列の中に収まっている（はみ出すと … で切れる）。
     const link = rows(page).first().getByRole("link").first();
@@ -414,14 +419,14 @@ test.describe("U13 モックとの一致", () => {
   // 業種は meta 行に出さない（運営者の指示。行が長くなって末尾が見切れていた）。
   test("平均年齢・在籍年数・従業員数は社名の下の1行にまとまっている", async ({ page }) => {
     await page.goto("/");
-    const meta = rows(page).first().locator("td").nth(1);
+    const meta = rows(page).first().locator("td").first();
     await expect(meta).toContainText("平均35.0歳 ・ 在籍11.3年 ・ 3,306人");
     await expect(meta).not.toContainText("電気機器");
   });
 
   test("年齢そろえのときは meta 行に実測値が併記される", async ({ page }) => {
     await page.goto("/?age=35");
-    await expect(rows(page).first().locator("td").nth(1)).toContainText("実績 2,178万円");
+    await expect(rows(page).first().locator("td").first()).toContainText("実績 2,178万円");
   });
 
   test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
@@ -485,7 +490,7 @@ test.describe("U13 モックとの一致", () => {
     const name = row.getByRole("link").first();
     await expect(name).toHaveCSS("font-weight", "700");
 
-    const salary = row.locator("td").nth(2).locator("span").first();
+    const salary = row.locator("td").nth(1).locator("span").first();
     await expect(salary).toHaveText("2,178万円");
     await expect(salary).toHaveCSS("font-size", "16px");
   });
@@ -522,6 +527,92 @@ test.describe("U13 モックとの一致（モバイル）", () => {
   test("行はカードの枠を持たず、区切り線で並ぶ", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator('[data-slot="card"]')).toHaveCount(0);
+  });
+});
+
+/*
+ * 順位バッジ（アートボード 3e / 4d）。順位カラムを廃して、ロゴ左上のホームベース型
+ * バッジに移した。**固定幅のレーンに桁数の変わる数字を入れていたのが元の不具合**で、
+ * 3〜4桁がレーンからあふれてロゴ画像に重なっていた。ここで固定したいのは
+ * 「**桁数が変わっても左端・上端が動かない**」こと——バッジは右へだけ伸びる。
+ */
+test.describe("順位バッジ", () => {
+  /** 1桁・2桁・3桁・4桁がそれぞれ出るページ。1ページ30社なので順位から逆算できる。 */
+  const RANKS = [
+    ["/", "1"],
+    ["/?page=4", "98"],
+    ["/?page=32", "946"],
+    ["/?page=63", "1866"],
+  ] as const;
+
+  const badgeOffset = async (page: import("@playwright/test").Page, rank: string) => {
+    const badge = page.locator("tbody tr [data-rank-badge]", { hasText: rank }).first();
+    const row = badge.locator("xpath=ancestor::tr");
+    const badgeBox = (await badge.boundingBox())!;
+    const rowBox = (await row.boundingBox())!;
+    return { dx: badgeBox.x - rowBox.x, dy: badgeBox.y - rowBox.y, width: badgeBox.width };
+  };
+
+  test("1 / 98 / 946 / 1866 のどれでも左端・上端が揃い、幅だけ右へ伸びる", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    const offsets = [];
+    for (const [url, rank] of RANKS) {
+      await page.goto(url);
+      offsets.push(await badgeOffset(page, rank));
+    }
+
+    // 左端・上端は1pxも動かない（min-width が下限で、伸びるのは右だけ）。
+    for (const offset of offsets) {
+      expect(offset.dx).toBeCloseTo(offsets[0].dx, 1);
+      expect(offset.dy).toBeCloseTo(offsets[0].dy, 1);
+    }
+    // 1桁と2桁は min-width で同じ幅、4桁はそれより広い。
+    expect(offsets[1].width).toBeCloseTo(offsets[0].width, 1);
+    expect(offsets[3].width).toBeGreaterThan(offsets[0].width);
+  });
+
+  /*
+   * バッジはロゴの器に**左上の角だけ**乗る。4桁で右へ伸びても器の中に留まり、
+   * 社名にも金額にも届かない——元の不具合は数字が社名の側へあふれることだった。
+   */
+  test("4桁でも器の中に収まり、社名・金額に重ならない", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/?page=63");
+
+    const row = page.locator("tbody tr").first();
+    const badge = (await row.locator("[data-rank-badge]").boundingBox())!;
+    const logo = (await row.locator("[data-logo]").first().boundingBox())!;
+    const name = (await row.getByRole("link").first().boundingBox())!;
+    const salary = (await row.locator("td").nth(1).boundingBox())!;
+
+    expect(badge.x + badge.width).toBeLessThan(logo.x + logo.width);
+    expect(badge.x + badge.width).toBeLessThan(name.x);
+    expect(badge.x + badge.width).toBeLessThan(salary.x);
+  });
+
+  test("順位の列を廃したぶん、社名の列が広がっている", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const table = (await page.getByRole("table").boundingBox())!;
+    const nameCell = (await rows(page).first().locator("td").first().boundingBox())!;
+    // 金額 w-44（176px）と偏差値 w-20（80px）以外はすべて社名の列。順位の列
+    // （w-11 = 44px）が残っていればここが 44px 足りなくなる。
+    expect(Math.round(nameCell.width)).toBe(Math.round(table.width - 176 - 80));
+  });
+
+  test("バッジの数字はロゴの上でも読める（不透明な塗りの上に載る）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/");
+
+    const badge = page.locator("tbody tr [data-rank-badge]").first();
+    // 塗りは --rank-badge のトークン。透過させるとロゴが透けて数字が読めなくなる。
+    const alpha = await badge.evaluate((el) => {
+      const color = getComputedStyle(el).backgroundColor;
+      return color.startsWith("rgba") ? Number(color.split(",").pop()!.replace(")", "")) : 1;
+    });
+    expect(alpha).toBe(1);
   });
 });
 
@@ -684,17 +775,20 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     expect(deviationBox.x).toBeGreaterThan(ageBox.x + ageBox.width - 1);
   });
 
-  test("行は 順位 / ロゴ / 社名 / 金額 の4カラムに左から並ぶ", async ({ page }) => {
+  /*
+   * **順位はロゴに載るので独立した列ではない。** 4カラム（順位 / ロゴ / 社名 / 金額）
+   * だった頃の順位レーンを廃したぶん、社名の列が広がっている。
+   */
+  test("行は 順位つきロゴ / 社名 / 金額 の3カラムに左から並ぶ", async ({ page }) => {
     await page.goto("/");
     const row = firstRow(page);
 
-    const rank = row.locator("span").first();
     const logo = row.locator('[data-logo="image"], [data-logo="initial"]');
     const name = row.getByRole("link").first();
     const salary = row.getByText("2,178万円");
 
     const boxes = await Promise.all(
-      [rank, logo, name, salary].map(async (l) => (await l.boundingBox())!)
+      [logo, name, salary].map(async (l) => (await l.boundingBox())!)
     );
     const lefts = boxes.map((b) => Math.round(b.x));
     expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
@@ -702,6 +796,12 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     for (let i = 0; i < boxes.length - 1; i++) {
       expect(boxes[i].x + boxes[i].width).toBeLessThanOrEqual(boxes[i + 1].x + 1);
     }
+
+    // バッジだけはロゴの左上に重なる（列ではない）。
+    const badge = (await row.locator("[data-rank-badge]").boundingBox())!;
+    expect(badge.x).toBeLessThan(boxes[0].x);
+    expect(badge.x + badge.width).toBeGreaterThan(boxes[0].x);
+    expect(badge.x + badge.width).toBeLessThan(boxes[1].x);
   });
 
   test("ロゴの器はこの行だけ 68×48 で、全行そろう", async ({ page }) => {
@@ -741,20 +841,40 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     await expect(rows(page).first().getByText("本社のみ")).toBeVisible();
   });
 
-  test("順位は 12px で、社名より弱い", async ({ page }) => {
-    await page.goto("/");
-    await expect(firstRow(page).locator("span").first()).toHaveCSS("font-size", "12px");
-  });
-
-  test("順位は行の縦中央にある", async ({ page }) => {
+  test("ロゴは行の縦中央にある", async ({ page }) => {
     await page.goto("/");
     const row = firstRow(page);
-    const rank = row.locator("span").first();
+    const logo = row.locator("[data-logo]").first();
     const rowBox = (await row.boundingBox())!;
-    const rankBox = (await rank.boundingBox())!;
+    const logoBox = (await logo.boundingBox())!;
     const rowCenter = rowBox.y + rowBox.height / 2;
-    const rankCenter = rankBox.y + rankBox.height / 2;
-    expect(Math.abs(rowCenter - rankCenter)).toBeLessThanOrEqual(2);
+    const logoCenter = logoBox.y + logoBox.height / 2;
+    expect(Math.abs(rowCenter - logoCenter)).toBeLessThanOrEqual(2);
+  });
+
+  /*
+   * PC と同じ記号に統一してある（アートボード 3e）。寸法だけが sm（高さ21px）。
+   */
+  test("順位はロゴ左上のバッジで、桁が増えても左端・上端が動かない", async ({ page }) => {
+    const offset = async (url: string, rank: string) => {
+      await page.goto(url);
+      const badge = page
+        .locator("div.md\\:hidden [data-rank-badge]", { hasText: rank })
+        .first();
+      const logo = badge.locator("xpath=preceding-sibling::*[1]");
+      const badgeBox = (await badge.boundingBox())!;
+      const logoBox = (await logo.boundingBox())!;
+      return { dx: badgeBox.x - logoBox.x, dy: badgeBox.y - logoBox.y, width: badgeBox.width };
+    };
+
+    const one = await offset("/", "1");
+    const four = await offset("/?page=63", "1866");
+
+    expect(four.dx).toBeCloseTo(one.dx, 1);
+    expect(four.dy).toBeCloseTo(one.dy, 1);
+    expect(four.width).toBeGreaterThan(one.width);
+    // 器の外へ大きく出しているので、ロゴに被るのはごく一部（1桁で6px）。
+    expect(one.dx).toBeLessThan(0);
   });
 
   // Issue #96。PC と同じ手当て（社名を太字・金額を 16px）をモバイルの行にも入れる。

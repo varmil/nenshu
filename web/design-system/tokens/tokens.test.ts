@@ -112,6 +112,9 @@ describe("tokens.css の色トークン", () => {
     ["--accent-foreground", "--accent"],
     ["--secondary-foreground", "--secondary"],
     ["--primary-foreground", "--primary"],
+    // 順位のバッジ。10.5〜12px の小さな文字なので WCAG の「大きな文字」の緩和
+    // （3:1）は使えない。モックの oklch(0.62 …) は白文字で 3.57:1 しか無かった。
+    ["--rank-badge-foreground", "--rank-badge"],
   ] as const;
 
   const modes = [

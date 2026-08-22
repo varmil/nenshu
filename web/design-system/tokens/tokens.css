@@ -38,6 +38,8 @@
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
   --color-logo-surface: var(--logo-surface);
+  --color-rank-badge: var(--rank-badge);
+  --color-rank-badge-foreground: var(--rank-badge-foreground);
 
   /* 角丸: 基準値 --radius から比率で導出 */
   --radius-sm: calc(var(--radius) * 0.6);
@@ -118,6 +120,14 @@
      と決めてある（ADR-0008 決定1）。ダーク側だけわずかに落とすのは、
      1ページに30枚並ぶと白のままでは眩しいため。 */
   --logo-surface: oklch(1 0 0);
+  /* 順位のバッジ（ロゴ左上のホームベース型）。**--primary を柔らかくした色**で、
+     行の目印として効くが社名のリンクよりは前に出ない明るさに置く。
+     **ライトとダークで同じ値にする。** 記号としての順位はモードによって意味が
+     変わらないうえ、ダークで明度を上げると器の白い面と溶けて輪郭が消える。
+     文字は白。10.5〜12px の小さな文字なので WCAG の大文字の緩和は使えず、
+     4.5:1 を満たす明度に収めてある（tokens.test.ts が両モードで見張る）。 */
+  --rank-badge: oklch(0.56 0.062 223.128);
+  --rank-badge-foreground: oklch(1 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.148 0.004 228.8);
   /* シート・ダイアログの背後に敷く幕。ダークは背景自体が暗いので濃くしないと
@@ -157,6 +167,8 @@
   --card: oklch(0.218 0.008 223.9);
   --card-foreground: oklch(0.987 0.002 197.1);
   --logo-surface: oklch(0.93 0.002 197.1);
+  --rank-badge: oklch(0.56 0.062 223.128);
+  --rank-badge-foreground: oklch(1 0 0);
   --popover: oklch(0.218 0.008 223.9);
   --popover-foreground: oklch(0.987 0.002 197.1);
   --overlay: oklch(0 0 0 / 60%);
