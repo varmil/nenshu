@@ -27,7 +27,7 @@ from bisect import bisect_right
 #
 # **配信に使われているのは `pipeline/data/annual_curves.json`。** build-data.ts が
 # これを読んで `web/public/data/curves.json` を作る。こちらを先に探す。
-# fetch_estat.py の書き出し先（salary35/annual_curves.json）は取得直後の置き場で、
+# fetch_estat.py の書き出し先（salary/annual_curves.json）は取得直後の置き場で、
 # リポジトリには入っていない。探し順を間違えると、下のフォールバック定数
 # （所定内給与＝月額・賞与を含まない）が黙って使われ、web と別の数字が出る。
 _ANNUAL = {}

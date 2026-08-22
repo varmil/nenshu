@@ -3,6 +3,8 @@ import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv, parseSalaryHistoryCsv } from "./lib/csv";
+import { parseCsv } from "../worklife/csv";
+import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -12,6 +14,10 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_ROW_COUNT = 1867;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
 const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
+// 実測 131KB（注釈・説明 716社ぶんを同梱した状態）。切り出す前に気づける余白として
+// 上限を 160KB に置く。増分の6割が注釈なので、超えたらそこを別ファイルにする
+// （`docs/worklife/overview.md`）。
+const WORKLIFE_JSON_GZIP_LIMIT_BYTES = 160 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -118,18 +124,22 @@ export function buildData(outDir: string) {
 
   const stats = buildStats(companies, curves);
   const history = buildHistory(rows, companyRows);
+  const worklife = buildWorklife(companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
   const curvesPath = resolve(outDir, "curves.json");
   const statsPath = resolve(outDir, "stats.json");
   const historyPath = resolve(outDir, "history.json");
+  const worklifePath = resolve(outDir, "worklife.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
+  const worklifeJson = JSON.stringify(worklife);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
   writeFileSync(historyPath, historyJson);
+  writeFileSync(worklifePath, worklifeJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -145,17 +155,27 @@ export function buildData(outDir: string) {
     );
   }
 
+  const worklifeGzipSize = gzipSync(worklifeJson).length;
+  if (worklifeGzipSize > WORKLIFE_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `worklife.json のgzipサイズが上限(160KB)を超えています: ${(worklifeGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
     statsPath,
     historyPath,
+    worklifePath,
     companies,
     curves,
     stats,
     history,
+    worklife,
     gzipSize,
     historyGzipSize,
+    worklifeGzipSize,
   };
 }
 
@@ -204,6 +224,63 @@ function buildHistory(
   });
 
   return { years, byId };
+}
+
+/**
+ * 働きやすさ指標（`worklife.json`）。W0・Issue #149。
+ *
+ * **`/company/[id]` だけが import する。`app/page.tsx` からは読まない**
+ * ——トップページのHTML（gzip 62KB）を1バイトも増やさないため（Issue #22）。
+ *
+ * **行は `companies.rows` と同じ並びにする。** `stats.json` と同じ理由で、
+ * **行がずれると別の会社の残業時間を出す。** データが無い会社には `0` を置く。
+ * 並びの定義は `pipeline/worklife/json.ts` の1か所にある。
+ *
+ * 注釈・説明（716社）は本文が長い（平均186字）ので、行の配列とは別に持つ。
+ * 数値だけを読む場面で長い文字列を跨がずに済む。
+ */
+function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
+  const csvText = readFileSync(resolve(ROOT, "data/worklife_2026.csv"), "utf-8");
+  const table = parseCsv(csvText);
+  const header = table[0] ?? [];
+  const byId = new Map<string, Record<string, string>>();
+  for (const line of table.slice(1)) {
+    const cells: Record<string, string> = {};
+    header.forEach((name, i) => (cells[name] = line[i] ?? ""));
+    byId.set(cells.id, cells);
+  }
+
+  const pool = new StringPool();
+  const rows: (WorklifeRow | 0)[] = [];
+  const notes: (string | 0)[] = [];
+  let matched = 0;
+  for (const company of companyRows) {
+    const cells = byId.get(String(company[0]));
+    if (cells === undefined) {
+      rows.push(0);
+      notes.push(0);
+      continue;
+    }
+    matched++;
+    rows.push(encodeRow(cells, pool));
+    notes.push(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
+  }
+  if (matched !== byId.size) {
+    throw new Error(
+      `worklife_2026.csv の${byId.size}行のうち${matched}行しか companies に紐づきませんでした`
+    );
+  }
+
+  return {
+    meta: {
+      source: "mhlw-positivedb",
+      matched,
+      count: companyRows.length,
+    },
+    pool: pool.values,
+    rows,
+    notes,
+  };
 }
 
 interface CompaniesShape {
@@ -364,5 +441,9 @@ if (isMain) {
   console.log(
     `${result.historyPath}: ${Object.keys(result.history.byId).length}社 × ${result.history.years.length}年, ` +
       `gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.worklifePath}: ${result.worklife.meta.matched}社, ` +
+      `gzip ${(result.worklifeGzipSize / 1024).toFixed(1)}KB`
   );
 }

@@ -3,11 +3,14 @@ coverage
 *.tsbuildinfo
 
 # APIキー
-salary35/.edinet_key
-salary35/.estat_key
-salary35/.gbiz_key
+salary/.edinet_key
+salary/.estat_key
+salary/.gbiz_key
+
+# 女性活躍DBのオープンデータ（手で落として置く。89MBのCSV・11MBのZIP。docs/worklife/spec.md 1.1）
+worklife/source/
 
 # パイプラインの生成物
-salary35/cache/
+salary/cache/
 logo-cache/
-salary35/out/
+salary/out/

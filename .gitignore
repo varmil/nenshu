@@ -37,9 +37,9 @@ next-env.d.ts
 __pycache__/
 
 # pipeline: EDINET から再取得できるもの（コードリストのスナップショット・書類キャッシュ）
-pipeline/salary35/Edinetcode.zip
-pipeline/salary35/cache/
-pipeline/salary35/out/
+pipeline/salary/Edinetcode.zip
+pipeline/salary/cache/
+pipeline/salary/out/
 
 # Playwright MCP（ブラウザ確認時のスクリーンショット・スナップショット）。作業用の一時ファイル。
 .playwright-mcp/

@@ -21,16 +21,20 @@ OUT.mkdir(exist_ok=True)
 
 
 def load_edinet_codelist():
-    """EDINETコードリスト（APIキー不要）から業種・上場区分・提出者名を読む。
+    """EDINETコードリスト（APIキー不要）から業種・上場区分・提出者名・法人番号を読む。
 
     提出者名は `unified.backfill_edinet_code()` が、証券コードで引けない会社
     （上場廃止で証券コードが外れた会社・非上場の有報提出会社）を突合するのに使う。
+
+    **法人番号は女性活躍DBとの突合キー**（ADR-0009）。`unified.backfill_corporate_number()`
+    が CSV の `corporate_number` 列に写す。証券コードと社名では突合しない
+    ——女性活躍DB側の証券コードは自己申告で誤登録があり、社名は同名別会社が多い。
     """
     path = ROOT / "Edinetcode.zip"
     if not path.exists():
         import urllib.request
         url = "https://disclosure2dl.edinet-fsa.go.jp/searchdocument/codelist/Edinetcode.zip"
-        req = urllib.request.Request(url, headers={"User-Agent": "salary35/1.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "salary/1.0"})
         with urllib.request.urlopen(req, timeout=120) as r:
             path.write_bytes(r.read())
     z = zipfile.ZipFile(path)
@@ -51,6 +55,7 @@ def load_edinet_codelist():
             "sec_code": (r[idx["証券コード"]] or "")[:4],
             "kind": r[idx["提出者種別"]],
             "capital": r[idx["資本金"]],
+            "corporate_number": (r[idx["提出者法人番号"]] or "").strip(),
         }
     return info
 

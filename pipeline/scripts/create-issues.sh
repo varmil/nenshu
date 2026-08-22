@@ -26,7 +26,7 @@ new "[Unit] U0 データ変換パイプライン" "$(cat <<'EOF'
 - [ ] `data/ranking_unified_2026.csv` と `data/annual_curves.json` から `public/data/companies.json` と `public/data/curves.json` を生成する
 - [ ] `companies.json` は1,867行を持ち、ADR-0003 の列指向スキーマに従う
 - [ ] **カーブから再計算した35歳時点の推定年収が、CSVの `salary35` と全1,867社で一致する。** テストで固定する
-- [ ] 補間の実装が Python 側（`salary35/curves.py` の `_interp`）と一致する。区分線形、範囲外は端の値で頭打ち
+- [ ] 補間の実装が Python 側（`salary/curves.py` の `_interp`）と一致する。区分線形、範囲外は端の値で頭打ち
 - [ ] `id` は証券コードを優先し、欠損する非上場107社は社名スラッグにする。1,867件すべて一意（社名の重複が2件ある）
 - [ ] `companies.json` が gzip後100KB以内
 - [ ] 産業大分類は内部キーとしてのみ持ち、表示用の値と混ざらない
@@ -56,7 +56,7 @@ new "[Unit] U1 プロジェクト基盤とデザイントークン" "$(cat <<'EO
 - [ ] **生の hex を書くと lint が落ちる。** Hooks で強制する
 - [ ] 型チェックとテストが通らないとコミットできない
 - [ ] main に push すると Cloudflare Pages が更新される
-- [ ] `.gitignore` にAPIキー（`salary35/.edinet_key`, `salary35/.estat_key`）とパイプラインの生成物が入っている
+- [ ] `.gitignore` にAPIキー（`salary/.edinet_key`, `salary/.estat_key`）とパイプラインの生成物が入っている
 
 ## 非対象
 

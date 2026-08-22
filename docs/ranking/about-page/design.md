@@ -12,7 +12,7 @@ web/features/ranking/components/RankingApp.tsx   # ヘッダーに /about への
 web/next.config.ts                                # /about のキャッシュヘッダー（既存を修正）
 web/e2e/about.spec.ts                             # E2E（新規）
 docs/product/glossary.md                          # 産業大分類の開示範囲に例外を明記（既存を修正）
-pipeline/salary35/curves.py                       # 実態と食い違う docstring を修正（既存を修正）
+pipeline/salary/curves.py                       # 実態と食い違う docstring を修正（既存を修正）
 ```
 
 ## ページの実装方針
@@ -44,10 +44,10 @@ CLAUDE.md「数値の出典と計算方法は必ずユーザーから見える�
 
 | 記述 | 出どころ |
 | --- | --- |
-| 2026年6月1日〜7月10日提出 | `pipeline/salary35/unified.py` の `run.build(..., date(2026,6,1), date(2026,7,10), ...)` |
+| 2026年6月1日〜7月10日提出 | `pipeline/salary/unified.py` の `run.build(..., date(2026,6,1), date(2026,7,10), ...)` |
 | 単体従業員100人以上 | 同 `MIN_EMPLOYEES = 100` |
 | 平均年齢20〜65歳・平均年間給与100万円超 | 同 `ok` のフィルタ条件 |
-| 令和5年賃金構造基本統計調査・年収の定義・男女計/学歴計/企業規模計/民営事業所 | `pipeline/salary35/fetch_estat.py` |
+| 令和5年賃金構造基本統計調査・年収の定義・男女計/学歴計/企業規模計/民営事業所 | `pipeline/salary/fetch_estat.py` |
 
 これらはデータ更新時に人が見直す前提。design.md にこの線引きを残すのはそのため。
 
@@ -57,7 +57,7 @@ CLAUDE.md「数値の出典と計算方法は必ずユーザーから見える�
 
 ## 賃金カーブの出典 — 実態を書く
 
-`pipeline/salary35/curves.py` の先頭 docstring は「令和6年賃金構造基本統計調査 結果の概況／第4表・第5-1表／所定内給与額（月額・千円）」と書いているが、**これは現在フォールバック扱いの旧定数 `INDUSTRY_CURVES` 向けの記述**で、実際に出荷されているカーブとは別物。
+`pipeline/salary/curves.py` の先頭 docstring は「令和6年賃金構造基本統計調査 結果の概況／第4表・第5-1表／所定内給与額（月額・千円）」と書いているが、**これは現在フォールバック扱いの旧定数 `INDUSTRY_CURVES` 向けの記述**で、実際に出荷されているカーブとは別物。
 
 実際に使われているのは `annual_curves.json` の `ANNUAL_INDUSTRY` で、`fetch_estat.py` が e-Stat API から取得している:
 

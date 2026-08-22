@@ -50,7 +50,7 @@ ESLint flat config（`eslint.config.mjs`）に、`no-restricted-syntax` で16進
 
 Husky + lint-staged を**リポジトリ直下**に導入する（`.git` はリポジトリ直下にあるため、フック自体はどこにpackage.jsonがあっても直下に置く必要がある）。ステージされたファイルが `web/` 配下かどうかで、`web/`のtypecheck・lint・testを呼ぶか、`pipeline/scripts/`のtest（U0）を呼ぶかをlint-stagedの対象パターンで振り分ける。
 
-**2026-08-17追記（Issue #11）**: データパイプライン一式（`scripts/`・`data/`・`package.json`・`tsconfig.json`・`vitest.config.ts`・`salary35/`）を `pipeline/` 配下に移動した。これに伴い、リポジトリ直下の `package.json` は husky + lint-staged だけを持つ「Gitフック調整役」に縮小し、データパイプラインの実行時依存（tsx/vitest/typescript）は `pipeline/package.json` に移した（`web/` と `pipeline/` という2つの独立npmプロジェクトを横断してフックを振り分ける役目は、`.git` がある直下に残す必要があるため）。`pipeline/scripts/build-data.ts` の `ROOT` 解決はファイル位置基準のため無変更で動くが、`--out` 引数は `pipeline/` からの相対パスになった点に注意（次節で更新）。
+**2026-08-17追記（Issue #11）**: データパイプライン一式（`scripts/`・`data/`・`package.json`・`tsconfig.json`・`vitest.config.ts`・`salary/`）を `pipeline/` 配下に移動した。これに伴い、リポジトリ直下の `package.json` は husky + lint-staged だけを持つ「Gitフック調整役」に縮小し、データパイプラインの実行時依存（tsx/vitest/typescript）は `pipeline/package.json` に移した（`web/` と `pipeline/` という2つの独立npmプロジェクトを横断してフックを振り分ける役目は、`.git` がある直下に残す必要があるため）。`pipeline/scripts/build-data.ts` の `ROOT` 解決はファイル位置基準のため無変更で動くが、`--out` 引数は `pipeline/` からの相対パスになった点に注意（次節で更新）。
 
 ## Cloudflare へのデプロイ（Workers Builds + 静的アセット）
 

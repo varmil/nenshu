@@ -125,7 +125,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **推定式はADR-0005の2点モデル**（`web/features/ranking/lib/salary.ts`）。目標年齢が平均年齢より下では、その会社の賃金カーブが「22歳＝業種平均の水準」と「平均年齢＝実測の平均年間給与」の2点を通ると置いて間を業種カーブの形で結ぶ。平均年齢より上はADR-0003の倍率一定のまま。Issue #42（若年側の過大推定）はこれで解消した（キーエンス25歳 1,642万→788万）。**カーブは`curves.json`に千円で入っているので、`curveValuesInYen`で円に揃えてから`estimateSalary`に渡すこと**——旧式は比しか取らないので揃えなくても合っていた。経緯と却下案（標準労働者カーブは効果が小さく60歳側が悪化する）は`docs/ranking/estimation-model/design.md`とADR-0005にある。
 
-**Python側（`pipeline/salary35/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary35 && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
+**Python側（`pipeline/salary/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
 
 **Bolt 2 に着手中（企業詳細ページと公開URL戦略）。Inceptionは完了。**
 
@@ -195,6 +195,20 @@ Unit の実装を終えたら、次の順で進める。
 - **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
 - **`workers_dev` と `preview_urls` は対で書く。** `preview_urls` の既定値は `preview_urls = workers_dev`（wrangler 4.44.0 以降）なので、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで無効になる**。しかもこの既定は**デプロイのたびに適用される**ため、ダッシュボードで有効にしても次のデプロイで落ちる。**Cloudflare の設定をダッシュボードだけで直さない。`wrangler.jsonc` に書かない設定は次のデプロイで wrangler の既定値に戻される**
 - **Worker の設定は main に入れるまで効かない。** `preview_urls: true` をブランチに入れて3回デプロイしてもプレビューURLは出ず、**main にマージした直後のビルドで出た**（2026-08-21・Issue #119）。`wrangler.jsonc` を触ったときは、ブランチでの結果で「効かない」と判断しないこと（実際に判断して、原因を設定ファイルの外に探しに行った）
+
+**働きやすさ指標は `worklife` 施策**（`docs/worklife/`）。厚生労働省「女性の活躍推進企業データベース」から**平均残業時間・年次有給休暇の取得率・男女の賃金の差異**を取り込み、企業詳細ページに出す。**W0（取り込み・Issue #149）は実装済み**（`docs/worklife/data-ingest/`）。**W1（表示・Issue #150）は未着手。** 親 Issue #148。
+
+- **突合キーは法人番号だけ（ADR-0009）。証券コードと社名は使わない。** 女性活躍DB側の証券コード列は自己申告で誤登録があり（阪急阪神HDの9042で阪神電気鉄道が返る）、社名は同名別会社が多い（マツダ株式会社は広島と兵庫に存在する）。**一致しない会社は「データ無し」。子会社で代用しない**——持株会社に子会社の残業時間を出すのは「本社のみ」バッジで扱ってきた問題そのもの
+- **実測（`4e6b3d07-99_20260820_utf8_bom.zip`＋`Edinetcode.zip`）: 64,879行・236列、法人番号で突合1,690社（90.5%）。** 有報1,867社すべてに法人番号が入っている（引けない会社は0件）。記入率は賃金の差異87.3%・残業61.4%・有給61.1%・いずれか91.6%
+- **証券コード＋社名で突合すると29社が別の会社に紐づく**（1.7%）。うち28社が持株会社→子会社（ニトリHD→ニトリ、ハウス食品グループ本社→ハウス食品 等）、1社が証券コードの誤登録。**法人番号のほうが突合率も高い**ので、精度と網羅のトレードオフですらない
+- **残業と有給は「全体」と「雇用管理区分ごと」の2箇所に分かれている。両方を見ないと4割落とす**（全体だけだと残業56.3%・有給23.2%）。区分は自由記述なので**平均して1つにしない**
+- **`worklife.json` は `/company/[id]` だけが import する。** `app/page.tsx` からは読まない（Issue #22）。**表現は `companies.json` と同じ文字列プール＋フラットな配列**——入れ子だと起動コストが倍以上になる（Node 22 実測の中央値で入れ子30.8ms → フラット12.5ms。`companies.json` は6.2ms）。**DuckDB・D1 は使わない**（1,679行の読み取り専用データにDBを持ち込まない）
+- **「実測値」とも「推定」とも呼ばない。「自己申告値」**（glossary）——「実測値」は有報の平均年間給与を指す語で衝突する
+- **`worklife_2026.csv` は1,548行**（突合1,690社のうち、3指標を1つも持たない142社は行を作らない）。`worklife.json` は gzip 127.4KB で上限160KB。**W0 の時点ではどこからも import していない**ので Worker には入っていない
+- **236列は位置で読む。見出しに重複がある**（`-女性(%)` が5回など）ので名前で引くと最後の列に倒れる。**読む前に全236列を完全一致で検証して落とす**（`pipeline/worklife/positivedb.ts`）
+- **注釈・説明は改行・カンマ・引用符を含む**（716社）。`pipeline/scripts/lib/csv.ts` の `split(",")` では読めないので `pipeline/worklife/csv.ts` に RFC 4180 の読み書きがある
+- **負の残業時間は全体値と区分別の両方に入っていた**（ビジネスエンジニアリング1社の2箇所）。着手前の調査は全体値しか見ておらず、実装して初めて出た
+- **`pipeline/salary35/` は `pipeline/salary/` に改名した**（W0）。35歳が既定だった頃の名前で、ADR-0007 以降は実態と合っていなかった。**ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す**（`salary/` は EDINET と e-Stat の2ソースを使うので、ソース名では切れない）。**CSV の `salary35` 列は改名していない**——「35歳時点の推定年収」を正しく指しており、`build-data.test.ts` が Python と TypeScript の一致を全1,867社で固定しているため
 
 **Issue #21（UI改善・Claude Design の `改善案.dc.html`）に着手中。** アートボード 5a/5b/5c（実測値モード）は U11、4a/2a/5c（レイアウト刷新）は **U12（Issue #80）で実装済み**。残りは、**C2（Issue #83）も実装済みで、Issue #21 のアートボードは全て実装した**（T0・T1 も込み）。計画は `~/.claude/plans/tingly-sleeping-puppy.md`。
 
@@ -281,7 +295,7 @@ Unit の実装を終えたら、次の順で進める。
 - **2019年に開示のタグ付けが変わっている。** それ以前は平均年間給与のXBRL要素そのものが無く、2017・2018年は全社を「従業員の状況」本文から拾う（`textblock.py`）。抽出率は2017年で95.7%
 - **同じ表の読み方が割れることがあり、1書類の中では決められない。** `4,17934.09.924,320,256` は「勤続9.9／2,432万」とも「勤続9.92／432万」とも読め、キーエンス2017とコメリ2017で正解が逆になる。`history.resolve_candidates` が2019年以降のタグ由来の値を基準に年をまたいで選び直す
 - **取得の窓は暦年ぜんぶ。** 6/1〜7/10 に限ると、COVID期の提出期限延長で2020年の96社を取り逃がす
-- **キャッシュ（`pipeline/salary35/cache/`・1.4GB）は gitignore 済み。** 再取得は `warm_lists.py` → `fetch_history.py` → `history.py` の順。年1回、その年ぶんだけ足せばよい
+- **キャッシュ（`pipeline/salary/cache/`・1.4GB）は gitignore 済み。** 再取得は `warm_lists.py` → `fetch_history.py` → `history.py` の順。年1回、その年ぶんだけ足せばよい
 
 **企業ロゴは `logo` 施策**（`docs/logo/`・親 Issue #23・ADR-0008）。**L0（調達、#109）・L1（器と表示、#110）とも実装済み。** 1,867社中1,636社（87.6%）にロゴが出る。
 
@@ -291,7 +305,7 @@ Unit の実装を終えたら、次の順で進める。
 - **器は正方形にしない**（ADR-0008 決定4）。実測した縦横比の中央値は3.69で、正方形付近は230件しかない。**器に `contain` で収め、拡大しない。器の縦横比は表示箇所ごとに変えてよい**が、収め方は4箇所（表・カード・企業詳細の見出し・近傍5社）で共通にする
 - **`sharp` は ICO を読めない。** `favicon.ico` をそのまま渡すと「画像でない」に落ちる。`icoToImage` で中の最大エントリを開いてから渡すこと。**ICO の DIB は AND マスクを含むので高さが2倍で入っており、行は下から上**
 - **「単色だから空の画像」と判定してはいけない。** 1色のワードマークは Commons の大半で、これで522社中332社を落としていた。空と見なすのは**全面が不透明で、かつ1色**のときだけ
-- **gBizINFO のトークンは `pipeline/salary35/.gbiz_key`**（gitignore 済み。`.edinet_key`・`.estat_key` と同じ形）。Wikidata に公式サイトが無い263社のうち147社をこれで埋めた。**トークンが無い環境でもその工程だけ飛ばして動く**
+- **gBizINFO のトークンは `pipeline/salary/.gbiz_key`**（gitignore 済み。`.edinet_key`・`.estat_key` と同じ形）。Wikidata に公式サイトが無い263社のうち147社をこれで埋めた。**トークンが無い環境でもその工程だけ飛ばして動く**
 - 取得の失敗はキャッシュしないので、`npm run build:logos` を**走らせ直すたびに数十社ぶん回収される**（429と一時的な失敗）。到達率 1,636/1,867 = 87.6%、画像は合計8.9MB（1枚平均5.5KB）、`logos.json` は gzip 41.7KB
 - **`/` に `logos.json` を丸ごと渡さない**（gzip 41.7KB）。渡すのは**ロゴの有無だけ**——`companies.rows` と同じ並びの1,867文字の文字列（gzip 約250B）。**縦横比は渡さない**——器の寸法が固定で中身は `object-contain` なので、画像が届いてもレイアウトは動かない。企業詳細ページはマスクではなくその画面に出る46社ぶんのIDだけを渡す
 - **器は横長。** 表 88×50／近傍5社 48×38／モバイルのランキング行 68×48（`size="row"`）／企業詳細 136×62。**高さはモック由来で、幅だけ広げてある**（`features/logo/components/CompanyLogo.tsx`）。**表（PC）だけは高さもモックの40pxから50pxに上げた**（運営者の指示・Issue #128。この行は器が行の高さを決めているので隣の列を削らない）。**モバイルは 48×38 に留めていた**——56px以上にすると meta 行の従業員数が丸ごと消えたため（実測）。**Issue #119 で行を4カラムにして meta から従業員数を落としたので、この制約は外れた**（削られる相手が無くなった）

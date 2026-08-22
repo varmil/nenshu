@@ -77,13 +77,13 @@ pipeline/scripts/build-data.test.ts                     # 旧式の照合テス�
 `unified.py` に `rebuild_derived()` を切り出し、EDINETから取り直す経路（`build()`）と既存CSVを式に追随させる経路（`--from-csv`）の両方が同じ関数を通るようにした。式が2箇所に分かれると片方だけ直して静かに食い違う。
 
 ```bash
-cd pipeline/salary35 && python3 unified.py --from-csv ../data/ranking_unified_2026.csv
+cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv
 cd pipeline && npx tsx scripts/build-data.ts --out ../web/public/data
 ```
 
 ### 実装中に踏んだこと
 
-**Pythonがwebと別のカーブを読んでいた。** `curves.py` は `annual_curves.json` を自分の隣（`salary35/`）だけ探していたが、リポジトリに入っている・build-data.ts が読んでいるのは `pipeline/data/annual_curves.json` のほう。ファイルが見つからず、フォールバックのハードコード定数 `INDUSTRY_CURVES`（**所定内給与＝月額・賞与を含まない**）が黙って使われていた。最初の再生成でキーエンス2,178万に対し三菱商事1,310万（web は1,578万）と出て気づいた。`pipeline/data/` を先に探すよう直し、理由をコメントに残した。
+**Pythonがwebと別のカーブを読んでいた。** `curves.py` は `annual_curves.json` を自分の隣（`salary/`）だけ探していたが、リポジトリに入っている・build-data.ts が読んでいるのは `pipeline/data/annual_curves.json` のほう。ファイルが見つからず、フォールバックのハードコード定数 `INDUSTRY_CURVES`（**所定内給与＝月額・賞与を含まない**）が黙って使われていた。最初の再生成でキーエンス2,178万に対し三菱商事1,310万（web は1,578万）と出て気づいた。`pipeline/data/` を先に探すよう直し、理由をコメントに残した。
 
 **丸めが言語で違う。** Python の組み込み `round()` は偶数丸め、JavaScript の `Math.round` は0.5切り上げ。1円ずれる可能性があるので Python 側は `floor(x + 0.5)` を使う。
 

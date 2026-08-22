@@ -85,7 +85,7 @@ est(t) = 平均給与 × C(t) / C(平均年齢)                                 
 CSV の `salary35` / `factor` / `rank_adj` 列は旧モデルの派生値。web側はこれらを読んでおらず（`build-data.ts` は `avgSalary` / `avgAge` / `industry` だけ使う）、EDINETキーが無い環境ではCSVを再生成できない。
 
 - `pipeline/scripts/build-data.test.ts` の「カーブから再計算した35歳時点の推定年収がCSVのsalary35と全1,867社で一致する」テストは**旧式のまま残す**。役割は「avgSalary・avgAge・industry の取り込みとカーブの対応が正しい」ことの固定であって表示式の検証ではない、とテスト名とコメントで明示する
-- Python側（`salary35/unified.py` の `salary35`/`factor`）を新式に合わせる作業は、次回のデータ再生成とセットで行う。**別Issueに起票する**
+- Python側（`salary/unified.py` の `salary35`/`factor`）を新式に合わせる作業は、次回のデータ再生成とセットで行う。**別Issueに起票する**
 
 ## テスト
 

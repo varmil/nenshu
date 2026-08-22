@@ -23,7 +23,7 @@ export function fiscalPeriodLabel(meta: CompaniesMeta): string {
 /**
  * `/about` の「対象範囲」で使う提出の窓。**窓の日付（6/1〜7/10）は有報の提出期に
  * 貼り付いていて年で動かない**ので日付は定数のままにし、年だけデータから引く。
- * 窓そのものを決めているのは `pipeline/salary35/` の取得側（暦年ぜんぶを見て
+ * 窓そのものを決めているのは `pipeline/salary/` の取得側（暦年ぜんぶを見て
  * この範囲を採る）で、ここはその表示にすぎない。
  */
 export function filingWindowLabel(meta: CompaniesMeta): string {

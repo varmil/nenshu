@@ -42,7 +42,7 @@
 
 ## 検証（Unit 全体）
 
-1. `cd pipeline && python3 salary35/history.py` → `data/salary_history.csv`
+1. `cd pipeline && python3 salary/history.py` → `data/salary_history.csv`
 2. `npm run build:data -- --out ../web/public/data` → `history.json`
 3. `cd pipeline && npm test`
 4. `cd web && npm run typecheck && npm test && npm run build`

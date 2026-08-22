@@ -38,7 +38,7 @@
 
 ### パイプライン
 
-- `pipeline/salary35/unified.py`
+- `pipeline/salary/unified.py`
   - `HEADERS` に `edinet_code` を追加する
   - `backfill_edinet_code(rows)` を追加する。証券コード → 社名（正規化）→ 上場区分で絞り込み → 未割り当てのコードで絞り込み、の順に解決する。**解決できない行があれば社名を列挙して異常終了する**
   - `--backfill-edinet-code PATH` を追加する。EDINET から取り直さずに既存 CSV へ列を足す経路（`--from-csv` と同じ考え方）

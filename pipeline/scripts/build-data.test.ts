@@ -9,6 +9,8 @@ import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { parseUnifiedCsv, type UnifiedRow } from "./lib/csv";
 import { makeId } from "./lib/slug";
+import { parseCsv } from "../worklife/csv";
+import { decodeRow, type WorklifeRow } from "../worklife/json";
 
 const ROOT = join(__dirname, "..");
 
@@ -46,7 +48,7 @@ describe("buildData", () => {
     expect(counts.get("2026-04")).toBe(2);
   });
 
-  // **Python（`pipeline/salary35/curves.py`）と TypeScript（`web/.../salary.ts`）の
+  // **Python（`pipeline/salary/curves.py`）と TypeScript（`web/.../salary.ts`）の
   // 実装が一致していることの検証。** CSVの `salary35` 列は Python が
   // `curves.estimate_salary`（ADR-0005の2点モデル）で計算した値で、ここでは
   // **サイトが実際に使っている `estimateSalary` をそのまま呼んで**突き合わせる。
@@ -351,6 +353,81 @@ describe("buildData", () => {
 
   it("AC-5: history.json のgzip後サイズが150KB以内", () => {
     expect(result.historyGzipSize).toBeLessThanOrEqual(150 * 1024);
+  });
+
+  /**
+   * 働きやすさ指標（W0・Issue #149）。**行の並びが `companies.rows` と一致すること**が
+   * ここでいちばん大事な検証になる——ずれると別の会社の残業時間を出す。
+   */
+  describe("worklife.json", () => {
+    it("行の並びが companies.rows と一致する（ずれると別の会社の数字を出す）", () => {
+      expect(result.worklife.rows).toHaveLength(result.companies.rows.length);
+      expect(result.worklife.notes).toHaveLength(result.companies.rows.length);
+
+      const idIndex = new Map(result.companies.rows.map((row, i) => [String(row[0]), i]));
+      const csv = parseCsv(readFileSync(join(ROOT, "data/worklife_2026.csv"), "utf-8"));
+      const header = csv[0];
+      for (const line of csv.slice(1)) {
+        const cells: Record<string, string> = {};
+        header.forEach((name, i) => (cells[name] = line[i] ?? ""));
+        const i = idIndex.get(cells.id);
+        expect(i, `${cells.id} が companies に無い`).toBeDefined();
+        const decoded = decodeRow(result.worklife.rows[i!] as WorklifeRow, result.worklife.pool);
+        expect(decoded.overtimeAll).toBe(cells.overtime_all === "" ? null : Number(cells.overtime_all));
+        expect(decoded.asOf).toBe(cells.as_of);
+      }
+    });
+
+    it("突合できなかった会社には 0 が入る（欠測を数値の 0 と混ぜない）", () => {
+      const idIndex = new Map(result.companies.rows.map((row, i) => [String(row[0]), i]));
+      // 8306（三菱UFJフィナンシャル・グループ）は持株会社なので突合できない（ADR-0009）
+      const i = idIndex.get("8306")!;
+      expect(result.worklife.rows[i]).toBe(0);
+      expect(result.worklife.notes[i]).toBe(0);
+    });
+
+    it("突合できた会社数が CSV の行数と一致する", () => {
+      const csv = parseCsv(readFileSync(join(ROOT, "data/worklife_2026.csv"), "utf-8"));
+      expect(result.worklife.meta.matched).toBe(csv.length - 1);
+      expect(result.worklife.meta.matched).toBe(1548);
+    });
+
+    it("トヨタ自動車の値が読み戻せる", () => {
+      const i = result.companies.rows.findIndex((row) => row[0] === "7203");
+      const d = decodeRow(result.worklife.rows[i] as WorklifeRow, result.worklife.pool);
+      expect(d.overtimeAll).toBe(20.3);
+      expect(d.overtimeScope).toBe("対象正社員");
+      expect(d.wageGapAll).toBe(67);
+      expect(d.wageGapRegular).toBe(66.8);
+      expect(d.wageGapNonRegular).toBe(59.7);
+      expect(d.asOf).toBe("2026年3月時点");
+      expect(result.worklife.notes[i]).toContain("計算の前提");
+    });
+
+    it("雇用管理区分が畳まれずに読み戻せる（三菱商事）", () => {
+      const i = result.companies.rows.findIndex((row) => row[0] === "8058");
+      const d = decodeRow(result.worklife.rows[i] as WorklifeRow, result.worklife.pool);
+      expect(d.overtimeAll).toBe(10.5);
+      // 総合職と派遣社員を平均した値には意味がない。4区分をそのまま持つ
+      expect(d.overtimeUnits).toEqual([
+        { unit: "総合職", value: 14.1 },
+        { unit: "一般職", value: 3.3 },
+        { unit: "嘱託その他", value: 3.2 },
+        { unit: "派遣社員", value: 5.6 },
+      ]);
+    });
+
+    it("区分を持たない会社は対のぶんだけ要素が増えない", () => {
+      const i = result.companies.rows.findIndex((row) => row[0] === "7203");
+      const row = result.worklife.rows[i] as WorklifeRow;
+      // 固定9 + 残業の件数1 + 有給の件数1 = 11（トヨタは残業に区分を持たない）
+      expect(row.length).toBeLessThanOrEqual(9 + 1 + 2 * 5 + 1 + 2 * 5);
+      expect(row[9]).toBe(0);
+    });
+
+    it("gzip後サイズが上限(160KB)以内", () => {
+      expect(result.worklifeGzipSize).toBeLessThanOrEqual(160 * 1024);
+    });
   });
 });
 

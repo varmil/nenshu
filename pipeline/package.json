@@ -5,7 +5,8 @@
   "scripts": {
     "build:data": "tsx scripts/build-data.ts",
     "test": "vitest run",
-    "build:logos": "tsx scripts/build-logos.ts"
+    "build:logos": "tsx scripts/build-logos.ts",
+    "extract:worklife": "tsx worklife/extract.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -7,7 +7,7 @@
 
 ```
 pipeline/
-  salary35/
+  salary/
     warm_lists.py     書類一覧（cache/list_<date>.json）を並列で温める
     fetch_history.py  母集団に絞って有報CSVのZIPを cache/<docID>.zip に落とす
     history.py        キャッシュを展開して年次CSVにする

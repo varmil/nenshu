@@ -60,7 +60,7 @@ interface CompaniesMeta {
 
 **置き場所は `lib/`。`features/<施策>/` ではない。** ranking と company の両方が使う横断の関心で、`lib/seo/`・`lib/analytics/` と同じ位置づけになる。
 
-`filingWindowLabel` の日付（6/1〜7/10）は定数のまま year だけデータから引く。**窓は有報の提出期に貼り付いていて年で動かない**——動かしているのは `pipeline/salary35/` の取得側で、ここはその表示にすぎない。
+`filingWindowLabel` の日付（6/1〜7/10）は定数のまま year だけデータから引く。**窓は有報の提出期に貼り付いていて年で動かない**——動かしているのは `pipeline/salary/` の取得側で、ここはその表示にすぎない。
 
 形の違う値は例外で落とす。`NaN年NaN月期` が全ページに出るくらいなら、ビルドで止まるほうがよい（`aboutFacts.ts` が実例を見つけられないときに落とすのと同じ）。
 
