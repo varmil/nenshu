@@ -145,6 +145,10 @@ gzip の上限は **160KB** に置いた（実測127.4KB に対して2割強の�
 
 ## 既知の負債
 
-**`build-logos.ts` の `readEdinetCodeZip` が要らなくなった。** `corporate_number` が CSV に入ったので、ロゴのパイプラインが `Edinetcode.zip` を別途読む必要はもう無い（同じ列を2箇所から引いている）。**この Unit では外していない**——ロゴを取り直す機会が無く、表示を変えない Unit で未検証の変更を入れたくないため。次にロゴを再生成するときに `row.corporateNumber` に置き換える。
+**~~`build-logos.ts` の `readEdinetCodeZip`~~ は外した。** `corporate_number` が CSV に入ったので、ロゴのパイプラインが `Edinetcode.zip` を別途読む必要が無くなった。同じ列を2箇所から引くと、片方だけ古いスナップショットを見る状態を作れてしまう。
+
+外す前に**全1,867社で値が一致することを確かめた**（ZIPから引けない会社0件・値が違う会社0件）。使われなくなった `scripts/lib/logo/houjin.ts`（`parseEdinetCodeList` / `splitCsvLine` / `readEdinetCodeZip`）と、それを見ていたテスト2件も消した。CSV の引用符処理はより完全な `worklife/csv.ts` が持っている。
+
+**これで `Edinetcode.zip` を必要とするのは Python 側（`unified.py --backfill-corporate-number`）の1か所だけになった。**
 
 **`pipeline/tsconfig.json` の `npx tsc --noEmit` は W0 の前から `build-data.ts:119` で落ちる**（`readonly` タプルと `CompaniesShape` の不一致）。pipeline に `typecheck` スクリプトは無く CI にも乗っていないので、この Unit では触っていない。

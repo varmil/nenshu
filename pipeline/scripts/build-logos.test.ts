@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { extractCandidates, manifestIcons, manifestUrl, absolute } from "./lib/logo/site";
 import { sortCandidates, parseSizes, toOrigin, Candidate } from "./lib/logo/candidates";
-import { parseEdinetCodeList, splitCsvLine } from "./lib/logo/houjin";
 import { icoMaxSize, looksLikeSvg } from "./lib/logo/image";
 import { titleFromP154 } from "./lib/logo/commons";
 
@@ -116,25 +115,6 @@ describe("sizes とURLの正規化", () => {
   it("相対URLを解決し、http(s) 以外は捨てる", () => {
     expect(absolute("../a.png", "https://x.jp/b/c/")).toBe("https://x.jp/b/a.png");
     expect(absolute("mailto:a@b.c", BASE)).toBeNull();
-  });
-});
-
-describe("EDINETコード一覧", () => {
-  const csv = [
-    "ダウンロード実行日,2026年08月18日現在,件数,11383件",
-    "ＥＤＩＮＥＴコード,提出者名,証券コード,提出者法人番号",
-    '"E00004","カネコ種苗株式会社","13760","5070001000715"',
-    '"E99999","値の無い会社","",""',
-  ].join("\r\n");
-
-  it("2行目のヘッダを見て法人番号を引く", () => {
-    const map = parseEdinetCodeList(csv);
-    expect(map.get("E00004")).toBe("5070001000715");
-    expect(map.has("E99999")).toBe(false);
-  });
-
-  it("引用符の中のカンマを割らない", () => {
-    expect(splitCsvLine('"a,b",c,"d""e"')).toEqual(["a,b", "c", 'd"e']);
   });
 });
 

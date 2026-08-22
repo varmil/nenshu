@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv } from "./lib/csv";
 import { makeId } from "./lib/slug";
 import { Fetcher, mapLimit } from "./lib/logo/fetcher";
-import { readEdinetCodeZip } from "./lib/logo/houjin";
 import { lookupByHoujin, WikidataHit } from "./lib/logo/wikidata";
 import { readToken, lookupUrls } from "./lib/logo/gbiz";
 import { fetchInfo, titleFromP154, CommonsInfo } from "./lib/logo/commons";
@@ -61,11 +60,14 @@ async function main() {
   if (rows.length !== EXPECTED_ROW_COUNT) {
     throw new Error(`${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
   }
-  const houjinByEdinet = readEdinetCodeZip(resolve(ROOT, "salary/Edinetcode.zip"));
+  // 法人番号は CSV の `corporate_number` 列から引く（W0・ADR-0009）。
+  // **`Edinetcode.zip` を別途読まない**——同じ列を2箇所から引くと、片方だけ古い
+  // スナップショットを見る状態を作れてしまう。値が一致することは確認済み（全1,867社）。
   const companies: Company[] = rows.map((row) => {
-    const houjin = houjinByEdinet.get(row.edinetCode) ?? "";
-    if (!houjin) throw new Error(`${row.name}（${row.edinetCode}）の法人番号がありません`);
-    return { id: makeId(row), name: row.name, houjin };
+    if (!row.corporateNumber) {
+      throw new Error(`${row.name}（${row.edinetCode}）の法人番号がありません`);
+    }
+    return { id: makeId(row), name: row.name, houjin: row.corporateNumber };
   });
   const targets = limit > 0 ? companies.slice(0, limit) : companies;
   console.log(`対象 ${targets.length} 社`);
