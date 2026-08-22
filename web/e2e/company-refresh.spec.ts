@@ -250,18 +250,18 @@ test.describe("T2 推移の表", () => {
   });
 
   /*
-   * 並びは **チャート → 説明文 → 表**（運営者の指示で入れ替えた）。年齢別の推定年収は
-   * 逆に表が先なので、片方を直したつもりでもう片方が付いてくる事故をここで止める。
+   * 並びは **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は逆に表が先なので、
+   * 片方を直したつもりでもう片方が付いてくる事故をここで止める。
    */
-  test("推移は チャート → 説明文 → 表 の順に並ぶ", async ({ page }) => {
+  test("推移は チャート → 表 → 説明文 の順に並ぶ", async ({ page }) => {
     await page.goto("/company/6861");
     const section = historySection(page);
 
     const chart = (await section.locator("figure").boundingBox())!;
-    const summary = (await section.getByText(/9年で [＋−]/).boundingBox())!;
     const table = (await section.getByRole("table").boundingBox())!;
-    expect(chart.y).toBeLessThan(summary.y);
-    expect(summary.y).toBeLessThan(table.y);
+    const summary = (await section.getByText(/9年で [＋−]/).boundingBox())!;
+    expect(chart.y).toBeLessThan(table.y);
+    expect(table.y).toBeLessThan(summary.y);
   });
 
   test("AC-10: 表がグラフの読み上げ一覧を置き換えている", async ({ page }) => {

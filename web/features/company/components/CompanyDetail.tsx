@@ -404,10 +404,12 @@ export function CompanyDetail({
                 各年の有価証券報告書に載った平均年間給与の実測値（提出会社単体）。前年比は会社の平均が動いた幅で、個人の昇給率ではありません。
               </p>
               {/*
-                **チャート → 説明文 → 表**（運営者の指示）。年齢別の推定年収は表が先だが、
-                推移で先に見たいのは10年ぶんの形で、値そのものはその後に確かめるもの。
+                **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は表が先だが、
+                推移で先に見たいのは10年ぶんの形で、値はその後に表で確かめるもの。増減の
+                1文は figure と表の両方を受けた締めなので、2つの後ろに置く。
               */}
               <SalaryHistoryChart history={history} />
+              <SalaryHistoryTable history={history} />
               {/*
                 増減の1文に、最高値の年を足す（C4）。**最新年が最高値の会社では
                 `buildHistoryPeak` が `null` を返す**——1文目と同じ数字になるため。
@@ -419,7 +421,6 @@ export function CompanyDetail({
                   {historyPeak}
                 </p>
               )}
-              <SalaryHistoryTable history={history} />
             </section>
           )}
 
