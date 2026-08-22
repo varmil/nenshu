@@ -394,12 +394,12 @@ export function CompanyDetail({
                 各年の有価証券報告書に載った平均年間給与の実測値（提出会社単体）。前年比は会社の平均が動いた幅で、個人の昇給率ではありません。
               </p>
               {/*
-                **表 → 説明文 → チャート**（T2・Issue #138）。年齢別の推定年収と同じ順に
-                揃えてある——値そのものは表で、形はグラフで読ませる。
+                **チャート → 説明文 → 表**（運営者の指示）。年齢別の推定年収は表が先だが、
+                推移で先に見たいのは10年ぶんの形で、値そのものはその後に確かめるもの。
               */}
-              <SalaryHistoryTable history={history} />
-              {historySummary && <p className="text-sm">{historySummary}</p>}
               <SalaryHistoryChart history={history} />
+              {historySummary && <p className="text-sm">{historySummary}</p>}
+              <SalaryHistoryTable history={history} />
             </section>
           )}
 
