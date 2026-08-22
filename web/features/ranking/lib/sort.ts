@@ -1,16 +1,17 @@
 import type { SortKey, SortOrder, SortSelection } from "../types";
 
 /**
- * 軸ごとの「既定の向き」（spec.md 1.10）。
+ * 軸ごとの「既定の向き」（spec.md 1.10）。**3軸とも降順＝大きい順で揃えてある。**
  *
- * **軸を選んだときに最初に出る向きであり、URL でも省略される向き。** 年収は高い順、
- * 平均年齢は若い順、従業員数は多い順——U15 で逆向きを足す前に読者が見ていた3通りが、
- * そのままこの表になる。既に配ってある `?sort=age`・`?sort=emp` の意味を変えないため、
- * この表は「昇順で揃える」ような整理をしない。
+ * 軸を選んだときに最初に出る向きであり、URL でも省略される向き。U15 では
+ * 平均年齢だけを昇順（若い順）にしていた——U15 より前の3通りがそうだったため——が、
+ * **1つの軸だけ向きが違うと、チップを押したときに何が起きるかを軸ごとに覚えることに
+ * なる**（運営者の指摘）。矢印もその軸だけ上を向く。既定は「大きい順」で統一し、
+ * 若い順は逆向き（`?sort=age-asc`）として出す。
  */
 export const SORT_DEFAULT_ORDER: Record<SortKey, SortOrder> = {
   salary: "desc",
-  age: "asc",
+  age: "desc",
   employees: "desc",
 };
 
@@ -25,7 +26,7 @@ export const SORT_AXIS_LABEL: Record<SortKey, string> = {
  * 向きの言い方は軸ごとに違う。**`昇順 / 降順` とは書かない**——読者が読むのは
  * 「若い順」「多い順」であって、値がどちらに並ぶかではない。
  *
- * 平均年齢の `desc` だけは「高い順」で、年収の `desc`（高い順）と字面が同じになる。
+ * 平均年齢の `desc` は「高い順」で、年収の `desc`（高い順）と字面が同じになる。
  * 軸の名前と必ず並べて出すので取り違えようがない（`平均年齢 高い順`）。
  */
 export const SORT_DIRECTION_LABEL: Record<SortKey, Record<SortOrder, string>> = {

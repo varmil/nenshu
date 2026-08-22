@@ -160,7 +160,7 @@ describe("AC-12 並び替えのURL同期", () => {
   });
 
   it("平均年齢・従業員数は sort に出す", () => {
-    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "asc" } })).toString()).toBe("sort=age");
+    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "desc" } })).toString()).toBe("sort=age");
     expect(buildSearchParams(stateFor({ sort: { key: "employees", order: "desc" } })).toString()).toBe("sort=emp");
   });
 
@@ -177,29 +177,45 @@ describe("AC-12 並び替えのURL同期", () => {
   });
 
   /*
-   * 向き（Issue #106）。**既定の向きなら軸だけ、逆向きなら `-asc` / `-desc` を足す。**
-   * U15 より前に配ってある `?sort=age`・`?sort=emp` の意味が変わらないことが制約なので、
-   * 「同じ並びに2つの綴りがある」状態を作らない。
+   * 向き（Issue #106）。**既定の向きなら軸だけ、逆向きなら `-asc` を足す。**
+   * 3軸とも既定は降順なので、URLに向きが出るのは昇順のときだけになる
+   * （`-desc` を綴る状態は無い。同じ並びに2つの綴りを作らない）。
    */
-  it("逆向きは sort に向きを足して出す", () => {
+  it("逆向き（昇順）は sort に向きを足して出す", () => {
     expect(buildSearchParams(stateFor({ sort: { key: "salary", order: "asc" } })).toString()).toBe(
       "sort=salary-asc"
     );
-    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "desc" } })).toString()).toBe(
-      "sort=age-desc"
+    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "asc" } })).toString()).toBe(
+      "sort=age-asc"
     );
     expect(
       buildSearchParams(stateFor({ sort: { key: "employees", order: "asc" } })).toString()
     ).toBe("sort=emp-asc");
   });
 
-  it("U15 より前のURL（sort=age・sort=emp）は同じ並びのまま", () => {
+  it("軸だけのURLは3軸とも降順になる", () => {
     expect(parseSearchParams(new URLSearchParams("sort=age")).sort).toEqual({
       key: "age",
-      order: "asc",
+      order: "desc",
     });
     expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toEqual({
       key: "employees",
+      order: "desc",
+    });
+    expect(parseSearchParams(new URLSearchParams("sort=salary")).sort).toEqual({
+      key: "salary",
+      order: "desc",
+    });
+  });
+
+  /*
+   * 既定を降順に揃える前に配った `?sort=age`（若い順のつもり）は、いま高い順で開く。
+   * **`-desc` を綴った古いURLも読めること**だけは残す——書き出す側は使わないが、
+   * 読む側が落とすと `?sort=age-desc` が既定の並びに倒れてしまう。
+   */
+  it("書き出さない綴り（-desc）も読めば通る", () => {
+    expect(parseSearchParams(new URLSearchParams("sort=age-desc")).sort).toEqual({
+      key: "age",
       order: "desc",
     });
   });
@@ -223,7 +239,7 @@ describe("AC-12 並び替えのURL同期", () => {
   });
 
   it("向きを含めても往復変換が一致する", () => {
-    for (const spelling of ["sort=age-desc", "sort=salary-asc", "sort=emp-asc", "sort=emp"]) {
+    for (const spelling of ["sort=age-asc", "sort=salary-asc", "sort=emp-asc", "sort=emp"]) {
       const parsed = parseSearchParams(new URLSearchParams(spelling));
       expect(buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString()).toBe(spelling);
     }
@@ -231,7 +247,12 @@ describe("AC-12 並び替えのURL同期", () => {
 
   // sort は page の前、q の後（カノニカル化）。
   it("sort を含めても往復変換が一致する", () => {
-    const state = stateFor({ targetAge: 35, industry: "銀行業", sort: { key: "age", order: "asc" }, page: 2 });
+    const state = stateFor({
+      targetAge: 35,
+      industry: "銀行業",
+      sort: { key: "age", order: "desc" },
+      page: 2,
+    });
     const first = buildSearchParams(state).toString();
     expect(first).toBe("age=35&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&sort=age&page=2");
     const parsed = parseSearchParams(new URLSearchParams(first));

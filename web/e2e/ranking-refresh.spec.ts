@@ -22,20 +22,21 @@ const metaValues = async (page: import("@playwright/test").Page, pattern: RegExp
 };
 
 test.describe("AC-12 並び替え", () => {
-  test("平均年齢が若い順に並び替えても、順位は1から振り直されない", async ({ page }) => {
+  test("平均年齢で並び替えても、順位は1から振り直されない", async ({ page }) => {
     await page.goto("/");
     await expect(rows(page).first()).toContainText("株式会社キーエンス");
 
+    // 3軸とも既定は降順なので、平均年齢を押すと「高い順」から始まる。
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "平均年齢 若い順" })
+      .getByRole("button", { name: "平均年齢 高い順" })
       .click();
 
     await expect(page).toHaveURL(/[?&]sort=age/);
 
-    // meta 行の平均年齢が昇順に並ぶ。
+    // meta 行の平均年齢が降順に並ぶ。
     const values = await metaValues(page, /平均([\d.]+)歳/);
-    expect(values).toEqual([...values].sort((a, b) => a - b));
+    expect(values).toEqual([...values].sort((a, b) => b - a));
 
     // 順位（1列目）は金額基準のまま。1,2,3… にはならない。
     const ranks = (await rows(page).locator("td").first().allTextContents()).map(Number);
@@ -67,7 +68,7 @@ test.describe("AC-12 並び替え", () => {
     await page.goto("/?page=2");
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "平均年齢 若い順" })
+      .getByRole("button", { name: "平均年齢 高い順" })
       .click();
     await expect(page).toHaveURL(/[?&]sort=age/);
     await expect(page).not.toHaveURL(/[?&]page=/);
@@ -80,17 +81,17 @@ test.describe("AC-12 並び替え", () => {
   test("同じチップをもう一度押すと向きが反転する", async ({ page }) => {
     await page.goto("/?sort=age");
     const group = page.getByRole("group", { name: "並び替え" });
-    await expect(group.getByRole("button", { name: "平均年齢 若い順" })).toBeVisible();
-
-    await group.getByRole("button", { name: "平均年齢 若い順" }).click();
-
-    await expect(page).toHaveURL(/[?&]sort=age-desc/);
     await expect(group.getByRole("button", { name: "平均年齢 高い順" })).toBeVisible();
+
+    await group.getByRole("button", { name: "平均年齢 高い順" }).click();
+
+    await expect(page).toHaveURL(/[?&]sort=age-asc/);
+    await expect(group.getByRole("button", { name: "平均年齢 若い順" })).toBeVisible();
     const ages = await metaValues(page, /平均([\d.]+)歳/);
-    expect(ages).toEqual([...ages].sort((a, b) => b - a));
+    expect(ages).toEqual([...ages].sort((a, b) => a - b));
 
     // もう一度押すと元の向きに戻り、URLからも向きが消える。
-    await group.getByRole("button", { name: "平均年齢 高い順" }).click();
+    await group.getByRole("button", { name: "平均年齢 若い順" }).click();
     await expect(page).toHaveURL(/[?&]sort=age(&|$)/);
   });
 
@@ -109,7 +110,7 @@ test.describe("AC-12 並び替え", () => {
   });
 
   test("逆向きの軸から別の軸へ移ると、その軸の既定の向きになる", async ({ page }) => {
-    await page.goto("/?sort=age-desc");
+    await page.goto("/?sort=age-asc");
     const group = page.getByRole("group", { name: "並び替え" });
 
     await group.getByRole("button", { name: "従業員数 多い順" }).click();
@@ -144,11 +145,26 @@ test.describe("AC-12 並び替え", () => {
 
     await page
       .getByRole("group", { name: "並び替え" })
-      .getByRole("button", { name: "平均年齢 若い順" })
+      .getByRole("button", { name: "平均年齢 高い順" })
       .click();
-    await expect(page).toHaveURL(/[?&]sort=age-desc/);
+    await expect(page).toHaveURL(/[?&]sort=age-asc/);
 
     expect(requests).toHaveLength(0);
+  });
+
+  /*
+   * **3軸とも既定は降順（大きい順）で揃っている**（U15 の直後に平均年齢を反転させた）。
+   * 未選択のチップの読み上げ名がその軸の既定の向きなので、初期表示の3つで確かめられる。
+   */
+  test("どの軸も既定は大きい順で、矢印は下を向く", async ({ page }) => {
+    await page.goto("/");
+    const group = page.getByRole("group", { name: "並び替え" });
+    for (const name of ["平均年収 高い順", "平均年齢 高い順", "従業員数 多い順"]) {
+      await expect(group.getByRole("button", { name })).toBeVisible();
+    }
+    // 選択中（平均年収 高い順）の矢印は下向き。
+    const chevron = group.getByRole("button", { name: "平均年収 高い順" }).locator("svg");
+    await expect(chevron).toHaveClass(/lucide-chevron-down/);
   });
 
   test("並び替えでネットワークリクエストが発生しない", async ({ page }) => {
