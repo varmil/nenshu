@@ -145,7 +145,7 @@ Unit の実装を終えたら、次の順で進める。
 - 決算期は全社が同じではない（3月期1,865社・4月期2社）。**「3月期が中心」と断るのは `/about` の「対象範囲」だけ**
 - 代表の決算期が過半に届かなければ `build-data.ts` が落ちる。1つで代表できないデータを黙って公開しない
 
-**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置く。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
+**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
 
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
@@ -169,7 +169,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
@@ -181,6 +181,9 @@ Unit の実装を終えたら、次の順で進める。
 - **robots.txt でクロールを止めない。** `?emp=` などを `Disallow` にすると Google が canonical を読めなくなり、正規URLへ評価が渡らないまま宙に浮く。寄せるのは canonical だけでやる
 - **「有価証券報告書」は全ページの description に入れ、タイトルは `/` だけに入れる。** 競合6社（Zaimiru・OpenMoney・OpenWork・Yahoo!しごとカタログ・Ullet・J-LiC）のタイトルを実測すると、競っているのは鮮度と規模で、有報を置いているものは1つも無かった。うち3社はデータ元が同じ有報である——**「有報ベース」はデータ源として独自なのではなく、それを明示していることが差別化になる**（口コミベースの数字と並んだときに読者が見分けられる）。`?age=N`・`?ind=X` に入れないのは「◯歳」「業種名」のほうが情報量が高いため
 - **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを `app/layout.tsx` ではなく `app/page.tsx` の `generateMetadata` が組み立てているのはそのため
+- **メタデータの文言は `PageMeta`（`lib/seo/pageMeta.ts`）を返す純粋関数1つから出す**（U16・Issue #135・親 #130）。サーバーは `toMetadata()` で `Metadata` に包み、**クライアントは `usePageMeta()` で DOM に書く**。ランキングは `rankingPageMeta`、企業詳細は `companyPageMeta`（C1 以来 `generateMetadata` に直書きしていたものを切り出した）。**操作はすべて `pushState` なので、これが無いとメタデータだけが最初のURLに取り残される**——`/` で年齢そろえに切り替えると URL は `?age=35` なのにタイトルは実測値のまま、企業詳細では**タイトルの金額と画面の金額が食い違う**（親 Issue #130 が報告したのはこの状態の DOM で、**サーバーが返すHTMLは最初から正しかった**）
+- **`<title>` は書いて終わりにできない。React が書き戻す。** Next.js はメタデータを本文の後ろに流し、React が届いた時点で head へ移す。**読み込み直後（実測で1秒以内）に切り替えると、こちらの書き込みの直後に React のハイドレーションが `<title>` の中の文字だけを元に戻す**（`description`・`canonical` は属性なので戻らない＝**タイトルだけ古いまま**という、直そうとしている症状そのものになる）。`usePageMeta` が `MutationObserver` で head を見張って書き直している。**E2E は `goto` の直後に押さないと再現しない**——1.5秒待つと通ってしまう
+- **メタデータの E2E は文言を書き写さない。** `e2e/metadata.spec.ts` は「操作後の DOM」と「同じURLを直接開いたときのHTML」を比べる。文言を書き写すと、文言を直すたびにテストも直すことになり、そのとき何も守らない
 - **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
 - **`workers_dev` と `preview_urls` は対で書く。** `preview_urls` の既定値は `preview_urls = workers_dev`（wrangler 4.44.0 以降）なので、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで無効になる**。しかもこの既定は**デプロイのたびに適用される**ため、ダッシュボードで有効にしても次のデプロイで落ちる。**Cloudflare の設定をダッシュボードだけで直さない。`wrangler.jsonc` に書かない設定は次のデプロイで wrangler の既定値に戻される**
 - **Worker の設定は main に入れるまで効かない。** `preview_urls: true` をブランチに入れて3回デプロイしてもプレビューURLは出ず、**main にマージした直後のビルドで出た**（2026-08-21・Issue #119）。`wrangler.jsonc` を触ったときは、ブランチでの結果で「効かない」と判断しないこと（実際に判断して、原因を設定ファイルの外に探しに行った）

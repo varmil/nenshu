@@ -3,6 +3,7 @@ import { INITIAL_STATE, parseSearchParams } from "@/features/ranking/lib/urlStat
 import { PAGE_SIZE } from "@/features/ranking/types";
 import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
 import { fiscalPeriodLabel } from "@/lib/data/period";
+import { toMetadata, type PageMeta } from "./pageMeta";
 import { SITE_NAME } from "./site";
 
 /** `/?age=N`。`age` は数値なのでエンコードは要らない。 */
@@ -130,13 +131,12 @@ export function rankingCanonical(
  * 「有価証券報告書」がSERPで見える位置から押し出される。社数と同じく
  * `companies.meta` から引く——直書きすると年1回のデータ更新でそこだけ古い年が残る。
  */
-export function rankingMetadata(
+export function rankingPageMeta(
   params: URLSearchParams,
   companies: CompaniesData,
   industryCount: (industry: string) => number
-): Metadata {
+): PageMeta {
   const canonical = rankingCanonical(params, companies, industryCount);
-  const alternates = { canonical: canonical.path };
   const total = companies.meta.count.toLocaleString("ja-JP");
   const period = fiscalPeriodLabel(companies.meta);
 
@@ -155,7 +155,7 @@ export function rankingMetadata(
         `${canonical.industry}${count}社の平均年収ランキング。` +
         `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値を、` +
         `順位・偏差値・平均年齢つきで比較できる。`,
-      alternates,
+      canonical: canonical.path,
     };
   }
 
@@ -165,7 +165,7 @@ export function rankingMetadata(
       description:
         `有価証券報告書（${period}）の平均年間給与を${canonical.targetAge}歳時点に補正した推定年収のランキング。` +
         `平均年齢の違いをならしたうえで、上場・非上場${total}社を比較できる。`,
-      alternates,
+      canonical: canonical.path,
     };
   }
 
@@ -187,6 +187,18 @@ export function rankingMetadata(
       `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値で、` +
       `上場・非上場${total}社の年収を比較する。` +
       `平均年齢の違いをならした推定年収に切り替えて並べ直すこともできる。`,
-    alternates,
+    canonical: canonical.path,
   };
+}
+
+/**
+ * `app/page.tsx` の `generateMetadata` が返す形。**文言は `rankingPageMeta` が持ち、
+ * ここは包むだけ**——同じ文言をクライアント（`RankingApp`）も引くため（U16）。
+ */
+export function rankingMetadata(
+  params: URLSearchParams,
+  companies: CompaniesData,
+  industryCount: (industry: string) => number
+): Metadata {
+  return toMetadata(rankingPageMeta(params, companies, industryCount));
 }

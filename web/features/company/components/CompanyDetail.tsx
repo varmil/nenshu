@@ -2,6 +2,8 @@
 
 import { NavLink } from "@/features/navigation/components/NavLink";
 import { useLocationSyncedState } from "@/lib/history/useLocationSyncedState";
+import { companyPageMeta } from "@/lib/seo/company";
+import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
@@ -95,6 +97,12 @@ export function CompanyDetail({
   fiscalPeriod: string;
 }) {
   const { targetAge, setTargetAge } = useTargetAge(initialAge);
+  /**
+   * タイトルには金額が入る（`キーエンスの平均年収 | 有価証券報告書は2,178万円`）ので、
+   * 表示基準を切り替えたまま放っておくと**タイトルと画面の金額が食い違う**
+   * （U16・親 Issue #130）。文言はサーバーの `generateMetadata` と同じ関数から引く。
+   */
+  usePageMeta(companyPageMeta(view, targetAge, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
   const isRaw = targetAge === null;
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
