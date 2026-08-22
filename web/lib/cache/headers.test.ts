@@ -23,10 +23,11 @@ describe("cacheHeaderRules", () => {
     ]);
   });
 
-  it("ブラウザにはHTMLを持たせない（再訪で古い数字を見せないため）", () => {
-    // `max-age` が正の値に戻ると、デプロイ後その秒数のあいだ再訪した読者が
-    // 古い金額を見る。推定式を変えた直後は `/about` の説明と食い違う。ADR-0004 参照。
-    expect(BROWSER_CACHE_CONTROL).toBe("public, max-age=0, must-revalidate");
+  it("ブラウザには1時間持たせる", () => {
+    // 全画面エラーの対処として `max-age=0` を検討したが、あれの対処にならないので
+    // 据え置いた（ADR-0004「ブラウザのキャッシュは据え置く」）。代償は、再訪した
+    // 読者がこの秒数ぶん古い金額を見ること。
+    expect(BROWSER_CACHE_CONTROL).toBe("public, max-age=3600");
     for (const rule of rules.slice(0, -1)) {
       expect(valueOf(rule, "Cache-Control")).toBe(BROWSER_CACHE_CONTROL);
     }

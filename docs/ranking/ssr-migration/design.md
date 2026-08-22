@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
       {
         source: "/",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+          { key: "Cache-Control", value: "public, max-age=3600" },
           {
             key: "Cloudflare-CDN-Cache-Control",
             value: "public, s-maxage=86400, stale-while-revalidate=604800",
@@ -70,10 +70,10 @@ initOpenNextCloudflareForDev();
 curl -s "https://openreport.net/?age=25&cachebust=$RANDOM"
 ```
 
-**なお、ブラウザ側のキャッシュは2026-08-21に無くした**（`max-age=3600` → `max-age=0, must-revalidate`）。デプロイ直後の全画面エラーの原因がこれだった。ADR-0004「なぜブラウザに持たせないか」を参照。
+**ブラウザ側の`max-age=3600`は据え置いている。** 2026-08-21にデプロイ直後の全画面エラーの対処として0にすることを検討したが、実測の結果それの対処にならないと分かったのでやめた。ADR-0004「ブラウザのキャッシュは据え置く」を参照。
 
 - `output: 'export'`を削除する。これがADR-0004の中核（ADR-0002を一部supersede）。
-- ブラウザ向け`Cache-Control`とエッジ向け`Cloudflare-CDN-Cache-Control`を分ける。**ブラウザには持たせず（`max-age=0`）、エッジには1日（stale-while-revalidateで1週間）持たせる。** 規則の本体は`web/lib/cache/headers.ts`にあり、値と理由はADR-0004「キャッシュの設計」が正。
+- ブラウザ向け`Cache-Control`（1時間）とエッジ向け`Cloudflare-CDN-Cache-Control`（1日、1週間はstale-while-revalidateで許容）を分ける。規則の本体は`web/lib/cache/headers.ts`にあり、値と理由はADR-0004「キャッシュの設計」が正。
 - `initOpenNextCloudflareForDev()`はadapterの推奨手順。今回Cloudflareのバインディング（KV/D1/R2等）は使わないため実質的な効果は薄いが、`next dev`実行時にadapterの前提を壊さないための標準的な追加。
 
 ## `open-next.config.ts`（新規）
@@ -269,7 +269,7 @@ U5時点では、静的HTML（`output:'export'`）が常にビルド時の初期
 
 データはビルド時に確定し、実行中は変わらない（更新は年1回、ADR-0001）。フィルタ済みURLごとの応答は「同じクエリなら常に同じ中身」なので、エッジでキャッシュしてよい。
 
-- `next.config.ts`の`headers()`で`Cache-Control`（ブラウザ、持たせない）と`Cloudflare-CDN-Cache-Control`（エッジ、1日・stale-while-revalidateで1週間）を設定する（前述）。規則の本体は`web/lib/cache/headers.ts`。
+- `next.config.ts`の`headers()`で`Cache-Control`（ブラウザ、1時間）と`Cloudflare-CDN-Cache-Control`（エッジ、1日・stale-while-revalidateで1週間）を設定する（前述）。規則の本体は`web/lib/cache/headers.ts`。
 - **Cloudflareの既定のキャッシュ挙動はHTMLを自動でキャッシュしない場合がある。** 本番デプロイ後、`curl -I`で`CF-Cache-Status`ヘッダーを確認し、実際にキャッシュされているか検証する。
 
 ### 追記: 本番デプロイ後に判明した罠 — `Cache-Control`ヘッダーだけでは自動キャッシュされない
