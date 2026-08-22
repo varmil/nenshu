@@ -1,4 +1,11 @@
-import type { CompaniesData, CurvesData, RankedCompany, RankingState, SortKey } from "../types";
+import type {
+  CompaniesData,
+  CurvesData,
+  RankedCompany,
+  RankingState,
+  SortKey,
+  SortSelection,
+} from "../types";
 import { PAGE_SIZE } from "../types";
 import { matchesFilters } from "./filter";
 import { curveValuesInYen } from "./curve";
@@ -112,17 +119,26 @@ export function buildRankedCompanies(
   };
 }
 
+/** 軸ごとの比較。**どれも昇順で書き、向きは呼ぶ側が符号で反転させる。** */
+const SORT_COMPARATORS: Record<SortKey, (a: RankedCompany, b: RankedCompany) => number> = {
+  salary: (a, b) => displaySalary(a) - displaySalary(b),
+  age: (a, b) => a.avgAge - b.avgAge,
+  employees: (a, b) => a.employees - b.employees,
+};
+
 /**
  * 表示の並び替え（spec.md 1.10）。**`rank` は書き換えない。**
  *
  * `Array.prototype.sort` は安定なので、平均年齢・従業員数が同じ会社どうしは
  * 金額の降順のまま残る。
+ *
+ * **既定（年収が高い順）だけは並べ替えずに返す。** 渡ってくる配列は母集団の順位を
+ * 振るために既に表示基準の金額の降順になっており、同じ並びを作り直す意味がない
+ * （Workers Free の CPU 10ms/リクエストに対して、1,867件のソート1回ぶんの節約）。
  */
-function applySort(companies: RankedCompany[], sort: SortKey): RankedCompany[] {
-  if (sort === "salary") return companies;
-  const compare =
-    sort === "age"
-      ? (a: RankedCompany, b: RankedCompany) => a.avgAge - b.avgAge
-      : (a: RankedCompany, b: RankedCompany) => b.employees - a.employees;
-  return [...companies].sort(compare);
+function applySort(companies: RankedCompany[], { key, order }: SortSelection): RankedCompany[] {
+  if (key === "salary" && order === "desc") return companies;
+  const compare = SORT_COMPARATORS[key];
+  const sign = order === "asc" ? 1 : -1;
+  return [...companies].sort((a, b) => sign * compare(a, b));
 }

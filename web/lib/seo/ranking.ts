@@ -75,7 +75,9 @@ export function rankingCanonical(
     state.tenure !== null ||
     state.avgAgeBucket !== null ||
     state.query !== "" ||
-    state.sort !== INITIAL_STATE.sort;
+    // 向きだけ違う `?sort=salary-asc` も並びが違うページなので寄せる（Issue #106）。
+    state.sort.key !== INITIAL_STATE.sort.key ||
+    state.sort.order !== INITIAL_STATE.sort.order;
   if (hasUnindexed) return { path: "/", targetAge: null, industry: null, page: 1 };
 
   // 33件のリスト外の業種名は、URLとしては通るがページとしては0件なので寄せる。

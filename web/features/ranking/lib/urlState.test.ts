@@ -156,26 +156,82 @@ describe("buildSearchParams", () => {
 
 describe("AC-12 並び替えのURL同期", () => {
   it("既定（年収が高い順）は sort を出さない", () => {
-    expect(buildSearchParams(stateFor({ sort: "salary" })).toString()).toBe("");
+    expect(buildSearchParams(stateFor({ sort: { key: "salary", order: "desc" } })).toString()).toBe("");
   });
 
   it("平均年齢・従業員数は sort に出す", () => {
-    expect(buildSearchParams(stateFor({ sort: "age" })).toString()).toBe("sort=age");
-    expect(buildSearchParams(stateFor({ sort: "employees" })).toString()).toBe("sort=emp");
+    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "asc" } })).toString()).toBe("sort=age");
+    expect(buildSearchParams(stateFor({ sort: { key: "employees", order: "desc" } })).toString()).toBe("sort=emp");
   });
 
   it("sort=emp から復元する", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toBe("employees");
+    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toEqual({
+      key: "employees",
+      order: "desc",
+    });
   });
 
   it("未知の sort は無視して既定に倒れる", () => {
     const restored = { ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("sort=zzz")) };
-    expect(restored.sort).toBe("salary");
+    expect(restored.sort).toEqual({ key: "salary", order: "desc" });
+  });
+
+  /*
+   * 向き（Issue #106）。**既定の向きなら軸だけ、逆向きなら `-asc` / `-desc` を足す。**
+   * U15 より前に配ってある `?sort=age`・`?sort=emp` の意味が変わらないことが制約なので、
+   * 「同じ並びに2つの綴りがある」状態を作らない。
+   */
+  it("逆向きは sort に向きを足して出す", () => {
+    expect(buildSearchParams(stateFor({ sort: { key: "salary", order: "asc" } })).toString()).toBe(
+      "sort=salary-asc"
+    );
+    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "desc" } })).toString()).toBe(
+      "sort=age-desc"
+    );
+    expect(
+      buildSearchParams(stateFor({ sort: { key: "employees", order: "asc" } })).toString()
+    ).toBe("sort=emp-asc");
+  });
+
+  it("U15 より前のURL（sort=age・sort=emp）は同じ並びのまま", () => {
+    expect(parseSearchParams(new URLSearchParams("sort=age")).sort).toEqual({
+      key: "age",
+      order: "asc",
+    });
+    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toEqual({
+      key: "employees",
+      order: "desc",
+    });
+  });
+
+  it("向き付きの sort から復元する", () => {
+    expect(parseSearchParams(new URLSearchParams("sort=emp-asc")).sort).toEqual({
+      key: "employees",
+      order: "asc",
+    });
+    expect(parseSearchParams(new URLSearchParams("sort=salary-asc")).sort).toEqual({
+      key: "salary",
+      order: "asc",
+    });
+  });
+
+  // 「不正な値は既定に倒す」（parseSearchParams）。向きだけが読めないときは軸を採る。
+  it("未知の向きは無視して軸の既定の向きになる", () => {
+    expect(parseSearchParams(new URLSearchParams("sort=age-zzz")).sort).toBeUndefined();
+    expect(parseSearchParams(new URLSearchParams("sort=zzz-asc")).sort).toBeUndefined();
+    expect(parseSearchParams(new URLSearchParams("sort=age-")).sort).toBeUndefined();
+  });
+
+  it("向きを含めても往復変換が一致する", () => {
+    for (const spelling of ["sort=age-desc", "sort=salary-asc", "sort=emp-asc", "sort=emp"]) {
+      const parsed = parseSearchParams(new URLSearchParams(spelling));
+      expect(buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString()).toBe(spelling);
+    }
   });
 
   // sort は page の前、q の後（カノニカル化）。
   it("sort を含めても往復変換が一致する", () => {
-    const state = stateFor({ targetAge: 35, industry: "銀行業", sort: "age", page: 2 });
+    const state = stateFor({ targetAge: 35, industry: "銀行業", sort: { key: "age", order: "asc" }, page: 2 });
     const first = buildSearchParams(state).toString();
     expect(first).toBe("age=35&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&sort=age&page=2");
     const parsed = parseSearchParams(new URLSearchParams(first));

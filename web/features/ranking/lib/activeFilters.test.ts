@@ -25,7 +25,7 @@ describe("activeFilters", () => {
    * 無い。チップに混ぜると「すべて解除」で何が起きるか読めなくなる。
    */
   it("表示基準・並び替え・ページはチップにしない", () => {
-    expect(activeFilters(stateFor({ targetAge: 35, sort: "age", page: 3 }))).toEqual([]);
+    expect(activeFilters(stateFor({ targetAge: 35, sort: { key: "age", order: "asc" }, page: 3 }))).toEqual([]);
   });
 
   it("チップの patch を当てるとその絞り込みだけが外れる", () => {
@@ -39,13 +39,13 @@ describe("activeFilters", () => {
   it("すべて解除しても表示基準と並び替えは残る", () => {
     const state = stateFor({
       targetAge: 35,
-      sort: "employees",
+      sort: { key: "employees", order: "desc" },
       industry: "海運業",
       query: "商船",
     });
     const next = { ...state, ...CLEAR_ALL_FILTERS };
     expect(activeFilters(next)).toEqual([]);
     expect(next.targetAge).toBe(35);
-    expect(next.sort).toBe("employees");
+    expect(next.sort).toEqual({ key: "employees", order: "desc" });
   });
 });

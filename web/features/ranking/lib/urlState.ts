@@ -4,9 +4,12 @@ import type {
   EmployeeSizeBucket,
   RankingState,
   SortKey,
+  SortOrder,
+  SortSelection,
   TargetAge,
   TenureBucket,
 } from "../types";
+import { SORT_DEFAULT_ORDER } from "./sort";
 
 /** 「年齢そろえ」に切り替えたときに選ばれる年齢。 */
 export const DEFAULT_TARGET_AGE: TargetAge = 35;
@@ -19,7 +22,7 @@ export const INITIAL_STATE: RankingState = {
   tenure: null,
   avgAgeBucket: null,
   query: "",
-  sort: "salary",
+  sort: { key: "salary", order: SORT_DEFAULT_ORDER.salary },
   page: 1,
 };
 
@@ -33,7 +36,10 @@ const TENURE_TO_PARAM: Record<TenureBucket, string> = {
   "13to17": "13-17",
   "17plus": "17-",
 };
-/** `salary` は既定なのでURLに出さない（下の buildSearchParams を参照）。 */
+/**
+ * 軸の名前。**向きは別の語として後ろに足す**（`age-desc`）ので、ここには含めない。
+ * `salary` は既定の軸なので、既定の向きならURLに出さない（下の buildSearchParams）。
+ */
 const SORT_TO_PARAM: Record<SortKey, string> = {
   salary: "salary",
   age: "age",
@@ -56,6 +62,19 @@ const PARAM_TO_AVG_AGE = invert(AVG_AGE_TO_PARAM);
 const PARAM_TO_SORT = invert(SORT_TO_PARAM);
 
 /**
+ * `sort` に出す文字列。既定の並び（年収が高い順）なら `null`＝出さない。
+ *
+ * **既定の向きなら軸の名前だけ、逆向きなら `-asc` / `-desc` を足す**（`age`／`age-desc`）。
+ * 向きを必ず書く形（`age-asc`）にもできるが、それだと U15 より前に配ってある
+ * `?sort=age` が「正規形ではないURL」になり、同じ並びに2つの綴りが残り続ける。
+ */
+function sortToParam({ key, order }: SortSelection): string | null {
+  const token = SORT_TO_PARAM[key];
+  if (order !== SORT_DEFAULT_ORDER[key]) return `${token}-${order}`;
+  return key === INITIAL_STATE.sort.key ? null : token;
+}
+
+/**
  * 常に age → ind → emp → ten → aage → q → sort → page の順で組み立てる（カノニカル化）。
  * フィルタを適用した順序に関係なく、同じ絞り込みなら常に同じ文字列になる。
  * 初期値と同じ項目はクエリに出さない。
@@ -63,6 +82,10 @@ const PARAM_TO_SORT = invert(SORT_TO_PARAM);
  * **`age` は「年齢そろえ」のときだけ出す。** 35歳を既定として省略していた頃と違い、
  * 年齢そろえなら35歳でも `age=35` を出す——`age` の有無そのものが表示基準を
  * 表しているので、省くと実測値と区別が付かなくなる（ADR-0007）。
+ *
+ * **並びの向きは `sort` の値に足す。`dir` のようなパラメータを増やさない**（Issue #106）。
+ * 軸と向きは片方だけでは意味を成さない1つの選択なので、2つのキーに割ると
+ * `?dir=asc` だけが残ったURLという読めない状態が作れてしまう。
  */
 export function buildSearchParams(state: RankingState): URLSearchParams {
   const params = new URLSearchParams();
@@ -72,9 +95,23 @@ export function buildSearchParams(state: RankingState): URLSearchParams {
   if (state.tenure !== null) params.set("ten", TENURE_TO_PARAM[state.tenure]);
   if (state.avgAgeBucket !== null) params.set("aage", AVG_AGE_TO_PARAM[state.avgAgeBucket]);
   if (state.query !== "") params.set("q", state.query);
-  if (state.sort !== INITIAL_STATE.sort) params.set("sort", SORT_TO_PARAM[state.sort]);
+  const sort = sortToParam(state.sort);
+  if (sort !== null) params.set("sort", sort);
   if (state.page !== INITIAL_STATE.page) params.set("page", String(state.page));
   return params;
+}
+
+/**
+ * `sort` の値を軸と向きに割る。向きが付いていなければ `null` を返す（＝軸の既定）。
+ *
+ * 軸のトークン（`salary`・`age`・`emp`）に `-` は含まれないので、末尾だけ見れば足りる。
+ * `age-zzz` のような未知の向きは向きが無いものとして扱い、軸だけを採る——
+ * `parseSearchParams` の「不正な値は既定に倒す」に合わせてある。
+ */
+function splitSortParam(value: string): [token: string, order: SortOrder | null] {
+  if (value.endsWith("-asc")) return [value.slice(0, -"-asc".length), "asc"];
+  if (value.endsWith("-desc")) return [value.slice(0, -"-desc".length), "desc"];
+  return [value, null];
 }
 
 /**
@@ -109,7 +146,14 @@ export function parseSearchParams(params: URLSearchParams): Partial<RankingState
   if (q !== null) result.query = q;
 
   const sort = params.get("sort");
-  if (sort !== null && sort in PARAM_TO_SORT) result.sort = PARAM_TO_SORT[sort];
+  if (sort !== null) {
+    // `age-desc` は「軸 age・向き desc」。向きの語が無ければその軸の既定の向き。
+    const [token, order] = splitSortParam(sort);
+    if (token in PARAM_TO_SORT) {
+      const key = PARAM_TO_SORT[token];
+      result.sort = { key, order: order ?? SORT_DEFAULT_ORDER[key] };
+    }
+  }
 
   const page = params.get("page");
   if (page !== null) {

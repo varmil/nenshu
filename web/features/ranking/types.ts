@@ -21,6 +21,27 @@ export type SortKey = "salary" | "age" | "employees";
 
 export const SORT_KEYS: readonly SortKey[] = ["salary", "age", "employees"];
 
+/** 並びの向き（Issue #106）。 */
+export type SortOrder = "asc" | "desc";
+
+/**
+ * 並びの選択。**軸と向きは1つの値で持つ**（Issue #106）。
+ *
+ * `RankingState` に `sort` と `sortOrder` を並べて置くと、`Partial<RankingState>` の
+ * 差分で片方だけ当てられてしまう——`{ sort: "age" }` だけを当てると向きは前の軸の
+ * ものが残り、「平均年齢を降順で」という誰も選んでいない並びになる（実際に一度そう
+ * 書いて、既存のテストがその形で落ちた）。軸を変える操作は必ず向きも決めるので、
+ * 型の上でも一緒にしておく。
+ *
+ * 軸に向きを混ぜた文字列（`"age-desc"` を `SortKey` に足す）にはしない。「同じ軸を
+ * もう一度押したか」の判定が毎回の文字列の切り出しになる。それはURLの綴りの話なので
+ * `lib/urlState.ts` に閉じておく。
+ */
+export interface SortSelection {
+  key: SortKey;
+  order: SortOrder;
+}
+
 export type EmployeeSizeBucket = "under300" | "300to1000" | "1000plus";
 export type TenureBucket = "under13" | "13to17" | "17plus";
 export type AvgAgeBucket = "under40" | "40to43" | "43plus";
@@ -64,8 +85,8 @@ export interface RankingState {
   tenure: TenureBucket | null;
   avgAgeBucket: AvgAgeBucket | null;
   query: string;
-  /** 表示の並び。順位（＝金額での位置）とは別物。 */
-  sort: SortKey;
+  /** 表示の並び（軸と向き）。順位（＝金額での位置）とは別物。 */
+  sort: SortSelection;
   /** 1始まり。 */
   page: number;
 }
