@@ -50,7 +50,7 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
     expect(canonicalOf("sort=age")).toBe("/");
     // 向きだけ違うURL（Issue #106）も、並びが違うページなので同じく寄せる。
     expect(canonicalOf("sort=salary-asc")).toBe("/");
-    expect(canonicalOf("age=35&sort=age-desc")).toBe("/");
+    expect(canonicalOf("age=35&sort=age-asc")).toBe("/");
     // 年齢・業種と組み合わさっても寄せ先は `/`（インデックス対象は41件だけ）。
     expect(canonicalOf("age=35&ind=銀行業&emp=1000-")).toBe("/");
     // ページ送りも一緒に落ちる。
