@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { INITIAL_STATE, parseSearchParams } from "@/features/ranking/lib/urlState";
 import { PAGE_SIZE } from "@/features/ranking/types";
 import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
+import { fiscalPeriodLabel } from "@/lib/data/period";
 import { SITE_NAME } from "./site";
 
 /** `/?age=N`。`age` は数値なのでエンコードは要らない。 */
@@ -123,6 +124,11 @@ export function rankingCanonical(
  *
  * **年齢そろえの description には推定であることを書く**（`docs/ranking/spec.md` AC-9）。
  * 実測値のページには推定の語を1つも出さない。
+ *
+ * **決算期は全ページの description に入れ、タイトルには `/` の末尾にだけ置く**
+ * （`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。前に置くと、差別化要因である
+ * 「有価証券報告書」がSERPで見える位置から押し出される。社数と同じく
+ * `companies.meta` から引く——直書きすると年1回のデータ更新でそこだけ古い年が残る。
  */
 export function rankingMetadata(
   params: URLSearchParams,
@@ -132,6 +138,7 @@ export function rankingMetadata(
   const canonical = rankingCanonical(params, companies, industryCount);
   const alternates = { canonical: canonical.path };
   const total = companies.meta.count.toLocaleString("ja-JP");
+  const period = fiscalPeriodLabel(companies.meta);
 
   /**
    * ページ2以降のタイトルに付ける印。Google は「連番のページは同じタイトルで
@@ -146,7 +153,7 @@ export function rankingMetadata(
       title: `${canonical.industry}の平均年収ランキング${pageSuffix} | ${SITE_NAME}`,
       description:
         `${canonical.industry}${count}社の平均年収ランキング。` +
-        `金融庁 EDINET の有価証券報告書に載っている平均年間給与そのままの実測値を、` +
+        `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値を、` +
         `順位・偏差値・平均年齢つきで比較できる。`,
       alternates,
     };
@@ -156,7 +163,7 @@ export function rankingMetadata(
     return {
       title: `${canonical.targetAge}歳年収ランキング${pageSuffix} | ${SITE_NAME}`,
       description:
-        `有価証券報告書の平均年間給与を${canonical.targetAge}歳時点に補正した推定年収のランキング。` +
+        `有価証券報告書（${period}）の平均年間給与を${canonical.targetAge}歳時点に補正した推定年収のランキング。` +
         `平均年齢の違いをならしたうえで、上場・非上場${total}社を比較できる。`,
       alternates,
     };
@@ -168,13 +175,16 @@ export function rankingMetadata(
   // たびにタイトルだけ古い数字で残る。
   // ページ2以降は社数を出さない。「1,867社（3ページ目）」は読みにくいうえ、
   // そもそも2ページ目以降が検索結果に出ることはほぼ無い。
+  // 決算期は社数と同じ「規模と鮮度」の情報なので、社数の隣＝末尾に置く（spec 1.4・5.）。
+  // ページ番号はさらにその後ろ——2ページ目以降が検索結果に出ることはほぼ無いので、
+  // 限られた文字数の先を鮮度に使う。
   return {
     title:
       canonical.page >= 2
-        ? `${SITE_NAME} | 有価証券報告書ベースの平均年収ランキング${pageSuffix}`
-        : `${SITE_NAME} | 有価証券報告書ベースの平均年収ランキング ${total}社`,
+        ? `${SITE_NAME} | 有価証券報告書ベースの平均年収ランキング【${period}】${pageSuffix}`
+        : `${SITE_NAME} | 有価証券報告書ベースの平均年収ランキング ${total}社【${period}】`,
     description:
-      `金融庁 EDINET の有価証券報告書に載っている平均年間給与そのままの実測値で、` +
+      `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値で、` +
       `上場・非上場${total}社の年収を比較する。` +
       `平均年齢の違いをならした推定年収に切り替えて並べ直すこともできる。`,
     alternates,

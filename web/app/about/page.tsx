@@ -19,6 +19,7 @@ import {
   formatManYen1,
 } from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
+import { fiscalPeriodLabel, filingWindowLabel } from "@/lib/data/period";
 import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
 import logosData from "../../public/data/logos.json";
@@ -34,8 +35,11 @@ const logoCounts = creditCounts(logoEntries);
 
 export const metadata: Metadata = {
   title: "計算方法 | OpenReport",
+  // 決算期は description に入れる（`docs/site-chrome/spec.md` 5.・AC-18）。
+  // 社数と同じく `companies.meta` から引く——直書きするとデータ更新でここだけ古くなる。
   description:
-    "金融庁 EDINET の有価証券報告書から平均年収をどう取り、年齢でどう補正しているか。式と賃金カーブの出典、対象範囲、そしてこの方法で何が言えて何が言えないかまで全部公開しています。",
+    `金融庁 EDINET の有価証券報告書（${fiscalPeriodLabel(companies.meta)}）から平均年収をどう取り、` +
+    "年齢でどう補正しているか。式と賃金カーブの出典、対象範囲、そしてこの方法で何が言えて何が言えないかまで全部公開しています。",
   // 自己canonical（ADR-0006 の表）。`metadataBase` は `app/layout.tsx`。
   alternates: { canonical: "/about" },
 };
@@ -242,7 +246,15 @@ export default function AboutPage() {
 
       <Section title="対象範囲">
         <ul className="ml-5 list-disc space-y-1">
-          <li>EDINET に 2026年6月1日〜7月10日に提出された有価証券報告書</li>
+          {/*
+            **データの時点はここが本文側の正**（S3・`docs/site-chrome/spec.md` 5.）。
+            決算期は全社が同じではない（3月期が中心で4月期が2社）ので、代表を1つ出す
+            この場所でだけ「中心」であることを断る。
+          */}
+          <li>
+            <strong>{fiscalPeriodLabel(companies.meta)}</strong>
+            {`の有価証券報告書（EDINET に${filingWindowLabel(companies.meta)}に提出されたもの）。決算期は3月期が中心で、4月期の会社も含みます`}
+          </li>
           <li>単体従業員100人以上（数人しかいない持株会社が上位を埋めるのを避けるため）</li>
           <li>平均年齢20〜65歳、平均年間給与100万円超</li>
           <li>非上場の会社も含む</li>

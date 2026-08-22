@@ -79,11 +79,19 @@ export function CompanyDetail({
   view,
   history,
   initialAge,
+  fiscalPeriod,
 }: {
   view: CompanyView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
   initialAge: TargetAge | null;
+  /**
+   * 掲載データの決算期（`2026年3月期`）。**文字列にするのはサーバー側**
+   * （`app/company/[id]/page.tsx` が `lib/data/period.ts` を通す）で、ここは
+   * 受け取って置くだけにする——`companies.meta` をクライアントへ渡す理由が
+   * これ1つでは無いのと同じ理由で、渡すのは使う形だけにしておく。
+   */
+  fiscalPeriod: string;
 }) {
   const { targetAge, setTargetAge } = useTargetAge(initialAge);
   const current = statsForBasis(view, targetAge);
@@ -317,7 +325,12 @@ export function CompanyDetail({
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-bold">有価証券報告書の実測値</h2>
+            {/*
+              **決算期はここに置く**（S3・`docs/site-chrome/spec.md` 5.1）。この節の
+              中身がその決算期の数字そのものなので、見出しに付くのがいちばん短い。
+              **画面の他の場所には重ねない**（脚注にも出すと1画面に2回になる）。
+            */}
+            <h2 className="text-lg font-bold">有価証券報告書の実測値（{fiscalPeriod}）</h2>
             <p className="text-muted-foreground text-xs">
               {isRaw
                 ? "補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
@@ -398,9 +411,16 @@ export function CompanyDetail({
       </div>
 
       <footer className="text-muted-foreground flex flex-col gap-1 text-xs">
+        {/*
+          **決算期はここに書かない。** 上の「有価証券報告書の実測値（{決算期}）」に
+          出ているので、重ねると1画面に2回になる（spec 5.1）。推移の年は
+          `history.json` の `years` から引く——手で書くと年1回のデータ更新で
+          ここだけ古い範囲が残る。
+        */}
         <p>
-          出典: 金融庁 EDINET
-          の有価証券報告書（2026年6〜7月提出。推移は2017〜2026年の各年）、厚生労働省「賃金構造基本統計調査」。
+          出典: 金融庁 EDINET の有価証券報告書
+          {history ? `（推移は${history.years[0]}〜${history.years[history.years.length - 1]}年の各年）` : ""}
+          、厚生労働省「賃金構造基本統計調査」。
         </p>
         <p>
           {isRaw
