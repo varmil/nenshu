@@ -67,7 +67,8 @@ test.describe("フィルタ", () => {
 
     const rows = page.getByRole("table").locator("tbody tr");
     await expect(rows).toHaveCount(7);
-    await expect(rows.first().locator("td").first()).toHaveText("1");
+    // 順位はロゴ左上のバッジ。読み上げ用の「位」が textContent に付く。
+    await expect(rows.first().locator("[data-rank-badge]")).toHaveText("1位");
   });
 
   test("AC-4: 従業員数で「1,000人以上」を選ぶと、表示される全社が1,000人以上", async ({ page }) => {
@@ -78,8 +79,8 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // U13 で列は4つになり、従業員数は社名の下の meta 行に移った。
-    const metaCells = await rows.locator("td").nth(1).allTextContents();
+    // 列は3つで、従業員数は社名の下の meta 行にある（順位の列は無い）。
+    const metaCells = await rows.locator("td").first().allTextContents();
     for (const cell of metaCells) {
       const employees = Number(cell.match(/・\s*([\d,]+)人/)![1].replace(/,/g, ""));
       expect(employees).toBeGreaterThanOrEqual(1000);
@@ -95,14 +96,14 @@ test.describe("フィルタ", () => {
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
 
-    // U13 の列: 0 順位 / 1 会社名（平均年齢・在籍年数・従業員数を下に添える）/
-    // 2 金額 / 3 偏差値。**業種は meta 行に出していない**ので、業種で絞れている
+    // 列: 0 順位・会社名（平均年齢・在籍年数・従業員数を下に添える）/ 1 金額 /
+    // 2 偏差値。**業種は meta 行に出していない**ので、業種で絞れている
     // ことは総件数の表示（情報・通信業 173社のうち平均年齢40歳未満）で見る——
     // 1ページの行数は PAGE_SIZE で頭打ちなので判定に使えない（Issue #103）。
     await expect(page.getByText("1,867社 中")).toHaveCount(0);
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
-      const meta = (await rows.nth(i).locator("td").nth(1).textContent())!;
+      const meta = (await rows.nth(i).locator("td").first().textContent())!;
       const avgAge = Number(meta.match(/平均([\d.]+)歳/)![1]);
       expect(avgAge).toBeLessThan(40);
     }

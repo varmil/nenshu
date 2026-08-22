@@ -16,6 +16,7 @@ import { formatManYen } from "../lib/format";
 import { TABLE_NO_SCROLL } from "@/design-system/tableContainer";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
+import { RankBadge } from "./RankBadge";
 import { SalaryBar } from "./SalaryBar";
 
 export function RankingTable({
@@ -40,16 +41,21 @@ export function RankingTable({
         `table-fixed`。既定の自動レイアウトだと社名の列が中身の幅まで伸び、
         2カラムにしたぶん狭くなった本文からはみ出す（実測 978px / 枠 752px）。
 
-        **列は4つ**（U13、アートボード 5a）。平均年齢・在籍年数・従業員数は
-        社名の下の1行に移した——U12 の7列では社名の列に 200px 弱しか残らず、
-        「三菱商事…」のように**一覧で最も重要な情報が省略記号で切れていた**。
-        同じ数字が meta 行に移るだけなので、読める情報は減らない。
+        **列は3つ**（アートボード 4d）。U13 の4列から順位の列を落とした——固定幅の
+        レーンに桁数の変わる数字を入れていたので、3〜4桁でロゴ画像に重なっていた。
+        平均年齢・在籍年数・従業員数は社名の下の1行にある（U12 の7列では社名の列に
+        200px 弱しか残らず、「三菱商事…」のように**一覧で最も重要な情報が省略記号で
+        切れていた**）。
       */}
       <Table className="table-fixed">
         <TableHeader>
           <TableRow>
-            <TableHead className="w-11">順位</TableHead>
-            <TableHead>会社名</TableHead>
+            {/*
+              **順位の列は無い。** 順位はロゴ左上のバッジ（`RankBadge`）に移した
+              ので、見出しはこの列がまとめて受ける。列が1つ減ったぶん（44px）は
+              そのまま社名の幅になる。
+            */}
+            <TableHead>順位・会社名</TableHead>
             <TableHead className="w-44">
               {/*
                 実測値では「推定」の語を出さない（spec AC-9）。有報そのままの数字に
@@ -66,14 +72,18 @@ export function RankingTable({
             const salary = displaySalary(company);
             return (
               <TableRow key={company.id}>
-                {/*
-                  順位は行の目印なので、他の数字より大きく太くする（アートボード 5a）。
-                  並び替えても振り直さないため、平均年齢順では 1,204 / 87 / … と飛ぶ。
-                */}
-                <TableCell className="text-lg font-bold tabular-nums">{company.rank}</TableCell>
                 <TableCell>
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <CompanyLogo id={company.id} name={company.name} />
+                    {/*
+                      **順位はロゴ左上のバッジ**（アートボード 4d）。行の頭を 14px
+                      右へ寄せてバッジの居場所を作る——バッジ自身は器の外へ 19px
+                      出るので、ロゴに被るのは幅6pxだけで済む。並び替えても振り
+                      直さないため、平均年齢順では 1,204 / 87 / … と飛ぶ。
+                    */}
+                    <span className="relative ml-3.5 flex shrink-0">
+                      <CompanyLogo id={company.id} name={company.name} />
+                      <RankBadge rank={company.rank} size="md" />
+                    </span>
                     <span className="flex min-w-0 flex-col">
                       <span className="flex min-w-0 items-center gap-1.5">
                         {/*

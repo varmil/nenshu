@@ -5,6 +5,7 @@ import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
+import { RankBadge } from "./RankBadge";
 import { SalaryBar } from "./SalaryBar";
 
 /**
@@ -14,11 +15,14 @@ import { SalaryBar } from "./SalaryBar";
  * 枠が100本並ぶと枠自体が模様になり、行の切れ目が読み取りにくかった。上下の余白と
  * 1本の細い線のほうが、同じ密度でも境目がはっきりする。
  *
- * **行は「順位 / ロゴ / 社名＋meta / 金額ブロック」の4カラム。** アートボード 5c の
+ * **行は「順位つきロゴ / 社名＋meta / 金額ブロック」の3カラム。** アートボード 5c の
  * 頃は社名・meta・年収バーを右の1列に縦積みしており、バーだけが行の全幅に伸びていた。
  * **バーは金額ブロックの幅に収める**——金額の直下にあれば「この数字の帯」と読めるが、
  * 行いっぱいに伸びると順位とロゴの下にも掛かり、何に対する帯なのかが曖昧になる。
  * **金額は左寄せで、バーと左端が揃う。**
+ *
+ * **順位はロゴ左上のバッジ**（`RankBadge`、アートボード 3e）。独立したレーンだった頃は
+ * 4桁の順位がレーンからあふれてロゴ画像に重なっていた。
  *
  * **縮むのは社名と平均年齢だけ。** 金額ブロックと偏差値は `shrink-0` で、360px でも
  * 省略記号に飲まれない（受け入れ条件）。行の高さはロゴの48pxと `py` で決まるので、
@@ -47,13 +51,15 @@ export function RankingCardList({
         return (
           <div key={company.id} className="border-border flex items-center gap-1.5 border-b py-2.5">
             {/*
-              順位は 12px。18px（`text-[0.95rem]`）だと社名と同じ強さで目に入り、
-              「何位の会社か」より先に数字だけが読まれる。行の縦中央に置く。
+              **順位はロゴの左上のバッジ。** 固定20pxのレーンに置いていた頃は、3〜4桁に
+              なると数字がレーンからあふれて右隣のロゴ画像に重なっていた。バッジは器の
+              外へ出しておく（1桁で被るのは幅6pxだけ）ので、行の頭を10px 右へ寄せて
+              その場所を空ける。位置と寸法は `RankBadge` が持つ。
             */}
-            <span className="w-5 shrink-0 text-center text-xs font-bold tabular-nums">
-              {company.rank}
+            <span className="relative ml-2.5 flex shrink-0">
+              <CompanyLogo id={company.id} name={company.name} size="row" />
+              <RankBadge rank={company.rank} size="sm" />
             </span>
-            <CompanyLogo id={company.id} name={company.name} size="row" />
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               {/*
