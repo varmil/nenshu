@@ -23,6 +23,7 @@ import {
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { SalaryHistoryChart } from "./SalaryHistoryChart";
+import { SalaryHistoryTable } from "./SalaryHistoryTable";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
@@ -369,9 +370,15 @@ export function CompanyDetail({
               <h2 className="text-lg font-bold">平均年収推移（過去10年間）</h2>
               {/* 表示基準の切替と独立（timeseries spec 2.2・AC-8）。出典は AC-9。 */}
               <p className="text-muted-foreground text-xs">
-                各年の有価証券報告書に載った平均年間給与の実測値（提出会社単体）。単位は万円。
+                各年の有価証券報告書に載った平均年間給与の実測値（提出会社単体）。前年比は会社の平均が動いた幅で、個人の昇給率ではありません。
               </p>
-              <SalaryHistoryChart history={history} summary={historySummary} />
+              {/*
+                **表 → 説明文 → チャート**（T2・Issue #138）。年齢別の推定年収と同じ順に
+                揃えてある——値そのものは表で、形はグラフで読ませる。
+              */}
+              <SalaryHistoryTable history={history} />
+              {historySummary && <p className="text-sm">{historySummary}</p>}
+              <SalaryHistoryChart history={history} />
             </section>
           )}
 

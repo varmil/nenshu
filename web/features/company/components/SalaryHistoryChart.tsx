@@ -1,4 +1,3 @@
-import { formatManYen } from "@/features/ranking/lib/format";
 import type { SalaryHistory } from "../types";
 
 /**
@@ -9,6 +8,9 @@ import type { SalaryHistory } from "../types";
  *
  * **値の無い年は棒を描かず、軸ラベルは残す**（AC-7）。内挿しない。
  *
+ * **読み上げ用の一覧は持たない。** 同じ10件は上の `SalaryHistoryTable` が表として出して
+ * おり（T2）、AC-10 はそちらが担う——同じ中身を読み上げる経路を2つ置かない。
+ *
  * 依存を足さずCSSと`<div>`で描く。縦軸は0起点でよい——年齢別の折れ線と違い、
  * ここで見たいのは水準そのものの増減である（`docs/timeseries/overview.md`）。
  *
@@ -16,14 +18,7 @@ import type { SalaryHistory } from "../types";
  * 10年ぶんの増減が読み取りにくかった（公開後の指摘）。年のラベルは棒とは別の
  * 行にして、間に1本の罫線を通す——棒が高くなるほど、揃っている先が要る。
  */
-export function SalaryHistoryChart({
-  history,
-  summary,
-}: {
-  history: SalaryHistory;
-  /** 増減の要約。図の下に軸の断りと1文で並べる（アートボード 4b）。 */
-  summary: string | null;
-}) {
+export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
   const values = history.values;
   const max = Math.max(...values.filter((v): v is number => v !== null));
   // 最新年だけ濃くする（C3、アートボード 4b）。10本のうちどれが「いまの数字」かは、
@@ -74,17 +69,7 @@ export function SalaryHistoryChart({
         ))}
       </div>
 
-      <ul className="sr-only">
-        {history.years.map((year, i) => (
-          <li key={year}>
-            {year}年 {values[i] === null ? "データなし" : formatManYen(values[i]!)}
-          </li>
-        ))}
-      </ul>
-
-      <figcaption className="text-muted-foreground text-xs">
-        {summary ? `${summary} ` : ""}横軸は報告書の提出年です。
-      </figcaption>
+      <figcaption className="text-muted-foreground text-xs">横軸は報告書の提出年です。</figcaption>
     </figure>
   );
 }
