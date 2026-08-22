@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { CompaniesData } from "@/features/ranking/types";
-import { agePath, industryPath, rankingCanonical, rankingMetadata } from "./ranking";
+import { INITIAL_STATE, buildSearchParams } from "@/features/ranking/lib/urlState";
+import { agePath, industryPath, rankingCanonical, rankingMetadata, rankingPageMeta } from "./ranking";
+import { toMetadata } from "./pageMeta";
 
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
@@ -185,5 +187,43 @@ describe("rankingMetadata", () => {
     const meta = rankingMetadata(new URLSearchParams("age=35&ind=銀行業"), companies, count);
     expect(meta.alternates?.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
     expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
+  });
+});
+
+/**
+ * U16（Issue #135）。クライアントは `RankingState` から `buildSearchParams` で URL を
+ * 作り、そのURLでこの関数を引く。**アプリが書くURLと、そのURLを直接開いたときの
+ * メタデータが一致していること**がこの Unit の要なので、状態の側から引いて固定する。
+ */
+describe("rankingPageMeta — 状態から引いても同じものが出る（U16）", () => {
+  const metaOf = (state: Parameters<typeof buildSearchParams>[0]) =>
+    rankingPageMeta(buildSearchParams(state), companies, count);
+
+  it("年齢そろえに切り替えた状態はその年齢のメタデータになる", () => {
+    expect(metaOf({ ...INITIAL_STATE, targetAge: 40 }).title).toBe("40歳年収ランキング | OpenReport");
+    // 35歳でも `age` を省かない（ADR-0007）。省くと実測値と同じURL・同じ文言になる。
+    expect(metaOf({ ...INITIAL_STATE, targetAge: 35 }).canonical).toBe("/?age=35");
+  });
+
+  it("業種を選んだ状態は業種のメタデータになる", () => {
+    const meta = metaOf({ ...INITIAL_STATE, industry: "銀行業" });
+    expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
+    expect(meta.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
+  });
+
+  it("実測値に戻した状態は `/` のメタデータに戻る", () => {
+    expect(metaOf(INITIAL_STATE).canonical).toBe("/");
+    expect(metaOf(INITIAL_STATE).title).toContain("1,867社");
+  });
+
+  it("`rankingMetadata` は `rankingPageMeta` を包むだけ", () => {
+    // 文言が2か所に分かれていないことをここで固定する。サーバーとクライアントで
+    // 別々に組み立てると、片方だけ直した状態に必ずなる。
+    for (const query of ["", "age=35", "ind=銀行業", "emp=1000-", "page=2"]) {
+      const params = new URLSearchParams(query);
+      expect(rankingMetadata(params, companies, count), query).toEqual(
+        toMetadata(rankingPageMeta(params, companies, count))
+      );
+    }
   });
 });

@@ -1,8 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePageMeta } from "@/lib/seo/usePageMeta";
+import { rankingPageMeta } from "@/lib/seo/ranking";
 import { useRankingState } from "../hooks/useRankingState";
-import { DEFAULT_TARGET_AGE } from "../lib/urlState";
+import { buildSearchParams, DEFAULT_TARGET_AGE } from "../lib/urlState";
 import { pageRange } from "../lib/pagination";
 import { populationForBasis } from "../lib/population";
 import { industryCounts } from "../lib/industryCounts";
@@ -65,6 +67,21 @@ export function RankingApp({
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
   // 業種ごとの社数は絞り込みで変わらない（母集団の内訳）ので、データが同じ間は数え直さない。
   const counts = useMemo(() => industryCounts(companies), [companies]);
+
+  /**
+   * 画面の状態に対応する title・description・canonical を DOM に反映する（U16）。
+   *
+   * **状態そのものではなく、状態が書くURLから組み立てる。** サーバー
+   * （`app/page.tsx` の `generateMetadata`）が見るのは `searchParams` なので、
+   * 同じ入口を通しておかないと「操作して着いたURL」と「そのURLを直接開いたとき」で
+   * 文言がずれうる。`buildSearchParams` は `useRankingState` が URL に書くのと
+   * 同じ関数である。
+   */
+  const countOf = useMemo(() => {
+    const byIndustry = new Map(companies.industries.map((name, i) => [name, counts[i]]));
+    return (industry: string) => byIndustry.get(industry) ?? 0;
+  }, [companies, counts]);
+  usePageMeta(rankingPageMeta(buildSearchParams(state), companies, countOf));
 
   const filterProps = {
     state,
