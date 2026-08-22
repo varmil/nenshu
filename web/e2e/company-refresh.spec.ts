@@ -678,6 +678,19 @@ test.describe("C4 説明文の強化", () => {
     expect(await first.textContent()).toBe(before);
   });
 
+  /*
+   * 3文は1つの段落として続ける（運営者の指示）。1文ずつ `<p>` に分けると、
+   * どれも同じ8点の話なのに3つの話題が並んでいるように見える。
+   */
+  test("AC-14: 説明文の3文は1つの段落に続く", async ({ page }) => {
+    await page.goto("/company/6861");
+    const paragraph = curveSummary(page).locator("p", { hasText: "に達します" });
+    await expect(paragraph).toHaveCount(1);
+    const text = (await paragraph.textContent())!;
+    expect(text).toContain("に達します。最も高い水準は");
+    expect(text).toContain("です。5歳刻みで比べると");
+  });
+
   test("AC-17: 実測値の節に4項目を述べる地の文がある", async ({ page }) => {
     await page.goto("/company/6861");
     const section = page.locator("section", { hasText: "有価証券報告書の実測値" });

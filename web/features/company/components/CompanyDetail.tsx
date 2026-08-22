@@ -323,14 +323,13 @@ export function CompanyDetail({
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
-            {/* 数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。 */}
-            <div className="flex flex-col gap-0.5">
-              {curveSummary.map((sentence) => (
-                <p key={sentence} className="text-sm">
-                  {sentence}
-                </p>
-              ))}
-            </div>
+            {/*
+              数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。**3文を1つの
+              段落として続ける**（運営者の指示）——1文ずつ `<p>` に分けると、どれも
+              同じ8点についての話なのに3つの話題が並んでいるように見える。改行は器の幅に
+              任せる。和文なので句点のあとに空白は入れない（推移の説明と同じ扱い）。
+            */}
+            {curveSummary.length > 0 && <p className="text-sm">{curveSummary.join("")}</p>}
             <p className="text-muted-foreground text-center text-sm font-semibold mt-4">
               年齢別の推定年収の推移
             </p>
