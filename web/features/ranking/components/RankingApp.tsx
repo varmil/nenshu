@@ -9,6 +9,7 @@ import { pageRange } from "../lib/pagination";
 import { populationForBasis } from "../lib/population";
 import { industryCounts } from "../lib/industryCounts";
 import { formatInt } from "../lib/format";
+import { fiscalPeriodLabel } from "@/lib/data/period";
 import { PAGE_SIZE } from "../types";
 import type {
   CompaniesData,
@@ -63,6 +64,9 @@ export function RankingApp({
   const handlePageChange = (page: number) => setState((prev) => ({ ...prev, page }));
 
   const isRaw = state.targetAge === null;
+  // データの時点と掲載社数は、どちらも `companies.meta` から引く（spec 1.4・5.3）。
+  const fiscalPeriod = fiscalPeriodLabel(companies.meta);
+  const total = formatInt(companies.meta.count);
   const basisPopulation = populationForBasis(population, state.targetAge);
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
   // 業種ごとの社数は絞り込みで変わらない（母集団の内訳）ので、データが同じ間は数え直さない。
@@ -103,17 +107,22 @@ export function RankingApp({
             2文まとめて出すと 390px で3行になり、本文が下に押し出されていた。
             同じ文を2つ書いて出し分けるのではなく、続きの1文だけを PC で足す。
           */}
+          {/*
+            **データの時点は1文目に置く**（S3・`docs/site-chrome/spec.md` 5.1）。
+            モバイルは2文目を隠すので、2文目に回すと狭い画面でだけ「いつの数字か」が
+            消える。社数と同じく直書きせず `companies.meta` から引く（spec 1.4）。
+          */}
           <p className="text-muted-foreground text-xs md:text-sm">
             {isRaw ? (
               <>
-                有価証券報告書の平均年間給与（単体）で1,867社。
+                {`${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。`}
                 <span className="hidden md:inline">
                   年齢は会社ごとに違うため、若い会社は低めに出ます。
                 </span>
               </>
             ) : (
               <>
-                {`業種の賃金カーブで${state.targetAge}歳時点に補正した1,867社。`}
+                {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。`}
                 <span className="hidden md:inline">
                   元になる金額は有価証券報告書の平均年間給与です。
                 </span>

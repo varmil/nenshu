@@ -10,6 +10,7 @@ import {
   type CurvesData,
   type TargetAge,
 } from "@/features/ranking/types";
+import { fiscalPeriodLabel } from "@/lib/data/period";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
@@ -68,8 +69,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 
   // 文言は `lib/seo/company.ts` が持つ。**クライアント（`CompanyDetail`）も同じ
   // 関数を引く**——表示基準を切り替えたときにタイトルの金額が置いていかれるため
-  // （U16・親 Issue #130）。canonical に `?age=N` を付けない理由もあちらにある。
-  return companyMetadata(view, parseAge((await searchParams).age));
+  // （U16・親 Issue #130）。canonical に `?age=N` を付けない理由も、決算期を
+  // description にだけ置く理由（S3・Issue #134）もあちらにある。
+  return companyMetadata(view, parseAge((await searchParams).age), fiscalPeriodLabel(companies.meta));
 }
 
 /**
@@ -89,6 +91,7 @@ export default async function CompanyPage({ params, searchParams }: Props) {
         view={view}
         history={historyFor(view.id)}
         initialAge={parseAge((await searchParams).age)}
+        fiscalPeriod={fiscalPeriodLabel(companies.meta)}
       />
     </LogoIdsProvider>
   );

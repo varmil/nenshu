@@ -16,7 +16,7 @@ import { TAB_TOGGLE_SELECTED_CLASS } from "./tabToggleClass";
  * 並び替え（spec.md 1.10）。**順位の列はこれで変わらない。**
  *
  * **見出しは短く、方向は選択中にだけ添える**（U13、アートボード 5a / 5c）。
- * 「年収が高い順」「平均年齢が若い順」「従業員数が多い順」を3つ並べると、
+ * 「平均年収 高い順」「平均年齢 高い順」「従業員数 多い順」を3つとも並べると、
  * 390px では1行に収まらず横スクロールが出ていた（U12 の実装）。読者が知りたいのは
  * 「いま何順か」なので、効いていない選択肢は軸の名前だけでよい。
  *
@@ -61,7 +61,8 @@ export function SortSwitch({
         const selected = key === value.key;
         const order = selected ? value.order : SORT_DEFAULT_ORDER[key];
         const direction = SORT_DIRECTION_LABEL[key][order];
-        // 矢印は値の向き（下＝大きい順・上＝小さい順）。「若い順」は昇順なので上を向く。
+        // 矢印は値の向き（下＝大きい順・上＝小さい順）。既定は3軸とも降順なので、
+        // 何も操作していない状態では下向きしか出ない。「若い順」は昇順なので上を向く。
         const Chevron = order === "asc" ? ChevronUpIcon : ChevronDownIcon;
         return (
           <ToggleGroupItem

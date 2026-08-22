@@ -58,8 +58,22 @@ export type CompanyRow = [
   badge: 0 | 1,
 ];
 
+/**
+ * `companies.json` の `meta`。**画面と title・description に出る「社数」と
+ * 「決算期」はどちらもここから引く**——直書きすると年1回のデータ更新で
+ * そこだけ古い数字が残る（`docs/site-chrome/spec.md` 1.4・5.3）。
+ */
+export interface CompaniesMeta {
+  /** データの版（提出期。`YYYY-MM`）。 */
+  version: string;
+  count: number;
+  /** 掲載データの決算期（最頻。`YYYY-MM`）。文字列にするのは `lib/data/period.ts`。 */
+  fiscalPeriod: string;
+  generatedAt: string;
+}
+
 export interface CompaniesData {
-  meta: { version: string; count: number; generatedAt: string };
+  meta: CompaniesMeta;
   industries: string[];
   curveKeys: string[];
   rows: CompanyRow[];

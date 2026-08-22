@@ -12,7 +12,7 @@ describe("nextSortSelection", () => {
   const salaryDesc: SortSelection = { key: "salary", order: "desc" };
 
   it("別の軸を押すと、その軸の既定の向きから始まる", () => {
-    expect(nextSortSelection(salaryDesc, "age")).toEqual({ key: "age", order: "asc" });
+    expect(nextSortSelection(salaryDesc, "age")).toEqual({ key: "age", order: "desc" });
     expect(nextSortSelection(salaryDesc, "employees")).toEqual({
       key: "employees",
       order: "desc",
@@ -21,10 +21,18 @@ describe("nextSortSelection", () => {
 
   it("同じ軸をもう一度押すと向きだけ反転する", () => {
     expect(nextSortSelection(salaryDesc, "salary")).toEqual({ key: "salary", order: "asc" });
-    expect(nextSortSelection({ key: "age", order: "asc" }, "age")).toEqual({
+    expect(nextSortSelection({ key: "age", order: "desc" }, "age")).toEqual({
       key: "age",
-      order: "desc",
+      order: "asc",
     });
+  });
+
+  // 3軸とも既定は降順（大きい順）。1つの軸だけ向きが違うと、押したときに何が起きるかを
+  // 軸ごとに覚えることになる（U15 の直後に揃えた）。
+  it("どの軸も既定は降順（大きい順）", () => {
+    for (const key of SORT_KEYS) {
+      expect(SORT_DEFAULT_ORDER[key]).toBe("desc");
+    }
   });
 
   it("2回押すと元に戻る（3軸とも）", () => {
@@ -39,11 +47,11 @@ describe("nextSortSelection", () => {
    * 直前に年収を低い順で見ていたかどうかとは関係がない（spec.md 1.10）。
    */
   it("逆向きの軸から別の軸へ移っても、向きは引き継がれない", () => {
-    const ageDesc: SortSelection = { key: "age", order: "desc" };
-    expect(nextSortSelection(ageDesc, "employees")).toEqual({ key: "employees", order: "desc" });
+    const ageAsc: SortSelection = { key: "age", order: "asc" };
+    expect(nextSortSelection(ageAsc, "employees")).toEqual({ key: "employees", order: "desc" });
     expect(nextSortSelection({ key: "salary", order: "asc" }, "age")).toEqual({
       key: "age",
-      order: "asc",
+      order: "desc",
     });
   });
 });
@@ -59,10 +67,10 @@ describe("向きの表記", () => {
     }
   });
 
-  // U15 より前に読者が見ていた3通り。既定の向きの言い方は変えていない。
-  it("既定の向きの言い方は U15 の前と同じ", () => {
+  // 既定はどれも「大きいほうから」。言い方だけが軸ごとに違う。
+  it("既定の向きの言い方", () => {
     expect(SORT_DIRECTION_LABEL.salary[SORT_DEFAULT_ORDER.salary]).toBe("高い順");
-    expect(SORT_DIRECTION_LABEL.age[SORT_DEFAULT_ORDER.age]).toBe("若い順");
+    expect(SORT_DIRECTION_LABEL.age[SORT_DEFAULT_ORDER.age]).toBe("高い順");
     expect(SORT_DIRECTION_LABEL.employees[SORT_DEFAULT_ORDER.employees]).toBe("多い順");
   });
 });

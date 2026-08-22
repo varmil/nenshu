@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { collectPageRequests } from "./network";
 
 /**
@@ -83,7 +83,12 @@ test.describe("AC-13 分布の中での位置", () => {
 test.describe("AC-14 年齢別の表と推定範囲", () => {
   test("8行の表があり、推定範囲が ±20% になっている", async ({ page }) => {
     await page.goto("/company/6861");
-    const rows = page.getByRole("table").locator("tbody tr");
+    // 推移の表（T2）も同じページに居るので、年齢別の節に絞る。
+    const rows = page
+      .getByRole("heading", { name: "年齢別の推定年収" })
+      .locator("xpath=..")
+      .getByRole("table")
+      .locator("tbody tr");
     await expect(rows).toHaveCount(8);
 
     const cells = rows.first().locator("td");
@@ -113,15 +118,34 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
   });
 });
 
+/*
+ * 推移の節の当たり判定は**表の行**に寄せてある（T2・Issue #138）。T1 の頃はグラフが
+ * 持っていた `ul.sr-only` を見ていたが、同じ10件を読み上げる経路を2つ置かないために
+ * 落とした——AC-10 は表が担う。
+ */
+const historySection = (page: Page) =>
+  page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
+
+/** 推移の表の各行を「年 / 金額 / 前年比 / 基準年比」の4セルで読む。 */
+async function historyRows(page: Page): Promise<string[][]> {
+  return historySection(page)
+    .locator("tbody tr")
+    .evaluateAll((rows) =>
+      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+    );
+}
+
 test.describe("T1 平均年収推移（10年）", () => {
   test("AC-6: 10年ぶんの棒と年ラベル、金額、増減の文が出る", async ({ page }) => {
     await page.goto("/company/6861");
-    const section = page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
-    const years = section.locator("ul.sr-only li");
-    await expect(years).toHaveCount(10);
-    await expect(years.first()).toContainText("2017年");
-    await expect(years.last()).toContainText("2026年");
+    const section = historySection(page);
+    const rows = await historyRows(page);
+    expect(rows).toHaveLength(10);
+    expect(rows[0][0]).toBe("2017年");
+    expect(rows[9][0]).toBe("2026年");
     await expect(section).toContainText(/9年で [＋−][\d,]+万円/);
+    // 棒と年のラベルはグラフ側に残っている。
+    await expect(section.getByText("2026", { exact: true })).toBeVisible();
   });
 
   /*
@@ -130,34 +154,106 @@ test.describe("T1 平均年収推移（10年）", () => {
    */
   test("AC-8: 表示基準を切り替えても推移の値が変わらない", async ({ page }) => {
     await page.goto("/company/6861");
-    const values = () =>
-      page
-        .getByRole("heading", { name: "平均年収推移（過去10年間）" })
-        .locator("xpath=..")
-        .locator("ul.sr-only li");
-    const before = await values().allTextContents();
+    const before = await historyRows(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);
-    expect(await values().allTextContents()).toEqual(before);
+    expect(await historyRows(page)).toEqual(before);
   });
 
   test("AC-9: 実測値・提出会社単体であることが書かれている", async ({ page }) => {
     await page.goto("/company/6861");
-    const section = page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
+    const section = historySection(page);
     await expect(section).toContainText("実測値");
     await expect(section).toContainText("提出会社単体");
   });
 
   test("AC-7: 欠損のある年は「なし」と出て、年のラベルは残る", async ({ page }) => {
-    // 2017年の値を持たない会社を探すのは重いので、読み上げ一覧の表現で固定する。
+    // 2117 は2023・2024の値を持たない。棒は描かれず、年のラベルだけが残る。
+    await page.goto("/company/2117");
+    const section = historySection(page);
+    await expect(section.getByText("なし", { exact: true })).toHaveCount(2);
+    await expect(section.getByText("2023", { exact: true })).toBeVisible();
+    await expect(section.getByText("2024", { exact: true })).toBeVisible();
+  });
+});
+
+/*
+ * T2 推移の表（Issue #138・`docs/timeseries/spec.md` 2.5）。グラフと同じ10年ぶんを
+ * 数表でも出す。**前年比は直前の年に値があるときだけ**、**累積の基準はその会社で
+ * 最初に値のある年**——欠損の扱いがこの表の正しさのほぼ全部になる。
+ */
+test.describe("T2 推移の表", () => {
+  test("AC-12: 10行の表に年度・金額・前年比・基準年比が並ぶ", async ({ page }) => {
     await page.goto("/company/6861");
-    const items = await page
-      .getByRole("heading", { name: "平均年収推移（過去10年間）" })
-      .locator("xpath=..")
-      .locator("ul.sr-only li")
-      .allTextContents();
-    for (const item of items) expect(item).toMatch(/^20\d\d年 (データなし|[\d,]+万円)$/);
+    const rows = await historyRows(page);
+    expect(rows).toHaveLength(10);
+
+    // 基準年（＝最初に値のある年）の行は前年比も累積も空。
+    expect(rows[0]).toEqual(["2017年", "1,862万円", "", ""]);
+    expect(rows[1][2]).toMatch(/^[＋−±][\d.]+%$/);
+    expect(rows[1][3]).toMatch(/^[＋−±][\d.]+%$/);
+    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
+
+    // 見出しは基準年を名乗る。「昇給率」とは呼ばない（会社の平均が動いた幅であって
+    // 個人の昇給ではない）。
+    const section = historySection(page);
+    await expect(section.getByRole("columnheader", { name: "2017年比" })).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: "前年比" })).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: /昇給率/ })).toHaveCount(0);
+    await expect(section).toContainText("個人の昇給率ではありません");
+  });
+
+  test("AC-13: 飛び年をまたぐ前年比は出さない", async ({ page }) => {
+    // 2117 は2023・2024が欠損。2025年は「前年比」を持たないが、累積は基準年からなので出る。
+    await page.goto("/company/2117");
+    const rows = await historyRows(page);
+    const byYear = new Map(rows.map((row) => [row[0], row]));
+
+    expect(byYear.get("2023年")![1]).toBe("データなし");
+    expect(byYear.get("2023年")![2]).toBe("");
+    expect(byYear.get("2023年")![3]).toBe("");
+    expect(byYear.get("2025年")![1]).toMatch(/^[\d,]+万円$/);
+    expect(byYear.get("2025年")![2]).toBe("");
+    expect(byYear.get("2025年")![3]).toMatch(/^[＋−±][\d.]+%$/);
+    expect(byYear.get("2026年")![2]).toMatch(/^[＋−±][\d.]+%$/);
+  });
+
+  test("AC-13: 2017年が無い会社は最初に値のある年が基準になる", async ({ page }) => {
+    // 3447 は2017年の値を持たない。固定の2017年基準だと累積の列が丸ごと空になる。
+    await page.goto("/company/3447");
+    const section = historySection(page);
+    await expect(section.getByRole("columnheader", { name: "2018年比" })).toBeVisible();
+
+    const rows = await historyRows(page);
+    expect(rows[0][1]).toBe("データなし");
+    expect(rows[1][2]).toBe("");
+    expect(rows[1][3]).toBe("");
+    expect(rows[2][3]).toMatch(/^[＋−±][\d.]+%$/);
+  });
+
+  test("AC-14: 390px で表が横スクロールを起こさない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await page.goto("/company/6861");
+
+    const overflow = await historySection(page)
+      .locator("table")
+      .evaluate((el) => {
+        const container = el.parentElement!;
+        return {
+          table: el.scrollWidth - container.clientWidth,
+          doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        };
+      });
+    expect(overflow.table).toBeLessThanOrEqual(0);
+    expect(overflow.doc).toBeLessThanOrEqual(0);
+  });
+
+  test("AC-10: 表がグラフの読み上げ一覧を置き換えている", async ({ page }) => {
+    await page.goto("/company/6861");
+    // 同じ10件を読み上げる経路を2つ置かない。
+    await expect(historySection(page).locator("ul.sr-only")).toHaveCount(0);
+    await expect(historySection(page).getByRole("table")).toHaveCount(1);
   });
 });
 
@@ -259,7 +355,10 @@ test.describe("C3 モックとの一致", () => {
   test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
     await page.goto("/company/6861?age=35");
 
-    const table = page.getByRole("table");
+    const table = page
+      .getByRole("heading", { name: "年齢別の推定年収" })
+      .locator("xpath=..")
+      .getByRole("table");
     const summary = page.getByText("推定年収を年齢別に見ると");
     const chart = page.getByText("年齢別の推定年収の推移", { exact: true });
 
@@ -397,7 +496,8 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
     const headings = await page.evaluate(() =>
       [...document.querySelectorAll("h2")].map((h) => h.textContent?.trim() ?? "")
     );
-    const raw = headings.indexOf("有価証券報告書の実測値");
+    // 見出しには決算期が付く（S3・Issue #134）ので前方一致で探す。
+    const raw = headings.findIndex((h) => h.startsWith("有価証券報告書の実測値"));
     const history = headings.indexOf("平均年収推移（過去10年間）");
     expect(raw).toBeGreaterThanOrEqual(0);
     expect(history).toBeGreaterThan(raw);

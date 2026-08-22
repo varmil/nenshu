@@ -20,8 +20,17 @@ import { toMetadata, type PageMeta } from "./pageMeta";
  *
  * **実測値では「推定」の語を出さない**（AC-9・ADR-0007）。有報そのままの数字に
  * 推定の体裁を被せない、という線はタイトルと description にも同じようにかかる。
+ *
+ * **決算期は description にだけ入れる**（S3・Issue #134・`docs/site-chrome/spec.md` 5.）。
+ * タイトルは会社名と金額で既に埋まっており、押し出す価値のあるものが無い。
+ * 文字列にするのは呼び出し側（`lib/data/period.ts` の `fiscalPeriodLabel`）で、
+ * ここは受け取って置くだけにする——クライアントは `companies.meta` を持たない。
  */
-export function companyPageMeta(view: CompanyView, targetAge: TargetAge | null): PageMeta {
+export function companyPageMeta(
+  view: CompanyView,
+  targetAge: TargetAge | null,
+  fiscalPeriod: string
+): PageMeta {
   const current = statsForBasis(view, targetAge);
   const canonical = `/company/${view.id}`;
   const position =
@@ -35,7 +44,7 @@ export function companyPageMeta(view: CompanyView, targetAge: TargetAge | null):
       description:
         `${view.name}（${view.tse33}）の平均年間給与は${formatManYen(current.salary)}` +
         `（平均年齢${formatDecimal1(view.avgAge)}歳・平均勤続${formatDecimal1(view.avgTenure)}年）。${position}` +
-        `金融庁 EDINET の有価証券報告書に載っている提出会社単体の実測値です。`,
+        `金融庁 EDINET の有価証券報告書（${fiscalPeriod}）に載っている提出会社単体の実測値です。`,
     };
   }
 
@@ -44,11 +53,15 @@ export function companyPageMeta(view: CompanyView, targetAge: TargetAge | null):
     title: `${view.name}の年収 | ${targetAge}歳時点の推定は${formatManYen(current.salary)}`,
     description:
       `${view.name}（${view.tse33}）の${targetAge}歳時点の推定年収は${formatManYen(current.salary)}。${position}` +
-      `有価証券報告書の平均年間給与${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）を年齢で補正した推定値です。`,
+      `有価証券報告書（${fiscalPeriod}）の平均年間給与${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）を年齢で補正した推定値です。`,
   };
 }
 
 /** `app/company/[id]/page.tsx` の `generateMetadata` が返す形。包むだけ。 */
-export function companyMetadata(view: CompanyView, targetAge: TargetAge | null): Metadata {
-  return toMetadata(companyPageMeta(view, targetAge));
+export function companyMetadata(
+  view: CompanyView,
+  targetAge: TargetAge | null,
+  fiscalPeriod: string
+): Metadata {
+  return toMetadata(companyPageMeta(view, targetAge, fiscalPeriod));
 }

@@ -91,10 +91,14 @@ test.describe("検索エンジン向け導線（U8）", () => {
     await expect(page).toHaveTitle("銀行業の平均年収ランキング | OpenReport");
   });
 
-  test("`/` の title はブランド先頭のまま、有価証券報告書と社数を含む", async ({ page }) => {
+  test("`/` の title はブランド先頭のまま、有価証券報告書・社数・決算期を含む", async ({
+    page,
+  }) => {
+    // 決算期は末尾（S3・`docs/site-chrome/spec.md` 5.）。前に置くと、差別化要因の
+    // 「有価証券報告書」がSERPで見える位置から押し出される。
     await page.goto("/");
     await expect(page).toHaveTitle(
-      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社"
+      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期】"
     );
   });
 

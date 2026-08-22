@@ -8,11 +8,13 @@
 | --- | --- | --- | --- | --- |
 | S1 | 共通ヘッダとライト/ダーク切替 | なし | AC-1〜AC-9 | サイト名の変更を含む。design-system のダークトークン修正も含む |
 | S2 | OGPと構造化データ | S1, ranking施策のU8（#53） | AC-10〜AC-16 | `og:` 一式・静的OG画像1枚・`BreadcrumbList`。実装は `web/lib/seo/` に置く |
+| S3 | データの時点（決算期）の明示 | S1, ranking施策のU8（#53） | AC-17〜AC-20 | 「いつの有報か」を全ページに出す（親 Issue #104）。ranking・company の画面と `web/lib/seo/`・パイプラインの `meta` に触る。※共有: `companies.meta` |
 
 ## 実施順序
 
 ```
 S1 ─→ S2（ranking施策の U8 の後）
+   └→ S3（同上。S2 とは独立に進められる）
 ```
 
 フッタの共通化・ナビゲーションの階層化は spec.md の対象外。
@@ -25,6 +27,16 @@ spec.md の 4. すべて。**U8（#53）が canonical を決めたあとでな�
 - **`og:url` は canonical と同じ文字列にする。** 別々に組み立てると、非正規URLで canonical だけが寄せ先を指し `og:url` が自分自身を指す、という食い違いが起きる
 - OG画像は **v1は静的1枚**（spec 4.3）。会社ごとに数字を焼く案は Workers の CPU 予算に踏み込むので、効果を見てから
 - JSON-LD は **画面に既にある情報だけ**（spec 4.4）
+
+## S3 データの時点（決算期）の明示
+
+spec.md の 5. すべて。**「有価証券報告書ベース」までは書いてあるのに、それが「いつ」の有報かがサイトのどこにも無い**（親 Issue #104）ので、決算期（`2026年3月期`）を title・description・画面の3方向に出す。
+
+**site-chrome の Unit だが、ランキング（ranking）と企業詳細（company）の画面も同じ PR で変える。** 出すのは全ページに共通する1つの事実で、ページごとに別の時点を書くことがそもそもありえない。`docs/ranking/overview.md`・`docs/company/overview.md` にも追記する。
+
+- **決算期はデータから導く。** `pipeline/scripts/build-data.ts` が CSV の `period_end` から最頻の決算期を出して `companies.meta` に載せ、web 側は `web/lib/data/period.ts` の1か所でそれを文字列にする。社数（`companies.meta.count`）と同じ扱いで、直書きは AC-20 で禁じる
+- **文言は `2026年3月期`。`2026年度` とは書かない**（spec 5.3）。親 Issue のタイトルは「2026年度みたいなニュアンス」だが、年度で言うと 2026年3月期は 2025年度になり、読者によって1年ずれる
+- **OGP（S2）とは独立。** S2 は `og:title`・`og:description` を title・description と同じ文字列にすると決めてあるので、S3 が先に入れば OGP にもそのまま乗る
 
 ## 他施策から触られる箇所
 
