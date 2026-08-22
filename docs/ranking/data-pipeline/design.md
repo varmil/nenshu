@@ -28,7 +28,7 @@ pipeline/
 ## データソースの再確認
 
 - `data/ranking_unified_2026.csv`: 1,867行、BOM付き・カンマ区切り・クォートなし（社名にカンマを含む行は0件、確認済み）。21列。
-- 18列目の `industry` 列が産業大分類（賃金カーブのキー）をすでに保持している。`salary35/curves.py` の `TSE33_TO_INDUSTRY` 表を TypeScript に再実装する必要はない。CSV の `industry` 列をそのまま使えば、`salary35` 列を計算したときと同じ産業キーが保証される。
+- 18列目の `industry` 列が産業大分類（賃金カーブのキー）をすでに保持している。`salary/curves.py` の `TSE33_TO_INDUSTRY` 表を TypeScript に再実装する必要はない。CSV の `industry` 列をそのまま使えば、`salary35` 列を計算したときと同じ産業キーが保証される。
 - `sec_code` が空の行は107件（非上場）。名前の重複は全体で2件（日本瓦斯株式会社、株式会社バッファロー）だが、どちらも sec_code 空欄側では重複していない（確認済み）。
 - `tse33` の値は33種類。`data/annual_curves.json` の `ANNUAL_INDUSTRY` は17キー（現在のデータに出現しない産業も含む。将来のデータ更新で出現しうるので17キーすべてを `curves.json` に残す）。
 - `badge` 列は `""` または `"本社のみ"` の2値（173件が非空）。
@@ -36,7 +36,7 @@ pipeline/
 
 ## `scripts/lib/curve.ts`
 
-`salary35/curves.py` の `_interp`（区分線形補間、範囲外は端の値で頭打ち）を直訳する。`bisect_right` 相当は素直な線形探索で十分（10点しかない）。
+`salary/curves.py` の `_interp`（区分線形補間、範囲外は端の値で頭打ち）を直訳する。`bisect_right` 相当は素直な線形探索で十分（10点しかない）。
 
 ```ts
 export function interpolate(points: number[], values: number[], x: number): number

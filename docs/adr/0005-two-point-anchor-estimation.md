@@ -67,7 +67,7 @@ C(a) = カーブ[業種](a)
 
 **丸めも揃える必要が出た。** Python の組み込み `round()` は偶数丸めで JavaScript の `Math.round` と違う。Python 側は `floor(x + 0.5)` を使う。
 
-**Python側（`pipeline/salary35/curves.py` の `estimate_salary`）も同じ式にした。** CSV の `salary35` / `factor` / `rank_adj` はこの式で計算し直してある。EDINET から取り直す必要は無い——`salary35` は `avg_salary` / `avg_age` / `industry` だけから決まり、3つとも既に CSV にあるため、派生列だけを再計算できる（`unified.py --from-csv`）。
+**Python側（`pipeline/salary/curves.py` の `estimate_salary`）も同じ式にした。** CSV の `salary35` / `factor` / `rank_adj` はこの式で計算し直してある。EDINET から取り直す必要は無い——`salary35` は `avg_salary` / `avg_age` / `industry` だけから決まり、3つとも既に CSV にあるため、派生列だけを再計算できる（`unified.py --from-csv`）。
 
 `factor` 列の意味を変えた。若い側は倍率で表せないので、**実際に掛かった比率 `salary35 ÷ avg_salary`** を入れる。`salary35_fit`（データ自身から引いたカーブでの参考値）は列ごと落とした。ADR-0005 に対応する定義が無く、web も読んでいないため。
 

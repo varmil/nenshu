@@ -162,11 +162,41 @@ def backfill_edinet_code(rows):
     return rows
 
 
+def backfill_corporate_number(rows):
+    """EDINETコードリストの `提出者法人番号` を `corporate_number` 列に写す。
+
+    **女性活躍DB（worklife 施策）との突合キー**（ADR-0009）。証券コードと社名では
+    突合しない——女性活躍DB側の証券コードは自己申告で誤登録があり（阪急阪神HDの
+    9042で阪神電気鉄道が返る）、社名は同名別会社が多い（マツダ株式会社は広島と
+    兵庫に存在する）。実測では証券コード＋社名の突合が29社を別の会社に紐づけていた。
+
+    引き当ては `edinet_code` 経由で行う。**1件でも引けなければ異常終了する**
+    ——空のまま進むと、その会社だけ黙って「データ無し」になり、突合率が落ちた
+    ことに気づけない。
+    """
+    info = run.load_edinet_codelist()
+
+    missing = []
+    for r in rows:
+        code = (r.get("edinet_code") or "").strip()
+        number = (info.get(code, {}).get("corporate_number") or "").strip()
+        if not number:
+            missing.append((r.get("name"), code))
+        r["corporate_number"] = number
+
+    if missing:
+        lines = "\n".join(f"  {name}（EDINETコード {code or '無し'}）" for name, code in missing)
+        raise SystemExit(
+            f"法人番号を引けない行が {len(missing)} 件あります。\n{lines}"
+        )
+    return rows
+
+
 HEADERS = ["rank_adj", "rank_raw", "rank_delta", "sec_code", "name", "tse33",
            "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
            "factor", "employees_nonconsolidated", "employees_consolidated",
            "emp_ratio", "badge", "industry", "source",
-           "period_end", "edinet_code", "doc_id"]
+           "period_end", "edinet_code", "corporate_number", "doc_id"]
 
 
 def save(rows, path=None):
@@ -194,7 +224,19 @@ if __name__ == "__main__":
         help="EDINET から取り直さず、既存の CSV に edinet_code 列を埋める。"
              "公開URLの識別子（ADR-0006）に使う。",
     )
+    ap.add_argument(
+        "--backfill-corporate-number",
+        metavar="PATH",
+        help="EDINET から取り直さず、既存の CSV に corporate_number 列を埋める。"
+             "女性活躍DBとの突合キー（ADR-0009）に使う。",
+    )
     args = ap.parse_args()
+
+    if args.backfill_corporate_number:
+        rows = backfill_corporate_number(load_csv(args.backfill_corporate_number))
+        path = save(rows, Path(args.backfill_corporate_number))
+        print(f"\ncorporate_number を埋めた {len(rows)}社 → {path}")
+        raise SystemExit(0)
 
     if args.backfill_edinet_code:
         rows = backfill_edinet_code(load_csv(args.backfill_edinet_code))

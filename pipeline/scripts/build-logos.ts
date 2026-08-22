@@ -61,7 +61,7 @@ async function main() {
   if (rows.length !== EXPECTED_ROW_COUNT) {
     throw new Error(`${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
   }
-  const houjinByEdinet = readEdinetCodeZip(resolve(ROOT, "salary35/Edinetcode.zip"));
+  const houjinByEdinet = readEdinetCodeZip(resolve(ROOT, "salary/Edinetcode.zip"));
   const companies: Company[] = rows.map((row) => {
     const houjin = houjinByEdinet.get(row.edinetCode) ?? "";
     if (!houjin) throw new Error(`${row.name}（${row.edinetCode}）の法人番号がありません`);
@@ -174,7 +174,7 @@ async function buildIndex(fetcher: Fetcher, companies: readonly Company[]) {
   const missing = houjinNumbers.filter((n) => !wikidata.get(n)?.site);
   console.log(`Wikidata 到達 ${wikidata.size} 社・URLが無いのは ${missing.length} 社`);
 
-  const token = readToken(resolve(ROOT, "salary35/.gbiz_key"));
+  const token = readToken(resolve(ROOT, "salary/.gbiz_key"));
   if (!token) console.log("gBizINFO のトークンが無いので、この工程は飛ばします");
   const gbiz = await lookupUrls(fetcher, token, missing);
   console.log(`gBizINFO で ${gbiz.size} 社のURLが埋まりました`);

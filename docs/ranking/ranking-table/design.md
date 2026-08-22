@@ -81,7 +81,7 @@ plan.md の確定事項と同一。バケット型は判定ロジックを持た
 
 ## 計算ロジック
 
-`lib/curve.ts` の `interpolate(points, values, x)` は `pipeline/salary35/curves.py` の `_interp` と同じ（区分線形補間、範囲外は端の値で頭打ち）。`pipeline/scripts/lib/curve.ts` と同一アルゴリズムをそのまま複製する。
+`lib/curve.ts` の `interpolate(points, values, x)` は `pipeline/salary/curves.py` の `_interp` と同じ（区分線形補間、範囲外は端の値で頭打ち）。`pipeline/scripts/lib/curve.ts` と同一アルゴリズムをそのまま複製する。
 
 `lib/salary.ts`:
 

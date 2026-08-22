@@ -9,7 +9,7 @@ Issue: [#109](https://github.com/varmil/nenshu/issues/109)（親: [#23](https://
 
 ### 1. 名寄せの土台を作る
 
-1. `pipeline/salary35/Edinetcode.zip` を展開し、EDINETコード → 法人番号 の対応を作る
+1. `pipeline/salary/Edinetcode.zip` を展開し、EDINETコード → 法人番号 の対応を作る
 2. `ranking_unified_2026.csv` の1,867社に当て、**全社に法人番号が付くことを確かめる**（実測では欠損0。ここが欠けたら以降が全部ずれる）
 3. 企業ID（`makeId`）を付けて、以降のキーにする
 
@@ -59,4 +59,4 @@ Issue: [#109](https://github.com/varmil/nenshu/issues/109)（親: [#23](https://
 
 ## 秘密情報
 
-gBizINFO の API トークンは**リポジトリに入れない**。既存の `salary35/.edinet_key`・`.estat_key` と同じ形で、gitignore 済みのファイルから読む。トークンが無い環境では、その工程だけを飛ばして動くようにする（147社ぶんのURLが埋まらないだけで、他は同じ結果になる）。
+gBizINFO の API トークンは**リポジトリに入れない**。既存の `salary/.edinet_key`・`.estat_key` と同じ形で、gitignore 済みのファイルから読む。トークンが無い環境では、その工程だけを飛ばして動くようにする（147社ぶんのURLが埋まらないだけで、他は同じ結果になる）。

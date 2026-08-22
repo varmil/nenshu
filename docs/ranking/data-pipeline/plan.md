@@ -12,13 +12,13 @@
 
 ## 事前確認（済み）
 
-- `data/ranking_unified_2026.csv`（1,867行）と `data/annual_curves.json` の列・値を実データで確認済み。CSVの `industry` 列（産業大分類）がすでに賃金カーブのキーと一致しており、`salary35/curves.py` の `TSE33_TO_INDUSTRY` 表を再実装する必要はないと判明。
+- `data/ranking_unified_2026.csv`（1,867行）と `data/annual_curves.json` の列・値を実データで確認済み。CSVの `industry` 列（産業大分類）がすでに賃金カーブのキーと一致しており、`salary/curves.py` の `TSE33_TO_INDUSTRY` 表を再実装する必要はないと判明。
 - **id のスラッグ化方式をユーザーに確認し、機械的フォールバック方式で確定済み**（正確なローマ字化に必要な読み仮名辞書がリポジトリにもEDINETコードリストにも無いため）。詳細アルゴリズムは design.md に書く。
 
 ## 段取り
 
 1. `docs/ranking/data-pipeline/design.md` を書く（ファイル構成・id生成アルゴリズム・テスト内容・使用ツールの選定理由）。
-2. 補間ロジック（区分線形補間、範囲外は端の値で頭打ち）を実装 → 単体テストで `salary35/curves.py` の `_interp` と同じ挙動になることを確認。
+2. 補間ロジック（区分線形補間、範囲外は端の値で頭打ち）を実装 → 単体テストで `salary/curves.py` の `_interp` と同じ挙動になることを確認。
 3. CSVパーサを実装（`data/ranking_unified_2026.csv` を読み、1,867行であることをアサート）。
 4. id生成（証券コード優先／欠損時は確定済みのフォールバック方式）を実装 → 1,867件の一意性をテスト。
 5. `companies.json` / `curves.json` を書き出す本体を実装。

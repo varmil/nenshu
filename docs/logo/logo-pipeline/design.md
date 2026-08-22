@@ -24,7 +24,7 @@ pipeline/
   logo-cache/                 gitignore。生バイトと索引の中間結果
     index.json                 工程2の結果（Wikidata・gBizINFO）
     raw/<sha1>.<ext>           取得した生バイト
-  salary35/.gbiz_key          gitignore。gBizINFO のトークン
+  salary/.gbiz_key          gitignore。gBizINFO のトークン
 web/public/
   logos/<企業ID>.webp         配信する画像
   data/logos.json             索引

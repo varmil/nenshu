@@ -9,7 +9,7 @@
 含むので、所定内給与だけのカーブより対象に合う。
 
   python3 fetch_estat.py            # annual_curves.json を作り直す
-appId は環境変数 ESTAT_APP_ID か salary35/.estat_key から読む。
+appId は環境変数 ESTAT_APP_ID か salary/.estat_key から読む。
 """
 
 import os

@@ -1,6 +1,8 @@
 export interface UnifiedRow {
   secCode: string;
   edinetCode: string;
+  /** 国税庁の法人番号（13桁）。女性活躍DBとの突合キー（ADR-0009） */
+  corporateNumber: string;
   name: string;
   tse33: string;
   avgAge: number;
@@ -20,7 +22,7 @@ const HEADER = [
   "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
   "factor", "employees_nonconsolidated", "employees_consolidated",
   "emp_ratio", "badge", "industry", "source",
-  "period_end", "edinet_code", "doc_id",
+  "period_end", "edinet_code", "corporate_number", "doc_id",
 ];
 
 /**
@@ -51,6 +53,7 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
     return {
       secCode: get("sec_code"),
       edinetCode: get("edinet_code"),
+      corporateNumber: get("corporate_number"),
       name: get("name"),
       tse33: get("tse33"),
       avgAge: Number(get("avg_age")),

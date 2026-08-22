@@ -1,6 +1,6 @@
 """EDINET API v2 クライアント。有報を取得して従業員データを抜き出す。
 
-APIキーは環境変数 EDINET_API_KEY か、salary35/.edinet_key ファイルから読む。
+APIキーは環境変数 EDINET_API_KEY か、salary/.edinet_key ファイルから読む。
 取得したZIPは cache/ に置き、再実行時は再ダウンロードしない。
 """
 
@@ -43,7 +43,7 @@ def api_key():
     if f.exists():
         return f.read_text().strip()
     raise SystemExit(
-        "EDINET APIキーが未設定。環境変数 EDINET_API_KEY か salary35/.edinet_key に置いてください。"
+        "EDINET APIキーが未設定。環境変数 EDINET_API_KEY か salary/.edinet_key に置いてください。"
     )
 
 
@@ -54,7 +54,7 @@ def _get(url, params, timeout=60, retries=3):
     last = None
     for i in range(retries):
         try:
-            req = urllib.request.Request(full, headers={"User-Agent": "salary35/1.0"})
+            req = urllib.request.Request(full, headers={"User-Agent": "salary/1.0"})
             with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read()
         except Exception as e:  # noqa: BLE001

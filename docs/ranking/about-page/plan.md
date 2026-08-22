@@ -10,7 +10,7 @@ Issue #8（完了条件の正）。参照: `docs/ranking/spec.md` §2, AC-10。�
 
 ## 事前調査で確定した事実（すべてコード・実データで検証済み）
 
-**対象範囲**（`pipeline/salary35/unified.py`）:
+**対象範囲**（`pipeline/salary/unified.py`）:
 - EDINET に **2026年6月1日〜7月10日**提出の有価証券報告書、単体従業員 **100人以上**（`MIN_EMPLOYEES=100`）、平均年齢20〜65歳、平均年間給与100万円超、非上場を含む → **1,867社**
 
 **「本社のみ」バッジ**（`unified.py` の `badge()`）:
@@ -24,7 +24,7 @@ Issue #8（完了条件の正）。参照: `docs/ranking/spec.md` §2, AC-10。�
 - 男女計・学歴計・企業規模計・民営事業所・**一般労働者**
 - 代表年齢 22,27,...,67 の10点、区分線形補間、範囲外は端の値で頭打ち
 - **産業大分類17系列**。東証33業種から機械的に写像（ユーザー確認済み: /about では開示する）
-- ⚠️ `pipeline/salary35/curves.py` の先頭 docstring は「令和6年・所定内給与（月額）」と書いているが、これは現在フォールバック扱いの旧定数 `INDUSTRY_CURVES` 向けの記述。**このUnitで修正する**
+- ⚠️ `pipeline/salary/curves.py` の先頭 docstring は「令和6年・所定内給与（月額）」と書いているが、これは現在フォールバック扱いの旧定数 `INDUSTRY_CURVES` 向けの記述。**このUnitで修正する**
 
 **年齢スイッチが同業種内の順位を動かさないこと**（計算で検証済み）:
 - 8つの目標年齢すべてについて、33業種すべてで同業種内の並び順に変化なし（0件）
@@ -109,7 +109,7 @@ export function buildAboutFacts(companies: CompaniesData, curves: CurvesData): A
 3. `web/features/ranking/lib/aboutFacts.ts` を実装し、`aboutFacts.test.ts` で実データの値（1,867 / 173 / 33 / 17 / 代表年齢 / みずほ2社）を固定する。
 4. `web/app/about/page.tsx` を書く（`metadata` の title/description も設定）。
 5. `RankingApp.tsx` にリンクを追加。
-6. `pipeline/salary35/curves.py` の docstring を実態に合わせて修正する。
+6. `pipeline/salary/curves.py` の docstring を実態に合わせて修正する。
 7. `docs/product/glossary.md` の「産業大分類」に、/about では開示する旨の例外を明記する。
 8. `npm run build` で `/about` が `○ (Static)` になることを確認。`.open-next/` を見てキャッシュヘッダーの当て先を決める。
 9. `npm run lint` / `typecheck` / `test`。
