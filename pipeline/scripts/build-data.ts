@@ -15,6 +15,44 @@ const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
+/**
+ * 掲載データの決算期（`YYYY-MM`）を CSV の `period_end` から導く（S3・Issue #134、
+ * `docs/site-chrome/spec.md` 5.）。**最頻の1つを代表として採る**——決算期は
+ * 全社が同じではなく、いまのデータは1,865社が3月期・2社が4月期になる。
+ *
+ * **直書きしない理由は社数（`meta.count`）と同じ。** 画面と title・description の
+ * 何箇所にも書くものなので、手で書くと年1回のデータ更新でそこだけ古い年が残る。
+ *
+ * 代表が過半に届かないときは落とす。そのときは「1つの決算期で代表できる」という
+ * 前提そのものが崩れており、黙って多数派を出すと読者に嘘の時点を見せることになる。
+ */
+export function dominantFiscalPeriod(rows: { periodEnd: string }[]): string {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const period = row.periodEnd.slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(period)) {
+      throw new Error(`period_end が YYYY-MM-DD の形でありません: ${row.periodEnd}`);
+    }
+    counts.set(period, (counts.get(period) ?? 0) + 1);
+  }
+
+  let top = "";
+  let topCount = 0;
+  for (const [period, count] of counts) {
+    if (count > topCount || (count === topCount && period > top)) {
+      top = period;
+      topCount = count;
+    }
+  }
+  if (topCount * 2 <= rows.length) {
+    throw new Error(
+      `決算期が1つに代表できません（最頻 ${top} が${topCount}/${rows.length}社）。` +
+        `docs/site-chrome/spec.md 5.3 の前提を見直すこと。`
+    );
+  }
+  return top;
+}
+
 export function buildData(outDir: string) {
   const csvText = readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8");
   const rows = parseUnifiedCsv(csvText);
@@ -63,6 +101,9 @@ export function buildData(outDir: string) {
     meta: {
       version: DATA_VERSION,
       count: companyRows.length,
+      // 掲載データの決算期（S3・`docs/site-chrome/spec.md` 5.）。web 側はこの1つの値から
+      // 「2026年3月期」を組み立てる（`web/lib/data/period.ts`）。
+      fiscalPeriod: dominantFiscalPeriod(rows),
       generatedAt: new Date().toISOString(),
     },
     industries,

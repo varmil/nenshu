@@ -397,7 +397,8 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
     const headings = await page.evaluate(() =>
       [...document.querySelectorAll("h2")].map((h) => h.textContent?.trim() ?? "")
     );
-    const raw = headings.indexOf("有価証券報告書の実測値");
+    // 見出しには決算期が付く（S3・Issue #134）ので前方一致で探す。
+    const raw = headings.findIndex((h) => h.startsWith("有価証券報告書の実測値"));
     const history = headings.indexOf("平均年収推移（過去10年間）");
     expect(raw).toBeGreaterThanOrEqual(0);
     expect(history).toBeGreaterThan(raw);

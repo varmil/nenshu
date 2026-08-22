@@ -96,6 +96,12 @@ U12 は Claude Design の `改善案.dc.html` を**直接読まずに**組んだ
 
 **canonical は変わらない。** `sort` が効いているURLは `/` へ寄せる（ADR-0006）ので、向きが増えてもインデックス対象の1,910 URL は増えない。
 
+## 他施策から触られる箇所
+
+**データの時点（決算期）は site-chrome 施策の S3（Issue #134・親 #104）が足した。** 「有価証券報告書ベース」であることは書いてあるのに、それが**いつ**の有報なのかがサイトのどこにも無かった。決算期（`2026年3月期`）は全ページに共通する1つの事実なので、施策ごとに別々の時点を書くことがそもそもありえない——文字列にするのは `web/lib/data/period.ts` の1か所で、値は `companies.meta.fiscalPeriod` から引く（直書きは `docs/site-chrome/spec.md` AC-20 で禁じている）。設計は `docs/site-chrome/data-period/design.md`。
+
+この施策で触られたのは、`/` のリード文（`RankingApp`）と `lib/seo/ranking.ts` の title・description。**リード文の1文目に置いてある**——2文目は `hidden md:inline` で狭い画面では消えるので、そこへ回すとモバイルの読者にだけ時点が届かない。同じ変更で、リード文に直書きされていた `1,867社` も `companies.meta.count` から引くようにした。
+
 ## 共有コンポーネント
 
 **絞り込み状態（`useRankingState`）** — U3・U4・U5 が同じ状態を触る。目標年齢・4つのフィルタ・検索語・表示件数を1か所で持ち、派生値（絞り込み後の行と順位）を導出する。

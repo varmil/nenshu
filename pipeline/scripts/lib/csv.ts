@@ -11,6 +11,8 @@ export interface UnifiedRow {
   industry: string;
   docId: string;
   salary35: number;
+  /** 決算期の末日（`YYYY-MM-DD`）。この有報が対象にしている事業年度の終わり。 */
+  periodEnd: string;
 }
 
 const HEADER = [
@@ -59,6 +61,7 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
       industry: get("industry"),
       docId: get("doc_id"),
       salary35: Number(get("salary35")),
+      periodEnd: get("period_end"),
     };
   });
 }

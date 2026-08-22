@@ -11,6 +11,7 @@ import {
   type CurvesData,
   type TargetAge,
 } from "@/features/ranking/types";
+import { fiscalPeriodLabel } from "@/lib/data/period";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
@@ -74,6 +75,9 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
   // 同じ内容を表示基準だけ変えたページで、1,867社×9基準の16,803 URLをインデックス
   // させる意味がない。sitemap に載せるのも素の `/company/[id]` だけ（ADR-0006）。
   const alternates = { canonical: `/company/${view.id}` };
+  // 決算期は description に入れる（`docs/site-chrome/spec.md` 5.・AC-18）。
+  // タイトルには入れない——会社名と金額で既に埋まっており、押し出す価値のあるものが無い。
+  const period = fiscalPeriodLabel(companies.meta);
   const position =
     `全${view.totalCount.toLocaleString("ja-JP")}社中${current.rankAll}位、` +
     `${view.tse33}${view.industryCount}社中${current.rankIndustry}位。`;
@@ -86,7 +90,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       description:
         `${view.name}（${view.tse33}）の平均年間給与は${formatManYen(current.salary)}` +
         `（平均年齢${formatDecimal1(view.avgAge)}歳・平均勤続${formatDecimal1(view.avgTenure)}年）。${position}` +
-        `金融庁 EDINET の有価証券報告書に載っている提出会社単体の実測値です。`,
+        `金融庁 EDINET の有価証券報告書（${period}）に載っている提出会社単体の実測値です。`,
     };
   }
 
@@ -95,7 +99,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
     title: `${view.name}の年収 | ${targetAge}歳時点の推定は${formatManYen(current.salary)}`,
     description:
       `${view.name}（${view.tse33}）の${targetAge}歳時点の推定年収は${formatManYen(current.salary)}。${position}` +
-      `有価証券報告書の平均年間給与${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）を年齢で補正した推定値です。`,
+      `有価証券報告書（${period}）の平均年間給与${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）を年齢で補正した推定値です。`,
   };
 }
 
@@ -116,6 +120,7 @@ export default async function CompanyPage({ params, searchParams }: Props) {
         view={view}
         history={historyFor(view.id)}
         initialAge={parseAge((await searchParams).age)}
+        fiscalPeriod={fiscalPeriodLabel(companies.meta)}
       />
     </LogoIdsProvider>
   );

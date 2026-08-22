@@ -5,7 +5,12 @@ import { agePath, industryPath, rankingCanonical, rankingMetadata } from "./rank
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
 const companies = {
-  meta: { version: "test", count: 1867, generatedAt: "2026-08-20T06:22:46.573Z" },
+  meta: {
+    version: "test",
+    count: 1867,
+    fiscalPeriod: "2026-03",
+    generatedAt: "2026-08-20T06:22:46.573Z",
+  },
   industries: INDUSTRIES,
   curveKeys: [],
   rows: [],
@@ -131,7 +136,9 @@ describe("rankingMetadata", () => {
     const meta = rankingMetadata(new URLSearchParams(""), companies, count);
     expect(meta.alternates?.canonical).toBe("/");
     // 社数を直書きしない。年1回のデータ更新でタイトルだけ古い数字になるのを防ぐ。
-    expect(meta.title).toBe("OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社");
+    expect(meta.title).toBe(
+      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期】"
+    );
     expect(meta.description).toContain("1,867社");
     // 既定は実測値なので推定の語を出さない（AC-9）。
     expect(meta.description).not.toContain("推定年収のランキング");
@@ -161,6 +168,39 @@ describe("rankingMetadata", () => {
     expect(meta.description).toContain("推定");
   });
 
+  // S3（Issue #134、`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。
+  it("決算期は `/` の title と全ページの description に入る", () => {
+    const root = rankingMetadata(new URLSearchParams(""), companies, count);
+    expect(root.title).toContain("2026年3月期");
+
+    for (const query of ["", "age=35", "ind=銀行業", "page=2", "emp=1000-"]) {
+      const meta = rankingMetadata(new URLSearchParams(query), companies, count);
+      expect(meta.description, query).toContain("2026年3月期");
+    }
+  });
+
+  it("ファセットの title には決算期を入れない（`◯歳`・業種名に文字数を使う）", () => {
+    expect(
+      rankingMetadata(new URLSearchParams("age=35"), companies, count).title
+    ).not.toContain("2026年3月期");
+    expect(
+      rankingMetadata(new URLSearchParams("ind=銀行業"), companies, count).title
+    ).not.toContain("2026年3月期");
+  });
+
+  // 決算期は直書きせず `companies.meta` から引く（AC-20）。データを差し替えたら
+  // 全ページの表記が一斉に変わることをここで固定する。
+  it("決算期はデータから引く（直書きしていない）", () => {
+    const next = {
+      ...companies,
+      meta: { ...companies.meta, fiscalPeriod: "2027-03" },
+    } as typeof companies;
+    const meta = rankingMetadata(new URLSearchParams(""), next, count);
+    expect(meta.title).toContain("2027年3月期");
+    expect(meta.description).toContain("2027年3月期");
+    expect(meta.title).not.toContain("2026年");
+  });
+
   it("業種ページは実測値なので推定の語を出さない（AC-9）", () => {
     const meta = rankingMetadata(new URLSearchParams("ind=銀行業"), companies, count);
     expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
@@ -171,7 +211,7 @@ describe("rankingMetadata", () => {
   it("ページ2以降は title にページ番号を足す", () => {
     // 63枚が同一タイトルだと Search Console の重複タイトル警告に埋もれる。
     expect(rankingMetadata(new URLSearchParams("page=3"), companies, count).title).toBe(
-      "OpenReport | 有価証券報告書ベースの平均年収ランキング（3ページ目）"
+      "OpenReport | 有価証券報告書ベースの平均年収ランキング【2026年3月期】（3ページ目）"
     );
     expect(rankingMetadata(new URLSearchParams("age=35&page=2"), companies, count).title).toBe(
       "35歳年収ランキング（2ページ目） | OpenReport"
