@@ -19,7 +19,7 @@ function stateFor(
     tenure: null,
     avgAgeBucket: null,
     query: "",
-    sort: "salary",
+    sort: { key: "salary", order: "desc" },
     page: 1,
     ...overrides,
   };
@@ -173,7 +173,7 @@ describe("AC-12 並び替え", () => {
   it("既定は金額の降順（並び替えなし）", () => {
     const { companies: ranked } = buildRankedCompanies(companies, curves, stateFor(null));
     expect(ranked.map((c) => c.id)).toEqual(
-      buildRankedCompanies(companies, curves, stateFor(null, { sort: "salary" })).companies.map(
+      buildRankedCompanies(companies, curves, stateFor(null, { sort: { key: "salary", order: "desc" } })).companies.map(
         (c) => c.id
       )
     );
@@ -183,7 +183,7 @@ describe("AC-12 並び替え", () => {
     const { companies: ranked } = buildRankedCompanies(
       companies,
       curves,
-      stateFor(null, { sort: "age" })
+      stateFor(null, { sort: { key: "age", order: "asc" } })
     );
     for (let i = 1; i < ranked.length; i++) {
       expect(ranked[i].avgAge).toBeGreaterThanOrEqual(ranked[i - 1].avgAge);
@@ -194,7 +194,7 @@ describe("AC-12 並び替え", () => {
     const { companies: ranked } = buildRankedCompanies(
       companies,
       curves,
-      stateFor(null, { sort: "employees" })
+      stateFor(null, { sort: { key: "employees", order: "desc" } })
     );
     for (let i = 1; i < ranked.length; i++) {
       expect(ranked[i].employees).toBeLessThanOrEqual(ranked[i - 1].employees);
@@ -210,7 +210,7 @@ describe("AC-12 並び替え", () => {
     const { companies: ranked } = buildRankedCompanies(
       companies,
       curves,
-      stateFor(null, { sort: "age" })
+      stateFor(null, { sort: { key: "age", order: "asc" } })
     );
     expect(ranked.map((c) => c.rank)).not.toEqual(ranked.map((_, i) => i + 1));
 
@@ -224,11 +224,72 @@ describe("AC-12 並び替え", () => {
     }
   });
 
+  /*
+   * 逆向き（Issue #106）。**向きが効くのは全件に対してで、1ページ目の中ではない。**
+   * 逆向きの先頭は「絞り込んだ集団の下の端」なので、母集団の最小値と一致する。
+   */
+  it("年収が低い順の先頭は、実測値の最小の会社", () => {
+    const { companies: ranked } = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(null, { sort: { key: "salary", order: "asc" } })
+    );
+    expect(ranked[0].avgSalary).toBe(Math.min(...companies.rows.map((row) => row[6])));
+    for (let i = 1; i < ranked.length; i++) {
+      expect(ranked[i].avgSalary).toBeGreaterThanOrEqual(ranked[i - 1].avgSalary);
+    }
+  });
+
+  it("平均年齢が高い順・従業員数が少ない順に並ぶ", () => {
+    const byAge = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(null, { sort: { key: "age", order: "desc" } })
+    ).companies;
+    expect(byAge[0].avgAge).toBe(Math.max(...companies.rows.map((row) => row[4])));
+    for (let i = 1; i < byAge.length; i++) {
+      expect(byAge[i].avgAge).toBeLessThanOrEqual(byAge[i - 1].avgAge);
+    }
+
+    const byEmployees = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(null, { sort: { key: "employees", order: "asc" } })
+    ).companies;
+    expect(byEmployees[0].employees).toBe(Math.min(...companies.rows.map((row) => row[7])));
+    for (let i = 1; i < byEmployees.length; i++) {
+      expect(byEmployees[i].employees).toBeGreaterThanOrEqual(byEmployees[i - 1].employees);
+    }
+  });
+
+  it("向きを反転しても順位は金額基準のまま（1から振り直さない）", () => {
+    const { companies: ranked } = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(null, { sort: { key: "salary", order: "asc" } })
+    );
+    // 年収が低い順の1ページ目に並ぶのは最下位の30社。順位は 1,867位 から下る。
+    expect(ranked[0].rank).toBe(companies.meta.count);
+    expect(ranked.map((c) => c.rank)).not.toEqual(ranked.map((_, i) => i + 1));
+  });
+
+  // 年齢そろえでは金額そのものが別の系列になる（ADR-0007）。向きも同じ系列で効くこと。
+  it("年齢そろえでも低い順は推定年収の昇順", () => {
+    const { companies: ranked } = buildRankedCompanies(
+      companies,
+      curves,
+      stateFor(35, { sort: { key: "salary", order: "asc" } })
+    );
+    for (let i = 1; i < ranked.length; i++) {
+      expect(ranked[i].estimatedSalary!).toBeGreaterThanOrEqual(ranked[i - 1].estimatedSalary!);
+    }
+  });
+
   it("並び替えは全件に対して効く（1ページ目を並べ替えるのではない）", () => {
     const { companies: ranked } = buildRankedCompanies(
       companies,
       curves,
-      stateFor(null, { sort: "employees" })
+      stateFor(null, { sort: { key: "employees", order: "desc" } })
     );
     // 従業員数の最大はトヨタ自動車（単体約7万人）。金額順の1ページ目には入らない。
     expect(ranked[0].employees).toBe(
@@ -262,7 +323,7 @@ describe("AC-13 年収バーの基準", () => {
   });
 
   it("並び替えても基準はそのページの最大のまま（先頭の行の金額とは限らない）", () => {
-    const sorted = buildRankedCompanies(companies, curves, stateFor(null, { sort: "age" }));
+    const sorted = buildRankedCompanies(companies, curves, stateFor(null, { sort: { key: "age", order: "asc" } }));
     const max = Math.max(...sorted.companies.map((c) => c.avgSalary));
     expect(sorted.pageMaxSalary).toBe(max);
   });

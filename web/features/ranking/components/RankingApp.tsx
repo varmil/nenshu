@@ -13,7 +13,7 @@ import type {
   CurvesData,
   PopulationStats,
   RankingState,
-  SortKey,
+  SortSelection,
   TargetAge,
 } from "../types";
 import { AgeSwitch } from "./AgeSwitch";
@@ -56,7 +56,8 @@ export function RankingApp({
   const handleAgeChange = (targetAge: TargetAge) => applyFilter({ targetAge });
   const handleBasisChange = (basis: "raw" | "age") =>
     applyFilter({ targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE });
-  const handleSortChange = (sort: SortKey) => applyFilter({ sort });
+  // 軸と向きは1つの値なので、そのまま差分として当たる（`types.ts` の `SortSelection`）。
+  const handleSortChange = (sort: SortSelection) => applyFilter({ sort });
   const handlePageChange = (page: number) => setState((prev) => ({ ...prev, page }));
 
   const isRaw = state.targetAge === null;

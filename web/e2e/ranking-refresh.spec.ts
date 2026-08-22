@@ -73,6 +73,84 @@ test.describe("AC-12 並び替え", () => {
     await expect(page).not.toHaveURL(/[?&]page=/);
   });
 
+  /*
+   * 向きの切替（U15・Issue #106）。**同じチップをもう一度押す**という操作なので、
+   * 「押した結果いま何順か」がチップの表記・URL・行の並びの3つで揃うことを見る。
+   */
+  test("同じチップをもう一度押すと向きが反転する", async ({ page }) => {
+    await page.goto("/?sort=age");
+    const group = page.getByRole("group", { name: "並び替え" });
+    await expect(group.getByRole("button", { name: "平均年齢 若い順" })).toBeVisible();
+
+    await group.getByRole("button", { name: "平均年齢 若い順" }).click();
+
+    await expect(page).toHaveURL(/[?&]sort=age-desc/);
+    await expect(group.getByRole("button", { name: "平均年齢 高い順" })).toBeVisible();
+    const ages = await metaValues(page, /平均([\d.]+)歳/);
+    expect(ages).toEqual([...ages].sort((a, b) => b - a));
+
+    // もう一度押すと元の向きに戻り、URLからも向きが消える。
+    await group.getByRole("button", { name: "平均年齢 高い順" }).click();
+    await expect(page).toHaveURL(/[?&]sort=age(&|$)/);
+  });
+
+  test("既定の並びで「平均年収」を押すと低い順になる", async ({ page }) => {
+    await page.goto("/");
+    await expect(rows(page).first()).toContainText("株式会社キーエンス");
+
+    await page
+      .getByRole("group", { name: "並び替え" })
+      .getByRole("button", { name: "平均年収 高い順" })
+      .click();
+
+    await expect(page).toHaveURL(/[?&]sort=salary-asc/);
+    // 順位は金額基準のまま。低い順の先頭は最下位（1,867位）。
+    await expect(rows(page).first().locator("td").first()).toHaveText("1867");
+  });
+
+  test("逆向きの軸から別の軸へ移ると、その軸の既定の向きになる", async ({ page }) => {
+    await page.goto("/?sort=age-desc");
+    const group = page.getByRole("group", { name: "並び替え" });
+
+    await group.getByRole("button", { name: "従業員数 多い順" }).click();
+
+    await expect(page).toHaveURL(/[?&]sort=emp(&|$)/);
+    const employees = await metaValues(page, /・\s*([\d,]+)人/);
+    expect(employees).toEqual([...employees].sort((a, b) => b - a));
+  });
+
+  test("sort=emp-asc を直接開くと従業員数の少ない順で描画される", async ({ page }) => {
+    await page.goto("/?sort=emp-asc");
+    await expect(
+      page.getByRole("group", { name: "並び替え" }).getByRole("button", { name: "従業員数 少ない順" })
+    ).toBeVisible();
+    const employees = await metaValues(page, /・\s*([\d,]+)人/);
+    expect(employees).toEqual([...employees].sort((a, b) => a - b));
+  });
+
+  test("2ページ目で向きを反転すると1ページ目に戻る", async ({ page }) => {
+    await page.goto("/?sort=emp&page=2");
+    await page
+      .getByRole("group", { name: "並び替え" })
+      .getByRole("button", { name: "従業員数 多い順" })
+      .click();
+    await expect(page).toHaveURL(/[?&]sort=emp-asc/);
+    await expect(page).not.toHaveURL(/[?&]page=/);
+  });
+
+  test("向きを反転してもネットワークリクエストが発生しない", async ({ page }) => {
+    await page.goto("/?sort=age");
+    const requests = collectPageRequests(page);
+
+    await page
+      .getByRole("group", { name: "並び替え" })
+      .getByRole("button", { name: "平均年齢 若い順" })
+      .click();
+    await expect(page).toHaveURL(/[?&]sort=age-desc/);
+
+    expect(requests).toHaveLength(0);
+  });
+
   test("並び替えでネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
     const requests = collectPageRequests(page);
