@@ -31,8 +31,10 @@ import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import {
+  buildActualsSummary,
   buildCurveSummary,
   buildHighlights,
+  buildHistoryPeak,
   buildHistorySummary,
 } from "../lib/highlights";
 
@@ -112,7 +114,9 @@ export function CompanyDetail({
   const historySummary = history
     ? buildHistorySummary(history.years, history.values)
     : null;
+  const historyPeak = history ? buildHistoryPeak(history.years, history.values) : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
+  const actualsSummary = buildActualsSummary(view);
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -319,14 +323,13 @@ export function CompanyDetail({
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
-            {/* 数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。 */}
-            <div className="flex flex-col gap-0.5">
-              {curveSummary.map((sentence) => (
-                <p key={sentence} className="text-sm">
-                  {sentence}
-                </p>
-              ))}
-            </div>
+            {/*
+              数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。**3文を1つの
+              段落として続ける**（運営者の指示）——1文ずつ `<p>` に分けると、どれも
+              同じ8点についての話なのに3つの話題が並んでいるように見える。改行は器の幅に
+              任せる。和文なので句点のあとに空白は入れない（推移の説明と同じ扱い）。
+            */}
+            {curveSummary.length > 0 && <p className="text-sm">{curveSummary.join("")}</p>}
             <p className="text-muted-foreground text-center text-sm font-semibold mt-4">
               年齢別の推定年収の推移
             </p>
@@ -340,6 +343,12 @@ export function CompanyDetail({
               **画面の他の場所には重ねない**（脚注にも出すと1画面に2回になる）。
             */}
             <h2 className="text-lg font-bold">有価証券報告書の実測値（{fiscalPeriod}）</h2>
+            {/*
+              **下の4セルを1文にしただけの地の文**（C4・spec 1.17）。数値は増やさない。
+              `dl` に入れた数値は「ラベルと値の対」としてしか読めないので、同じ内容を
+              文としても置く。決算期は見出しが持っているのでここには書かない（1画面に1回）。
+            */}
+            <p className="text-sm">{actualsSummary}</p>
             <p className="text-muted-foreground text-xs">
               {isRaw
                 ? "補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
@@ -400,7 +409,17 @@ export function CompanyDetail({
               */}
               <SalaryHistoryChart history={history} />
               <SalaryHistoryTable history={history} />
-              {historySummary && <p className="text-sm">{historySummary}</p>}
+              {/*
+                増減の1文に、最高値の年を足す（C4）。**最新年が最高値の会社では
+                `buildHistoryPeak` が `null` を返す**——1文目と同じ数字になるため。
+              */}
+              {historySummary && (
+                <p className="text-sm">
+                  {/* 和文なので句点のあとに空白を入れない（2文で1段落）。 */}
+                  {historySummary}
+                  {historyPeak}
+                </p>
+              )}
             </section>
           )}
 

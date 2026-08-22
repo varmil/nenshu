@@ -387,7 +387,8 @@ test.describe("C3 モックとの一致", () => {
   // 説明文は数値から機械的に導ける事実だけ（spec 1.11 と同じ線）。
   test("説明文が最高水準の年齢と伸びの最大区間を述べる", async ({ page }) => {
     await page.goto("/company/6861?age=35");
-    await expect(page.getByText("55歳の2,699万円が最も高い水準")).toBeVisible();
+    // C4 で到達年齢の文が1文目に入り、最高水準は2文目になった（#146）。
+    await expect(page.getByText("最も高い水準は55歳の2,699万円")).toBeVisible();
     await expect(page.getByText("25歳から30歳の伸びが最も大きく")).toBeVisible();
     /*
      * 末尾（60歳）が下がる会社だが、下がる理由は書かない（Issue #95）。補正の
@@ -627,5 +628,108 @@ test.describe("年齢別の表の列幅", () => {
     const { age, container } = await columns(page);
     expect(container).toBeGreaterThanOrEqual(448);
     expect(age).toBe(144);
+  });
+});
+
+/*
+ * C4（Issue #146・親 #145）。3つの節に、数値から機械的に導ける地の文を置いた。
+ *
+ * - 年齢別: 到達年齢（「30歳で600万円、35歳で700万円…に達します」）
+ * - 実測値: 4項目を1文にした地の文
+ * - 推移: 最高値の年（最新年が最高値でない会社だけ）
+ */
+test.describe("C4 説明文の強化", () => {
+  const curveSummary = (page: Page) =>
+    page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
+
+  test("AC-14: 年齢別の説明文が到達年齢を述べる", async ({ page }) => {
+    await page.goto("/company/6861");
+    await expect(curveSummary(page)).toContainText(
+      "株式会社キーエンスの推定年収を年齢別に見ると、30歳で1,200万円、35歳で2,000万円、50歳で2,500万円に達します。"
+    );
+  });
+
+  /*
+   * **文の金額と表の金額が食い違わないこと。** 判定を円のまま行うと、表が「600万円」と
+   * 描いている行を文が数えない（`toManYen` に寄せた理由）。表の同じ年齢の行を引いて確かめる。
+   */
+  test("AC-14: 到達年齢の行は表でもその金額以上になっている", async ({ page }) => {
+    await page.goto("/company/9020");
+    const section = curveSummary(page);
+    const sentence = (await section.locator("p").first().textContent())!;
+    const pairs = [...sentence.matchAll(/(\d+)歳で([\d,]+)万円/g)];
+    expect(pairs.length).toBeGreaterThan(0);
+
+    for (const [, age, manYen] of pairs) {
+      const row = section.getByRole("row").filter({ hasText: `${age}歳` }).first();
+      const shown = Number((await row.locator("td").nth(1).textContent())!.replace(/[^0-9]/g, ""));
+      expect(shown).toBeGreaterThanOrEqual(Number(manYen.replace(/,/g, "")));
+    }
+  });
+
+  // 8点の推定カーブは表示基準に依らないので、説明文も変わらない。
+  test("AC-14: 表示基準を切り替えても年齢別の説明文は変わらない", async ({ page }) => {
+    await page.goto("/company/6861");
+    const first = curveSummary(page).locator("p").first();
+    const before = await first.textContent();
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
+    expect(await first.textContent()).toBe(before);
+  });
+
+  /*
+   * 3文は1つの段落として続ける（運営者の指示）。1文ずつ `<p>` に分けると、
+   * どれも同じ8点の話なのに3つの話題が並んでいるように見える。
+   */
+  test("AC-14: 説明文の3文は1つの段落に続く", async ({ page }) => {
+    await page.goto("/company/6861");
+    const paragraph = curveSummary(page).locator("p", { hasText: "に達します" });
+    await expect(paragraph).toHaveCount(1);
+    const text = (await paragraph.textContent())!;
+    expect(text).toContain("に達します。最も高い水準は");
+    expect(text).toContain("です。5歳刻みで比べると");
+  });
+
+  test("AC-17: 実測値の節に4項目を述べる地の文がある", async ({ page }) => {
+    await page.goto("/company/6861");
+    const section = page.locator("section", { hasText: "有価証券報告書の実測値" });
+    await expect(section).toContainText(
+      "有価証券報告書によると、株式会社キーエンスの平均年収は2,178万円、平均年齢は35.0歳、平均勤続年数は11.3年、従業員数は3,306人です。"
+    );
+    // 決算期は見出しが持っている（S3）。地の文には重ねない。
+    await expect(section.getByText(/\d+年\d+月期/)).toHaveCount(1);
+  });
+
+  test("AC-17: 推移の説明に最高値の年が入る", async ({ page }) => {
+    // キーエンスの最高値は2023年（最新の2026年ではない）。
+    await page.goto("/company/6861");
+    await expect(historySection(page)).toContainText(
+      "この10年で最も高かったのは2023年の2,279万円です。"
+    );
+  });
+
+  // 最新年が最高値の会社では書かない（増減の1文が同じ数字を出しているため）。
+  test("AC-17: 最新年が最高値なら最高値の文を出さない", async ({ page }) => {
+    await page.goto("/company/9020");
+    await expect(historySection(page).getByText("最も高かったのは")).toHaveCount(0);
+  });
+
+  // 説明文はサーバーが出す。クライアントの描画待ちにしない（spec 2. SEO）。
+  test("説明文は初期HTMLに入っている", async ({ request }) => {
+    const html = await (await request.get("/company/6861")).text();
+    expect(html).toContain("30歳で1,200万円");
+    expect(html).toContain("平均勤続年数は11.3年");
+  });
+
+  test("390px で説明文が横スクロールを起こさない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    // 社名の長い会社（文が最も長くなる）。
+    await page.goto("/company/9413");
+    await expect(curveSummary(page).locator("p").first()).toContainText("に達します");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

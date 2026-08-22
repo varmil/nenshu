@@ -1,5 +1,17 @@
+/**
+ * 円 → 画面に出る万円の整数。**`formatManYen` と同じ丸め**を、比較にも使えるように
+ * 数値のまま取り出したもの（C4）。
+ *
+ * 企業詳細ページの「30歳で600万円に達します」は、表の各行と同じ値で判定していないと
+ * **表が「600万円」と出している行を文が数えない**（599万9,600円のような会社で起きる）。
+ * 丸め方を書き写さず、この1か所を両方から使う。
+ */
+export function toManYen(yen: number): number {
+  return Math.round(yen / 10000);
+}
+
 export function formatManYen(yen: number): string {
-  return `${Math.round(yen / 10000).toLocaleString("ja-JP")}万円`;
+  return `${toManYen(yen).toLocaleString("ja-JP")}万円`;
 }
 
 /**
