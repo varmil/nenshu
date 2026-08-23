@@ -51,6 +51,7 @@ type Company = { id: string; name: string; houjin: string };
 async function main() {
   const outDir = argValue("--out") ?? "../web/public";
   const limit = Number(argValue("--limit") ?? "0");
+  const only = argValue("--only")?.split(",").map((s) => s.trim()).filter(Boolean);
   const publicDir = resolve(ROOT, outDir);
   mkdirSync(CACHE, { recursive: true });
   const fetcher = new Fetcher(CACHE);
@@ -69,11 +70,19 @@ async function main() {
     }
     return { id: makeId(row), name: row.name, houjin: row.corporateNumber };
   });
-  const targets = limit > 0 ? companies.slice(0, limit) : companies;
+  const targets = only
+    ? pickOnly(companies, only)
+    : limit > 0
+      ? companies.slice(0, limit)
+      : companies;
   console.log(`対象 ${targets.length} 社`);
 
+  // `--only` は既存の索引に上書きする。**前回の全周の結果を捨てない**——1社を取り直すために
+  // 1,867社を叩き直すと、gBizINFO のトークンが無い環境では147社ぶんのURLが引けず到達率が落ちる。
+  const previous = only ? readPrevious(publicDir) : null;
+
   // 2. 外部の索引（結果はキャッシュに残し、やり直しで叩き直さない）
-  const index = await buildIndex(fetcher, targets);
+  const index = await buildIndex(fetcher, targets, Boolean(only));
 
   // 3. Commons の情報
   const titles = new Map<string, string>();
@@ -140,29 +149,55 @@ async function main() {
   );
 
   // 6. 索引を書いて検証する
+  for (const company of targets) {
+    if (!entries[company.id] && previous?.byId[company.id]) {
+      // 取れなかった会社は既存の記録を残す。消すと、直しに来たはずが画像を1枚減らして帰ることになる
+      console.warn(`  ${company.id}（${company.name}）は取れませんでした。前回の記録を残します`);
+    }
+  }
+  const byId = previous ? { ...previous.byId, ...entries } : entries;
   const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0 };
-  for (const e of Object.values(entries)) bySource[e.src]++;
+  for (const e of Object.values(byId)) bySource[e.src]++;
   const json: LogosJson = {
     meta: {
       generatedAt: new Date().toISOString(),
-      count: targets.length,
-      withLogo: Object.keys(entries).length,
+      count: previous ? previous.meta.count : targets.length,
+      withLogo: Object.keys(byId).length,
       bySource,
-      missReasons: miss,
-      rejectReasons,
+      // 落ちた理由は母集団ぜんぶを回して初めて意味を持つ数なので、部分実行では前回の値を残す
+      missReasons: previous ? previous.meta.missReasons : miss,
+      rejectReasons: previous ? previous.meta.rejectReasons : rejectReasons,
     },
-    byId: entries,
+    byId,
   };
   writeFileSync(resolve(publicDir, "data/logos.json"), JSON.stringify(json));
-  pruneOrphans(logosDir, written);
+  // 部分実行では対象外の画像が全部「余り」に見えるので掃除しない
+  if (!only) pruneOrphans(logosDir, written);
 
   const ids = new Set(companies.map((c) => c.id));
   validate(json, ids, logosDir, limit > 0);
-  report(json, targets.length);
+  report(json, json.meta.count);
 }
 
-async function buildIndex(fetcher: Fetcher, companies: readonly Company[]) {
-  const path = resolve(CACHE, "index.json");
+function pickOnly(companies: readonly Company[], ids: readonly string[]): Company[] {
+  const byId = new Map(companies.map((c) => [c.id, c]));
+  return ids.map((id) => {
+    const hit = byId.get(id);
+    if (!hit) throw new Error(`--only: ${id} は companies に無い企業IDです`);
+    return hit;
+  });
+}
+
+function readPrevious(publicDir: string): LogosJson | null {
+  const path = resolve(publicDir, "data/logos.json");
+  if (!existsSync(path)) return null;
+  return JSON.parse(readFileSync(path, "utf-8")) as LogosJson;
+}
+
+async function buildIndex(fetcher: Fetcher, companies: readonly Company[], partial: boolean) {
+  // 部分実行の索引を全周のキャッシュに被せない。被せると、次の全周が
+  // 「1社ぶんの索引」を再利用できないまま、残り1,866社を引き直すところから始まる
+  const path = resolve(CACHE, partial ? "index-partial.json" : "index.json");
   if (existsSync(path)) {
     const cached = JSON.parse(readFileSync(path, "utf-8"));
     if (cached.count === companies.length) {

@@ -32,6 +32,73 @@ describe("公式サイトからの候補の抽出", () => {
     expect(got).toEqual([{ source: "header", url: "https://example.co.jp/logo.png" }]);
   });
 
+  it("SNS へのリンクの中の logo は捨てる（Xのロゴを自社ロゴとして採らない）", () => {
+    const html = `<header>
+      <a href="/ja.html"><img src="/img/site-logo.svg" alt="logo"></a>
+      <a href="https://twitter.com/example"><img src="/img/logo-black1.png" alt=""></a>
+      <a href="https://www.instagram.com/example"><img src="/img/logo-ig.png" alt=""></a>
+    </header>`;
+    const got = extractCandidates(html, BASE).filter((c) => c.source === "header");
+    expect(got).toEqual([{ source: "header", url: "https://example.co.jp/img/site-logo.svg" }]);
+  });
+
+  it("トップページへ行く logo を、下層へ行く logo より先に試す", () => {
+    // クレスコの並び。SNS のロゴが先頭にあり、本物のロゴはずっと後ろにいた
+    const html = `<div class="sns"><a href="https://twitter.com/x"><img src="/x-logo.png"></a></div>
+      <a href="/blog/entry.html"><img src="/logo_TechBlog.svg"></a>
+      <a href="/ja.html"><img src="/site-logo/logo.svg"></a>`;
+    const got = extractCandidates(html, BASE)
+      .filter((c) => c.source === "header")
+      .map((c) => c.url);
+    expect(got).toEqual([
+      "https://example.co.jp/site-logo/logo.svg",
+      "https://example.co.jp/logo_TechBlog.svg",
+    ]);
+  });
+
+  it("別ホストのトップへ行く logo も採る（CDN配信のHTMLで実在する）", () => {
+    const html = `<header>
+      <a href="https://kmbs.example.us"><img class="logo" src="/identity.svg"></a>
+      <div class="logo-wrapper"><img class="logo_2" src="/business-solutions.svg"></div>
+    </header>`;
+    const got = extractCandidates(html, BASE)
+      .filter((c) => c.source === "header")
+      .map((c) => c.url);
+    expect(got).toEqual([
+      "https://example.co.jp/identity.svg",
+      "https://example.co.jp/business-solutions.svg",
+    ]);
+  });
+
+  it("公式サイトのURLが深いときは、そのページ自身へのリンクをトップとして扱う", () => {
+    // KDDI の site は /english/。パスの形だけで見ると povo（別サイトのトップ）が先に来る
+    const html = `<header>
+      <a href="/english/"><img src="/cmn_logo01.png" alt="logo"></a>
+      <a href="https://povo.jp/"><img src="/header_logo01_02.png" alt="povo logo"></a>
+    </header>`;
+    const got = extractCandidates(html, "https://example.co.jp/english/")
+      .filter((c) => c.source === "header")
+      .map((c) => c.url);
+    expect(got).toEqual([
+      "https://example.co.jp/cmn_logo01.png",
+      "https://example.co.jp/header_logo01_02.png",
+    ]);
+  });
+
+  it("リンクの外にある logo はトップ扱いにしない", () => {
+    const html = `<header>
+      <img src="/floating-logo.png">
+      <a href="/"><img src="/home-logo.png"></a>
+    </header>`;
+    const got = extractCandidates(html, BASE)
+      .filter((c) => c.source === "header")
+      .map((c) => c.url);
+    expect(got).toEqual([
+      "https://example.co.jp/home-logo.png",
+      "https://example.co.jp/floating-logo.png",
+    ]);
+  });
+
   it("data URI とスキーム違いは候補にしない", () => {
     const html = `<header><img src="data:image/png;base64,AAAA" alt="logo"></header>
       <link rel="icon" href="data:image/x-icon;base64,AAAA">
