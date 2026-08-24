@@ -334,8 +334,11 @@ test.describe("C3 モックとの一致", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
 
-    const amount = page.getByText("2,178万円", { exact: true }).first();
-    const distribution = page.locator("figure").first();
+    // カードの中の金額。P1（#167）のレーダーが同じ額を図と指標リストにも
+    // 出すので、ページ全体から探すとそちらを掴む。
+    const card = page.locator('[data-slot="card"]').first();
+    const amount = card.getByText("2,178万円", { exact: true }).first();
+    const distribution = card.locator("figure").first();
     const amountBox = (await amount.boundingBox())!;
     const figureBox = (await distribution.boundingBox())!;
 
@@ -346,7 +349,8 @@ test.describe("C3 モックとの一致", () => {
 
   test("カードの中に平均年齢・在籍年数・従業員数が並ぶ", async ({ page }) => {
     await page.goto("/company/6861");
-    const stats = page.locator("dl").nth(1);
+    // カードの中の2つ目。P1 がページ先頭に置いた指標リストも `dl` なので絞る。
+    const stats = page.locator('[data-slot="card"] dl').nth(1);
     await expect(stats).toContainText("35.0歳");
     await expect(stats).toContainText("11.3年");
     await expect(stats).toContainText("3,306人");
@@ -452,7 +456,8 @@ test.describe("公開後の手直し", () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/8725");
 
-    for (const dl of [page.locator("dl").nth(0), page.locator("dl").nth(1)]) {
+    const cardLists = page.locator('[data-slot="card"] dl');
+    for (const dl of [cardLists.nth(0), cardLists.nth(1)]) {
       const overflow = await dl.evaluate((el) =>
         [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
       );
