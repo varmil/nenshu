@@ -1,0 +1,118 @@
+# Issue 本文の「親: #<番号>」を読んで、GitHub の sub-issue として親に紐づける。
+#
+# 本文にリンクを書くだけでは GitHub 上の親子関係にはならず、親の進捗バーも埋まらない。
+# 手で紐づける運用にすると付け忘れが残る（実際に 26 件残っていた）ので、行の記載だけを
+# 正にしてワークフローが機械的に紐づける。
+name: sub-issue の紐づけ
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 対象の Issue 番号。空にすると open な Issue を全件走査する
+        required: false
+        type: string
+
+permissions:
+  issues: write
+
+# 同じ Issue への連続した編集で API 呼び出しが競合しないよう直列化する。
+concurrency:
+  group: link-sub-issue-${{ github.event.issue.number || github.run_id }}
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        # 入力は env 経由で渡す。script に ${{ }} を直接埋めるとスクリプトの構文ごと
+        # 差し替わりうるため（GitHub Actions のスクリプトインジェクション）。
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+        with:
+          script: |
+            // 本文の行頭にある「親: #123」だけを見る。全角コロンも受ける。
+            const PARENT_LINE = /^\s*親[:：]\s*#(\d+)/m;
+            const { owner, repo } = context.repo;
+
+            async function currentParent(number) {
+              try {
+                const res = await github.request(
+                  "GET /repos/{owner}/{repo}/issues/{issue_number}/parent",
+                  { owner, repo, issue_number: number },
+                );
+                return res.data.number;
+              } catch (error) {
+                if (error.status === 404) return null; // 親がまだ無い
+                throw error;
+              }
+            }
+
+            // 紐づけたら説明を返す。何もすることが無ければ null。
+            async function link(issue) {
+              const matched = PARENT_LINE.exec(issue.body ?? "");
+              if (!matched) return null;
+
+              const parent = Number(matched[1]);
+              if (parent === issue.number) {
+                throw new Error(`#${issue.number} の「親:」が自分自身を指している`);
+              }
+
+              const current = await currentParent(issue.number);
+              if (current === parent) return null; // 既に紐づいている（edited のたびにここへ来る）
+
+              // sub_issue_id は Issue 番号ではなく id。親を差し替えるときだけ replace_parent。
+              await github.request(
+                "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues",
+                {
+                  owner,
+                  repo,
+                  issue_number: parent,
+                  sub_issue_id: issue.id,
+                  ...(current === null ? {} : { replace_parent: true }),
+                },
+              );
+              return current === null
+                ? `#${issue.number} → 親 #${parent}`
+                : `#${issue.number} → 親 #${parent}（#${current} から付け替え）`;
+            }
+
+            async function targets() {
+              if (context.eventName === "issues") return [context.payload.issue];
+
+              const requested = process.env.ISSUE_NUMBER;
+              if (requested) {
+                const res = await github.rest.issues.get({
+                  owner, repo, issue_number: Number(requested),
+                });
+                return [res.data];
+              }
+
+              const all = await github.paginate(github.rest.issues.listForRepo, {
+                owner, repo, state: "open", per_page: 100,
+              });
+              return all.filter((issue) => !issue.pull_request);
+            }
+
+            const failures = [];
+            let linked = 0;
+
+            for (const issue of await targets()) {
+              try {
+                const done = await link(issue);
+                if (done) {
+                  core.info(done);
+                  linked += 1;
+                }
+              } catch (error) {
+                // 親の番号が存在しない・PR を指している等。本文の誤りなので気づける形で残す。
+                failures.push(`#${issue.number}: ${error.message}`);
+              }
+            }
+
+            core.info(`紐づけた: ${linked} 件`);
+            if (failures.length > 0) {
+              core.setFailed(`紐づけに失敗した Issue がある:\n${failures.join("\n")}`);
+            }

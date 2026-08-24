@@ -11,7 +11,8 @@ labels: unit
 
 参照: <!-- spec の節と ADR。例: `docs/company/spec.md` AC-1〜AC-10, `docs/adr/0006-public-url-strategy.md` -->
 依存: <!-- 先に完了している必要がある Unit の #番号。無ければ「なし」 -->
-親: <!-- 元になった【親】Issue の #番号。無ければ省略 -->
+親: <!-- 元になった【親】Issue を `#123` の形で書く。この行を .github/workflows/link-sub-issue.yml が読んで
+     sub-issue として紐づける（本文にリンクを書くだけでは紐づかない）。無ければ行ごと省略 -->
 
 <!-- この Unit で何を出すかを1〜3行。
      なぜやるかは spec・intent に、どう作るかは plan.md・design.md にあるのでここには書かない。 -->

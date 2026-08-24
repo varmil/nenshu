@@ -81,12 +81,22 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 着手の順序は次のとおり。
 
 1. **`docs/<施策>/overview.md` の Unit 一覧に載っていない Unit は着手しない。** 先に overview.md に行を足す（ID・依存・対応する受け入れ基準・共有コンポーネントに触るか）。ID は施策ごとの連番（ranking は `U`、company は `C`）。
-2. **Issue を立てる。** タイトルは `[Unit] <ID> <名前>`、ラベルは `unit` と `bolt-N`。テンプレは `.github/ISSUE_TEMPLATE/unit.md` で、**参照（spec の節・ADR）／依存／完了条件／非対象は必須**。完了条件は spec.md の受け入れ基準に対応させ、チェックできる形で書く。
+2. **Issue を立てる。** タイトルは `[Unit] <ID> <名前>`、ラベルは `unit` と `bolt-N`。テンプレは `.github/ISSUE_TEMPLATE/unit.md` で、**参照（spec の節・ADR）／依存／完了条件／非対象は必須**。完了条件は spec.md の受け入れ基準に対応させ、チェックできる形で書く。**親 Issue から割った Unit なら、本文の `親:` 行に `#<番号>` を書く**（下の「親子の紐づけ」）。
 3. **その Issue 番号を持って plan.md を書き、着手する。** plan.md・design.md の冒頭から Issue を参照する（Issue → spec → ADR がリンクで辿れる状態にする）。
 
 Unit にしないもの——1コミットで終わる修正・ドキュメントのみの変更・依存更新——は Issue 無しで進めてよい。その場合は PR 本文の「対応 Issue」に理由を1行書く。**plan.md や design.md を書きたくなった時点でそれは Unit なので、先に Issue を立てる。**
 
-まだ Unit に割れていない要望・課題は `.github/ISSUE_TEMPLATE/idea.md`（`【親】` 始まり、ラベル無し）で起票し、割った時点で `[Unit]` Issue を子として立てて親をリンクする。
+まだ Unit に割れていない要望・課題は `.github/ISSUE_TEMPLATE/idea.md`（`【親】` 始まり、ラベル無し）で起票し、割った時点で `[Unit]` Issue を立てて、その本文の `親:` 行に元の Issue の番号を書く。
+
+### 親子の紐づけ
+
+**親 Issue と Unit の親子関係は、本文の `親: #<番号>` の1行だけが正。** `.github/workflows/link-sub-issue.yml` がこの行を読んで GitHub の sub-issue として紐づける（Issue の `opened`・`edited` で発火する。取りこぼしたときは Actions のページから手動実行でき、番号を空にすれば open な Issue を全件走査する）。
+
+- **本文にリンクを書くだけでは紐づかない。** sub-issue は GitHub の別の関係で、これが無いと親の進捗バー（`2 / 3`）が埋まらず、どの親がどの Unit に割れたかを GitHub 上で辿れない。**手で付ける運用にしていた頃は26件が紐づかないまま残っていた**（2026-08-24 に一括で直した）
+- **書くのは行頭の `親: #123`**（全角コロンも可）。本文の最初の1つだけを見るので、複数の親は持てない
+- **番号を間違えるとワークフローが落ちる。** 赤くなったら Issue 本文を直す——ワークフロー側では直せない
+- **Unit 以外の Issue（`【親】`・単発の修正）も同じ規則。** 親を持つなら書く、持たないなら行ごと省く。**親が親を持ってよい**（#74 → #54 → #30 のように三段になっている）
+- **GitHub Project のステータス（Backlog / Ready / In progress / Done）は自動化していない。運営者が手で動かす。** Claude のセッションからは Projects v2 の API（GraphQL のみ）に到達できないので、ステータスを触ろうとしない
 
 **進めながら分かったことは Issue のコメントに書かない**（`docs/` の外に「AI が読めない決定」を作らないため）。行き先は決定の性質で分ける。
 
