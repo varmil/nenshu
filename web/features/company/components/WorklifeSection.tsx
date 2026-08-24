@@ -67,7 +67,7 @@ export function WorklifeSection({ view }: { view: WorklifeView }) {
 function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
   const hasBar = metric.rows.some((row) => row.ratio !== null);
   return (
-    <div className="grid gap-1.5 py-3 sm:grid-cols-[13rem_1fr] sm:gap-4">
+    <div className="grid gap-1.5 py-3 sm:grid-cols-[14.375rem_1fr] sm:gap-4">
       {/*
         モバイルは「ラベル …… 単位」の1行、PC はラベルの下に単位（アートボード 6c / 6b）。
         **`justify-between` を PC でも効かせない**——縦積みになると左カラムの高さ
@@ -79,8 +79,15 @@ function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
         {metric.unit !== "" && (
           <span className="text-muted-foreground text-xs">{metric.unit}</span>
         )}
+        {/*
+          **1行に収める**（アートボード 6b）。既定のまま折ると `× 100` の
+          `100` だけが2行目に落ち、式が割れて読めなくなる（実測）。
+          230px に収まる字送りまで落としてから `nowrap` で固定する。
+        */}
         {metric.definition !== "" && (
-          <span className="text-muted-foreground text-xs">{metric.definition}</span>
+          <span className="text-muted-foreground text-[0.625rem] whitespace-nowrap">
+            {metric.definition}
+          </span>
         )}
       </div>
       <dd className="min-w-0">
@@ -132,7 +139,7 @@ function WorklifeRowLine({
     <div className="flex items-center gap-2">
       <span className={`min-w-0 flex-1 ${labelClass(row.label)}`}>{row.label}</span>
       {hasBar && <WorklifeBar ratio={row.ratio} />}
-      <span className="shrink-0 text-sm font-semibold tabular-nums">
+      <span className="shrink-0 text-base font-semibold tabular-nums">
         {row.value.toFixed(1)}
         {valueSuffix !== "" && (
           <span className="text-muted-foreground ml-0.5 text-xs font-normal">
@@ -154,10 +161,12 @@ const TICKS = 10;
  * 灰色の帯が目立ち、棒が短いことより器の長さが先に目に入る。
  */
 function WorklifeBar({ ratio }: { ratio: number | null }) {
-  if (ratio === null) return <span className="w-16 shrink-0" aria-hidden="true" />;
+  if (ratio === null) return <span className="w-24 shrink-0" aria-hidden="true" />;
   const filled = ratio * TICKS;
+  // 器は96px・高さ8px（アートボード 6c）。64pxだと1メモリが6pxしかなく、
+  // 残業10.5時間のような小さい値で**棒があること自体が見えない**（実測）。
   return (
-    <span className="flex h-1.5 w-16 shrink-0 gap-px" aria-hidden="true">
+    <span className="flex h-2 w-24 shrink-0 gap-px" aria-hidden="true">
       {Array.from({ length: TICKS }, (_, i) => {
         const width = Math.min(Math.max(filled - i, 0), 1);
         return (

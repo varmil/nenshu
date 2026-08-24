@@ -7,7 +7,7 @@
 | ID | Unit | 依存 | 対応する受け入れ基準 | 共有コンポーネント |
 | --- | --- | --- | --- | --- |
 | P0 | 一人当たり経常利益の取り込み | C0（#51）, T0（#74） | AC-1〜AC-5 | 触らない。表示は変わらない。Issue #155。**実装済み**（`docs/performance/profit-per-employee/`） |
-| P1 | レーダーチャート「公開資料による全体像」 | P0, W1（#150）, C3（#89） | AC-6〜AC-9・AC-11 | `features/company/components/` に留める。Issue #167 |
+| P1 | レーダーチャート「公開資料による全体像」 | P0, W1（#150）, C3（#89） | AC-6〜AC-9・AC-11 | `features/company/components/` に留める。Issue #167。**実装済み**（`docs/performance/company-radar/`） |
 | P2 | 稼ぐ力の推移（過去10年間） | P0, T2（#138） | AC-10・AC-11 | 同上。Issue #168 |
 
 ## 実施順序

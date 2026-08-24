@@ -492,6 +492,85 @@ describe("buildData", () => {
       expect(result.performanceGzipSize).toBeLessThanOrEqual(32 * 1024);
     });
   });
+
+  /**
+   * レーダー4軸の順位（P1・#167・`docs/performance/spec.md` 2.1）。
+   * **平均年収の軸は入らない**——表示基準で変わるので `stats.json` から出す。
+   */
+  describe("radar.json", () => {
+    const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
+    const AXES = ["paidLeave", "tenure", "profit", "overtime"] as const;
+
+    it("4軸が companies.rows と同じ並び・同じ長さ", () => {
+      expect(result.radar.meta.axes).toEqual([...AXES]);
+      for (const key of AXES) {
+        expect(result.radar[key].rank.length, key).toBe(result.companies.rows.length);
+        expect(result.radar[key].value.length, key).toBe(result.companies.rows.length);
+      }
+    });
+
+    it("平均年収の軸は持たない（表示基準で変わるため）", () => {
+      expect(result.radar.meta.axes).not.toContain("salary");
+      expect(Object.keys(result.radar)).not.toContain("salary");
+    });
+
+    it("母集団は軸ごとに違う（有給と残業は6割前後しか公表がない）", () => {
+      expect(result.radar.tenure.population).toBe(1867);
+      expect(result.radar.profit.population).toBe(1864);
+      // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
+      expect(result.radar.paidLeave.population).toBeGreaterThan(800);
+      expect(result.radar.paidLeave.population).toBeLessThan(1200);
+      expect(result.radar.overtime.population).toBeGreaterThan(800);
+      expect(result.radar.overtime.population).toBeLessThan(1200);
+    });
+
+    it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {
+      const i = indexOf("6861");
+      expect(result.radar.overtime.value[i]).toBeNull();
+      expect(result.radar.overtime.rank[i]).toBe(-1);
+      // 区分「正社員」1件だけなので軸に乗る（アートボード 6a がそう描いている）。
+      expect(result.radar.paidLeave.value[i]).toBe(38.8);
+      expect(result.radar.paidLeave.rank[i]).toBeGreaterThan(0);
+    });
+
+    it("区分が2つ以上の会社は軸に乗せない（新日本空調の有給）", () => {
+      // 営業・管理系 67.4 / 技術系 60.8。**どちらかを代表に選ばない**（spec 2.2b）。
+      const i = indexOf("1952");
+      expect(result.radar.paidLeave.value[i]).toBeNull();
+    });
+
+    it("残業は小さいほど上位（5軸すべて外側＝良いに揃える）", () => {
+      const values = result.radar.overtime.value;
+      const ranked = values
+        .map((v, i) => ({ v, rank: result.radar.overtime.rank[i] }))
+        .filter((r): r is { v: number; rank: number } => r.v !== null);
+      const best = ranked.reduce((a, b) => (a.rank <= b.rank ? a : b));
+      const worst = ranked.reduce((a, b) => (a.rank >= b.rank ? a : b));
+      expect(best.v).toBeLessThan(worst.v);
+    });
+
+    it("有給・在籍・稼ぐ力は大きいほど上位", () => {
+      for (const key of ["paidLeave", "tenure", "profit"] as const) {
+        const ranked = result.radar[key].value
+          .map((v, i) => ({ v, rank: result.radar[key].rank[i] }))
+          .filter((r): r is { v: number; rank: number } => r.v !== null);
+        const best = ranked.reduce((a, b) => (a.rank <= b.rank ? a : b));
+        const worst = ranked.reduce((a, b) => (a.rank >= b.rank ? a : b));
+        expect(best.v, key).toBeGreaterThan(worst.v);
+      }
+    });
+
+    it("業種中央値が全社ぶん引ける", () => {
+      const i = indexOf("6861");
+      expect(result.radar.profitIndustryMedian[i]).toBe(
+        result.performance.industryMedian[result.companies.industries.indexOf("電気機器")]
+      );
+    });
+
+    it("gzip後サイズが上限(48KB)以内", () => {
+      expect(result.radarGzipSize).toBeLessThanOrEqual(48 * 1024);
+    });
+  });
 });
 
 /**

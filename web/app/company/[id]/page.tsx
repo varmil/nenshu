@@ -4,6 +4,12 @@ import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView } from "@/features/company/lib/worklife";
 import { decodeWorklife, type WorklifeData } from "@/lib/data/worklife";
+import type {
+  CompanyRadarInput,
+  RadarAxisData,
+  RadarAxisInput,
+  RadarData,
+} from "@/features/company/lib/radar";
 import { companyMetadata } from "@/lib/seo/company";
 import type { CompanyStatsData, CompanyView, SalaryHistory } from "@/features/company/types";
 import {
@@ -18,6 +24,7 @@ import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
 import worklifeData from "../../../public/data/worklife.json";
+import radarData from "../../../public/data/radar.json";
 import logosData from "../../../public/data/logos.json";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
@@ -37,6 +44,12 @@ const history = historyData as { years: number[]; byId: Record<string, (number |
  * 渡すのは当該1社ぶんだけ。
  */
 const worklife = worklifeData as unknown as WorklifeData;
+
+/**
+ * レーダー4軸の順位（P1・Issue #167）。**平均年収の軸はここに無い**——
+ * 表示基準で変わるので `stats.json` の `rankAll` から出す（AC-11）。
+ */
+const radar = radarData as unknown as RadarData;
 
 const logoIds = logosData.byId as Record<string, unknown>;
 
@@ -63,6 +76,27 @@ function historyFor(id: string): SalaryHistory | null {
  * のは「データが無い」ことで、「節を出さない」ことではない——値を消すと
  * 「残業が少ない会社」と見分けがつかなくなる。
  */
+/**
+ * レーダー4軸のうち、この会社ぶんだけを抜く。**`radar.json` 全体は渡さない**
+ * ——1,867社×4軸を直列化するとページの予算を超える（`stats.json` の
+ * `rankAll` を渡さないのと同じ理由）。
+ */
+function radarFor(id: string): CompanyRadarInput {
+  const index = findRowIndex(companies, id);
+  const axis = (data: RadarAxisData): RadarAxisInput => ({
+    value: data.value[index] ?? null,
+    rank: data.rank[index] ?? -1,
+    population: data.population,
+  });
+  return {
+    paidLeave: axis(radar.paidLeave),
+    tenure: axis(radar.tenure),
+    profit: axis(radar.profit),
+    overtime: axis(radar.overtime),
+    profitIndustryMedian: radar.profitIndustryMedian[index] ?? null,
+  };
+}
+
 function worklifeFor(id: string) {
   const index = findRowIndex(companies, id);
   return buildWorklifeView(index === -1 ? null : decodeWorklife(worklife, index));
@@ -109,6 +143,7 @@ export default async function CompanyPage({ params, searchParams }: Props) {
     <LogoIdsProvider ids={logoIdsOnPage(view)}>
       <CompanyDetail
         view={view}
+        radar={radarFor(view.id)}
         worklife={worklifeFor(view.id)}
         history={historyFor(view.id)}
         initialAge={parseAge((await searchParams).age)}

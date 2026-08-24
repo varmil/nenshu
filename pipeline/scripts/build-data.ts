@@ -11,6 +11,7 @@ import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
+import { ranks, representativeValue } from "../../web/features/company/lib/radar";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { TARGET_AGES } from "../../web/features/ranking/types";
 
@@ -27,6 +28,8 @@ const WORKLIFE_JSON_GZIP_LIMIT_BYTES = 160 * 1024;
 const PERFORMANCE_JSON_GZIP_LIMIT_BYTES = 32 * 1024;
 /** 稼ぐ力の中央値を採る期間（`docs/performance/spec.md` 1.2）。 */
 const PERFORMANCE_YEARS = 5;
+// 実測 12.3KB（1,867社 × 4軸のパーセンタイルと値）。上限は 48KB。
+const RADAR_JSON_GZIP_LIMIT_BYTES = 48 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -135,6 +138,7 @@ export function buildData(outDir: string) {
   const history = buildHistory(rows, companyRows);
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
+  const radar = buildRadar(rows, companyRows, industries, performance);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -143,16 +147,19 @@ export function buildData(outDir: string) {
   const historyPath = resolve(outDir, "history.json");
   const worklifePath = resolve(outDir, "worklife.json");
   const performancePath = resolve(outDir, "performance.json");
+  const radarPath = resolve(outDir, "radar.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
   const performanceJson = JSON.stringify(performance);
+  const radarJson = JSON.stringify(radar);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
   writeFileSync(historyPath, historyJson);
   writeFileSync(worklifePath, worklifeJson);
   writeFileSync(performancePath, performanceJson);
+  writeFileSync(radarPath, radarJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -182,6 +189,13 @@ export function buildData(outDir: string) {
     );
   }
 
+  const radarGzipSize = gzipSync(radarJson).length;
+  if (radarGzipSize > RADAR_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `radar.json のgzipサイズが上限(48KB)を超えています: ${(radarGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
@@ -189,16 +203,19 @@ export function buildData(outDir: string) {
     historyPath,
     worklifePath,
     performancePath,
+    radarPath,
     companies,
     curves,
     stats,
     history,
     worklife,
     performance,
+    radar,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
     performanceGzipSize,
+    radarGzipSize,
   };
 }
 
@@ -280,6 +297,75 @@ function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: 
   };
 }
 
+/**
+ * レーダー4軸の相対位置（P1・#167・`docs/performance/spec.md` 2.1）。
+ *
+ * **ビルド時に確定させる。** 各軸のパーセンタイルは1,867社の分布が要るので、
+ * リクエストごとに回すと Workers Free の CPU 予算（10ms）に踏み込む
+ * ——`stats.json` の順位と同じ理由（`docs/company/company-page/design.md`）。
+ *
+ * **平均年収の軸はここに入れない。** あれだけは表示基準（実測値 / 年齢そろえ）で
+ * 変わるので、`stats.json` の `rankAll` から表示時に出す（AC-11）。
+ *
+ * **規則は `web/features/company/lib/radar.ts` の1か所にある。** 代表値の選び方も
+ * パーセンタイルの数え方もあちらから import する——ここに書き写すと、
+ * 「図の頂点」と「図の下に出る値」が別の規約で選ばれることになる。
+ */
+function buildRadar(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[],
+  industries: string[],
+  performance: ReturnType<typeof buildPerformance>
+) {
+  const byId = loadWorklifeCells();
+  const numberOrNull = (raw: string | undefined) =>
+    raw === undefined || raw === "" ? null : Number(raw);
+
+  const paidLeaveValue: (number | null)[] = [];
+  const overtimeValue: (number | null)[] = [];
+  const profitIndustryMedian: (number | null)[] = [];
+
+  companyRows.forEach((company, i) => {
+    const cells = byId.get(String(company[0]));
+    const units = (namePrefix: string, valueSuffix: string) =>
+      [1, 2, 3, 4, 5].map((n) => ({
+        value: numberOrNull(cells?.[`${namePrefix}${n}${valueSuffix}`]),
+      }));
+    paidLeaveValue.push(
+      cells === undefined
+        ? null
+        : representativeValue(
+            numberOrNull(cells.paid_leave_all),
+            units("paid_leave_unit", "_rate")
+          )
+    );
+    overtimeValue.push(
+      cells === undefined
+        ? null
+        : representativeValue(numberOrNull(cells.overtime_all), units("overtime_unit", "_hours"))
+    );
+    profitIndustryMedian.push(
+      performance.industryMedian[industries.indexOf(rows[i].tse33)] ?? null
+    );
+  });
+
+  const axis = (values: (number | null)[], ascendingIsBetter = false) => ({
+    ...ranks(values, ascendingIsBetter),
+    value: values,
+  });
+
+  return {
+    meta: { count: companyRows.length, axes: ["paidLeave", "tenure", "profit", "overtime"] },
+    paidLeave: axis(paidLeaveValue),
+    tenure: axis(rows.map((row) => row.avgTenure)),
+    profit: axis(performance.perEmployee),
+    // **残業だけは小さいほど上位。** 5軸すべてが「外側＝良い」で揃っていないと
+    // レーダーは図として読めない（#154）。
+    overtime: axis(overtimeValue, true),
+    profitIndustryMedian,
+  };
+}
+
 /** 中央値。偶数個なら中央2つの平均。 */
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
@@ -347,7 +433,7 @@ function buildHistory(
  * 注釈・説明（716社）は本文が長い（平均186字）ので、行の配列とは別に持つ。
  * 数値だけを読む場面で長い文字列を跨がずに済む。
  */
-function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
+function loadWorklifeCells(): Map<string, Record<string, string>> {
   const csvText = readFileSync(resolve(ROOT, "data/worklife_2026.csv"), "utf-8");
   const table = parseCsv(csvText);
   const header = table[0] ?? [];
@@ -357,6 +443,11 @@ function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
     header.forEach((name, i) => (cells[name] = line[i] ?? ""));
     byId.set(cells.id, cells);
   }
+  return byId;
+}
+
+function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
+  const byId = loadWorklifeCells();
 
   const pool = new StringPool();
   const rows: (WorklifeRow | 0)[] = [];
@@ -558,5 +649,9 @@ if (isMain) {
     `${result.performancePath}: ${result.performance.meta.matched}社 ` +
       `（${result.performance.meta.years.at(0)}〜${result.performance.meta.years.at(-1)}年）, ` +
       `gzip ${(result.performanceGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.radarPath}: ${result.radar.meta.axes.length}軸 × ${result.radar.meta.count}社, ` +
+      `gzip ${(result.radarGzipSize / 1024).toFixed(1)}KB`
   );
 }
