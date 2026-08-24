@@ -110,7 +110,7 @@ U12 は Claude Design の `改善案.dc.html` を**直接読まずに**組んだ
 **canonical の判断（ADR-0006）には手を入れない。** インデックス対象の1,910 URL はサーバーが返すHTMLで決まる。**OGP はまだ無い**（site-chrome の S2・Issue #116）ので、S2 はこの Unit が切り出した同じ関数から `og:title`・`og:url` を引く。
 ## 他施策から触られる箇所
 
-**`/` が読むデータファイルは runtime 施策の R0（Issue #165）が絞った。** `stats.json`（131KB）と `logos.json`（204KB）を丸ごと読んで、実際に使うのは母集団の9組（337B）とロゴの有無だけだった。いまは `population.json`・`logo-ids.json` を読む。**`app/page.tsx` に重いデータファイルを import し直すと lint が落ちる**（ADR-0011・`docs/runtime/spec.md` 2.1 の表が正）。
+**`/` が読むデータファイルは runtime 施策の R0（Issue #165）が絞った。** `stats.json`（131KB）と `logos.json`（202KB）を丸ごと読んで、実際に使うのは母集団の9組（337B）とロゴの有無だけだった。いまは `population.json`・`logo-ids.json` を読む。**`app/page.tsx` に重いデータファイルを import し直すと lint が落ちる**（ADR-0011・`docs/runtime/spec.md` 2.1 の表が正）。
 
 **データの時点（決算期）は site-chrome 施策の S3（Issue #134・親 #104）が足した。** 「有価証券報告書ベース」であることは書いてあるのに、それが**いつ**の有報なのかがサイトのどこにも無かった。決算期（`2026年3月期`）は全ページに共通する1つの事実なので、施策ごとに別々の時点を書くことがそもそもありえない——文字列にするのは `web/lib/data/period.ts` の1か所で、値は `companies.meta.fiscalPeriod` から引く（直書きは `docs/site-chrome/spec.md` AC-20 で禁じている）。設計は `docs/site-chrome/data-period/design.md`。
 

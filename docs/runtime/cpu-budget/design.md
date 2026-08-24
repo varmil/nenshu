@@ -24,23 +24,23 @@ Issue: [#165](https://github.com/varmil/nenshu/issues/165)（親: [#118](https:/
 
 | ファイル | raw | `JSON.parse` | 読む画面 |
 | --- | ---: | ---: | --- |
-| `companies.json` | 130KB | 0.906ms | `/`・`/company/[id]`・`/about`・`sitemap.ts` |
-| `curves.json` | 1.5KB | 0.014ms | `/`・`/company/[id]`・`/about` |
-| **`population.json`（新）** | **337B** | **0.003ms** | `/` |
-| **`logo-ids.json`（新）** | **11.6KB** | **0.135ms** | `/`・`/company/[id]` |
-| `stats.json` | 131KB | 0.979ms | `/company/[id]` |
-| `history.json` | 160KB | 0.688ms | `/company/[id]` |
-| `logos.json` | 204KB | 1.135ms | `/about` |
-| `worklife.json` | 491KB | 1.734ms | （まだどこも読んでいない） |
+| `companies.json` | 130KB | 0.820ms | `/`・`/company/[id]`・`/about`・`sitemap.ts` |
+| `curves.json` | 1.5KB | 0.013ms | `/`・`/company/[id]`・`/about` |
+| **`population.json`（新）** | **337B** | **0.002ms** | `/` |
+| **`logo-ids.json`（新）** | **11.3KB** | **0.099ms** | `/`・`/company/[id]` |
+| `stats.json` | 131KB | 0.908ms | `/company/[id]` |
+| `history.json` | 160KB | 0.607ms | `/company/[id]` |
+| `logos.json` | 202KB | 1.236ms | `/about` |
+| `worklife.json` | 491KB | 1.568ms | （まだどこも読んでいない） |
 
-（Node 22・中央値41回。`web/public/data/` の実ファイルを `JSON.parse` した値）
+（Node 22・中央値61回。`web/public/data/` の実ファイルを `JSON.parse` した値）
 
 **ページごとの合計は次のように動いた。**
 
 | ページ | 前 | 後 | |
 | --- | ---: | ---: | ---: |
-| `/` | 3.034ms | **1.058ms** | −65% |
-| `/company/[id]` | 3.722ms | **2.722ms** | −27% |
+| `/` | 2.977ms | **0.934ms** | −69% |
+| `/company/[id]` | 3.584ms | **2.449ms** | −32% |
 
 `/about` は変えていない（`logos.json` の `w`/`h`/`from`/`lic` を帰属表示で使う唯一の画面で、しかも静的に前生成される）。
 
@@ -100,13 +100,13 @@ Issue: [#165](https://github.com/varmil/nenshu/issues/165)（親: [#118](https:/
 
 ## 合計
 
-`/company/[id]` の cold なリクエストで **1.6〜1.9ms**、予算 10ms の 16〜19%。`/` は cold で 1.98ms（同 20%）。
+`/company/[id]` の cold なリクエストで **1.7〜2.0ms**、予算 10ms の 16〜19%。`/` は cold で 2.04ms（同 20%）。
 
 **warm のリクエストではデータの分割は効かない**（`JSON.parse` は isolate ごとに1度きり）。効くのは計算の重複を消したぶんだけになる。
 
 ## 測り方（次に測る人へ）
 
-**`JSON.parse` はファイル単位で測る。** `web/public/data/*.json` を `readFileSync` して `JSON.parse` を41回、中央値を採る。ページごとの cold の内訳は、そのページが `import` しているファイルを足し上げれば出る。
+**`JSON.parse` はファイル単位で測る。** `web/public/data/*.json` を `readFileSync` して `JSON.parse` を61回、中央値を採る。ページごとの cold の内訳は、そのページが `import` しているファイルを足し上げれば出る。
 
 **自分のコードの計算は同じプロセスで新旧を並べる。** 別々に走らせると JIT の状態が揃わない。**最初に測った1本は必ず高く出る**ので捨てる（捨てずに測って、同じ関数が 0.885ms と 0.263ms の両方を出した）。
 

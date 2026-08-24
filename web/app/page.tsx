@@ -23,9 +23,9 @@ const companies = companiesData as CompaniesData;
  * gzip 41.7KB あり、丸ごと渡すと `/` の予算（AC-13: 75,000B）を超える。**
  * モジュールの読み込み時に1度だけ作る——`/` はリクエストごとに描画されるため。
  *
- * **読むのは `logo-ids.json`（raw 11.6KB）で、`logos.json`（raw 204KB）ではない。**
+ * **読むのは `logo-ids.json`（raw 11.3KB）で、`logos.json`（raw 202KB）ではない。**
  * この画面が使うのは「ロゴがあるか」だけで、寸法も出典も見ていない。丸ごと import
- * すると使わない 192KB を isolate の初回リクエストで `JSON.parse` することになる
+ * すると使わない 191KB を isolate の初回リクエストで `JSON.parse` することになる
  * （R0・`docs/runtime/spec.md` 2.・Issue #118）。
  */
 const logoMask = buildLogoMask(companies.rows, new Set(logoIdsData.ids));

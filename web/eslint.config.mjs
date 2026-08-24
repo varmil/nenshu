@@ -60,8 +60,8 @@ const eslintConfig = defineConfig([
     //
     // import したファイルは、その画面が1バイトしか使わなくても丸ごと `JSON.parse`
     // され、しかも isolate の初回リクエストに課金される。Workers 無料枠の予算は
-    // 10ms しかなく、`/` は `stats.json` 130KB を読んで 337B だけ、`logos.json`
-    // 204KB を読んで「ロゴがあるか」だけを使っていた。
+    // 10ms しかなく、`/` は `stats.json` 131KB を読んで 337B だけ、`logos.json`
+    // 202KB を読んで「ロゴがあるか」だけを使っていた。
     //
     // **型もテストも通ってしまう間違いなので lint で止める。** レビューで
     // 「その import は要るのか」を毎回問うことはできない。

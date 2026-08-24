@@ -30,10 +30,10 @@ const stats = statsData as CompanyStatsData;
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
 
 /**
- * ロゴを持つ会社のID。**読むのは `logo-ids.json`（raw 11.6KB）で、`logos.json`
- * （raw 204KB）ではない。** この画面が使うのは「ロゴがあるか」だけで、寸法も
+ * ロゴを持つ会社のID。**読むのは `logo-ids.json`（raw 11.3KB）で、`logos.json`
+ * （raw 202KB）ではない。** この画面が使うのは「ロゴがあるか」だけで、寸法も
  * 出典も見ていない（見ているのは `/about` の帰属表示だけ）。丸ごと import すると
- * 使わない 192KB を isolate の初回リクエストで `JSON.parse` することになる
+ * 使わない 191KB を isolate の初回リクエストで `JSON.parse` することになる
  * （R0・`docs/runtime/spec.md` 2.・Issue #118）。
  */
 const logoIds = new Set(logoIdsData.ids);

@@ -9,7 +9,7 @@ Issue: [#165](https://github.com/varmil/nenshu/issues/165)（親: [#118](https:/
 ## 手順
 
 1. **測り方を先に決めて、現状を記録する。**
-   1. `JSON.parse` をファイル単位で測る（Node 22・中央値41回）。ページごとに読んでいるファイルを足し上げて cold の内訳を出す
+   1. `JSON.parse` をファイル単位で測る（Node 22・中央値61回）。ページごとに読んでいるファイルを足し上げて cold の内訳を出す
    2. `buildCompanyView`・`findNeighbors` をそれぞれ測る
    3. `npx opennextjs-cloudflare build` → `npx wrangler dev --local` に対して、`/proc/<workerd>/schedstat` の差分を N リクエストで割って1リクエストあたりの CPU を出す。warm と cold（起動直後の初回）を分けて記録する
 2. **切り出す側（パイプライン）から直す。** web 側を先に変えると、読むファイルがまだ無い状態になる。

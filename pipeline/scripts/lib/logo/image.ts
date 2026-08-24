@@ -150,6 +150,44 @@ export async function reject(buf: Buffer, p: ImageProbe): Promise<Rejection | nu
   return null;
 }
 
+/**
+ * 器の地は明るい面（`--logo-surface`）で固定してある。ライトは白、ダークも
+ * `oklch(0.93 …)` と明るいままなので、**白いロゴはどちらのモードでも空白のマス目に見える**。
+ * 地を白いロゴのときだけ濃くして逃げることはできない（ADR-0008 決定4「色を反転させる加工はしない」に
+ * 近接するうえ、1ページに濃淡2種の器が並ぶ）。**だから読み込む側で落とす**（Issue #156）。
+ *
+ * 判定は「明るい器に重ねたとき、インクが1画素も乗らないか」。**不透明度を掛けてから見る**——
+ * 薄いアルファの乗った白い画素は、生の RGB を見ると白でも、重ねれば白のままである。
+ * これで「色の付いた縁を持つ白抜きロゴ」は残る（縁がインクとして数えられる）。
+ */
+const INK_MAX = 234;
+const MIN_INK_SHARE = 0.01;
+
+/**
+ * **見るのは `normalize` を通した後の画像**、つまり配るものそのもの。判定と配るものの間に
+ * 加工を挟まない。`reject` の24×24走査に相乗りさせなかったのは、そこでは足りなかったため——
+ * 実測で、配っている1,636枚のうち白い50枚を24×24で数えると23枚しか挙がらない。
+ * 縮小の平均化が細い線を白へ寄せるうえ、アルファを戻す計算が低アルファの画素に
+ * `(127,127,127,23)` のような暗い値を作り、それがインクとして数えられてしまう。
+ */
+export async function blankOnLight(normalized: Buffer): Promise<boolean> {
+  const { data, info } = await sharp(normalized, { animated: false })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let ink = 0;
+  for (let i = 0; i < data.length; i += info.channels) {
+    const a = data[i + 3];
+    let min = 255;
+    for (let k = 0; k < 3; k++) {
+      const over = (data[i + k] * a + 255 * (255 - a)) / 255;
+      if (over < min) min = over;
+    }
+    if (min <= INK_MAX) ink++;
+  }
+  return ink / (info.width * info.height) < MIN_INK_SHARE;
+}
+
 /** 余白を落とし、高さ96pxに収めた WebP にする。ラスタは拡大しない。 */
 export async function normalize(buf: Buffer, isSvg: boolean, quality = 78): Promise<Buffer> {
   // SVG は一度大きく描いてから縮める（直接128pxで描くと細い線が飛ぶ）
