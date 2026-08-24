@@ -108,7 +108,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **Bolt 1（MVP: ランキング1ページ＋計算方法ページ）の全Unit U0〜U7が実装済み。** U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）・U7（計算方法ページ`/about`、`docs/ranking/about-page/`、Issue #8）。
 
-**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。`output:'export'`をやめ`@opennextjs/cloudflare`でフルSSRしている（ADR-0004）。`/`は`searchParams`を読むので`ƒ (Dynamic)`、`/about`は`○ (Static)`。SSR成果物はエッジでキャッシュ（`wrangler.jsonc`の`cache.enabled: true`＋`next.config.ts`の`headers()`）、`_next/static/*`はWorkerを経由しないため`public/_headers`で設定している。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
+**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。`output:'export'`をやめ`@opennextjs/cloudflare`でフルSSRしている（ADR-0004）。`/`は`searchParams`を読むので`ƒ (Dynamic)`、`/about`は`○ (Static)`、**`/company/[id]` は全1,867社が `●`（SSG）**（R1・ADR-0012）。SSR成果物はエッジでキャッシュ（`wrangler.jsonc`の`cache.enabled: true`＋`next.config.ts`の`headers()`）、`_next/static/*`はWorkerを経由しないため`public/_headers`で設定している。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
 
 **キャッシュの規則は`web/lib/cache/headers.ts`の1か所。`next.config.ts`に直接書かない**（ADR-0004「キャッシュの設計」）。踏みやすい点が3つある。
 
@@ -131,7 +131,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **既定の表示基準は「実測値」＝有報の平均年間給与そのまま（ADR-0007・U11・Issue #71）。** 年齢補正は「年齢そろえ」として読者が明示的に選ぶモードになった。ランキングと企業詳細の両方に同じ2モードがある。
 
-- **モードは `age` の有無で表す。`basis` のようなパラメータは無い。** `/` = 実測値、`/?age=35` = 年齢そろえ。状態は `RankingState.targetAge: TargetAge | null` の1つの値で持ち、`null` が実測値。分けると「実測値なのに年齢がある」矛盾した状態が表現できてしまうため
+- **ランキングのモードは `age` の有無で表す。`basis` のようなパラメータは無い。** `/` = 実測値、`/?age=35` = 年齢そろえ。状態は `RankingState.targetAge: TargetAge | null` の1つの値で持ち、`null` が実測値。分けると「実測値なのに年齢がある」矛盾した状態が表現できてしまうため。**企業詳細ページは違う——あちらは URL に出さず、クライアントの状態としてだけ持つ**（R1・ADR-0012）
 - **年齢そろえなら35歳でも `age=35` を出す。** 35歳を既定として省略していた頃とは違う——省くと実測値のURLと区別が付かない
 - **`stats.json` の `population`/`rankAll`/`rankIndustry` は `bases = [null, 25, 30, ..., 60]` の9列**（先頭が実測値）。**行がずれると別の会社、列がずれると別の表示基準の順位を出す。** `view.ts` は `stats.bases` を回して並びの正を1か所に寄せている
 - **母集団は基準ごとに別物。** 実測値は平均719万円・標準偏差200万円、35歳そろえは629万円・155万円。キーエンスは平均年齢がちょうど35.0歳なので金額は両モードで同じ2,178万円だが、偏差値は122.9と150.0で違う
@@ -144,6 +144,19 @@ Unit の実装を終えたら、次の順で進める。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 
+**サイトのロゴとファビコンは S4（`docs/site-chrome/site-logo/`、Issue #163）で実装した。** それまで公開されていたのは `create-next-app` の既定（黒い円に白い三角。`web/app/favicon.ico` が雛形のまま 25,931 バイト）だった。意匠は Claude Design の `OpenReport Logo & Favicon.dc.html`。**「サイトロゴ」と「企業ロゴ」（`logo` 施策）は別物**なので、docs でも書き分ける。
+
+- **図形の定義は `pipeline/brand/symbol.ts` の1か所。** ファビコン（SVG）・PNGのフォールバック・アプリアイコン・`favicon.ico` は全部そこから焼く（`cd pipeline && npm run build:brand`）。**`web/` に `sharp` を足さない**——optionalDependencies の解決差で Cloudflare の `npm ci` だけが落ちる事故が2回起きている
+- **hex を書いてよいのは `web/lib/brand/colors.ts` だけ**（`eslint.config.mjs` の例外もここ1つ）。デザイン案の `#007595` / `#00b8db` は `tokens.css` の `--primary`（`:root` / `.dark`）と一致する。`colors.test.ts` がその一致を固定しているので、**トークンを差し替えたらここが落ちる**。要るのは CSS 変数が届かない成果物のため——ファビコンはページのCSSを読まず、`theme_color` はCSS変数を受け付けない
+- **パスと寸法の正は `web/lib/brand/assets.ts`。** 生成スクリプト・`app/layout.tsx`・生成物のテスト・`e2e/network.ts` の4か所が同じ表を見る
+- **成果物は `public/` の静的アセットにする。`app/icon.svg` のような規約ファイルにしない**——ルートハンドラになり、アイコン1枚ごとに Worker が起きる（Workers Free の CPU 10ms/リクエスト制約・Issue #118）
+- **濃色サーフェスの切り替えは SVG の中のメディアクエリで行う。** `<link rel="icon" media="...">` はブラウザの対応が揃っていない。**`sharp`（librsvg）はメディアクエリを評価しない**ので、PNG に焼くのは分岐を持たないほうの SVG
+- **ホーム画面のアイコンは `flatten` でアルファチャンネルごと落とす。** 透過で渡すと iOS が黒で埋める。落としてあれば PNG のカラータイプ1バイトで検証できる（透過は 6・不透明は 2）
+- **`/favicon.ico` は置くが `<link>` には出さない。** 出すと SVG より先に選ぶブラウザがあり、切り替えを持たないほうが使われる。置くのはページを読まずに固定パスを叩く相手（RSSリーダー等）のため。**`sharp` は ICO を書けない**ので器は `pipeline/brand/ico.ts` で組む（中身は PNG）
+- **ヘッダのワードマークは文字のまま**で、色だけ `--primary` にした。画像にすると選択・検索・拡大のどれでも劣り、`BrandLink` の「絞り込みを解く」振る舞いも変わらない
+- **`e2e/network.ts` の除外を `/favicon.ico` 決め打ちから `assets.ts` の表に広げた。** ファビコンのリクエストは `resourceType()` が `image` にならないことがあり、既存の画像の除外に掛からない
+- `/` の HTML は raw 373,821 B → **374,617 B**（gzip 63,665 → 63,855 B）。`/company/[id]` も同じ +796 B（共通ヘッダと `<head>` の変更なので全ページに同じだけ効く）
+
 **データの時点は「決算期」で出す**（site-chrome の S3・Issue #134・親 #104）。**`2026年3月期` を直書きしない。** 値は `companies.meta.fiscalPeriod`（`build-data.ts` が CSV の `period_end` の最頻を採る）で、文字列にするのは `web/lib/data/period.ts` の1か所だけ。社数（`meta.count`）と同じ扱い。
 
 - **「2026年度」とは書かない。** 2026年3月期は年度でいえば2025年度で、読者によって1年ずれる。親 Issue のタイトルの語をそのまま使わない判断（`docs/site-chrome/data-period/design.md`）
@@ -153,7 +166,7 @@ Unit の実装を終えたら、次の順で進める。
 - 決算期は全社が同じではない（3月期1,865社・4月期2社）。**「3月期が中心」と断るのは `/about` の「対象範囲」だけ**
 - 代表の決算期が過半に届かなければ `build-data.ts` が落ちる。1つで代表できないデータを黙って公開しない
 
-**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
+**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。**ブランドの図は S4（#163）で用意済み**（`web/public/` の成果物と `pipeline/brand/symbol.ts`）。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
 
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
@@ -177,7 +190,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）** → **S4（#163）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
@@ -189,12 +202,25 @@ Unit の実装を終えたら、次の順で進める。
 - **robots.txt でクロールを止めない。** `?emp=` などを `Disallow` にすると Google が canonical を読めなくなり、正規URLへ評価が渡らないまま宙に浮く。寄せるのは canonical だけでやる
 - **「有価証券報告書」は全ページの description に入れ、タイトルは `/` だけに入れる。** 競合6社（Zaimiru・OpenMoney・OpenWork・Yahoo!しごとカタログ・Ullet・J-LiC）のタイトルを実測すると、競っているのは鮮度と規模で、有報を置いているものは1つも無かった。うち3社はデータ元が同じ有報である——**「有報ベース」はデータ源として独自なのではなく、それを明示していることが差別化になる**（口コミベースの数字と並んだときに読者が見分けられる）。`?age=N`・`?ind=X` に入れないのは「◯歳」「業種名」のほうが情報量が高いため
 - **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを `app/layout.tsx` ではなく `app/page.tsx` の `generateMetadata` が組み立てているのはそのため
-- **メタデータの文言は `PageMeta`（`lib/seo/pageMeta.ts`）を返す純粋関数1つから出す**（U16・Issue #135・親 #130）。サーバーは `toMetadata()` で `Metadata` に包み、**クライアントは `usePageMeta()` で DOM に書く**。ランキングは `rankingPageMeta`、企業詳細は `companyPageMeta`（C1 以来 `generateMetadata` に直書きしていたものを切り出した）。**操作はすべて `pushState` なので、これが無いとメタデータだけが最初のURLに取り残される**——`/` で年齢そろえに切り替えると URL は `?age=35` なのにタイトルは実測値のまま、企業詳細では**タイトルの金額と画面の金額が食い違う**（親 Issue #130 が報告したのはこの状態の DOM で、**サーバーが返すHTMLは最初から正しかった**）
+- **メタデータの文言は `PageMeta`（`lib/seo/pageMeta.ts`）を返す純粋関数1つから出す**（U16・Issue #135・親 #130）。サーバーは `toMetadata()` で `Metadata` に包み、**クライアントは `usePageMeta()` で DOM に書く**。ランキングは `rankingPageMeta`、企業詳細は `companyPageMeta`（C1 以来 `generateMetadata` に直書きしていたものを切り出した）。**操作はすべて `pushState` なので、これが無いとメタデータだけが最初のURLに取り残される**——`/` で年齢そろえに切り替えると URL は `?age=35` なのにタイトルは実測値のまま（親 Issue #130 が報告したのはこの状態の DOM で、**サーバーが返すHTMLは最初から正しかった**）。**企業詳細では `?age=` を無くしたのでこの食い違いは起きない**（R1・ADR-0012）が、`usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**ため
 - **`<title>` は書いて終わりにできない。React が書き戻す。** Next.js はメタデータを本文の後ろに流し、React が届いた時点で head へ移す。**読み込み直後（実測で1秒以内）に切り替えると、こちらの書き込みの直後に React のハイドレーションが `<title>` の中の文字だけを元に戻す**（`description`・`canonical` は属性なので戻らない＝**タイトルだけ古いまま**という、直そうとしている症状そのものになる）。`usePageMeta` が `MutationObserver` で head を見張って書き直している。**E2E は `goto` の直後に押さないと再現しない**——1.5秒待つと通ってしまう
 - **メタデータの E2E は文言を書き写さない。** `e2e/metadata.spec.ts` は「操作後の DOM」と「同じURLを直接開いたときのHTML」を比べる。文言を書き写すと、文言を直すたびにテストも直すことになり、そのとき何も守らない
 - **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
 - **`workers_dev` と `preview_urls` は対で書く。** `preview_urls` の既定値は `preview_urls = workers_dev`（wrangler 4.44.0 以降）なので、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで無効になる**。しかもこの既定は**デプロイのたびに適用される**ため、ダッシュボードで有効にしても次のデプロイで落ちる。**Cloudflare の設定をダッシュボードだけで直さない。`wrangler.jsonc` に書かない設定は次のデプロイで wrangler の既定値に戻される**
 - **Worker の設定は main に入れるまで効かない。** `preview_urls: true` をブランチに入れて3回デプロイしてもプレビューURLは出ず、**main にマージした直後のビルドで出た**（2026-08-21・Issue #119）。`wrangler.jsonc` を触ったときは、ブランチでの結果で「効かない」と判断しないこと（実際に判断して、原因を設定ファイルの外に探しに行った）
+
+**Workers 無料枠の CPU は 10ms/リクエストで、実際に超えていた**（`runtime` 施策・`docs/runtime/`・親 Issue #118・R1 は Issue #180 で実装済み・ADR-0012）。踏んでいたのはクローラで、1,867社ぶんの異なるURLを世界中のコロから叩くのでエッジキャッシュは全部ミスし、isolate は毎回冷えている。
+
+- **`/company/[id]` は全1,867社をビルド時に生成する**（`generateStaticParams` ＋ `force-static` ＋ `dynamicParams = false`）。リクエスト時に走るのは「キャッシュを引いて返す」だけ。**この画面に項目を足す Unit は `searchParams` を読めない**（C5〜C7・#159〜#161）
+- **`incrementalCache` を明示しないと既定は `"dummy"` で、事前生成した結果が1枚も使われない。** `next build` が `○ (Static)` と出しても Worker はリクエストのたびに描き直す。**`/about` が企業詳細より重かった（47.7〜59.6ms / 25.5〜28.7ms）のはこれが理由**。読み取り専用の `staticAssetsIncrementalCache` を挿してある（KV・R2・D1 を増やさずに済む）
+- **事前生成した結果をアセットへ写すのは `wrangler.jsonc` の `build.command`。** 写すのは本来 `opennextjs-cloudflare deploy` の仕事だが、**このプロジェクトのデプロイコマンドは `npx wrangler deploy`** なのでその工程が走らない。**写さないままでもビルドは通り、デプロイは "successful" と表示され、全1,867ページが 404 になる**（#181 のプレビューで実際に起きた。`x-nextjs-prerender: 1` ＋ `x-nextjs-cache: MISS` が手がかり）。`scripts/assert-prerendered-assets.mjs` が枚数を数えてビルドを落とす
+- **企業詳細ページの表示基準は URL に出さない。`?age=` は無い**（ADR-0012。`force-static` は `searchParams` を読めないのと、年齢そろえで変わるのは推定年収まわりだけのため）。**ランキング（`/`）の `?age=N` は変えていない**——あちらは1,867行の並び順を変え8件をインデックスさせている。配ってしまった `/company/[id]?age=N` は**読まずに `replaceState` で落とす**（落とさないと「URLは30歳・画面は実測値」が残る）
+- **企業詳細のメタデータは1組に固定された。** それでも `usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**（`usePageMeta` は DOM を直接書き換えるので React の管理外。`<title>` だけは React が書き戻す）。`e2e/metadata.spec.ts` の進む/戻るが実際に捕まえた
+- **戻る/進むで企業詳細の表示基準は復元されない。** URL に無いものは復元できない。ランキング側の絞り込み・ページ番号は URL が正のまま（U14・#108）
+- **効果は `wrangler dev --local` の CPU で前後を並べて見る。** `/proc/<workerd>/schedstat` の第1フィールド（ns）を N リクエストで割り、**静的アセット（`/favicon.ico`）を床として一緒に測る**。実測で `/company/8282` 29.6〜29.7ms → 14.0〜14.1ms、`/about` 47.7〜59.6ms → 12.4〜13.5ms、`/` は動的のまま変わらず。**「前」は同じコードの `force-static` を `force-dynamic` に入れ替えただけのビルドで測る**——`/about` がどちらでも事前生成されて動かないことが対照になる。**cold は測れない**——起動直後の1本目は 508〜1,776ms で揺れが1,000msを超える（4.7MB の `handler.mjs` を毎回一から評価するため。本番はコンパイル済みを持つ）
+- **デプロイのアセットが 15MB → 344MB・1,655 → 3,528ファイルになる**（1ページ約180KB）。無料枠の上限は**ファイル数 20,000・1ファイル 25MiB**
+- **Worker 相手の E2E で通るのは ヘッダ・SEO・404 だけ。** 「操作でネットワークが発生しない」系は**本番ビルドのプリフェッチ（`/about?_rsc=…`）を拾って落ちる**——R1 の前からで、`npm run measure:prefetch` が別に見ている領域。**キャッシュ経由に変わったのでヘッダは必ず Worker で確かめること**
+- **一度は「ページが読むデータを減らす」方向で当てて、戻した**（#165 → #179）。cold で 1.7〜2.0ms しか稼げず、生成物と lint の規則が増えた。**残るのは `/` だけ**（事前生成できないため）で、必要になったら測り直してから入れる
 
 **働きやすさ指標は `worklife` 施策**（`docs/worklife/`）。厚生労働省「女性の活躍推進企業データベース」から**平均残業時間・年次有給休暇の取得率・男女の賃金の差異**を取り込み、企業詳細ページに出す。**W0（取り込み・Issue #149）・W1（表示・Issue #150）とも実装済み**（`docs/worklife/data-ingest/`・`docs/worklife/company-section/`）。親 Issue #148。
 
@@ -363,11 +389,11 @@ Unit の実装を終えたら、次の順で進める。
 - **検索語だけはフックを通さない。** `q` が付く／外れる境目だけ `push`、打ち替えは `replace`（`queryBroadcast.ts` の `buildQueryLocation`）。以前は1文字ごとに `pushState` していて「トヨタ自動車」で履歴が6件増えていた
 - **スクロール位置は自前で復元しない。** ブラウザが正しく戻している。E2E で戻らないように見えたのは、**Playwright の `click()` がクリック前に対象をビューポートへスクロールする**ため——戻る/進むの位置を測るときは画面内にある要素を押すこと
 
-**掲載企業数の拡大は `expansion` 施策**（`docs/expansion/`・親 Issue #22）。**Inception だけ済んで未着手。** 取得の窓を直近12か月に広げて母集団を 2,962社にする（ADR-0012）と、全件embed をやめる（ADR-0013）の2つが決まっている。Unit は E0〜E6（Issue #172〜#177・#182）。**Unit の ID に `P` は使えない**（`performance` 施策が使っている）。
+**掲載企業数の拡大は `expansion` 施策**（`docs/expansion/`・親 Issue #22）。**Inception だけ済んで未着手。** 取得の窓を直近12か月に広げて母集団を 2,962社にする（ADR-0011）と、全件embed をやめる（ADR-0013）の2つが決まっている。Unit は E0〜E6（Issue #172〜#177・#182）。**Unit の ID に `P` は使えない**（`performance` 施策が使っている）。
 
 **未解決の課題:**
 
-- **Issue #22: 掲載企業数を増やす。** `expansion` 施策として Inception 済み（`docs/expansion/`・ADR-0012・ADR-0013・Unit E0〜E6）。未着手。
+- **Issue #22: 掲載企業数を増やす。** `expansion` 施策として Inception 済み（`docs/expansion/`・ADR-0011・ADR-0013・Unit E0〜E6）。未着手。
   - **いまの母集団は取得の窓（6/1〜7/10）が決めており、3月期決算の会社しか入っていない。** キヤノン・日本たばこ産業・楽天グループ・花王・イオン・セブン＆アイ・ファーストリテイリング・サイバーエージェント・日本オラクル、非上場ではサントリーホールディングス・日本経済新聞社・竹中工務店が落ちている
   - **窓を直近12か月にすると 1,867社 → 2,962社**（実測。窓の中の内国法人は4,132社で、1,049社は単体従業員100人未満で落ちる）。**いま載っている1,867社は1社も落ちない**
   - **ペイロードは予算を割らない。** `/` の HTML は gzip 63,654 B → **90,724 B**（予算100KBの90.7%）。**このIssueのコメントが見込んでいた137KB超過は、社数を4,000で見積もったことと gzip を行数に比例させたことで外れていた。** 余白が9.3KBしか残らないので全件embedはやめると決めたが（ADR-0013）、**拡大の前提条件にはしない**

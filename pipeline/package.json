@@ -6,6 +6,7 @@
     "build:data": "tsx scripts/build-data.ts",
     "test": "vitest run",
     "build:logos": "tsx scripts/build-logos.ts",
+    "build:brand": "tsx scripts/build-brand.ts",
     "extract:worklife": "tsx worklife/extract.ts"
   },
   "devDependencies": {

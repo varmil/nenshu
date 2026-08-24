@@ -51,7 +51,14 @@ const eslintConfig = defineConfig([
   {
     // 色は design-system/tokens/tokens.css のCSS変数だけを使う。生の hex を書けない状態を lint で強制する。
     files: ["**/*.{ts,tsx}"],
-    ignores: ["design-system/tokens/**"],
+    ignores: [
+      "design-system/tokens/**",
+      // ブランド色（S4・Issue #163）。**CSS変数が届かない成果物のためだけ**にここが
+      // hex を持つ——ファビコンは独立したファイルでページのCSSを読まず、
+      // `theme_color` はブラウザのUIを塗る値でCSS変数を受け付けない。
+      // 値がトークンから離れないことは `lib/brand/colors.test.ts` が固定している。
+      "lib/brand/colors.ts",
+    ],
     rules: {
       "no-restricted-syntax": [
         "error",
