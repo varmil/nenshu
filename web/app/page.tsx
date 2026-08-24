@@ -13,8 +13,8 @@ import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 import { buildLogoMask } from "@/features/logo/lib/mask";
 import companiesData from "../public/data/companies.json";
 import curvesData from "../public/data/curves.json";
-import populationData from "../public/data/population.json";
-import logoIdsData from "../public/data/logo-ids.json";
+import statsData from "../public/data/stats.json";
+import logosData from "../public/data/logos.json";
 
 const companies = companiesData as CompaniesData;
 
@@ -22,13 +22,8 @@ const companies = companiesData as CompaniesData;
  * ロゴの有無だけを1,867文字の文字列にして渡す（gzip 約250B）。**`logos.json` は
  * gzip 41.7KB あり、丸ごと渡すと `/` の予算（AC-13: 75,000B）を超える。**
  * モジュールの読み込み時に1度だけ作る——`/` はリクエストごとに描画されるため。
- *
- * **読むのは `logo-ids.json`（raw 11.3KB）で、`logos.json`（raw 202KB）ではない。**
- * この画面が使うのは「ロゴがあるか」だけで、寸法も出典も見ていない。丸ごと import
- * すると使わない 191KB を isolate の初回リクエストで `JSON.parse` することになる
- * （R0・`docs/runtime/spec.md` 2.・Issue #118）。
  */
-const logoMask = buildLogoMask(companies.rows, new Set(logoIdsData.ids));
+const logoMask = buildLogoMask(companies.rows, logosData.byId);
 
 /**
  * 業種ごとの社数をモジュールの初期化で1度だけ数える——`generateMetadata` は
@@ -66,11 +61,9 @@ export default async function Home({
       <RankingApp
         companies={companies}
         curves={curvesData as CurvesData}
-        // 母集団の9組だけを渡す。ここを丸ごと渡すとトップページのHTMLが
-        // 跳ね上がる（Issue #22）。**読む側も `stats.json` 全体（raw 131KB）では
-        // なく `population.json`（raw 337B）にしてある**——渡す量だけ絞っても、
-        // 読む量が減らなければ isolate の初回リクエストの CPU は減らない（R0）。
-        population={pickPopulationStats(populationData as PopulationStats)}
+        // stats.json 全体（raw 130KB）ではなく母集団の9組だけを渡す。
+        // ここを丸ごと渡すとトップページのHTMLが跳ね上がる（Issue #22）。
+        population={pickPopulationStats(statsData as PopulationStats)}
         initialState={initialState}
       />
     </LogoIdsProvider>
