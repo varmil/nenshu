@@ -35,19 +35,16 @@ export function findNeighbors(
   targetAge: TargetAge | null,
   limit: number = NEIGHBOR_COUNT
 ): NeighborCompany[] {
-  const self = companies.rows.find((row) => row[0] === id);
+  const index = industryIndex(companies);
+  const self = index.byId.get(id);
   if (self === undefined) return [];
   const industryIdx = self[2];
 
-  const curvesInYen = new Map<string, number[]>();
+  const curvesInYen = curvesInYenFor(curves);
   const salaryOf = (row: (typeof companies.rows)[number]) => {
     if (targetAge === null) return row[6];
-    const key = companies.curveKeys[row[3]];
-    let values = curvesInYen.get(key);
-    if (values === undefined) {
-      values = curveValuesInYen(curves.curves[key]);
-      curvesInYen.set(key, values);
-    }
+    const values = curvesInYen.get(companies.curveKeys[row[3]]);
+    if (values === undefined) return row[6];
     return estimateSalary(row[6], row[4], values, curves.agePoints, targetAge);
   };
 
@@ -58,8 +55,7 @@ export function findNeighbors(
    * 除いたぶん詰まって本来の順位とずれる（自分より上の会社が1つ繰り上がる）。
    * 1業種は最大173社なので、並べ直しても当該1社ぶんの計算に埋もれる。
    */
-  const industry = companies.rows
-    .filter((row) => row[2] === industryIdx)
+  const industry = (index.byIndustry.get(industryIdx) ?? [])
     .map((row) => ({
       id: row[0],
       name: row[1],
@@ -85,4 +81,60 @@ export function findNeighbors(
     .slice(0, limit)
     // 並べるときは金額の降順にする。近さで並べると上下に交互に跳ねて読みにくい。
     .sort((a, b) => b.salary - a.salary);
+}
+
+/**
+ * 業種ごとの行と、id → 行の索引。**isolate ごとに1度だけ作る。**
+ *
+ * `findNeighbors` は1リクエストで9回（表示基準のぶん）呼ばれる。素直に書くと
+ * 呼ばれるたびに `companies.rows`（1,867行）を `find` と `filter` で2回走査する
+ * ことになり、1リクエストで延べ 33,606 行を数え直していた（R0・AC-7・Issue #118）。
+ *
+ * `companies` は `import` した固定のオブジェクトなので WeakMap のキーとして安定する
+ * ——`view.ts` の `indexCache` と同じ持ち方。
+ */
+const industryCache = new WeakMap<
+  CompaniesData,
+  {
+    byId: Map<string, CompaniesData["rows"][number]>;
+    byIndustry: Map<number, CompaniesData["rows"][number][]>;
+  }
+>();
+
+function industryIndex(companies: CompaniesData) {
+  let index = industryCache.get(companies);
+  if (index === undefined) {
+    const byId = new Map<string, CompaniesData["rows"][number]>();
+    const byIndustry = new Map<number, CompaniesData["rows"][number][]>();
+    for (const row of companies.rows) {
+      byId.set(row[0], row);
+      const bucket = byIndustry.get(row[2]);
+      if (bucket === undefined) byIndustry.set(row[2], [row]);
+      else bucket.push(row);
+    }
+    index = { byId, byIndustry };
+    industryCache.set(companies, index);
+  }
+  return index;
+}
+
+/**
+ * 業種カーブを円に直したもの。**17本しか無く、内容はリクエストによらない**ので
+ * isolate ごとに1度だけ作る。呼び出しごとに作り直すと、1リクエストで同じ変換を
+ * 9回（表示基準のぶん）繰り返すことになる。
+ *
+ * **カーブ名（`companies.curveKeys[row[3]]`）で引く。** `curves.curves` の
+ * キーの並びで添字にしない——`curveKeys` とは別の並びでありうる。
+ */
+const curvesInYenCache = new WeakMap<CurvesData, Map<string, number[]>>();
+
+function curvesInYenFor(curves: CurvesData): Map<string, number[]> {
+  let values = curvesInYenCache.get(curves);
+  if (values === undefined) {
+    values = new Map(
+      Object.entries(curves.curves).map(([key, curve]) => [key, curveValuesInYen(curve)])
+    );
+    curvesInYenCache.set(curves, values);
+  }
+  return values;
 }

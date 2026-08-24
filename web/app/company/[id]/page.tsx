@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
@@ -15,7 +16,7 @@ import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
-import logosData from "../../../public/data/logos.json";
+import logoIdsData from "../../../public/data/logo-ids.json";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
 const companies = companiesData as CompaniesData;
@@ -28,7 +29,14 @@ const stats = statsData as CompanyStatsData;
  */
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
 
-const logoIds = logosData.byId as Record<string, unknown>;
+/**
+ * ロゴを持つ会社のID。**読むのは `logo-ids.json`（raw 11.3KB）で、`logos.json`
+ * （raw 202KB）ではない。** この画面が使うのは「ロゴがあるか」だけで、寸法も
+ * 出典も見ていない（見ているのは `/about` の帰属表示だけ）。丸ごと import すると
+ * 使わない 191KB を isolate の初回リクエストで `JSON.parse` することになる
+ * （R0・`docs/runtime/spec.md` 2.・Issue #118）。
+ */
+const logoIds = new Set(logoIdsData.ids);
 
 /**
  * この画面に出る会社（自身と、9基準ぶんの近傍5社）のうちロゴを持つIDだけを配る。
@@ -40,7 +48,7 @@ function logoIdsOnPage(view: CompanyView): string[] {
   for (const basis of view.byBasis) {
     for (const neighbor of basis.neighbors) ids.add(neighbor.id);
   }
-  return [...ids].filter((id) => logoIds[id]);
+  return [...ids].filter((id) => logoIds.has(id));
 }
 
 function historyFor(id: string): SalaryHistory | null {
@@ -63,8 +71,19 @@ type Props = {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
+/**
+ * `generateMetadata` と本体は**同じ会社の同じ数字**を出すので、計算は1リクエストに
+ * 1回でよい。React の `cache()` はリクエスト単位のメモ化で、両者は同じリクエスト
+ * スコープにいる（R0・AC-6・Issue #118）。
+ *
+ * **リクエストをまたいでは残らない。** またぐと、ある読者の会社の数字を別の読者に
+ * 出すことになる。`buildCompanyView` は 0.885ms（実測・中央値）で、Workers 無料枠の
+ * 予算 10ms のうち 0.9ms を同じ計算の2回目に使っていた。
+ */
+const companyView = cache((id: string) => buildCompanyView(companies, curves, stats, id));
+
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
-  const view = buildCompanyView(companies, curves, stats, (await params).id);
+  const view = companyView((await params).id);
   if (view === null) return { title: "見つかりませんでした" };
 
   // 文言は `lib/seo/company.ts` が持つ。**クライアント（`CompanyDetail`）も同じ
@@ -82,7 +101,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
  * この1社ぶんの8年齢＝16回の補間だけになる（`docs/company/company-page/design.md`）。
  */
 export default async function CompanyPage({ params, searchParams }: Props) {
-  const view = buildCompanyView(companies, curves, stats, (await params).id);
+  const view = companyView((await params).id);
   if (view === null) notFound();
 
   return (

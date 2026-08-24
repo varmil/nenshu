@@ -9,11 +9,11 @@
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
 | E1 | [決算期を幅で出す](https://github.com/varmil/nenshu/issues/172) | なし | AC-7 | `dominantFiscalPeriod` の「代表を1つ」をやめる。site-chrome の S3 を改訂する。※共有: `web/lib/data/period.ts` |
-| E2 | [母集団の拡大](https://github.com/varmil/nenshu/issues/173) | E1（#172） | AC-1〜AC-4, AC-5b, AC-8 | 取得の窓を12か月に広げる（ADR-0011）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
+| E2 | [母集団の拡大](https://github.com/varmil/nenshu/issues/173) | E1（#172） | AC-1〜AC-4, AC-5b, AC-8 | 取得の窓を12か月に広げる（ADR-0012）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
 | E3 | [ロゴの追随](https://github.com/varmil/nenshu/issues/175) | E2（#173） | AC-8 | 新規社ぶんを `npm run build:logos` で調達する。※共有: `logo` 施策 |
 | E4 | [10年推移の追随](https://github.com/varmil/nenshu/issues/176) | E2（#173） | AC-8 | 新規社ぶん10年を取得する。※共有: `timeseries` 施策 |
 | E5 | [働きやすさ指標の再突合](https://github.com/varmil/nenshu/issues/177) | E2（#173） | AC-8 | 新しい母集団で `extract.ts` を回し直す。※共有: `worklife` 施策 |
-| E0 | [初回ロードのペイロード方式](https://github.com/varmil/nenshu/issues/174) | なし | AC-5, AC-6 | 全件embedをやめる（ADR-0012）。**拡大の前提条件ではない**（実測で予算内）。余白と Worker の CPU のために入れる。※共有: ranking の絞り込み状態 |
+| E0 | [初回ロードのペイロード方式](https://github.com/varmil/nenshu/issues/174) | なし | AC-5, AC-6 | 全件embedをやめる（ADR-0013）。**拡大の前提条件ではない**（実測で予算内）。余白と Worker の CPU のために入れる。※共有: ranking の絞り込み状態 |
 
 ## 実施順序
 
@@ -33,11 +33,19 @@ E0（独立。E2 の前でも後でもよい）
 
 **E3・E4・E5 は E2 の後で並列に進められる。** どれも「新しく入った会社だけ中身が薄い」状態を埋める作業で、互いに依存しない。**E2 と同じ PR にはしない**——ロゴの調達も10年推移の取得も外部への大量アクセスを伴い、失敗したときに母集団の拡大まで巻き戻すことになるため。
 
+## 他施策から触られる箇所
+
+**`runtime` 施策（`docs/runtime/`・R0・Issue #165）と同じ予算を奪い合う。** あちらは Worker の CPU 10ms に収める施策で、**モジュールの初期化（`JSON.parse`）とリクエストごとの計算の重複**を減らす。母集団を1.59倍にすると、**R0 が絞ったあとのファイルでも1件あたりが1.59倍になる**（`companies.json` gzip 44,631 B → 70,610 B、`stats.json` 39,922 B → 68,515 B・実測）。
+
+- **E2 は R0 の後に測り直す。** `docs/runtime/spec.md` の受け入れ基準は社数を直書きしていないので壊れはしないが、**予算の余裕は母集団に比例して減る**
+- **E0 は R0 と別の側から同じ予算に効く。** R0 が減らすのは cold の初期化、E0 が減らすのは warm・cold を問わず毎リクエストに乗る直列化になる（ADR-0013）
+- **E0 の設計は R0 の生成側の切り出し（`population.json`・`logo-ids.json`）に合わせる。** web 側で読んだあとに捨てる形にしない、というのは R0 が決めた線と同じ
+
 ## E0 初回ロードのペイロード方式
 
 `RankingApp` が `"use client"` で `companies` を props に受け取っているため、**Next.js が全1,867社をハイドレーション用データとしてHTMLに丸ごと直列化している**（`docs/ranking/ranking-pagination/design.md`）。この方式をやめる。
 
-決定は ADR-0012。**`docs/ranking/spec.md` の AC-7（操作でネットワークが発生しない）を割らないことが制約**で、「操作のたびに取りに行く」方式には倒さない。
+決定は ADR-0013。**`docs/ranking/spec.md` の AC-7（操作でネットワークが発生しない）を割らないことが制約**で、「操作のたびに取りに行く」方式には倒さない。
 
 **触るもの。** `app/page.tsx`・`features/ranking/`・`e2e/network.ts` の「リクエスト数0」の測り方。※共有: 絞り込み状態（ranking の U3〜U6・U14・U15 が乗っている）。
 
@@ -49,7 +57,7 @@ site-chrome の S3（Issue #134）が置いた「決算期を1つ選んで全ペ
 
 ## E2 母集団の拡大
 
-取得の窓を12か月に広げ、CSV を作り直す（ADR-0011）。実測で **1,867社 → 2,962社**（+1,095社）になり、**いま載っている1,867社は1社も落ちない**。
+取得の窓を12か月に広げ、CSV を作り直す（ADR-0012）。実測で **1,867社 → 2,962社**（+1,095社）になり、**いま載っている1,867社は1社も落ちない**。
 
 **同じ PR で直すもの。**
 
