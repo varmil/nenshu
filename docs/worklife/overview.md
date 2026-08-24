@@ -7,7 +7,7 @@
 | ID | Unit | 依存 | 対応する受け入れ基準 | 共有コンポーネント |
 | --- | --- | --- | --- | --- |
 | W0 | 働きやすさデータの取り込み | C0（企業IDの安定化・#51） | AC-1〜AC-5 | 触らない。表示は変わらない。Issue #149。**実装済み**（`docs/worklife/data-ingest/`） |
-| W1 | 企業詳細ページの働きやすさの節 | W0, C3（#89） | AC-6〜AC-12 | `features/company/components/` に留める。Issue #150 |
+| W1 | 企業詳細ページの働きやすさの節 | W0, C3（#89） | AC-6〜AC-12 | `features/company/components/` に留める。Issue #150。**実装済み**（`docs/worklife/company-section/`） |
 
 ## 実施順序
 

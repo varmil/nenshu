@@ -29,6 +29,7 @@
 | timeseries | 平均年収の10年推移 | 着手中 | `docs/timeseries/` |
 | logo | 企業ロゴ | 着手中 | `docs/logo/` |
 | worklife | 働きやすさ指標（残業・有給・男女の賃金の差異） | 着手中 | `docs/worklife/` |
+| performance | 稼ぐ力（一人当たり経常利益） | 着手中 | `docs/performance/` |
 | runtime | Worker の実行予算（CPU 10ms に収める） | 着手中 | `docs/runtime/` |
 | market-data | 株価推移・信用格付け | 未着手（データ調達の可否から） | — |
 | monetize | 収益化（広告・アフィリエイト） | 未着手 | — |
