@@ -30,7 +30,7 @@ Issue: [#180](https://github.com/varmil/nenshu/issues/180)（親: [#118](https:/
    3. 古い `?age=N` のリンクが掃除されることのテストを足す
    4. dev サーバーに対して全件通す
 6. **Worker に向けて確かめる。**
-   1. `npx opennextjs-cloudflare populateCache local` でアセットにキャッシュを配置する
+   1. アセットにキャッシュが配置されることを確かめる（`wrangler.jsonc` の `build.command`）。**ここが走らないと全ページ 404 になるが、ビルドもデプロイも成功と表示される**
    2. `E2E_BASE_URL=http://127.0.0.1:<port> npx playwright test e2e/cache-headers.spec.ts e2e/seo.spec.ts`。**キャッシュ経由に変わるのでヘッダは必ずここで確かめる**（CLAUDE.md「`headers()` を触ったら E2E を Worker に向けて回す」と同じ理由）
    3. 404（`dynamicParams = false`）を実際に叩く
 7. **手順1と同じ手法で測り直し、前後を並べる。**

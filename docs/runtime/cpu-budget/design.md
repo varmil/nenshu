@@ -35,7 +35,13 @@ Issue: [#180](https://github.com/varmil/nenshu/issues/180)（親: [#118](https:/
 
 `enableCacheInterception: true` は Next.js のルーティングに入る前にキャッシュを返す。実測で `/company/8282` が 19.7ms → 15.6ms。**PPR を使い始めたら外すこと**（併用できない）。
 
-**アセットへの配置は `opennextjs-cloudflare deploy` が自動でやる**（`populateStaticAssetsIncrementalCache` が `.open-next/cache` を丸ごと写す）。手で置く工程は無い。ローカルで確かめるときは `opennextjs-cloudflare populateCache local`。
+**アセットへの配置は `wrangler.jsonc` の `build.command` でやる。**
+
+写すのは `populateStaticAssetsIncrementalCache`（`.open-next/cache` を `.open-next/assets/cdn-cgi/_next_cache/` へ `cpSync` するだけ）で、これを呼ぶのは `opennextjs-cloudflare deploy` である。**ところがこのプロジェクトのデプロイコマンドは `npx wrangler deploy`**（Cloudflare ダッシュボード。`docs/ranking/project-foundation/design.md`）なので、その工程が1つも走らない。
+
+**写さないままでもビルドは通り、デプロイは "successful" と表示され、全1,867ページが 404 を返す。** プレビューで実際にそうなった（#181）。`x-nextjs-prerender: 1` と `x-nextjs-cache: MISS` が同時に出ていたのが手がかりで、「事前生成したページとしてルーティングされているが、キャッシュから引けていない」ことを意味する。
+
+`build.command` は `wrangler deploy` でも `wrangler dev` でも走るので、ダッシュボードを触らずに両方を直せる。**静かに壊れる経路なので、写した結果を数える検証まで含めてビルドを落とす形にしてある**（`scripts/assert-prerendered-assets.mjs`。企業詳細の枚数が `companies.json` の行数と一致すること、`about`・`sitemap.xml`・`robots.txt` があること）。
 
 ### 2. `app/company/[id]/page.tsx` — 全件を事前生成する
 

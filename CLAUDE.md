@@ -199,7 +199,8 @@ Unit の実装を終えたら、次の順で進める。
 **Workers 無料枠の CPU は 10ms/リクエストで、実際に超えていた**（`runtime` 施策・`docs/runtime/`・親 Issue #118・R1 は Issue #180 で実装済み・ADR-0012）。踏んでいたのはクローラで、1,867社ぶんの異なるURLを世界中のコロから叩くのでエッジキャッシュは全部ミスし、isolate は毎回冷えている。
 
 - **`/company/[id]` は全1,867社をビルド時に生成する**（`generateStaticParams` ＋ `force-static` ＋ `dynamicParams = false`）。リクエスト時に走るのは「キャッシュを引いて返す」だけ。**この画面に項目を足す Unit は `searchParams` を読めない**（W1・#150、C5〜C7・#159〜#161）
-- **`incrementalCache` を明示しないと既定は `"dummy"` で、事前生成した結果が1枚も使われない。** `next build` が `○ (Static)` と出しても Worker はリクエストのたびに描き直す。**`/about` が企業詳細より重かった（47.7〜59.6ms / 25.5〜28.7ms）のはこれが理由**。読み取り専用の `staticAssetsIncrementalCache` を挿してある（KV・R2・D1 を増やさずに済む）。**アセットへの配置は `opennextjs-cloudflare deploy` が自動でやる**
+- **`incrementalCache` を明示しないと既定は `"dummy"` で、事前生成した結果が1枚も使われない。** `next build` が `○ (Static)` と出しても Worker はリクエストのたびに描き直す。**`/about` が企業詳細より重かった（47.7〜59.6ms / 25.5〜28.7ms）のはこれが理由**。読み取り専用の `staticAssetsIncrementalCache` を挿してある（KV・R2・D1 を増やさずに済む）
+- **事前生成した結果をアセットへ写すのは `wrangler.jsonc` の `build.command`。** 写すのは本来 `opennextjs-cloudflare deploy` の仕事だが、**このプロジェクトのデプロイコマンドは `npx wrangler deploy`** なのでその工程が走らない。**写さないままでもビルドは通り、デプロイは "successful" と表示され、全1,867ページが 404 になる**（#181 のプレビューで実際に起きた。`x-nextjs-prerender: 1` ＋ `x-nextjs-cache: MISS` が手がかり）。`scripts/assert-prerendered-assets.mjs` が枚数を数えてビルドを落とす
 - **企業詳細ページの表示基準は URL に出さない。`?age=` は無い**（ADR-0012。`force-static` は `searchParams` を読めないのと、年齢そろえで変わるのは推定年収まわりだけのため）。**ランキング（`/`）の `?age=N` は変えていない**——あちらは1,867行の並び順を変え8件をインデックスさせている。配ってしまった `/company/[id]?age=N` は**読まずに `replaceState` で落とす**（落とさないと「URLは30歳・画面は実測値」が残る）
 - **企業詳細のメタデータは1組に固定された。** それでも `usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**（`usePageMeta` は DOM を直接書き換えるので React の管理外。`<title>` だけは React が書き戻す）。`e2e/metadata.spec.ts` の進む/戻るが実際に捕まえた
 - **戻る/進むで企業詳細の表示基準は復元されない。** URL に無いものは復元できない。ランキング側の絞り込み・ページ番号は URL が正のまま（U14・#108）
