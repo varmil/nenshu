@@ -15,15 +15,17 @@ import staticAssetsIncrementalCache from "@opennextjs/cloudflare/overrides/incre
  * （`docs/product/product.md` の「ランニングコストをゼロに保つ」）。**再検証は
  * できないが、要らない**——このサイトのデータは年1回のビルドでしか変わらない。
  *
- * **アセットへの配置は `opennextjs-cloudflare deploy` が自動でやる**
- * （`populateStaticAssetsIncrementalCache` が `.open-next/cache` を丸ごと写す）。
- * 手で置く工程は無い。
+ * **アセットへの配置は `wrangler.jsonc` の `build.command` でやる**——写すのは本来
+ * `opennextjs-cloudflare deploy` の仕事だが、このプロジェクトのデプロイコマンドは
+ * `npx wrangler deploy` なのでその工程が走らない（あちらのコメント参照）。
  *
- * `enableCacheInterception` は、Next.js のルーティングに入る前にキャッシュを引いて
- * 返す。実測で `/company/8282` が 19.7ms → 15.6ms（`wrangler dev --local`・40
- * リクエストの平均）。**PPR を使い始めたら外すこと**（併用できない）。
+ * **`enableCacheInterception` は使わない。** Next.js のルーティングに入る前に
+ * キャッシュを返すので CPU は少し減る（実測 19.7ms → 15.6ms）が、**プリフェッチの
+ * リクエスト（`Next-Router-Prefetch: 1`）にもフルの RSC ペイロードを返してしまい、
+ * クライアントのルーターが取り直しを繰り返す。** 本番で `/about?_rsc=…` が
+ * 毎秒約128回、15秒で1,918回飛んだ（#183）。読者のブラウザと Worker の呼び出し数の
+ * 両方を焼く壊れ方なので、数msと引き換えにしない。
  */
 export default defineCloudflareConfig({
   incrementalCache: staticAssetsIncrementalCache,
-  enableCacheInterception: true,
 });
