@@ -144,6 +144,19 @@ Unit の実装を終えたら、次の順で進める。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 
+**サイトのロゴとファビコンは S4（`docs/site-chrome/site-logo/`、Issue #163）で実装した。** それまで公開されていたのは `create-next-app` の既定（黒い円に白い三角。`web/app/favicon.ico` が雛形のまま 25,931 バイト）だった。意匠は Claude Design の `OpenReport Logo & Favicon.dc.html`。**「サイトロゴ」と「企業ロゴ」（`logo` 施策）は別物**なので、docs でも書き分ける。
+
+- **図形の定義は `pipeline/brand/symbol.ts` の1か所。** ファビコン（SVG）・PNGのフォールバック・アプリアイコン・`favicon.ico` は全部そこから焼く（`cd pipeline && npm run build:brand`）。**`web/` に `sharp` を足さない**——optionalDependencies の解決差で Cloudflare の `npm ci` だけが落ちる事故が2回起きている
+- **hex を書いてよいのは `web/lib/brand/colors.ts` だけ**（`eslint.config.mjs` の例外もここ1つ）。デザイン案の `#007595` / `#00b8db` は `tokens.css` の `--primary`（`:root` / `.dark`）と一致する。`colors.test.ts` がその一致を固定しているので、**トークンを差し替えたらここが落ちる**。要るのは CSS 変数が届かない成果物のため——ファビコンはページのCSSを読まず、`theme_color` はCSS変数を受け付けない
+- **パスと寸法の正は `web/lib/brand/assets.ts`。** 生成スクリプト・`app/layout.tsx`・生成物のテスト・`e2e/network.ts` の4か所が同じ表を見る
+- **成果物は `public/` の静的アセットにする。`app/icon.svg` のような規約ファイルにしない**——ルートハンドラになり、アイコン1枚ごとに Worker が起きる（Issue #118）
+- **濃色サーフェスの切り替えは SVG の中のメディアクエリで行う。** `<link rel="icon" media="...">` はブラウザの対応が揃っていない。**`sharp`（librsvg）はメディアクエリを評価しない**ので、PNG に焼くのは分岐を持たないほうの SVG
+- **ホーム画面のアイコンは `flatten` でアルファチャンネルごと落とす。** 透過で渡すと iOS が黒で埋める。落としてあれば PNG のカラータイプ1バイトで検証できる（透過は 6・不透明は 2）
+- **`/favicon.ico` は置くが `<link>` には出さない。** 出すと SVG より先に選ぶブラウザがあり、切り替えを持たないほうが使われる。置くのはページを読まずに固定パスを叩く相手（RSSリーダー等）のため。**`sharp` は ICO を書けない**ので器は `pipeline/brand/ico.ts` で組む（中身は PNG）
+- **ヘッダのワードマークは文字のまま**で、色だけ `--primary` にした。画像にすると選択・検索・拡大のどれでも劣り、`BrandLink` の「絞り込みを解く」振る舞いも変わらない
+- **`e2e/network.ts` の除外を `/favicon.ico` 決め打ちから `assets.ts` の表に広げた。** ファビコンのリクエストは `resourceType()` が `image` にならないことがあり、既存の画像の除外に掛からない
+- `/` の HTML は raw 373,821 B → **374,617 B**（gzip 63,657 → 63,845 B）。`/company/[id]` も同じ +796 B（共通ヘッダと `<head>` の変更なので全ページに同じだけ効く）
+
 **データの時点は「決算期」で出す**（site-chrome の S3・Issue #134・親 #104）。**`2026年3月期` を直書きしない。** 値は `companies.meta.fiscalPeriod`（`build-data.ts` が CSV の `period_end` の最頻を採る）で、文字列にするのは `web/lib/data/period.ts` の1か所だけ。社数（`meta.count`）と同じ扱い。
 
 - **「2026年度」とは書かない。** 2026年3月期は年度でいえば2025年度で、読者によって1年ずれる。親 Issue のタイトルの語をそのまま使わない判断（`docs/site-chrome/data-period/design.md`）
@@ -153,7 +166,7 @@ Unit の実装を終えたら、次の順で進める。
 - 決算期は全社が同じではない（3月期1,865社・4月期2社）。**「3月期が中心」と断るのは `/about` の「対象範囲」だけ**
 - 代表の決算期が過半に届かなければ `build-data.ts` が落ちる。1つで代表できないデータを黙って公開しない
 
-**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
+**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。**ブランドの図は S4（#163）で用意済み**（`web/public/` の成果物と `pipeline/brand/symbol.ts`）。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
 
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
@@ -177,7 +190,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）** → **S4（#163）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 

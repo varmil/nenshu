@@ -200,6 +200,26 @@ Issue #118（Worker の CPU 超過）を抱えた状態でその数を増やす�
 リクエストは `resourceType()` が `image` にならないことがあり、既存の画像の除外にも
 掛からない。除外の対象を `assets.ts` の表から引くようにした。
 
+## HTML サイズ（AC-28）
+
+同一手順（`npm run build` → `npx next start` → `curl`）で main と前後を測った。
+
+| ページ | main | S4 | 差 |
+| --- | ---: | ---: | ---: |
+| `/` raw | 373,821 B | 374,617 B | +796 |
+| `/` gzip | 63,657 B | 63,845 B | +188 |
+| `/company/[id]` raw | 97,341 B | 98,137 B | +796 |
+
+予算は gzip 75,000 B（AC-28・AC-16）なので余裕がある。**共通ヘッダと `<head>` に
+足したものなので、全ページに同じだけ効く。**
+
+内訳は `<head>` が +286 B（`<link>` 4本と `<meta name="theme-color">`。旧の
+`<link rel="icon" href="/favicon.ico?…" sizes="256x256">` 99 B と入れ替わっている）、
+本文が +510 B。**本文が増えるのは、Next.js がメタデータを本文の後ろにも流すため**
+（`docs/ranking/metadata-sync/design.md` で U16 が踏んだのと同じ仕組み）。
+
+**gzip の値は同じビルドでも `next start` の起動ごとに揺れるので、前後は raw で見る。**
+
 ## 公開後に直したもの
 
 （まだ無い）
