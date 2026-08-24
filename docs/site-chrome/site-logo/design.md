@@ -98,8 +98,10 @@ E2E のリクエスト計測。
 
 **どれも `public/` に置く静的アセット。** `app/icon.svg` のような Next.js の規約
 ファイルにするとルートハンドラになり、**アイコン1枚ごとに Worker が起きる**。
-Issue #118（Worker の CPU 超過）を抱えた状態でその数を増やす理由が無い。
-`public/` のものは `.open-next/assets` に入り、Cloudflare が Worker を経由せずに配る。
+Workers 無料枠の CPU は 10ms/リクエストで実際に超えていた（`runtime` 施策・
+`docs/runtime/spec.md`・親 Issue #118・R0 は #165）ので、アイコンのために起動数を
+増やす理由が無い。`public/` のものは `.open-next/assets` に入り、Cloudflare が
+Worker を経由せずに配る。
 
 ### 濃色サーフェスの切り替えは SVG の中に書く
 

@@ -149,7 +149,7 @@ Unit の実装を終えたら、次の順で進める。
 - **図形の定義は `pipeline/brand/symbol.ts` の1か所。** ファビコン（SVG）・PNGのフォールバック・アプリアイコン・`favicon.ico` は全部そこから焼く（`cd pipeline && npm run build:brand`）。**`web/` に `sharp` を足さない**——optionalDependencies の解決差で Cloudflare の `npm ci` だけが落ちる事故が2回起きている
 - **hex を書いてよいのは `web/lib/brand/colors.ts` だけ**（`eslint.config.mjs` の例外もここ1つ）。デザイン案の `#007595` / `#00b8db` は `tokens.css` の `--primary`（`:root` / `.dark`）と一致する。`colors.test.ts` がその一致を固定しているので、**トークンを差し替えたらここが落ちる**。要るのは CSS 変数が届かない成果物のため——ファビコンはページのCSSを読まず、`theme_color` はCSS変数を受け付けない
 - **パスと寸法の正は `web/lib/brand/assets.ts`。** 生成スクリプト・`app/layout.tsx`・生成物のテスト・`e2e/network.ts` の4か所が同じ表を見る
-- **成果物は `public/` の静的アセットにする。`app/icon.svg` のような規約ファイルにしない**——ルートハンドラになり、アイコン1枚ごとに Worker が起きる（Issue #118）
+- **成果物は `public/` の静的アセットにする。`app/icon.svg` のような規約ファイルにしない**——ルートハンドラになり、アイコン1枚ごとに Worker が起きる（`runtime` 施策の CPU 予算。下の「Workers 無料枠の CPU は 10ms/リクエスト」参照）
 - **濃色サーフェスの切り替えは SVG の中のメディアクエリで行う。** `<link rel="icon" media="...">` はブラウザの対応が揃っていない。**`sharp`（librsvg）はメディアクエリを評価しない**ので、PNG に焼くのは分岐を持たないほうの SVG
 - **ホーム画面のアイコンは `flatten` でアルファチャンネルごと落とす。** 透過で渡すと iOS が黒で埋める。落としてあれば PNG のカラータイプ1バイトで検証できる（透過は 6・不透明は 2）
 - **`/favicon.ico` は置くが `<link>` には出さない。** 出すと SVG より先に選ぶブラウザがあり、切り替えを持たないほうが使われる。置くのはページを読まずに固定パスを叩く相手（RSSリーダー等）のため。**`sharp` は ICO を書けない**ので器は `pipeline/brand/ico.ts` で組む（中身は PNG）

@@ -11,7 +11,8 @@
  *
  * **どれも `public/` に置く静的アセット。** `app/icon.svg` のような Next.js の
  * 規約ファイルにするとルートハンドラになり、アイコン1枚ごとに Worker が起きる。
- * Issue #118（Worker の CPU 超過）を抱えた状態でその数を増やす理由が無い。
+ * **Workers 無料枠の CPU は 10ms/リクエストで、実際に超えていた**（`runtime` 施策・
+ * `docs/runtime/spec.md`・親 Issue #118）。アイコンのために起動数を増やす理由が無い。
  */
 
 export type BrandIconFile = {
