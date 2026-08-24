@@ -9,11 +9,11 @@ describe("ロゴの有無を配るマスク", () => {
   const rows = [row("6861"), row("8058"), row("E01234")];
 
   it("行の並びのまま 1/0 を並べる", () => {
-    expect(buildLogoMask(rows, { "6861": {}, E01234: {} })).toBe("101");
+    expect(buildLogoMask(rows, new Set(["6861", "E01234"]))).toBe("101");
   });
 
   it("1社もロゴが無ければ全部 0", () => {
-    expect(buildLogoMask(rows, {})).toBe("000");
+    expect(buildLogoMask(rows, new Set())).toBe("000");
   });
 
   it("マスクを id の集合に開く", () => {
@@ -22,13 +22,12 @@ describe("ロゴの有無を配るマスク", () => {
   });
 
   it("開いた集合は元のマスクと往復する", () => {
-    const byId = { "8058": {} };
-    const mask = buildLogoMask(rows, byId);
+    const mask = buildLogoMask(rows, new Set(["8058"]));
     expect(logoIdSet(rows, mask)).toEqual(new Set(["8058"]));
   });
 
   it("**行1つにつき1文字。** ここがずれると別の会社のロゴを出す", () => {
-    expect(buildLogoMask(rows, { "6861": {} })).toHaveLength(rows.length);
+    expect(buildLogoMask(rows, new Set(["6861"]))).toHaveLength(rows.length);
   });
 
   it("マスクが短ければ足りない行はロゴ無しとして扱う（壊れた入力で例外にしない）", () => {

@@ -54,6 +54,24 @@ export type LogosJson = {
   byId: Record<string, LogoEntry>;
 };
 
+export type LogoIdsJson = { ids: string[] };
+
+/**
+ * ロゴを持つ会社の**IDだけ**を並べたもの（R0・`docs/runtime/spec.md` 2.3）。
+ * これが `logo-ids.json`（raw 11.3KB・`JSON.parse` 0.099ms）になる。
+ *
+ * **`/` と `/company/[id]` はこちらを読む。** 画面が `logos.json`（raw 202KB・
+ * 1.236ms）から使うのは「その会社にロゴがあるか」だけで、`w`/`h`/`from`/`lic` は
+ * `/about` の帰属表示しか見ていない（Issue #118・AC-1・AC-2）。
+ *
+ * **`companies.rows` と同じ並びのマスクにしない。** マスクにするとこの生成が
+ * `companies.json` の行の並びに依存し、`build-data.ts` → `build-logos.ts` →
+ * `build-data.ts` の循環ができる（`docs/runtime/overview.md`）。
+ */
+export function logoIdsJson(logos: LogosJson): LogoIdsJson {
+  return { ids: Object.keys(logos.byId) };
+}
+
 type Company = { id: string; name: string; houjin: string };
 
 async function main() {
@@ -191,6 +209,7 @@ async function main() {
     byId,
   };
   writeFileSync(resolve(publicDir, "data/logos.json"), JSON.stringify(json));
+  writeFileSync(resolve(publicDir, "data/logo-ids.json"), JSON.stringify(logoIdsJson(json)));
   // 部分実行では対象外の画像が全部「余り」に見えるので掃除しない
   if (!only) pruneOrphans(logosDir, written);
 

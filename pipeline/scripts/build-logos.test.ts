@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { logoIdsJson, type LogoEntry, type LogoIdsJson, type LogosJson } from "./build-logos";
 import { extractCandidates, manifestIcons, manifestUrl, absolute } from "./lib/logo/site";
 import { sortCandidates, parseSizes, toOrigin, Candidate } from "./lib/logo/candidates";
 import { icoMaxSize, looksLikeSvg } from "./lib/logo/image";
@@ -463,5 +466,38 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
       large,
     ]);
     expect((await probe((await icoToImage(ico))!))!.w).toBe(128);
+  });
+});
+
+/**
+ * `logo-ids.json` の切り出し（R0・`docs/runtime/spec.md` AC-4・Issue #165）。
+ *
+ * **`/` と `/company/[id]` が使うのは「ロゴがあるか」だけ**で、`w`/`h`/`from`/`lic`
+ * を見ているのは `/about` の帰属表示だけ。それでも `logos.json`（raw 202KB）を
+ * 丸ごと import すると、使わない 191KB が isolate の初回リクエストで
+ * `JSON.parse` される（Issue #118）。
+ */
+describe("logo-ids.json", () => {
+  const entry = (): LogoEntry => ({ w: 100, h: 40, src: "header", from: "https://example.co.jp/logo.svg" });
+
+  it("byId のキーだけを並べる", () => {
+    const logos = {
+      meta: {} as LogosJson["meta"],
+      byId: { "6861": entry(), "8058": entry() },
+    };
+    expect(logoIdsJson(logos)).toEqual({ ids: ["6861", "8058"] });
+  });
+
+  it("寸法も出典も持ち込まない（持ち込むと分けた意味が無くなる）", () => {
+    const logos = { meta: {} as LogosJson["meta"], byId: { "6861": entry() } };
+    expect(JSON.stringify(logoIdsJson(logos))).not.toContain("example.co.jp");
+  });
+
+  it("公開中の logo-ids.json が logos.json と揃っている（生成し忘れを止める）", () => {
+    const dir = resolve(__dirname, "../../web/public/data");
+    const logos = JSON.parse(readFileSync(resolve(dir, "logos.json"), "utf-8")) as LogosJson;
+    const ids = JSON.parse(readFileSync(resolve(dir, "logo-ids.json"), "utf-8")) as LogoIdsJson;
+    expect(new Set(ids.ids)).toEqual(new Set(Object.keys(logos.byId)));
+    expect(ids.ids.length).toBe(Object.keys(logos.byId).length);
   });
 });
