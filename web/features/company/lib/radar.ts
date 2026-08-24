@@ -89,7 +89,7 @@ export function axisPosition(rank: number, population: number): number | null {
 /**
  * 1軸ぶん。`rank` は `companies.rows` と同じ並びで、**欠測は `-1`**。
  *
- * **値そのものは持たない**（ADR-0011）。軸の4つの値はすべて別のファイルから
+ * **値そのものは持たない。** 軸の4つの値はすべて別のファイルから
  * 引ける——在籍年数は `companies.json`、稼ぐ力とその業種中央値は
  * `performance.json`、有給と残業は `worklife.json` から `representativeValue` で。
  * **同じ数字を2か所に置くと、`radar.json` の `JSON.parse` が倍になる**
