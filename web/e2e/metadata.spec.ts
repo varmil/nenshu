@@ -144,35 +144,34 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
 
 test.describe("企業詳細ページのメタデータ（AC-16）", () => {
   /**
-   * ここはタイトルに金額が入るので、更新されないと**タイトルの金額と画面の金額が
-   * 食い違う**。ランキングより壊れ方が目に見える。
+   * **表示基準を切り替えてもメタデータは動かない**（R1・ADR-0012）。`?age=` を
+   * 無くしたので URL が動かず、1つのURLに対してメタデータは1つしか存在しない。
+   * U16 がここで直していた食い違い（親 Issue #130）は起きようが無くなった。
    */
-  test("表示基準を切り替えるとタイトルの金額も切り替わる", async ({ page, request }) => {
+  test("表示基準を切り替えてもタイトルと canonical が変わらない", async ({ page, request }) => {
     await page.goto("/company/6861");
     const raw = await metaFromDom(page);
     expect(raw.title).toContain("有価証券報告書は2,178万円");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
     await page.getByRole("button", { name: "25歳" }).click();
-    await expect(page).toHaveURL(/[?&]age=25/);
+    await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
 
     const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toContain("25歳時点の推定は788万円");
-    // canonical は表示基準に依らず素の `/company/[id]`（ADR-0006）。
+    expect(meta).toEqual(raw);
     expect(meta.canonical).toBe("https://openreport.net/company/6861");
   });
 
-  test("実測値に戻すとタイトルから推定の語が消える（AC-9）", async ({ page, request }) => {
-    await page.goto("/company/6861?age=25");
-    expect((await metaFromDom(page)).title).toContain("推定");
-
-    await page.getByRole("button", { name: "実測値" }).click();
-    await expect(page).not.toHaveURL(/age=/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
+  // タイトルに出るのは有報の実測値だけなので、「推定」の語はどの状態でも出ない（AC-9）。
+  test("タイトルにも description にも推定の語が出ない（AC-9）", async ({ page }) => {
+    await page.goto("/company/6861");
+    const meta = await metaFromDom(page);
     expect(meta.title).not.toContain("推定");
     expect(meta.description).not.toContain("推定");
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    expect((await metaFromDom(page)).title).not.toContain("推定");
   });
 });
 

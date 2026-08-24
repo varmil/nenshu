@@ -126,7 +126,8 @@ test.describe("AC-11 表示基準", () => {
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await page.getByRole("group", { name: "目標年齢" }).getByRole("button", { name: "25歳" }).click();
-    await expect(page).toHaveURL(/[?&]age=25/);
+    // 表示基準は URL に出さない（R1・ADR-0012）。
+    await expect(page).toHaveURL(/\/company\/6861$/);
 
     // 稼ぐ力・定着・有給は年齢補正を通さないので動かない。
     await expect(list).toContainText("11.3年");

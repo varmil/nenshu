@@ -24,6 +24,21 @@
   "compatibility_date": "2026-08-17",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "main": ".open-next/worker.js",
+  // **事前生成した結果をアセットへ写す工程**（R1・ADR-0012・Issue #180）。
+  //
+  // `staticAssetsIncrementalCache` は `.open-next/assets/cdn-cgi/_next_cache/` から
+  // ページを引く。そこへ写すのは `opennextjs-cloudflare deploy` の仕事だが、
+  // **このプロジェクトのデプロイコマンドは `npx wrangler deploy`**（Cloudflare
+  // ダッシュボード。`docs/ranking/project-foundation/design.md`）なので、その工程が
+  // 走らない。**写さないままでもビルドは通り、デプロイは "successful" になり、
+  // 全1,867ページが 404 を返す**——実際にプレビューでそうなった（#181）。
+  //
+  // `wrangler.jsonc` の `build.command` は `wrangler deploy`・`wrangler dev` の
+  // どちらでも走るので、ダッシュボードを触らずに両方を直せる。**静かに壊れる経路
+  // なので、写した結果を数える検証まで含めてビルドを落とす形にしてある。**
+  "build": {
+    "command": "npx opennextjs-cloudflare populateCache local && node scripts/assert-prerendered-assets.mjs",
+  },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
