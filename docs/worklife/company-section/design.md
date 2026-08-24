@@ -112,6 +112,40 @@ spec 2.2b の決定を、コードの側では次の3点として持っている
 
 増分の大半は**クライアントへ渡す RSC ペイロード**（`CompanyDetail` が client component なので、`worklife` の prop が本文にも直列化される）。区分と注釈が多い 8058 で +12KB になる。
 
+## ADR-0011 への回答 — `worklife.json` は切り出さない
+
+ADR-0011 は「W1 が `worklife.json`（raw 491KB・`JSON.parse` 1.568ms）を足すときに**切り出しの形をそこで決める**」と課している。**決めた答えは「切り出さない」。**
+
+**切り出しが効くのは「複数のページが大きいファイルの一部だけを使う」ときだけ**（ADR-0011 決定2）。`population.json` は `/` が `stats.json` の 337B しか使わないから効き、`logo-ids.json` は `/` と `/company/[id]` が「ロゴがあるか」しか使わないから効いた。
+
+`worklife.json` はどちらにも当たらない。
+
+- **読むのは `/company/[id]` の1ページだけ。** `docs/runtime/spec.md` 2.1 の表もこのページにだけ許している
+- **そのページは全社ぶんを必要とする。** 使うのは当該1社の行だが、**どの会社が来るかはリクエストが来るまで分からない**ので、1,867行を持っていなければならない
+- **注釈・説明（716社・raw 141KB）を別ファイルにしても減らない。** 同じページが同じリクエストで読むので、`JSON.parse` の合計は変わらない
+
+**代わりに P1 で効かせた。** レーダーの `radar.json` は初版で軸の値を順位と一緒に持っていたが、その値は `worklife.json`・`companies.json`・`performance.json` から引けるので落とした（0.524ms → 0.161ms。`docs/performance/company-radar/design.md`）。
+
+### 実測（Node 22・中央値61回・`web/public/data/` の実ファイル）
+
+| ファイル | raw | `JSON.parse` |
+| --- | ---: | ---: |
+| `companies.json` | 130KB | 0.811ms |
+| `curves.json` | 2KB | 0.013ms |
+| `stats.json` | 131KB | 0.942ms |
+| `logo-ids.json` | 11KB | 0.096ms |
+| `history.json` | 160KB | 0.641ms |
+| **`worklife.json`** | **491KB** | **1.600ms** |
+| `radar.json` | 29KB | 0.161ms |
+| `performance.json` | 15KB | 0.043ms |
+
+`/company/[id]` の cold は **2.502ms（R0 直後）→ 4.306ms**。ADR-0011 が予告した 4.02ms とほぼ同じで、差の 0.29ms が P1 の2ファイルになる。
+
+**次に効く手は2つある。どちらもこの Unit の範囲を超える。**
+
+- **`/company/[id]` の静的生成**（ADR-0011 が「足りなければ次」と書いているもの。ADR-0004 の追記になる）
+- **注釈・説明を落とす。** 141KB は `worklife.json` の3割で、画面から消せば 0.5ms 前後は減る。**表示を削る判断なので運営者のもの**
+
 ## モックに合わせ直したもの（運営者の指摘）
 
 初版をアートボード 6b・6c と突き合わせて直した3点。**どれも「値は合っているのに読めない」形の崩れ**で、単体テストでも E2E でも落ちない。

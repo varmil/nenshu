@@ -139,7 +139,7 @@ export function buildData(outDir: string) {
   const history = buildHistory(rows, companyRows);
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
-  const radar = buildRadar(rows, companyRows, industries, performance);
+  const radar = buildRadar(rows, companyRows, performance);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -313,13 +313,16 @@ function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: 
  * 変わるので、`stats.json` の `rankAll` から表示時に出す（AC-11）。
  *
  * **規則は `web/features/company/lib/radar.ts` の1か所にある。** 代表値の選び方も
- * パーセンタイルの数え方もあちらから import する——ここに書き写すと、
- * 「図の頂点」と「図の下に出る値」が別の規約で選ばれることになる。
+ * 順位の数え方もあちらから import する——ここに書き写すと、「図の頂点」と
+ * 「図の下に出る値」が別の規約で選ばれることになる。
+ *
+ * **値そのものは持たせない**（ADR-0011）。4軸の値はすべて別のファイルにあり、
+ * 二重に持つと `radar.json` の `JSON.parse` が倍になる（0.264ms → 0.524ms）。
+ * 表示側は `companies.json`・`performance.json`・`worklife.json` から引く。
  */
 function buildRadar(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[],
-  industries: string[],
   performance: ReturnType<typeof buildPerformance>
 ) {
   const byId = loadWorklifeCells();
@@ -328,9 +331,8 @@ function buildRadar(
 
   const paidLeaveValue: (number | null)[] = [];
   const overtimeValue: (number | null)[] = [];
-  const profitIndustryMedian: (number | null)[] = [];
 
-  companyRows.forEach((company, i) => {
+  companyRows.forEach((company) => {
     const cells = byId.get(String(company[0]));
     const units = (namePrefix: string, valueSuffix: string) =>
       [1, 2, 3, 4, 5].map((n) => ({
@@ -349,25 +351,16 @@ function buildRadar(
         ? null
         : representativeValue(numberOrNull(cells.overtime_all), units("overtime_unit", "_hours"))
     );
-    profitIndustryMedian.push(
-      performance.industryMedian[industries.indexOf(rows[i].tse33)] ?? null
-    );
-  });
-
-  const axis = (values: (number | null)[], ascendingIsBetter = false) => ({
-    ...ranks(values, ascendingIsBetter),
-    value: values,
   });
 
   return {
     meta: { count: companyRows.length, axes: ["paidLeave", "tenure", "profit", "overtime"] },
-    paidLeave: axis(paidLeaveValue),
-    tenure: axis(rows.map((row) => row.avgTenure)),
-    profit: axis(performance.perEmployee),
+    paidLeave: ranks(paidLeaveValue),
+    tenure: ranks(rows.map((row) => row.avgTenure)),
+    profit: ranks(performance.perEmployee),
     // **残業だけは小さいほど上位。** 5軸すべてが「外側＝良い」で揃っていないと
     // レーダーは図として読めない（#154）。
-    overtime: axis(overtimeValue, true),
-    profitIndustryMedian,
+    overtime: ranks(overtimeValue, true),
   };
 }
 

@@ -151,7 +151,9 @@ test.describe("AC-10 データが無いとき", () => {
 
 test.describe("AC-11 表示基準と独立", () => {
   test("年齢そろえに切り替えても値が変わらず、ページ遷移も起きない", async ({ page }) => {
-    await page.goto("/company/7203");
+    // **ハイドレーションを待つ**（company-radar.spec.ts の AC-11 と同じ理由）。
+    // 値は SSR の HTML にあるので、`toContainText` は押せる状態を待たない。
+    await page.goto("/company/7203", { waitUntil: "networkidle" });
     const overtime = metric(page, "平均残業時間");
     await expect(overtime).toContainText("20.3");
 

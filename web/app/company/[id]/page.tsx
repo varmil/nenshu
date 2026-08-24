@@ -4,9 +4,15 @@ import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView } from "@/features/company/lib/worklife";
-import { decodeWorklife, type WorklifeData } from "@/lib/data/worklife";
+import {
+  decodeWorklife,
+  type WorklifeData,
+  type WorklifeRecord,
+} from "@/lib/data/worklife";
+import { representativeValue } from "@/features/company/lib/radar";
 import type {
   CompanyRadarInput,
+  PerformanceData,
   RadarAxisData,
   RadarAxisInput,
   RadarData,
@@ -26,6 +32,7 @@ import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
 import worklifeData from "../../../public/data/worklife.json";
 import radarData from "../../../public/data/radar.json";
+import performanceData from "../../../public/data/performance.json";
 import logoIdsData from "../../../public/data/logo-ids.json";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
@@ -51,6 +58,12 @@ const worklife = worklifeData as unknown as WorklifeData;
  * 表示基準で変わるので `stats.json` の `rankAll` から出す（AC-11）。
  */
 const radar = radarData as unknown as RadarData;
+
+/**
+ * 稼ぐ力（P0・Issue #155）。**軸の金額はここから引く**——`radar.json` に
+ * 二重に置かない（ADR-0011）。raw 15KB・`JSON.parse` 0.044ms。
+ */
+const performance = performanceData as unknown as PerformanceData;
 
 /**
  * ロゴを持つ会社のID。**読むのは `logo-ids.json`（raw 11.3KB）で、`logos.json`
@@ -80,34 +93,47 @@ function historyFor(id: string): SalaryHistory | null {
 }
 
 /**
- * **掲載が無い会社でも節は出す**（spec AC-10）。`decodeWorklife` が `null` を返す
- * のは「データが無い」ことで、「節を出さない」ことではない——値を消すと
- * 「残業が少ない会社」と見分けがつかなくなる。
- */
-/**
  * レーダー4軸のうち、この会社ぶんだけを抜く。**`radar.json` 全体は渡さない**
  * ——1,867社×4軸を直列化するとページの予算を超える（`stats.json` の
  * `rankAll` を渡さないのと同じ理由）。
+ *
+ * **順位は `radar.json`、値はそれぞれの出どころから引く**（ADR-0011）。
+ * 同じ数字を `radar.json` にも置くと、そのファイルの `JSON.parse` が倍になる。
+ * 代表値の規則は `radar.ts` の `representativeValue` で、ビルド時に順位を
+ * 決めたときと同じ関数を通す——**別の規約で選ぶと図の頂点と値が食い違う。**
  */
-function radarFor(id: string): CompanyRadarInput {
+function radarFor(id: string, record: WorklifeRecord | null): CompanyRadarInput {
   const index = findRowIndex(companies, id);
-  const axis = (data: RadarAxisData): RadarAxisInput => ({
-    value: data.value[index] ?? null,
+  const row = companies.rows[index];
+  const axis = (data: RadarAxisData, value: number | null): RadarAxisInput => ({
+    value,
     rank: data.rank[index] ?? -1,
     population: data.population,
   });
   return {
-    paidLeave: axis(radar.paidLeave),
-    tenure: axis(radar.tenure),
-    profit: axis(radar.profit),
-    overtime: axis(radar.overtime),
-    profitIndustryMedian: radar.profitIndustryMedian[index] ?? null,
+    paidLeave: axis(
+      radar.paidLeave,
+      representativeValue(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? [])
+    ),
+    // 在籍年数は `companies.rows` の6番目（`buildCompanyView` の分解と同じ並び）。
+    tenure: axis(radar.tenure, (row?.[5] as number) ?? null),
+    profit: axis(radar.profit, performance.perEmployee[index] ?? null),
+    overtime: axis(
+      radar.overtime,
+      representativeValue(record?.overtimeAll ?? null, record?.overtimeUnits ?? [])
+    ),
+    profitIndustryMedian: performance.industryMedian[(row?.[2] as number) ?? -1] ?? null,
   };
 }
 
-function worklifeFor(id: string) {
+/**
+ * **掲載が無い会社でも節は出す**（spec AC-10）。`decodeWorklife` が `null` を返す
+ * のは「データが無い」ことで、「節を出さない」ことではない——値を消すと
+ * 「残業が少ない会社」と見分けがつかなくなる。
+ */
+function worklifeRecordFor(id: string): WorklifeRecord | null {
   const index = findRowIndex(companies, id);
-  return buildWorklifeView(index === -1 ? null : decodeWorklife(worklife, index));
+  return index === -1 ? null : decodeWorklife(worklife, index);
 }
 
 /**
@@ -158,12 +184,15 @@ export default async function CompanyPage({ params, searchParams }: Props) {
   const view = companyView((await params).id);
   if (view === null) notFound();
 
+  // **1社ぶんを1度だけ読み戻す。** レーダーの2軸と働きやすさの節が同じ行を使う。
+  const worklifeRecord = worklifeRecordFor(view.id);
+
   return (
     <LogoIdsProvider ids={logoIdsOnPage(view)}>
       <CompanyDetail
         view={view}
-        radar={radarFor(view.id)}
-        worklife={worklifeFor(view.id)}
+        radar={radarFor(view.id, worklifeRecord)}
+        worklife={buildWorklifeView(worklifeRecord)}
         history={historyFor(view.id)}
         initialAge={parseAge((await searchParams).age)}
         fiscalPeriod={fiscalPeriodLabel(companies.meta)}

@@ -31,7 +31,7 @@ CPU は測るたびに環境で変わるので、**絶対値ではなく「何�
 | ページ | 読んでよいもの |
 | --- | --- |
 | `/` | `companies.json`・`curves.json`・`population.json`・`logo-ids.json` |
-| `/company/[id]` | 上記 ＋ `stats.json`・`history.json`（W1 以降は `worklife.json`） |
+| `/company/[id]` | 上記 ＋ `stats.json`・`history.json`・`worklife.json`（W1）・`radar.json`・`performance.json`（P1） |
 | `/about` | `companies.json`・`curves.json`・`logos.json` |
 | `sitemap.ts` | `companies.json` |
 
@@ -45,6 +45,8 @@ CPU は測るたびに環境で変わるので、**絶対値ではなく「何�
 
 - `population.json` — `stats.json` から `bases`・`count`・`population` だけ（337B）
 - `logo-ids.json` — `logos.json` の `byId` のキーだけ（11.3KB）
+
+**同じ数字を2つのファイルに置かないことも、この規則の一部になる。** P1 の `radar.json` は初版で軸の値（有給・残業・在籍・稼ぐ力）を順位と一緒に持っていたが、その4つはすべて `worklife.json`・`companies.json`・`performance.json` から引ける。落として順位だけにしたら `JSON.parse` が **0.524ms → 0.161ms** になった（`docs/performance/company-radar/design.md`）。
 
 **切り出した側と元のファイルの整合は、生成する1か所で担保する。** 手で同期しない。
 

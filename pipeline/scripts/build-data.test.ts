@@ -505,8 +505,21 @@ describe("buildData", () => {
       expect(result.radar.meta.axes).toEqual([...AXES]);
       for (const key of AXES) {
         expect(result.radar[key].rank.length, key).toBe(result.companies.rows.length);
-        expect(result.radar[key].value.length, key).toBe(result.companies.rows.length);
       }
+    });
+
+    it("値そのものは持たない（ADR-0011。別のファイルから引ける）", () => {
+      // 二重に持つと `radar.json` の `JSON.parse` が倍になる（0.264ms → 0.524ms）。
+      for (const key of AXES) {
+        expect(Object.keys(result.radar[key]).sort(), key).toEqual(["population", "rank"]);
+      }
+      expect(Object.keys(result.radar).sort()).toEqual([
+        "meta",
+        "overtime",
+        "paidLeave",
+        "profit",
+        "tenure",
+      ]);
     });
 
     it("平均年収の軸は持たない（表示基準で変わるため）", () => {
@@ -526,45 +539,34 @@ describe("buildData", () => {
 
     it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {
       const i = indexOf("6861");
-      expect(result.radar.overtime.value[i]).toBeNull();
       expect(result.radar.overtime.rank[i]).toBe(-1);
       // 区分「正社員」1件だけなので軸に乗る（アートボード 6a がそう描いている）。
-      expect(result.radar.paidLeave.value[i]).toBe(38.8);
       expect(result.radar.paidLeave.rank[i]).toBeGreaterThan(0);
     });
 
     it("区分が2つ以上の会社は軸に乗せない（新日本空調の有給）", () => {
       // 営業・管理系 67.4 / 技術系 60.8。**どちらかを代表に選ばない**（spec 2.2b）。
-      const i = indexOf("1952");
-      expect(result.radar.paidLeave.value[i]).toBeNull();
+      expect(result.radar.paidLeave.rank[indexOf("1952")]).toBe(-1);
     });
 
-    it("残業は小さいほど上位（5軸すべて外側＝良いに揃える）", () => {
-      const values = result.radar.overtime.value;
-      const ranked = values
-        .map((v, i) => ({ v, rank: result.radar.overtime.rank[i] }))
-        .filter((r): r is { v: number; rank: number } => r.v !== null);
-      const best = ranked.reduce((a, b) => (a.rank <= b.rank ? a : b));
-      const worst = ranked.reduce((a, b) => (a.rank >= b.rank ? a : b));
-      expect(best.v).toBeLessThan(worst.v);
+    it("在籍年数の1位は実データの最長の会社", () => {
+      // 向きの規則そのものは `web/features/company/lib/radar.test.ts` が
+      // 固定している。ここは実データに当たっていることだけを見る。
+      const longest = sourceRows.reduce((a, b) => (a.avgTenure >= b.avgTenure ? a : b));
+      const i = sourceRows.indexOf(longest);
+      expect(result.radar.tenure.rank[i]).toBe(1);
     });
 
-    it("有給・在籍・稼ぐ力は大きいほど上位", () => {
-      for (const key of ["paidLeave", "tenure", "profit"] as const) {
-        const ranked = result.radar[key].value
-          .map((v, i) => ({ v, rank: result.radar[key].rank[i] }))
-          .filter((r): r is { v: number; rank: number } => r.v !== null);
-        const best = ranked.reduce((a, b) => (a.rank <= b.rank ? a : b));
-        const worst = ranked.reduce((a, b) => (a.rank >= b.rank ? a : b));
-        expect(best.v, key).toBeGreaterThan(worst.v);
-      }
-    });
-
-    it("業種中央値が全社ぶん引ける", () => {
-      const i = indexOf("6861");
-      expect(result.radar.profitIndustryMedian[i]).toBe(
-        result.performance.industryMedian[result.companies.industries.indexOf("電気機器")]
-      );
+    it("稼ぐ力の1位は perEmployee が最大の会社", () => {
+      let best = -1;
+      let bestValue = -Infinity;
+      result.performance.perEmployee.forEach((v, i) => {
+        if (v !== null && v > bestValue) {
+          bestValue = v;
+          best = i;
+        }
+      });
+      expect(result.radar.profit.rank[best]).toBe(1);
     });
 
     it("gzip後サイズが上限(48KB)以内", () => {

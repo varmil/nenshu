@@ -115,7 +115,10 @@ test.describe("AC-9 図だけが情報源にならない", () => {
 test.describe("AC-11 表示基準", () => {
   test("年齢そろえで平均年収の軸だけが追随する", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
-    await page.goto("/company/6861");
+    // **ハイドレーションを待つ。** この節の値は SSR の HTML で既に満たされるので、
+    // `toContainText` はクリックできる状態になる前に解決してしまう。全体実行で
+    // dev サーバーが重いときだけ、押したのに何も起きない形で落ちる（実際に落ちた）。
+    await page.goto("/company/6861", { waitUntil: "networkidle" });
     const list = section(page).locator("dl");
     await expect(list).toContainText("2,178万円");
     await expect(list).toContainText("11.3年");

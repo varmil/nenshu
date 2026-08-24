@@ -86,13 +86,20 @@ export function axisPosition(rank: number, population: number): number | null {
   return MIN_POSITION + (1 - MIN_POSITION) * share;
 }
 
-/** 1軸ぶん。`rank` は `companies.rows` と同じ並びで、**欠測は `-1`**。 */
+/**
+ * 1軸ぶん。`rank` は `companies.rows` と同じ並びで、**欠測は `-1`**。
+ *
+ * **値そのものは持たない**（ADR-0011）。軸の4つの値はすべて別のファイルから
+ * 引ける——在籍年数は `companies.json`、稼ぐ力とその業種中央値は
+ * `performance.json`、有給と残業は `worklife.json` から `representativeValue` で。
+ * **同じ数字を2か所に置くと、`radar.json` の `JSON.parse` が倍になる**
+ * （実測 0.524ms → 0.264ms）。`import` したファイルは1バイトしか使わなくても
+ * 丸ごと解析され、isolate の初回リクエストに課金される。
+ */
 export interface RadarAxisData {
   rank: number[];
   /** その軸に値がある会社の数。**軸ごとに違う**（有給と残業は6割前後）。 */
   population: number;
-  /** 軸に出す値そのもの。欠測は `null`。 */
-  value: (number | null)[];
 }
 
 /**
@@ -107,8 +114,15 @@ export interface RadarData {
   tenure: RadarAxisData;
   profit: RadarAxisData;
   overtime: RadarAxisData;
-  /** その会社の業種の中央値（円）。稼ぐ力の軸に併記する。 */
-  profitIndustryMedian: (number | null)[];
+}
+
+/** `performance.json` の中身（P0）。稼ぐ力の金額と業種中央値。 */
+export interface PerformanceData {
+  meta: { count: number; matched: number; years: number[] };
+  /** `companies.rows` と同じ並び。 */
+  perEmployee: (number | null)[];
+  /** `companies.industries` と同じ並び。 */
+  industryMedian: (number | null)[];
 }
 
 export interface RadarAxis {
