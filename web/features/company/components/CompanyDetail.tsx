@@ -16,7 +16,7 @@ import {
   formatManYen,
 } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
-import type { CompanyView, SalaryHistory } from "../types";
+import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
 import {
   formatDeviation,
   formatDiffFromMean,
@@ -24,8 +24,9 @@ import {
 } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
-import { SalaryHistoryChart } from "./SalaryHistoryChart";
+import { YearlyBarChart } from "./YearlyBarChart";
 import { SalaryHistoryTable } from "./SalaryHistoryTable";
+import { ProfitHistorySection } from "./ProfitHistorySection";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { WorklifeSection } from "./WorklifeSection";
 import type { WorklifeView } from "../lib/worklife";
@@ -81,6 +82,7 @@ export function CompanyDetail({
   radar,
   worklife,
   history,
+  profitHistory,
   fiscalPeriod,
 }: {
   view: CompanyView;
@@ -98,6 +100,11 @@ export function CompanyDetail({
   worklife: WorklifeView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
+  /**
+   * 稼ぐ力の10年推移（P2・Issue #168）。取れていない会社は `null`。
+   * **`byBasis` の外に置く**——年齢そろえを選んでも過去の経常利益は変わらない。
+   */
+  profitHistory: ProfitHistory | null;
   /**
    * 掲載データの決算期（`2026年3月期`）。**文字列にするのはサーバー側**
    * （`app/company/[id]/page.tsx` が `lib/data/period.ts` を通す）で、ここは
@@ -460,7 +467,11 @@ export function CompanyDetail({
                 推移で先に見たいのは10年ぶんの形で、値はその後に表で確かめるもの。増減の
                 1文は figure と表の両方を受けた締めなので、2つの後ろに置く。
               */}
-              <SalaryHistoryChart history={history} />
+              <YearlyBarChart
+                years={history.years}
+                values={history.values}
+                caption="横軸は報告書の提出年です。"
+              />
               <SalaryHistoryTable history={history} />
               {/*
                 増減の1文に、最高値の年を足す（C4）。**最新年が最高値の会社では
@@ -475,6 +486,12 @@ export function CompanyDetail({
               )}
             </section>
           )}
+
+          {/*
+            **平均年収推移の直後**（P2、アートボード 6e）。同じ10年の縦棒を並べると、
+            給与が増えた年に利益も増えたのかを目で追える。
+          */}
+          {profitHistory && <ProfitHistorySection history={profitHistory} />}
 
           <HowItWorks />
         </div>

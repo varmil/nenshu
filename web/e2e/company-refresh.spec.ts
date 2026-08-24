@@ -574,7 +574,10 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
   test("推移の棒はPCで高さを持ち、年のラベルが棒と揃う", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
-    const figure = page.locator("figure", { hasText: "横軸は報告書の提出年です。" });
+    // 稼ぐ力の推移（P2）が同じ `YearlyBarChart` を使うので、節で絞ってから figure を取る。
+    const figure = page
+      .locator("section", { hasText: "平均年収推移（過去10年間）" })
+      .locator("figure");
 
     const bars = figure.locator('[role="presentation"]').first();
     expect((await bars.boundingBox())!.height).toBeGreaterThanOrEqual(120);

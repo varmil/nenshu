@@ -93,6 +93,26 @@ export interface SalaryHistory {
   values: (number | null)[];
 }
 
+/**
+ * 稼ぐ力の10年推移（performance 施策・P2・Issue #168）。
+ *
+ * **表示基準と独立。** 年齢そろえを選んでも過去の経常利益は変わらないので、
+ * `SalaryHistory` と同じく `byBasis` の外に置く。
+ *
+ * 3本とも `years` と同じ長さ。**その年の値が無ければ `null`。内挿しない。**
+ * `profit` だけが `null` の年がありうる——経常利益は1書類に5期ぶん入っているが、
+ * **従業員数はその年の書類の当期からしか取れない**ため。
+ */
+export interface ProfitHistory {
+  years: number[];
+  /** 一人当たり経常利益（円）。 */
+  profit: (number | null)[];
+  /** 経常利益（円）。**赤字は負のまま。** */
+  income: (number | null)[];
+  /** 連結の従業員数（人）。連結が無い年は単体で代用してある。 */
+  employees: (number | null)[];
+}
+
 /** 企業詳細ページに渡す1社ぶんのすべて。8年齢ぶんを最初から持たせる。 */
 export interface CompanyView {
   id: string;

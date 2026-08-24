@@ -1,7 +1,10 @@
-import type { SalaryHistory } from "../types";
-
 /**
- * 平均年収の10年推移（timeseries 施策・T1、`docs/timeseries/spec.md` 2.）。
+ * 年ごとの金額を万円の棒で並べる（timeseries の T1・performance の P2）。
+ *
+ * **2つの節が同じ形を使う。** 平均年収の推移（`docs/timeseries/spec.md` 2.）と
+ * 稼ぐ力の推移（`docs/performance/spec.md` 2.3）はどちらも「10年ぶんの金額を
+ * 万円で並べた棒」で、違うのは値の出どころと figcaption だけになる。**同じ図を
+ * 2つ書くと、片方だけ直したときに並んだ2枚の見た目がずれる。**
  *
  * **表示基準の切替と独立に、常に実測値を出す。** 年齢そろえを選んでも過去の
  * 有報に載った数字は変わらない。
@@ -18,8 +21,16 @@ import type { SalaryHistory } from "../types";
  * 10年ぶんの増減が読み取りにくかった（公開後の指摘）。年のラベルは棒とは別の
  * 行にして、間に1本の罫線を通す——棒が高くなるほど、揃っている先が要る。
  */
-export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
-  const values = history.values;
+export function YearlyBarChart({
+  years,
+  values,
+  caption,
+}: {
+  years: number[];
+  values: (number | null)[];
+  /** 図の下に置く1行。横軸が何かを書く。 */
+  caption: string;
+}) {
   const max = Math.max(...values.filter((v): v is number => v !== null));
   // 最新年だけ濃くする（C3、アートボード 4b）。10本のうちどれが「いまの数字」かは、
   // ページの他の場所に出ている金額と同じ棒を探さないと分からなかった。
@@ -31,7 +42,7 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
         className="border-border flex items-end gap-1.5 border-b [--bar-max:6rem] @xl:[--bar-max:7.5rem]"
         role="presentation"
       >
-        {history.years.map((year, i) => {
+        {years.map((year, i) => {
           const value = values[i];
           return (
             <div key={year} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1">
@@ -58,7 +69,7 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
       </div>
       {/* 年のラベルは棒と同じ割り付け（`flex-1 basis-0`）にしないと1本ずつずれる。 */}
       <div className="flex gap-1.5" role="presentation">
-        {history.years.map((year) => (
+        {years.map((year) => (
           <span
             key={year}
             className="text-muted-foreground min-w-0 flex-1 basis-0 text-center text-[0.65rem] tabular-nums @xl:text-xs"
@@ -69,7 +80,7 @@ export function SalaryHistoryChart({ history }: { history: SalaryHistory }) {
         ))}
       </div>
 
-      <figcaption className="text-muted-foreground text-xs">横軸は報告書の提出年です。</figcaption>
+      <figcaption className="text-muted-foreground text-xs">{caption}</figcaption>
     </figure>
   );
 }
