@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
-import { buildCompanyView } from "@/features/company/lib/view";
+import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
+import { buildWorklifeView } from "@/features/company/lib/worklife";
+import { decodeWorklife, type WorklifeData } from "@/lib/data/worklife";
 import { companyMetadata } from "@/lib/seo/company";
 import type { CompanyStatsData, CompanyView, SalaryHistory } from "@/features/company/types";
 import {
@@ -15,6 +17,7 @@ import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
+import worklifeData from "../../../public/data/worklife.json";
 import logosData from "../../../public/data/logos.json";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
@@ -27,6 +30,13 @@ const stats = statsData as CompanyStatsData;
  * 渡すのは当該1社ぶんの10件だけ。
  */
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
+
+/**
+ * 働きやすさ指標（W1・Issue #150）。**推移と同じくここだけが import する**
+ * ——`app/page.tsx` から読むとトップページのHTMLが1,867社ぶん増える（Issue #22）。
+ * 渡すのは当該1社ぶんだけ。
+ */
+const worklife = worklifeData as unknown as WorklifeData;
 
 const logoIds = logosData.byId as Record<string, unknown>;
 
@@ -46,6 +56,16 @@ function logoIdsOnPage(view: CompanyView): string[] {
 function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
   return values === undefined ? null : { years: history.years, values };
+}
+
+/**
+ * **掲載が無い会社でも節は出す**（spec AC-10）。`decodeWorklife` が `null` を返す
+ * のは「データが無い」ことで、「節を出さない」ことではない——値を消すと
+ * 「残業が少ない会社」と見分けがつかなくなる。
+ */
+function worklifeFor(id: string) {
+  const index = findRowIndex(companies, id);
+  return buildWorklifeView(index === -1 ? null : decodeWorklife(worklife, index));
 }
 
 /**
@@ -89,6 +109,7 @@ export default async function CompanyPage({ params, searchParams }: Props) {
     <LogoIdsProvider ids={logoIdsOnPage(view)}>
       <CompanyDetail
         view={view}
+        worklife={worklifeFor(view.id)}
         history={historyFor(view.id)}
         initialAge={parseAge((await searchParams).age)}
         fiscalPeriod={fiscalPeriodLabel(companies.meta)}

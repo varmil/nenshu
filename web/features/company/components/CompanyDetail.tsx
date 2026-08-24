@@ -27,6 +27,8 @@ import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { SalaryHistoryChart } from "./SalaryHistoryChart";
 import { SalaryHistoryTable } from "./SalaryHistoryTable";
 import { AgeSalaryTable } from "./AgeSalaryTable";
+import { WorklifeSection } from "./WorklifeSection";
+import type { WorklifeView } from "../lib/worklife";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
@@ -82,11 +84,19 @@ function useTargetAge(initialAge: TargetAge | null) {
 
 export function CompanyDetail({
   view,
+  worklife,
   history,
   initialAge,
   fiscalPeriod,
 }: {
   view: CompanyView;
+  /**
+   * 残業・有給・男女の賃金の差異（W1・Issue #150）。**`byBasis` の外に置く**
+   * ——年齢補正を通さない値で、表示基準を切り替えても1つも変わらない（AC-11）。
+   * 推移（`history`）と同じ扱いにしてある。**掲載が無い会社でも `null` にならない**
+   * （器を空のまま出すのが AC-10）。
+   */
+  worklife: WorklifeView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
   initialAge: TargetAge | null;
@@ -314,6 +324,13 @@ export function CompanyDetail({
               </div>
             </CardContent>
           </Card>
+
+          {/*
+            **上のカードと「年齢別の推定年収」の間に置く**（W1、アートボード 6b）。
+            上のカードまでが有報の数字、ここから下は別の出典・別の時点になるので、
+            推定の話（年齢別）に入る前に区切りを1つ挟む形にしてある。
+          */}
+          <WorklifeSection view={worklife} />
 
           {/*
             **表 → 説明文 → チャート**の順（C3、アートボード 4b）。C2 は図が先だったが、

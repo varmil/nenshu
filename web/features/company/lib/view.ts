@@ -75,10 +75,14 @@ export function buildCompanyView(
  * id → 行番号。1,867行の走査を毎リクエスト繰り返さないよう、isolate ごとに
  * 1度だけ索引を作る。`companies` は `import` した固定のオブジェクトなので
  * WeakMap のキーとして安定する。
+ *
+ * **`stats.json` と `worklife.json` は `companies.rows` と同じ並びの配列**なので、
+ * ここで引いた添字がそのまま両方の行番号になる（W1・Issue #150）。**別々に
+ * 索引を作らない**——2つの引き方があると、片方だけずれても気づけない。
  */
 const indexCache = new WeakMap<CompaniesData, Map<string, number>>();
 
-function findRowIndex(companies: CompaniesData, id: string): number {
+export function findRowIndex(companies: CompaniesData, id: string): number {
   let index = indexCache.get(companies);
   if (index === undefined) {
     index = new Map(companies.rows.map((row, i) => [row[0], i]));
