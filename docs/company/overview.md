@@ -117,6 +117,8 @@ spec.md 1.18 の表示。h1 と順位行の直後に2〜3文と、出典の1行�
 `generateMetadata` の中に直書きしている文言を `lib/seo/company.ts` の純粋関数に切り出し、サーバー（`generateMetadata`）とクライアント（`CompanyDetail`）の両方がそこから引くようにする。規則は `docs/ranking/metadata-sync/design.md` にある。
 ## 他施策から触られる箇所
 
+**`/company/[id]` の読み込みと計算は runtime 施策の R0（Issue #165）が減らした。** `logos.json`（204KB）を「ロゴがあるか」のために丸ごと読んでいたのを `logo-ids.json` に替え、`generateMetadata` と本体で2回走っていた `buildCompanyView` を React の `cache()` で1回にし、`findNeighbors` の全表走査（1リクエストで延べ33,606行）を isolate ごとの索引にした。**新しいデータファイルを足すときは ADR-0011 の問いを通ること**——C5〜C7（#159〜#161）の説明文がそれに当たる。
+
 **データの時点（決算期）は site-chrome 施策の S3（Issue #134・親 #104）が足した。** 「有価証券報告書ベース」であることは書いてあるのに、それが**いつ**の有報なのかがサイトのどこにも無かった。決算期（`2026年3月期`）は全ページに共通する1つの事実なので、施策ごとに別々の時点を書くことがそもそもありえない——文字列にするのは `web/lib/data/period.ts` の1か所で、値は `companies.meta.fiscalPeriod` から引く（直書きは `docs/site-chrome/spec.md` AC-20 で禁じている）。設計は `docs/site-chrome/data-period/design.md`。
 
 この施策で触られたのは、`/company/[id]` の「有価証券報告書の実測値」の見出し（`有価証券報告書の実測値（2026年3月期）`）と description。**見出し以外には出さない**——フッタの出典にも重ねると1画面に2回になる（Issue #128 で「推定」について決めたのと同じ扱い）。合わせて、フッタに直書きされていた `2026年6〜7月提出` を落とし、`推移は2017〜2026年の各年` は `history.years` の両端から引くようにした。

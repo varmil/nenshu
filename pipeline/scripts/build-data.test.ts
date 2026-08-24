@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { buildData, dominantFiscalPeriod } from "./build-data";
+import { buildData, dominantFiscalPeriod, pickPopulation } from "./build-data";
 import { interpolate } from "./lib/curve";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -449,5 +449,48 @@ describe("dominantFiscalPeriod", () => {
 
   it("period_end の形が違えば落とす", () => {
     expect(() => dominantFiscalPeriod(rows("2026/03/31"))).toThrow(/YYYY-MM-DD/);
+  });
+});
+
+/**
+ * `population.json` の切り出し（R0・`docs/runtime/spec.md` AC-5・Issue #165）。
+ *
+ * **`/` は母集団の9組（337B）しか使わないのに `stats.json`（131KB）を丸ごと
+ * 読んでいた。** import したファイルは1バイトしか使わなくても丸ごと `JSON.parse`
+ * され、isolate の初回リクエストに課金される（Issue #118）。
+ */
+describe("population.json", () => {
+  let outDir: string;
+  let result: ReturnType<typeof buildData>;
+
+  beforeAll(() => {
+    outDir = mkdtempSync(join(tmpdir(), "nenshu-population-"));
+    result = buildData(outDir);
+  });
+
+  afterAll(() => rmSync(outDir, { recursive: true, force: true }));
+
+  it("bases・count・population が stats.json と完全に一致する", () => {
+    const stats = JSON.parse(readFileSync(result.statsPath, "utf-8"));
+    const population = JSON.parse(readFileSync(result.populationPath, "utf-8"));
+    expect(population.bases).toEqual(stats.bases);
+    expect(population.count).toEqual(stats.count);
+    expect(population.population).toEqual(stats.population);
+  });
+
+  it("**順位は入っていない。** ここに rankAll が混ざると分けた意味が無くなる", () => {
+    const population = JSON.parse(readFileSync(result.populationPath, "utf-8"));
+    expect(Object.keys(population).sort()).toEqual(["bases", "count", "population"]);
+  });
+
+  it("`/` が読む量として小さいこと（1KB未満）", () => {
+    expect(readFileSync(result.populationPath).length).toBeLessThan(1024);
+  });
+
+  it("公開中の population.json が stats.json と揃っている（生成し忘れを止める）", () => {
+    const dir = join(ROOT, "../web/public/data");
+    const stats = JSON.parse(readFileSync(join(dir, "stats.json"), "utf-8"));
+    const population = JSON.parse(readFileSync(join(dir, "population.json"), "utf-8"));
+    expect(population).toEqual(pickPopulation(stats));
   });
 });

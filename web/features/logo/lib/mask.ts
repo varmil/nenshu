@@ -9,9 +9,13 @@ import type { CompanyRow } from "@/features/ranking/types";
  * 画像が届いてもレイアウトは動かない**（AC-12）。
  *
  * 1,867文字＝raw 1.9KB・gzip 約250B。
+ *
+ * **渡すのは `logo-ids.json` から作った集合で、`logos.json` の `byId` ではない。**
+ * `logos.json` を読むと、寸法も出典も使わないのに 204KB を `JSON.parse` すること
+ * になる（R0・`docs/runtime/spec.md` 2.）。
  */
-export function buildLogoMask(rows: readonly CompanyRow[], byId: Record<string, unknown>): string {
-  return rows.map((row) => (byId[row[0]] ? "1" : "0")).join("");
+export function buildLogoMask(rows: readonly CompanyRow[], withLogo: ReadonlySet<string>): string {
+  return rows.map((row) => (withLogo.has(row[0]) ? "1" : "0")).join("");
 }
 
 /** マスクを id の集合に開く。クライアントで一度だけ行う。 */
