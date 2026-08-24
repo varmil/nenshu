@@ -92,6 +92,9 @@
 | `logo` | 新規社ぶんを `npm run build:logos` で調達 | 頭文字のマス目が並ぶ（壊れはしない） |
 | `timeseries` | 新規社ぶん10年を `fetch_history.py` → `history.py` | 推移の節が出ない |
 | `worklife` | 新しい母集団で `extract.ts` を回し直す | 「掲載なし」になる |
+| `performance` | 新規社ぶんを `pipeline/performance/extract.py` で抜き直す | 稼ぐ力とレーダーの軸が欠ける |
+
+**`performance` は最新年の書類1件から5期ぶんが取れる**（`jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults` が5つのコンテキストで来る）ので、**E2 が落とした ZIP がそのまま使える**。10年ぶんの取得（E4）を待たなくてよい。
 
 **壊れはしないが、追随の順序を決めずに公開すると「新しく入った会社は中身が薄い」状態が固定される。** overview.md で Unit の順序として持つ。
 

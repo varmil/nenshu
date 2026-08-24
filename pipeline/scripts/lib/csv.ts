@@ -9,6 +9,11 @@ export interface UnifiedRow {
   avgTenure: number;
   avgSalary: number;
   employeesNonConsolidated: number;
+  /**
+   * 連結の従業員数。**空の会社が191社ある**（連結財務諸表を作っていない会社）ので
+   * `null` になりうる。稼ぐ力（P0・#155）の分母で、そこでは単体で代用する。
+   */
+  employeesConsolidated: number | null;
   badge: string;
   industry: string;
   docId: string;
@@ -60,6 +65,8 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
       avgTenure: Number(get("avg_tenure")),
       avgSalary: Number(get("avg_salary")),
       employeesNonConsolidated: Number(get("employees_nonconsolidated")),
+      employeesConsolidated:
+        get("employees_consolidated") === "" ? null : Number(get("employees_consolidated")),
       badge: get("badge"),
       industry: get("industry"),
       docId: get("doc_id"),
@@ -108,6 +115,57 @@ export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
       edinetCode: cols[0],
       year: Number(cols[1]),
       avgSalary: Number(cols[2]),
+    };
+  });
+}
+
+export interface PerformanceHistoryRow {
+  edinetCode: string;
+  year: number;
+  /** その年の経常利益（円）。**赤字は負のまま**（59社ある）。 */
+  ordinaryIncome: number;
+  /** `consolidated` / `nonconsolidated`。連結が無い年だけ単体で埋まる。 */
+  basis: string;
+}
+
+const PERFORMANCE_HEADER = [
+  "edinet_code", "year", "ordinary_income", "oi_basis",
+  "employees_consolidated", "employees_nonconsolidated", "source_year", "back",
+];
+
+/**
+ * data/performance_history.csv の最小パーサ（P0・`docs/performance/spec.md` 1.4）。
+ *
+ * `parseSalaryHistoryCsv` と同じ方針。読むのは4列だけ——従業員数は
+ * `ranking_unified_2026.csv` の側（当期・全社ぶん）を使うので、ここでは
+ * 年次の追跡用に持たせてあるだけになる。**P2（稼ぐ力の推移）で年次の
+ * 従業員数が要るようになったらここを読む。**
+ */
+export function parsePerformanceHistoryCsv(text: string): PerformanceHistoryRow[] {
+  const withoutBom = text.replace(/^﻿/, "");
+  const lines = withoutBom.split(/\r?\n/).filter((line) => line.length > 0);
+
+  const [headerLine, ...dataLines] = lines;
+  const header = headerLine.split(",");
+  if (
+    header.length !== PERFORMANCE_HEADER.length ||
+    header.some((h, i) => h !== PERFORMANCE_HEADER[i])
+  ) {
+    throw new Error(`data/performance_history.csv の列が想定と一致しません: ${headerLine}`);
+  }
+
+  return dataLines.map((line, lineIndex) => {
+    const cols = line.split(",");
+    if (cols.length !== PERFORMANCE_HEADER.length) {
+      throw new Error(
+        `data/performance_history.csv の${lineIndex + 2}行目が${PERFORMANCE_HEADER.length}列でありません: ${line}`
+      );
+    }
+    return {
+      edinetCode: cols[0],
+      year: Number(cols[1]),
+      ordinaryIncome: Number(cols[2]),
+      basis: cols[3],
     };
   });
 }

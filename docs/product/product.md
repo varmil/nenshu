@@ -29,7 +29,8 @@
 | timeseries | 平均年収の10年推移 | 着手中 | `docs/timeseries/` |
 | logo | 企業ロゴ | 着手中 | `docs/logo/` |
 | worklife | 働きやすさ指標（残業・有給・男女の賃金の差異） | 着手中 | `docs/worklife/` |
-| expansion | 掲載企業数の拡大（母集団を有報提出会社の全件へ） | 未着手（Inception完了・E0〜E5） | `docs/expansion/` |
+| performance | 稼ぐ力（一人当たり経常利益） | 着手中 | `docs/performance/` |
+| expansion | 掲載企業数の拡大（母集団を有報提出会社の全件へ） | 未着手（Inception完了・E0〜E6） | `docs/expansion/` |
 | market-data | 株価推移・信用格付け | 未着手（データ調達の可否から） | — |
 | monetize | 収益化（広告・アフィリエイト） | 未着手 | — |
 

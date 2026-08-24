@@ -1,0 +1,201 @@
+import { test, expect, type Page } from "@playwright/test";
+import { collectPageRequests } from "./network";
+
+/**
+ * W1（Issue #150）——企業詳細ページの「残業・有給・男女の賃金の差異」の節。
+ * `docs/worklife/spec.md` の AC-6〜AC-12 に対応する。
+ *
+ * 値そのものは `lib/data/worklife.test.ts` が実データで固定しているので、ここは
+ * **ブラウザでどう出るか**（区分が5つある会社で崩れないか・表示基準と独立か・
+ * JS実行前のHTMLに入っているか）だけを見る。
+ */
+
+const section = (page: Page) =>
+  page.getByRole("heading", { name: "残業・有給・男女の賃金の差異" }).locator("xpath=..");
+
+/** 1指標ぶんの器。`dt` の親（2カラムの行）を取る。 */
+const metric = (page: Page, label: string) =>
+  section(page).getByRole("term").filter({ hasText: label }).locator("xpath=../..");
+
+test.describe("AC-6 平均残業時間", () => {
+  test("全体値と公表する範囲が出る（トヨタ自動車）", async ({ page }) => {
+    await page.goto("/company/7203");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("20.3");
+    await expect(overtime).toContainText("対象正社員");
+    // 単位は行ごとに繰り返さず見出しに1回だけ（アートボード 6c）。
+    await expect(overtime).toContainText("時間 / 月");
+  });
+
+  test("雇用管理区分の4件が登録順で出る（三菱商事）", async ({ page }) => {
+    await page.goto("/company/8058");
+    const overtime = metric(page, "平均残業時間");
+    // **平均して1つの値にしない**（spec 1.4）。4区分がそのまま並ぶ。
+    for (const value of ["10.5", "14.1", "3.3", "3.2", "5.6"]) {
+      await expect(overtime).toContainText(value);
+    }
+    const text = (await overtime.innerText()).replace(/\s+/g, "");
+    // 登録順（総合職 → 一般職 → 嘱託その他 → 派遣社員）。値の大小で並べ替えない。
+    expect(text.indexOf("総合職")).toBeLessThan(text.indexOf("一般職"));
+    expect(text.indexOf("一般職")).toBeLessThan(text.indexOf("嘱託その他"));
+    expect(text.indexOf("嘱託その他")).toBeLessThan(text.indexOf("派遣社員"));
+  });
+});
+
+test.describe("AC-6b 区分名をそのまま出す", () => {
+  test("職能で切る会社（新日本空調）", async ({ page }) => {
+    await page.goto("/company/1952");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("営業・管理系");
+    await expect(overtime).toContainText("技術系");
+    // こちらで決めた分類に振り替えない。
+    await expect(overtime).not.toContainText("正規雇用");
+  });
+
+  test("組織階層と雇用形態が混ざる会社（みずほ銀行）", async ({ page }) => {
+    await page.goto("/company/E03532");
+    const overtime = metric(page, "平均残業時間");
+    for (const unit of ["カンパニー", "ユニット", "グループ", "無期契約フルタイム"]) {
+      await expect(overtime).toContainText(unit);
+    }
+  });
+});
+
+test.describe("AC-7 年次有給休暇の取得率", () => {
+  test("全体値だけの会社（LINEヤフー）", async ({ page }) => {
+    await page.goto("/company/4689");
+    await expect(metric(page, "年次有給休暇の取得率")).toContainText("87.4");
+  });
+
+  test("区分つきの会社（キーエンス）", async ({ page }) => {
+    await page.goto("/company/6861");
+    const paid = metric(page, "年次有給休暇の取得率");
+    await expect(paid).toContainText("正社員");
+    await expect(paid).toContainText("38.8");
+  });
+
+  test("100%超が繰越分の消化であることを注記する", async ({ page }) => {
+    await page.goto("/company/6861");
+    await expect(section(page)).toContainText("繰越分の消化により100%を超えることがあります");
+  });
+});
+
+test.describe("AC-8 男女の賃金の差異", () => {
+  test("3つの値と定義が出る（トヨタ自動車）", async ({ page }) => {
+    await page.goto("/company/7203");
+    const gap = metric(page, "男女の賃金の差異");
+    await expect(gap).toContainText("67.0");
+    await expect(gap).toContainText("66.8");
+    await expect(gap).toContainText("59.7");
+    // **数字だけを単独で置かない**（spec 2.4）。
+    await expect(gap).toContainText("女性の平均賃金 ÷ 男性の平均賃金 × 100");
+  });
+
+  test("差異の主因についての注記がある", async ({ page }) => {
+    await page.goto("/company/7203");
+    await expect(section(page)).toContainText("職種構成や勤続年数の差が主因");
+  });
+
+  test("会社が登録した説明はそのまま出る", async ({ page }) => {
+    await page.goto("/company/8058");
+    const note = section(page).getByText("会社が登録した説明");
+    await expect(note).toBeVisible();
+    await expect(section(page)).toContainText("同一資格・同一職務レベル");
+  });
+});
+
+test.describe("AC-9 出典と時点", () => {
+  test("出典・自己申告値・集計時点・対象期間が出る", async ({ page }) => {
+    await page.goto("/company/7203");
+    const worklife = section(page);
+    await expect(worklife).toContainText("厚生労働省「女性の活躍推進企業データベース」");
+    await expect(worklife).toContainText("自己申告値");
+    await expect(worklife).toContainText("2026年3月時点");
+    await expect(worklife).toContainText("2025年4月1日～2026年3月31日");
+    await expect(worklife).toContainText("監査を経ていません");
+  });
+
+  test("節の中に「推定」の語も「実測値」の語も無い", async ({ page }) => {
+    await page.goto("/company/7203");
+    // 「実測値」は有報の平均年間給与を指す語で、ここで使うと意味が衝突する（glossary）。
+    await expect(section(page)).not.toContainText("推定");
+    await expect(section(page)).not.toContainText("実測値");
+  });
+});
+
+test.describe("AC-10 データが無いとき", () => {
+  test("一部だけ無い会社は、その指標だけ「掲載なし」（キーエンス）", async ({ page }) => {
+    await page.goto("/company/6861");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("掲載なし");
+    await expect(overtime).toContainText("残業時間をデータベースに登録していません");
+    // 節ごと消さない。有給と賃金の差異は出る。
+    await expect(metric(page, "年次有給休暇の取得率")).toContainText("38.8");
+    await expect(metric(page, "男女の賃金の差異")).toContainText("43.2");
+  });
+
+  test("掲載が無い会社でも節は出て、掲載が任意である旨が書かれる（三菱UFJ）", async ({
+    page,
+  }) => {
+    await page.goto("/company/8306");
+    const worklife = section(page);
+    await expect(worklife).toBeVisible();
+    await expect(worklife).toContainText("掲載がありません");
+    await expect(worklife).toContainText("掲載は任意");
+    // 3指標の器はすべて残る。
+    for (const label of ["平均残業時間", "年次有給休暇の取得率", "男女の賃金の差異"]) {
+      await expect(metric(page, label)).toContainText("掲載なし");
+    }
+  });
+});
+
+test.describe("AC-11 表示基準と独立", () => {
+  test("年齢そろえに切り替えても値が変わらず、ページ遷移も起きない", async ({ page }) => {
+    // **ハイドレーションを待つ**（company-radar.spec.ts の AC-11 と同じ理由）。
+    // 値は SSR の HTML にあるので、`toContainText` は押せる状態を待たない。
+    await page.goto("/company/7203", { waitUntil: "networkidle" });
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("20.3");
+
+    const requests = collectPageRequests(page);
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page).toHaveURL(/[?&]age=35/);
+
+    await expect(overtime).toContainText("20.3");
+    await expect(metric(page, "男女の賃金の差異")).toContainText("67.0");
+    expect(requests).toHaveLength(0);
+  });
+
+  test("?age=60 を直接開いても同じ値", async ({ page }) => {
+    await page.goto("/company/7203?age=60");
+    await expect(metric(page, "平均残業時間")).toContainText("20.3");
+    await expect(metric(page, "男女の賃金の差異")).toContainText("67.0");
+  });
+});
+
+test.describe("AC-12 レイアウトと初期HTML", () => {
+  test("390px で横スクロールが出ず、区分5件が読める（三菱商事）", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/8058");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("派遣社員");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("長い区分名でも省略記号にしない（商船三井）", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/9104");
+    // `契約社員(フルタイム)` は16文字級。**字を落として収める。切らない。**
+    await expect(metric(page, "平均残業時間")).toContainText("契約社員(フルタイム)");
+  });
+
+  test("JS実行前のHTMLに値が入っている（SEO・spec 3.）", async ({ request }) => {
+    const html = await (await request.get("/company/7203")).text();
+    expect(html).toContain("20.3");
+    expect(html).toContain("67.0");
+    expect(html).toContain("残業・有給・男女の賃金の差異");
+  });
+});
