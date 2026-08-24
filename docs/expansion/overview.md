@@ -2,18 +2,18 @@
 
 `docs/expansion/spec.md` を Unit に割る。親 Issue: [#22](https://github.com/varmil/nenshu/issues/22)
 
-**Unit の ID は `E`**（expansion）。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
+**Unit の ID は `E`**（expansion）。Issue は E0 #174・E1 #172・E2 #173・E3 #175・E4 #176・E5 #177。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
 
 ## Unit 一覧
 
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
-| E1 | 決算期を幅で出す | なし | AC-7 | `dominantFiscalPeriod` の「代表を1つ」をやめる。site-chrome の S3 を改訂する。※共有: `web/lib/data/period.ts` |
-| E2 | 母集団の拡大 | E1 | AC-1〜AC-4, AC-5b, AC-8 | 取得の窓を12か月に広げる（ADR-0011）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
-| E3 | ロゴの追随 | E2 | AC-8 | 新規社ぶんを `npm run build:logos` で調達する。※共有: `logo` 施策 |
-| E4 | 10年推移の追随 | E2 | AC-8 | 新規社ぶん10年を取得する。※共有: `timeseries` 施策 |
-| E5 | 働きやすさ指標の再突合 | E2 | AC-8 | 新しい母集団で `extract.ts` を回し直す。※共有: `worklife` 施策 |
-| E0 | 初回ロードのペイロード方式 | なし | AC-5, AC-6 | 全件embedをやめる（ADR-0012）。**拡大の前提条件ではない**（実測で予算内）。余白と Worker の CPU のために入れる。※共有: ranking の絞り込み状態 |
+| E1 | [決算期を幅で出す](https://github.com/varmil/nenshu/issues/172) | なし | AC-7 | `dominantFiscalPeriod` の「代表を1つ」をやめる。site-chrome の S3 を改訂する。※共有: `web/lib/data/period.ts` |
+| E2 | [母集団の拡大](https://github.com/varmil/nenshu/issues/173) | E1（#172） | AC-1〜AC-4, AC-5b, AC-8 | 取得の窓を12か月に広げる（ADR-0011）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
+| E3 | [ロゴの追随](https://github.com/varmil/nenshu/issues/175) | E2（#173） | AC-8 | 新規社ぶんを `npm run build:logos` で調達する。※共有: `logo` 施策 |
+| E4 | [10年推移の追随](https://github.com/varmil/nenshu/issues/176) | E2（#173） | AC-8 | 新規社ぶん10年を取得する。※共有: `timeseries` 施策 |
+| E5 | [働きやすさ指標の再突合](https://github.com/varmil/nenshu/issues/177) | E2（#173） | AC-8 | 新しい母集団で `extract.ts` を回し直す。※共有: `worklife` 施策 |
+| E0 | [初回ロードのペイロード方式](https://github.com/varmil/nenshu/issues/174) | なし | AC-5, AC-6 | 全件embedをやめる（ADR-0012）。**拡大の前提条件ではない**（実測で予算内）。余白と Worker の CPU のために入れる。※共有: ranking の絞り込み状態 |
 
 ## 実施順序
 
