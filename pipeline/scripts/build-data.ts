@@ -141,7 +141,7 @@ export function buildData(outDir: string) {
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
-  const profitHistory = buildProfitHistory(rows, companyRows);
+  const profitHistory = buildProfitHistory(rows, companyRows, history.years);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -266,6 +266,8 @@ function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: 
     else list.push(row);
   }
 
+  // データ全体の最終年。会社ごとの「新しさ」をこれと比べる。
+  const latestYear = Math.max(...historyRows.map((r) => r.year));
   const years = new Set<number>();
   const perEmployee: (number | null)[] = [];
   const byIndustry = new Map<string, number[]>();
@@ -282,6 +284,18 @@ function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: 
     // その会社が持つ年のうち**新しい5つ**。決算期は会社ごとにずれるので、
     // 固定の年で切らずに会社ごとの並びから採る。
     const recent = [...list].sort((a, b) => b.year - a.year).slice(0, PERFORMANCE_YEARS);
+    /*
+     * **最新年が古すぎる会社は落とす。**
+     *
+     * 「直近5期」は最新年から遡って数えるので、最後に経常利益を開示したのが
+     * 8年前の会社では 2014〜2018年の中央値が「稼ぐ力」として画面に出る。
+     * **古い数字を最新のものとして見せない。** 該当は1〜2社で、そこは
+     * レーダーの軸も「掲載なし」になる。
+     */
+    if (recent[0].year < latestYear - 1) {
+      perEmployee.push(null);
+      continue;
+    }
     for (const r of recent) years.add(r.year);
     const value = Math.round(median(recent.map((r) => r.ordinaryIncome)) / employees);
     perEmployee.push(value);
@@ -395,12 +409,21 @@ function buildRadar(
  */
 function buildProfitHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
-  companyRows: readonly (readonly (string | number)[])[]
+  companyRows: readonly (readonly (string | number)[])[],
+  years: readonly number[]
 ) {
   const csvPath = resolve(ROOT, "data/performance_history.csv");
   const historyRows = parsePerformanceHistoryCsv(readFileSync(csvPath, "utf-8"));
 
-  const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
+  /*
+   * **年の範囲は平均年収の推移（`history.json`）に合わせる。**
+   *
+   * CSV には2013年まで入っている——2017年の書類が5期ぶんの経常利益を持つため。
+   * だが**従業員数はその年の書類の当期からしか取れない**ので、2016年以前は
+   * 分母が無く稼ぐ力が出ない。それ以上に、**この節は平均年収推移の直後に置いて
+   * 同じ10年を見比べるためのもの**（アートボード 6e）で、片方だけ14本の棒に
+   * なると横軸が揃わない。
+   */
   const yearIndex = new Map(years.map((y, i) => [y, i]));
 
   type Series = { profit: (number | null)[]; income: (number | null)[]; employees: (number | null)[] };
@@ -415,7 +438,8 @@ function buildProfitHistory(
       };
       byEdinetCode.set(row.edinetCode, series);
     }
-    const i = yearIndex.get(row.year)!;
+    const i = yearIndex.get(row.year);
+    if (i === undefined) continue;
     series.income[i] = row.ordinaryIncome;
     // 連結が無い年は単体で代用する（P0 と同じ規則）。
     const employees = row.employeesConsolidated ?? row.employeesNonConsolidated;
@@ -437,7 +461,7 @@ function buildProfitHistory(
     employees[id] = series.employees;
   });
 
-  return { years, profit, income, employees };
+  return { years: [...years], profit, income, employees };
 }
 
 /** 中央値。偶数個なら中央2つの平均。 */
