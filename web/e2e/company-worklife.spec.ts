@@ -159,15 +159,18 @@ test.describe("AC-11 表示基準と独立", () => {
 
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
 
     await expect(overtime).toContainText("20.3");
     await expect(metric(page, "男女の賃金の差異")).toContainText("67.0");
     expect(requests).toHaveLength(0);
   });
 
-  test("?age=60 を直接開いても同じ値", async ({ page }) => {
-    await page.goto("/company/7203?age=60");
+  // 表示基準は URL に出さない（R1・ADR-0012）。60歳を選んでも自己申告値は変わらない。
+  test("60歳そろえにしても同じ値", async ({ page }) => {
+    await page.goto("/company/7203");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await page.getByRole("button", { name: "60歳" }).click();
     await expect(metric(page, "平均残業時間")).toContainText("20.3");
     await expect(metric(page, "男女の賃金の差異")).toContainText("67.0");
   });
