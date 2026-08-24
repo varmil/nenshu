@@ -28,7 +28,7 @@ Issue: [#167](https://github.com/varmil/nenshu/issues/167) ／ 親 [#154](https:
 | 軸 | 母集団 |
 | --- | ---: |
 | 平均年収・定着 | 1,867社 |
-| 稼ぐ力 | 1,864社 |
+| 稼ぐ力 | 1,865社 |
 | 有給の取得 | 895社 |
 | 残業の少なさ | 974社 |
 
@@ -76,7 +76,7 @@ Issue: [#167](https://github.com/varmil/nenshu/issues/167) ／ 親 [#154](https:
 | --- | --- | --- |
 | `上位82%` | `895社中883位` | **`上位82%` は上から82%の位置の意味だが、日本語としては上位＝良いに読める。** キーエンスの有給は実データで883/895位なので、「上位99%」と出ると事実と逆の印象になる。「画面には数字だけを出し、水準は順位で読ませる」という既存の判断（偏差値の「上位◯%」を2026-08-20 に外した件）にも揃う |
 | リストの並びが 年収→残業→有給→定着→稼ぐ力 | **図と同じ時計回り**（年収→有給→定着→稼ぐ力→残業） | 図とリストの対応が取れる。モックの並びには規則が読み取れなかった |
-| 稼ぐ力 `1,240万円`・電気機器の中央値 `310万円` | `4,062万円`・`181万円` | モックの数値は仮のもの。実データを出す |
+| 稼ぐ力 `1,240万円`・電気機器の中央値 `310万円` | `4,062万円`・`191万円` | モックの数値は仮のもの。実データを出す |
 
 ## `radar.json` は順位だけを持つ
 
@@ -115,7 +115,7 @@ Issue: [#167](https://github.com/varmil/nenshu/issues/167) ／ 親 [#154](https:
 | --- | --- |
 | `web/features/company/lib/radar.ts` | 代表値・順位・位置・軸の組み立て。**pipeline も import する**（alias を使わない） |
 | `pipeline/scripts/build-data.ts` | `buildRadar()`。4軸の順位をビルド時に確定 |
-| `web/public/data/radar.json` | gzip 28.0KB（上限48KB） |
+| `web/public/data/radar.json` | gzip 11.0KB（上限48KB） |
 | `web/features/company/components/OverviewRadar.tsx` | SVG |
 | `web/features/company/components/OverviewSection.tsx` | 節（図＋指標リスト＋注記） |
 | `web/features/company/lib/radar.test.ts` | 規則の単体テスト |

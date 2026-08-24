@@ -30,8 +30,26 @@ ROOT = Path(__file__).resolve().parent
 HISTORY = ROOT / "../data/salary_history.csv"
 OUT = ROOT / "../data/performance_history.csv"
 
-OI = "jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults"
-EMPLOYEES = "jpcrp_cor:NumberOfEmployees"
+# **経常利益の要素は2つの綴りがある。名前空間は見ない。**
+#
+# 標準は `jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults` だが、**会社独自の
+# 名前空間で拡張している会社がある**——東京製鐵は
+# `jpcrp030000-asr_E01261-000:OrdinaryProfitSummaryOfBusinessResults` を使っており、
+# `jpcrp_cor:` で決め打ちすると2018年以降が丸ごと取れない（そして5期ぶんを遡る
+# 性質上、**2013〜2017年だけが残って「10年前の数字が最新」になる**）。
+#
+# **`OrdinaryIncomeSummaryOfBusinessResults`（`Loss` が付かない綴り）は採らない。
+# あれは「経常収益」で、売上に相当する別の指標である。** 三菱UFJは経常収益
+# 14.6兆円・経常利益 3.4兆円の両方を持っており、取り違えると銀行業・保険業の
+# 業種中央値が桁で変わる（実際に 保険業 889万円 → 10,995万円 になった）。
+OI_LOCAL_NAMES = {
+    "OrdinaryIncomeLossSummaryOfBusinessResults",  # 標準。大半がこれ
+    "OrdinaryProfitSummaryOfBusinessResults",  # 会社独自の名前空間で拡張（東京製鐵）
+}
+# 上の2つで経常収益が紛れたことは無いが、**ラベルで二重に止める**。独自拡張の
+# 要素はラベルが空になるので、「空でなく、かつ経常収益」のときだけ弾く。
+OI_REJECT_LABEL = "経常収益"
+EMPLOYEES_LOCAL_NAME = "NumberOfEmployees"
 
 # 「主要な経営指標等の推移」のコンテキスト。**当期からの遡り年数**を持つ。
 OI_CONTEXTS = {
@@ -84,18 +102,20 @@ def parse(path):
             if len(cols) < 9:
                 continue
             elem = cols[0].strip().strip('"')
+            label = cols[1].strip().strip('"')
             ctx = cols[2].strip().strip('"')
             value = cols[8].strip().strip('"')
             if value in ("", "－", "-", "－"):
                 continue
-            if elem == OI:
+            local = elem.split(":")[-1]
+            if local in OI_LOCAL_NAMES and OI_REJECT_LABEL not in label:
                 if ctx in OI_CONTEXTS:
                     oi.setdefault(OI_CONTEXTS[ctx], num(value))
                 elif ctx.endswith("_NonConsolidatedMember"):
                     base = ctx[: -len("_NonConsolidatedMember")]
                     if base in OI_CONTEXTS:
                         oi_nc.setdefault(OI_CONTEXTS[base], num(value))
-            elif elem == EMPLOYEES:
+            elif local == EMPLOYEES_LOCAL_NAME:
                 if ctx == "CurrentYearInstant":
                     emp_c = emp_c if emp_c is not None else num(value)
                 elif ctx == "CurrentYearInstant_NonConsolidatedMember":

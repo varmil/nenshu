@@ -17,7 +17,12 @@ import type {
   RadarData,
 } from "@/features/company/lib/radar";
 import { companyMetadata } from "@/lib/seo/company";
-import type { CompanyStatsData, CompanyView, SalaryHistory } from "@/features/company/types";
+import type {
+  CompanyStatsData,
+  CompanyView,
+  ProfitHistory,
+  SalaryHistory,
+} from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { fiscalPeriodLabel } from "@/lib/data/period";
 import companiesData from "../../../public/data/companies.json";
@@ -27,6 +32,7 @@ import historyData from "../../../public/data/history.json";
 import worklifeData from "../../../public/data/worklife.json";
 import radarData from "../../../public/data/radar.json";
 import performanceData from "../../../public/data/performance.json";
+import profitHistoryData from "../../../public/data/profit-history.json";
 import logosData from "../../../public/data/logos.json";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 
@@ -59,6 +65,17 @@ const radar = radarData as unknown as RadarData;
  */
 const performance = performanceData as unknown as PerformanceData;
 
+/**
+ * 稼ぐ力の10年推移（P2・Issue #168）。**`app/page.tsx` からは読まない**
+ * ——渡すのは当該1社ぶんだけ（Issue #22）。
+ */
+const profitHistory = profitHistoryData as unknown as {
+  years: number[];
+  profit: Record<string, (number | null)[]>;
+  income: Record<string, (number | null)[]>;
+  employees: Record<string, (number | null)[]>;
+};
+
 const logoIds = logosData.byId as Record<string, unknown>;
 
 /**
@@ -77,6 +94,18 @@ function logoIdsOnPage(view: CompanyView): string[] {
 function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
   return values === undefined ? null : { years: history.years, values };
+}
+
+/** 稼ぐ力の推移。全年 `null` の会社はキーごと落としてあるので `undefined` になる。 */
+function profitHistoryFor(id: string): ProfitHistory | null {
+  const profit = profitHistory.profit[id];
+  if (profit === undefined) return null;
+  return {
+    years: profitHistory.years,
+    profit,
+    income: profitHistory.income[id] ?? [],
+    employees: profitHistory.employees[id] ?? [],
+  };
 }
 
 /**
@@ -178,6 +207,7 @@ export default async function CompanyPage({ params }: Props) {
         radar={radarFor(view.id, worklifeRecord)}
         worklife={buildWorklifeView(worklifeRecord)}
         history={historyFor(view.id)}
+        profitHistory={profitHistoryFor(view.id)}
         fiscalPeriod={fiscalPeriodLabel(companies.meta)}
       />
     </LogoIdsProvider>
