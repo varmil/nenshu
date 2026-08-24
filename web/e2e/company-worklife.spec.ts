@@ -202,3 +202,80 @@ test.describe("AC-12 レイアウトと初期HTML", () => {
     expect(html).toContain("残業・有給・男女の賃金の差異");
   });
 });
+
+/*
+ * Issue 191（2巡目・アートボード 6b / 6c）。W1 は「空のメモリを描くと器の長さが
+ * 先に目に入る」として塗られたメモリだけを並べていたが、**下敷きが無いと
+ * 目盛りの基準が消え、10.5 と 26.0 の差がどれだけのうちの差か読めない。**
+ */
+test.describe("モックとの一致（2巡目）", () => {
+  /** 実際に塗られている面積を持つか。`transparent` は 0 で返る。 */
+  const alphaOf = (color: string) => {
+    const m = color.match(/[\d.]+/g);
+    if (m === null) return 0;
+    return m.length >= 4 ? Number(m[3]) : 1;
+  };
+
+  test("バーにグレーの下敷きがある（残業・有給とも）", async ({ page }) => {
+    await page.goto("/company/8058");
+    for (const label of ["平均残業時間", "年次有給休暇の取得率"]) {
+      const track = metric(page, label).locator("dd span[aria-hidden] ").first();
+      const bg = await track.evaluate((el) => getComputedStyle(el).backgroundColor);
+      expect(alphaOf(bg)).toBeGreaterThan(0);
+    }
+  });
+
+  test("塗りは器の中で値の割合ぶんだけ伸びる（10.5 は 26.0 より短い）", async ({ page }) => {
+    await page.goto("/company/8058");
+    const widths = await metric(page, "平均残業時間")
+      .locator("dd span[aria-hidden]")
+      .evaluateAll((tracks) =>
+        tracks.map((t) => {
+          const fill = t.firstElementChild as HTMLElement | null;
+          return fill === null ? -1 : Math.round(fill.getBoundingClientRect().width);
+        })
+      );
+    // 「その他 10.5」「総合職 14.1」——器は同じ幅なので、塗りの長さで比べられる。
+    expect(widths[0]).toBeGreaterThan(0);
+    expect(widths[1]).toBeGreaterThan(widths[0]);
+  });
+
+  test("器の幅は全行そろう（左端も右端も動かない）", async ({ page }) => {
+    await page.goto("/company/8058");
+    const boxes = await metric(page, "平均残業時間")
+      .locator("dd span[aria-hidden]")
+      .evaluateAll((tracks) =>
+        tracks.map((t) => {
+          const r = t.getBoundingClientRect();
+          return [Math.round(r.left), Math.round(r.width)];
+        })
+      );
+    expect(boxes.length).toBeGreaterThan(1);
+    for (const box of boxes) expect(box).toEqual(boxes[0]);
+  });
+
+  test("賃金の差異は全労働者だけ太く、内訳は muted になる", async ({ page }) => {
+    await page.goto("/company/7203");
+    const rows = await metric(page, "男女の賃金の差異")
+      .locator("dd > div > div")
+      .evaluateAll((lines) =>
+        lines.map((line) => {
+          const [label, value] = [...line.children] as HTMLElement[];
+          return {
+            text: label.textContent,
+            labelColor: getComputedStyle(label).color,
+            weight: Number(getComputedStyle(value).fontWeight),
+            size: Math.round(parseFloat(getComputedStyle(value).fontSize)),
+          };
+        })
+      );
+    expect(rows).toHaveLength(3);
+    expect(rows[0].weight).toBeGreaterThanOrEqual(600);
+    // うち正規・うち非正規は太字をやめ、一段小さく、ラベルを muted に。
+    for (const row of rows.slice(1)) {
+      expect(row.weight).toBeLessThan(600);
+      expect(row.size).toBeLessThan(rows[0].size);
+      expect(row.labelColor).not.toBe(rows[0].labelColor);
+    }
+  });
+});

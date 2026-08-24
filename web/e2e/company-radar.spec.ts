@@ -139,6 +139,89 @@ test.describe("AC-11 表示基準", () => {
   });
 });
 
+/*
+ * Issue 191（2巡目・アートボード 6a / 6b）。**図が小さかった原因は
+ * `@container` を `<svg>` 自身に置いていたこと**——`container-type: inline-size`
+ * はその要素の縦横比を無かったことにするので、`height: auto` が置換要素の既定
+ * （150px）に落ち、`preserveAspectRatio` が図全体を半分に縮めていた。
+ * **型チェックもUnitテストも通る壊れ方**なので、比をブラウザで見張る。
+ */
+test.describe("モックとの一致（2巡目）", () => {
+  const RATIO = 232 / 300;
+
+  for (const [label, width] of [
+    ["PC", 1280],
+    ["モバイル", 390],
+  ] as const) {
+    test(`${label}: 図が viewBox の比のまま伸びる（潰れていない）`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.goto("/company/6861");
+      const box = (await chart(page).boundingBox())!;
+      expect(box.height / box.width).toBeCloseTo(RATIO, 2);
+      // 器いっぱい（PC は 340px 固定、モバイルは本文幅）まで使う。
+      expect(box.width).toBeGreaterThan(300);
+    });
+  }
+
+  test("PC の左列は 340px 固定（アートボード 6b の `340px 1fr`）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    expect((await chart(page).boundingBox())!.width).toBe(340);
+  });
+
+  test("指標リストは 年収 → 残業 → 有給 → 定着 → 稼ぐ力 の順", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    // **稼ぐ力は行の高さが1つだけ高いので最後**（業種中央値が下に付く）。
+    const labels = await section(page).locator("dl dt").allInnerTexts();
+    const expected = ["平均年収（有報）", "残業の少なさ", "有給の取得", "定着（在籍）", "稼ぐ力"];
+    expect(labels).toHaveLength(expected.length);
+    // 区分名や「1人あたり経常利益」が後ろに付く行があるので前方一致で見る。
+    labels.forEach((label, i) => expect(label.startsWith(expected[i])).toBe(true));
+  });
+
+  test("値の右端と順位の左端が全行でそろう", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    const edges = await section(page)
+      .locator("dl > div")
+      .evaluateAll((rows) =>
+        rows.map((row) => {
+          const spans = row.querySelectorAll("dd > span");
+          return [
+            Math.round(spans[0].getBoundingClientRect().right),
+            Math.round(spans[1].getBoundingClientRect().left),
+          ];
+        })
+      );
+    expect(edges).toHaveLength(5);
+    // 掲載なしの行も同じ幅の空きを残す（詰めるとその行だけ右へ寄る）。
+    for (const edge of edges) expect(edge).toEqual(edges[0]);
+  });
+
+  test("稼ぐ力の業種中央値は値と同じ右端にそろう（右寄せ）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    const row = section(page).locator("dl > div").last();
+    const [rankRight, medianRight] = await row.evaluate((el) => {
+      const spans = el.querySelectorAll("dd > span");
+      return [
+        Math.round(spans[1].getBoundingClientRect().right),
+        Math.round(spans[2].getBoundingClientRect().right),
+      ];
+    });
+    await expect(row).toContainText("電気機器の中央値");
+    expect(medianRight).toBe(rankRight);
+  });
+
+  test("有給の値がどの雇用管理区分のものかが添う", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    // キーエンスの有給は区分「正社員」1件（`representativeValue` の規則）。
+    await expect(section(page).locator("dl dt").nth(2)).toContainText("正社員");
+  });
+});
+
 test.describe("レイアウト", () => {
   test("390px で横スクロールが出ない", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });

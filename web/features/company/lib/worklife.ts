@@ -21,6 +21,12 @@ export interface WorklifeValueRow {
    * バーを描かない指標（男女の賃金の差異）は `null`。
    */
   ratio: number | null;
+  /**
+   * その指標の**内訳の行**か（アートボード 6b・6c の `うち正規` / `うち非正規`）。
+   * `true` の行はラベルを muted に、値を一段小さい通常体にする——**太字が
+   * 3つ並ぶと、どれが会社全体の値なのかが読み取れない**（Issue #191）。
+   */
+  subordinate?: boolean;
 }
 
 export interface WorklifeMetricView {
@@ -97,12 +103,14 @@ function withAll(
 /** 男女の賃金の差異の3つ。**バーは描かない**（アートボード 6b・6c）。 */
 function wageGapRows(record: WorklifeRecord): WorklifeValueRow[] {
   const out: WorklifeValueRow[] = [];
-  const push = (label: string, value: number | null) => {
-    if (value !== null) out.push({ label, value, ratio: null });
+  const push = (label: string, value: number | null, subordinate = false) => {
+    if (value !== null) out.push({ label, value, ratio: null, subordinate });
   };
+  // **全労働者だけが会社全体の値。** `うち正規` / `うち非正規` はその内訳なので
+  // 一段弱める（アートボード 6b・6c）。
   push("全労働者", record.wageGapAll);
-  push("うち正規", record.wageGapRegular);
-  push("うち非正規", record.wageGapNonRegular);
+  push("うち正規", record.wageGapRegular, true);
+  push("うち非正規", record.wageGapNonRegular, true);
   return out;
 }
 
