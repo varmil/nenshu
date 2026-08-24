@@ -14,7 +14,15 @@ import {
   defaultIconCandidates,
 } from "./lib/logo/site";
 import { Candidate, sortCandidates } from "./lib/logo/candidates";
-import { probe, reject, normalize, looksLikeSvg, icoToImage, ImageProbe } from "./lib/logo/image";
+import {
+  probe,
+  reject,
+  normalize,
+  looksLikeSvg,
+  icoToImage,
+  blankOnLight,
+  ImageProbe,
+} from "./lib/logo/image";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = resolve(ROOT, "logo-cache");
@@ -45,6 +53,24 @@ export type LogosJson = {
   };
   byId: Record<string, LogoEntry>;
 };
+
+export type LogoIdsJson = { ids: string[] };
+
+/**
+ * ロゴを持つ会社の**IDだけ**を並べたもの（R0・`docs/runtime/spec.md` 2.3）。
+ * これが `logo-ids.json`（raw 11.3KB・`JSON.parse` 0.099ms）になる。
+ *
+ * **`/` と `/company/[id]` はこちらを読む。** 画面が `logos.json`（raw 202KB・
+ * 1.236ms）から使うのは「その会社にロゴがあるか」だけで、`w`/`h`/`from`/`lic` は
+ * `/about` の帰属表示しか見ていない（Issue #118・AC-1・AC-2）。
+ *
+ * **`companies.rows` と同じ並びのマスクにしない。** マスクにするとこの生成が
+ * `companies.json` の行の並びに依存し、`build-data.ts` → `build-logos.ts` →
+ * `build-data.ts` の循環ができる（`docs/runtime/overview.md`）。
+ */
+export function logoIdsJson(logos: LogosJson): LogoIdsJson {
+  return { ids: Object.keys(logos.byId) };
+}
 
 type Company = { id: string; name: string; houjin: string };
 
@@ -149,13 +175,25 @@ async function main() {
   );
 
   // 6. 索引を書いて検証する
+  const dropped = new Set<string>();
   for (const company of targets) {
-    if (!entries[company.id] && previous?.byId[company.id]) {
-      // 取れなかった会社は既存の記録を残す。消すと、直しに来たはずが画像を1枚減らして帰ることになる
-      console.warn(`  ${company.id}（${company.name}）は取れませんでした。前回の記録を残します`);
+    if (entries[company.id] || !previous?.byId[company.id]) continue;
+    // 取れなかった会社は既存の記録を残す。消すと、直しに来たはずが画像を1枚減らして帰ることになる。
+    // **ただし残すのは、いま配っている画像がいまの判定を通るときだけ。** 通らないものを残すと、
+    // 直しに来た当の対象をそのまま置いて帰ることになる（Issue #156 の白いロゴがこれ）
+    const file = resolve(logosDir, `${company.id}.webp`);
+    if (existsSync(file) && (await blankOnLight(readFileSync(file)))) {
+      console.warn(`  ${company.id}（${company.name}）は代わりが無いので記録を消します（頭文字に戻る）`);
+      dropped.add(company.id);
+      rmSync(file);
+      continue;
     }
+    console.warn(`  ${company.id}（${company.name}）は取れませんでした。前回の記録を残します`);
   }
-  const byId = previous ? { ...previous.byId, ...entries } : entries;
+  const carried = previous
+    ? Object.fromEntries(Object.entries(previous.byId).filter(([id]) => !dropped.has(id)))
+    : null;
+  const byId = carried ? { ...carried, ...entries } : entries;
   const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0 };
   for (const e of Object.values(byId)) bySource[e.src]++;
   const json: LogosJson = {
@@ -171,6 +209,7 @@ async function main() {
     byId,
   };
   writeFileSync(resolve(publicDir, "data/logos.json"), JSON.stringify(json));
+  writeFileSync(resolve(publicDir, "data/logo-ids.json"), JSON.stringify(logoIdsJson(json)));
   // 部分実行では対象外の画像が全部「余り」に見えるので掃除しない
   if (!only) pruneOrphans(logosDir, written);
 
@@ -277,6 +316,12 @@ async function pick(fetcher: Fetcher, candidates: readonly Candidate[]): Promise
     try {
       // 20KBを超えたら画質を落として入れ直す。捨てるのは最後の手段にする
       let webp = await normalize(body, svg);
+      // 白いロゴは明るい器の上で空白のマス目になる（Issue #156）。**画質を落とす前に見る**——
+      // 白いことは画質と関わりが無いので、落として入れ直しても結論は変わらない
+      if (await blankOnLight(webp)) {
+        reasons.push("blankOnLight");
+        continue;
+      }
       for (const quality of [58, 40]) {
         if (webp.length <= MAX_FILE_BYTES) break;
         webp = await normalize(body, svg, quality);

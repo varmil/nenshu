@@ -85,3 +85,7 @@ spec.md の 2.（表示）すべて。
 ## 対象外
 
 働きやすさランキング、順位・偏差値・スコア、総合評価、女性活躍DBの他の項目、若者雇用促進総合サイト。`docs/worklife/intent.md`「作らないもの」を参照。
+
+## 他施策から触られる箇所
+
+**W1 が `worklife.json` を `/company/[id]` に足すときは ADR-0011 を通る。** このファイルは raw 491KB・`JSON.parse` 1.568ms（実測）で、丸ごと import すると `/company/[id]` の cold な `JSON.parse` が 2.45ms から 4.02ms に戻る。**使うのは当該1社ぶんだけ**なので、runtime 施策の R0（Issue #165）が `logos.json` に対してやったのと同じ切り出しが要るかを、実装の前に判断すること。

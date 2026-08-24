@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
+import { estimateSalary } from "@/features/ranking/lib/salary";
 import { findNeighbors, NEIGHBOR_COUNT } from "./neighbors";
 
 const companies = companiesData as CompaniesData;
@@ -57,5 +58,68 @@ describe("findNeighbors（AC-12）", () => {
 
   it("存在しないIDなら空配列", () => {
     expect(findNeighbors(companies, curves, "存在しない", null)).toEqual([]);
+  });
+});
+
+/*
+ * isolate ごとの索引に置き換えた（R0・`docs/runtime/spec.md` AC-7・Issue #165）。
+ * `findNeighbors` は1リクエストで9回（表示基準のぶん）呼ばれるので、そのたびに
+ * `companies.rows`（1,867行）を `find` と `filter` で走査すると、延べ 33,606行を
+ * 数え直すことになる。
+ *
+ * **索引にして戻り値が1件でも変われば別の会社を「水準が近い会社」として出す。**
+ * 素直に全表を走査する実装と突き合わせて固定する。
+ */
+describe("索引に置き換えても結果が変わらない", () => {
+  const naive = (id: string, targetAge: 25 | 35 | 60 | null) => {
+    const self = companies.rows.find((row) => row[0] === id)!;
+    const salaryOf = (row: (typeof companies.rows)[number]) => {
+      if (targetAge === null) return row[6];
+      const key = companies.curveKeys[row[3]];
+      const values = curves.curves[key].map((v) => v * 1000);
+      const points = curves.agePoints;
+      // 円に直したカーブで、view と同じ推定式を使う
+      return estimateSalary(row[6], row[4], values, points, targetAge);
+    };
+    const selfSalary = salaryOf(self);
+    const industry = companies.rows
+      .filter((row) => row[2] === self[2])
+      .map((row) => ({ id: row[0], salary: salaryOf(row) }))
+      .sort((a, b) => b.salary - a.salary);
+    let previousSalary = Number.NaN;
+    let previousRank = 0;
+    const ranked = industry.map((company, index) => {
+      const industryRank = company.salary === previousSalary ? previousRank : index + 1;
+      previousSalary = company.salary;
+      previousRank = industryRank;
+      return { ...company, industryRank };
+    });
+    return ranked
+      .filter((company) => company.id !== id)
+      .sort((a, b) => Math.abs(a.salary - selfSalary) - Math.abs(b.salary - selfSalary))
+      .slice(0, NEIGHBOR_COUNT)
+      .sort((a, b) => b.salary - a.salary)
+      .map((c) => [c.id, c.salary, c.industryRank]);
+  };
+
+  // 業種の大きさが端（情報・通信業173社／鉱業2社）の会社と、EDINETコードの会社
+  const ids = ["6861", "9432", "4686", "1662", "1515", "E11701"];
+  for (const id of ids) {
+    for (const age of [null, 25, 35, 60] as const) {
+      it(`${id} / ${age ?? "実測値"} で同じ5社・同じ金額・同じ業界内順位を返す`, () => {
+        const got = findNeighbors(companies, curves, id, age).map((n) => [
+          n.id,
+          n.salary,
+          n.industryRank,
+        ]);
+        expect(got).toEqual(naive(id, age));
+      });
+    }
+  }
+
+  it("同じ引数で2回呼んでも同じ結果（索引を持ち回しても汚れない）", () => {
+    const first = findNeighbors(companies, curves, "6861", 35);
+    const second = findNeighbors(companies, curves, "6861", 35);
+    expect(second).toEqual(first);
   });
 });

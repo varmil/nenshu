@@ -1,4 +1,7 @@
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { logoIdsJson, type LogoEntry, type LogoIdsJson, type LogosJson } from "./build-logos";
 import { extractCandidates, manifestIcons, manifestUrl, absolute } from "./lib/logo/site";
 import { sortCandidates, parseSizes, toOrigin, Candidate } from "./lib/logo/candidates";
 import { icoMaxSize, looksLikeSvg } from "./lib/logo/image";
@@ -285,6 +288,101 @@ describe("壊れている画像の判定", () => {
   });
 });
 
+describe("明るい器で見えないロゴの判定（Issue #156）", () => {
+  /** 透明の地に、指定色の帯を1本だけ置いた図（＝ワードマークの代わり） */
+  const wordmark = async (rgba: [number, number, number, number], border?: [number, number, number]) => {
+    const sharp = (await import("sharp")).default;
+    const bar = {
+      input: {
+        create: {
+          width: 90,
+          height: 12,
+          channels: 4 as const,
+          background: { r: rgba[0], g: rgba[1], b: rgba[2], alpha: rgba[3] / 255 },
+        },
+      },
+      left: 15,
+      top: 14,
+    };
+    const composite = border
+      ? [
+          {
+            input: {
+              create: {
+                width: 96,
+                height: 18,
+                channels: 4 as const,
+                background: { r: border[0], g: border[1], b: border[2], alpha: 1 },
+              },
+            },
+            left: 12,
+            top: 11,
+          },
+          bar,
+        ]
+      : [bar];
+    return sharp({
+      create: { width: 120, height: 40, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite(composite)
+      .png()
+      .toBuffer();
+  };
+
+  it("白いワードマークは空白と見なす", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 255]))).toBe(true);
+  });
+
+  it("黒いワードマークは残す", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([0, 0, 0, 255]))).toBe(false);
+  });
+
+  it("薄いアルファの白も空白と見なす（重ねてから見る）", async () => {
+    // 生の RGB は白、アルファは 40。**アルファを掛けずに見ると白い画素として数えられ、
+    // 掛けても白のまま**——どちらにせよ明るい器の上には何も乗らない
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 40]))).toBe(true);
+  });
+
+  it("薄いアルファの黒は残す（重ねると灰色のインクになる）", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([0, 0, 0, 160]))).toBe(false);
+  });
+
+  it("色の付いた縁を持つ白抜きロゴは残す", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 255], [200, 30, 40]))).toBe(false);
+  });
+
+  it("ほとんど白い薄い灰色も空白と見なす", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([246, 246, 246, 255]))).toBe(true);
+  });
+});
+
+describe("配っている画像（web/public/logos/）", () => {
+  it("明るい器の上で空白に見える画像を1枚も配らない", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const { blankOnLight } = await import("./lib/logo/image");
+    const { mapLimit } = await import("./lib/logo/fetcher");
+
+    // 判定を足すのは安いが、**足す前に配ってしまったものは残る**。
+    // 実際に Issue #156 の時点で50枚（1,636枚中3.1%）が空白のマス目として出ていた。
+    // パイプラインを回すのは年1回なので、見張りはリポジトリ側に置く
+    const dir = resolve(__dirname, "../../web/public/logos");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".webp"));
+    expect(files.length).toBeGreaterThan(1400);
+    const blank: string[] = [];
+    await mapLimit(files, 8, async (file) => {
+      if (await blankOnLight(readFileSync(resolve(dir, file)))) blank.push(file);
+    });
+    expect(blank.sort()).toEqual([]);
+  }, 60_000);
+});
+
 describe("ICO の展開（sharp は ICO を読めない）", () => {
   const dirEntry = (w: number, h: number, length: number, offset: number) => {
     const b = Buffer.alloc(16);
@@ -368,5 +466,38 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
       large,
     ]);
     expect((await probe((await icoToImage(ico))!))!.w).toBe(128);
+  });
+});
+
+/**
+ * `logo-ids.json` の切り出し（R0・`docs/runtime/spec.md` AC-4・Issue #165）。
+ *
+ * **`/` と `/company/[id]` が使うのは「ロゴがあるか」だけ**で、`w`/`h`/`from`/`lic`
+ * を見ているのは `/about` の帰属表示だけ。それでも `logos.json`（raw 202KB）を
+ * 丸ごと import すると、使わない 191KB が isolate の初回リクエストで
+ * `JSON.parse` される（Issue #118）。
+ */
+describe("logo-ids.json", () => {
+  const entry = (): LogoEntry => ({ w: 100, h: 40, src: "header", from: "https://example.co.jp/logo.svg" });
+
+  it("byId のキーだけを並べる", () => {
+    const logos = {
+      meta: {} as LogosJson["meta"],
+      byId: { "6861": entry(), "8058": entry() },
+    };
+    expect(logoIdsJson(logos)).toEqual({ ids: ["6861", "8058"] });
+  });
+
+  it("寸法も出典も持ち込まない（持ち込むと分けた意味が無くなる）", () => {
+    const logos = { meta: {} as LogosJson["meta"], byId: { "6861": entry() } };
+    expect(JSON.stringify(logoIdsJson(logos))).not.toContain("example.co.jp");
+  });
+
+  it("公開中の logo-ids.json が logos.json と揃っている（生成し忘れを止める）", () => {
+    const dir = resolve(__dirname, "../../web/public/data");
+    const logos = JSON.parse(readFileSync(resolve(dir, "logos.json"), "utf-8")) as LogosJson;
+    const ids = JSON.parse(readFileSync(resolve(dir, "logo-ids.json"), "utf-8")) as LogoIdsJson;
+    expect(new Set(ids.ids)).toEqual(new Set(Object.keys(logos.byId)));
+    expect(ids.ids.length).toBe(Object.keys(logos.byId).length);
   });
 });
