@@ -2,7 +2,11 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseUnifiedCsv, parseSalaryHistoryCsv } from "./lib/csv";
+import {
+  parseUnifiedCsv,
+  parseSalaryHistoryCsv,
+  parsePerformanceHistoryCsv,
+} from "./lib/csv";
 import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
@@ -18,6 +22,11 @@ const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
 // 上限を 160KB に置く。増分の6割が注釈なので、超えたらそこを別ファイルにする
 // （`docs/worklife/overview.md`）。
 const WORKLIFE_JSON_GZIP_LIMIT_BYTES = 160 * 1024;
+// 実測 8.6KB（1,867社ぶんの整数1本と業種33件の中央値だけ）。数値の配列2本しか
+// 持たないので、桁が変わったら中身が変わったということ。上限は 32KB に置く。
+const PERFORMANCE_JSON_GZIP_LIMIT_BYTES = 32 * 1024;
+/** 稼ぐ力の中央値を採る期間（`docs/performance/spec.md` 1.2）。 */
+const PERFORMANCE_YEARS = 5;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -125,6 +134,7 @@ export function buildData(outDir: string) {
   const stats = buildStats(companies, curves);
   const history = buildHistory(rows, companyRows);
   const worklife = buildWorklife(companyRows);
+  const performance = buildPerformance(rows, industries);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -132,14 +142,17 @@ export function buildData(outDir: string) {
   const statsPath = resolve(outDir, "stats.json");
   const historyPath = resolve(outDir, "history.json");
   const worklifePath = resolve(outDir, "worklife.json");
+  const performancePath = resolve(outDir, "performance.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
+  const performanceJson = JSON.stringify(performance);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
   writeFileSync(historyPath, historyJson);
   writeFileSync(worklifePath, worklifeJson);
+  writeFileSync(performancePath, performanceJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -162,21 +175,116 @@ export function buildData(outDir: string) {
     );
   }
 
+  const performanceGzipSize = gzipSync(performanceJson).length;
+  if (performanceGzipSize > PERFORMANCE_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `performance.json のgzipサイズが上限(32KB)を超えています: ${(performanceGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
     statsPath,
     historyPath,
     worklifePath,
+    performancePath,
     companies,
     curves,
     stats,
     history,
     worklife,
+    performance,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
+    performanceGzipSize,
   };
+}
+
+/**
+ * 稼ぐ力＝一人当たり経常利益（P0・`docs/performance/spec.md` 1.2・Issue #155）。
+ *
+ * ```
+ * 稼ぐ力 ＝ 連結の経常利益（直近5期の中央値） ÷ 連結の従業員数
+ * ```
+ *
+ * **連結で組む**（親 Issue #154 の決定）。単体だと分子が実質的に子会社からの配当に
+ * なる会社が173社あり、**軸の上位が持株会社で埋まる**——そうなるとこの指標は
+ * 稼ぐ力ではなく「本社に人を置いていないか」を測ることになり、「本社のみ」バッジと
+ * 役割が重なる。連結なら持株会社が事業会社と同じ土俵に乗り、例外処理が1つも要らない。
+ *
+ * **中央値を採るのは1期の減損で順位が決まらないようにするため。**
+ * **赤字は負のまま持つ**（59社。捨てると「データが無い」と区別できなくなる）。
+ *
+ * **このファイルが持つのは金額と業種中央値だけ。** レーダーの頂点をどこに打つかは
+ * 表示側（P1）が決める——目盛りの決め方を変えてもデータを作り直さずに済む。
+ *
+ * **`/` は読まない。** 企業詳細ページだけが読む（Issue #22）。
+ */
+function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: string[]) {
+  const csvPath = resolve(ROOT, "data/performance_history.csv");
+  const historyRows = parsePerformanceHistoryCsv(readFileSync(csvPath, "utf-8"));
+
+  const byEdinetCode = new Map<string, { year: number; ordinaryIncome: number }[]>();
+  for (const row of historyRows) {
+    const list = byEdinetCode.get(row.edinetCode);
+    if (list === undefined) byEdinetCode.set(row.edinetCode, [row]);
+    else list.push(row);
+  }
+
+  const years = new Set<number>();
+  const perEmployee: (number | null)[] = [];
+  const byIndustry = new Map<string, number[]>();
+  let matched = 0;
+
+  for (const row of rows) {
+    const list = byEdinetCode.get(row.edinetCode);
+    // **連結が無ければ単体で代用する**（連結財務諸表を作っていない191社）。
+    const employees = row.employeesConsolidated ?? row.employeesNonConsolidated;
+    if (list === undefined || list.length === 0 || !employees) {
+      perEmployee.push(null);
+      continue;
+    }
+    // その会社が持つ年のうち**新しい5つ**。決算期は会社ごとにずれるので、
+    // 固定の年で切らずに会社ごとの並びから採る。
+    const recent = [...list].sort((a, b) => b.year - a.year).slice(0, PERFORMANCE_YEARS);
+    for (const r of recent) years.add(r.year);
+    const value = Math.round(median(recent.map((r) => r.ordinaryIncome)) / employees);
+    perEmployee.push(value);
+    matched++;
+    const list2 = byIndustry.get(row.tse33);
+    if (list2 === undefined) byIndustry.set(row.tse33, [value]);
+    else list2.push(value);
+  }
+
+  // **業種中央値を併記しないと読み違える。** 一人当たり利益は海運業2,524万円・
+  // 輸送用機器131万円と19倍開くので、全社を一列に並べるとレーダーが業種の
+  // 当たり外れを表示するだけになる（spec 1.3）。**平均ではなく中央値**を採るのは
+  // 1社の外れ値に引きずられないため（電気機器はキーエンスが桁で外れる）。
+  const industryMedian = industries.map((name) => {
+    const values = byIndustry.get(name);
+    return values === undefined || values.length === 0 ? null : Math.round(median(values));
+  });
+
+  return {
+    meta: {
+      count: rows.length,
+      matched,
+      years: [...years].sort((a, b) => a - b),
+    },
+    /** `companies.rows` と同じ並び。**ずれると別の会社の稼ぐ力を出す。** */
+    perEmployee,
+    /** `companies.industries` と同じ並び。 */
+    industryMedian,
+  };
+}
+
+/** 中央値。偶数個なら中央2つの平均。 */
+function median(values: readonly number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = sorted.length >> 1;
+  return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**
@@ -445,5 +553,10 @@ if (isMain) {
   console.log(
     `${result.worklifePath}: ${result.worklife.meta.matched}社, ` +
       `gzip ${(result.worklifeGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.performancePath}: ${result.performance.meta.matched}社 ` +
+      `（${result.performance.meta.years.at(0)}〜${result.performance.meta.years.at(-1)}年）, ` +
+      `gzip ${(result.performanceGzipSize / 1024).toFixed(1)}KB`
   );
 }

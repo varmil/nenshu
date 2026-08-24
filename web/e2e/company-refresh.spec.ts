@@ -423,7 +423,9 @@ test.describe("C3 モックとの一致", () => {
 
   test("見せ方の帯にラベルと説明文が付いている", async ({ page }) => {
     await page.goto("/company/6861");
-    await expect(page.getByText("見せ方")).toBeVisible();
+    // **`exact` が要る。** W1（#150）が足した節の説明文が「上の『見せ方』とは
+    // 関係なく」と本文で帯を参照しており、部分一致だと2要素に当たる。
+    await expect(page.getByText("見せ方", { exact: true })).toBeVisible();
     // 平均年齢はカードの中にも出ているので、帯のヒントには繰り返さない（Issue #128）。
     await expect(page.getByText("有価証券報告書の数値そのまま", { exact: true })).toBeVisible();
     // 実測値でも年齢スイッチは残る（AC-11）。

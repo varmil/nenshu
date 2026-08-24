@@ -429,6 +429,69 @@ describe("buildData", () => {
       expect(result.worklifeGzipSize).toBeLessThanOrEqual(160 * 1024);
     });
   });
+
+  /**
+   * 稼ぐ力＝一人当たり経常利益（P0・#155・`docs/performance/spec.md` AC-1〜AC-4）。
+   */
+  describe("performance.json", () => {
+    const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
+
+    it("AC-1 1,864社ぶんの値が入る（取れなかったのは3社）", () => {
+      expect(result.performance.meta.count).toBe(1867);
+      expect(result.performance.meta.matched).toBe(1864);
+      expect(result.performance.meta.years).toEqual([2022, 2023, 2024, 2025, 2026]);
+    });
+
+    it("perEmployee が companies.rows と同じ並び・同じ長さ", () => {
+      // **ずれると別の会社の稼ぐ力を出す。** stats.json・worklife.json と同じ制約。
+      expect(result.performance.perEmployee.length).toBe(result.companies.rows.length);
+      expect(result.performance.perEmployee[indexOf("6861")]).toBe(40620698);
+    });
+
+    it("AC-2 銀行業・保険業・その他金融業が欠けない", () => {
+      // 営業利益が無いことを理由に欠損にしない。三菱UFJフィナンシャル・グループ。
+      expect(result.performance.perEmployee[indexOf("8306")]).toBeGreaterThan(0);
+      for (const name of ["銀行業", "保険業", "その他金融業"]) {
+        const median = result.performance.industryMedian[result.companies.industries.indexOf(name)];
+        expect(median, name).not.toBeNull();
+        expect(median!, name).toBeGreaterThan(0);
+      }
+    });
+
+    it("AC-3 赤字は負のまま残る（捨てるとデータ無しと区別できない）", () => {
+      // ソフトバンクグループ。5期の中央値が負になる会社は59社ある。
+      expect(result.performance.perEmployee[indexOf("9984")]).toBeLessThan(0);
+      expect(result.performance.perEmployee.filter((v) => v !== null && v < 0).length).toBe(59);
+    });
+
+    it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
+      // `sourceRows` と `companies.rows` は同じ並びなので添字がそのまま使える。
+      const missing = sourceRows.flatMap((row, i) => (row.employeesConsolidated === null ? [i] : []));
+      expect(missing.length).toBe(191);
+      // 代用しないとこの191社が丸ごと欠ける。
+      const filled = missing.filter((i) => result.performance.perEmployee[i] !== null);
+      expect(filled.length).toBeGreaterThan(150);
+    });
+
+    it("業種中央値が industries と同じ並び・同じ長さ", () => {
+      expect(result.performance.industryMedian.length).toBe(result.companies.industries.length);
+      // **中央値であって平均ではない**——電気機器はキーエンスが桁で外れる。
+      const electric =
+        result.performance.industryMedian[result.companies.industries.indexOf("電気機器")]!;
+      expect(electric).toBe(1810637);
+      expect(result.performance.perEmployee[indexOf("6861")]! / electric).toBeGreaterThan(20);
+    });
+
+    it("業種によって中央値が桁で違う（併記が要る理由）", () => {
+      const median = (name: string) =>
+        result.performance.industryMedian[result.companies.industries.indexOf(name)]!;
+      expect(median("海運業") / median("輸送用機器")).toBeGreaterThan(15);
+    });
+
+    it("AC-4 gzip後サイズが上限(32KB)以内", () => {
+      expect(result.performanceGzipSize).toBeLessThanOrEqual(32 * 1024);
+    });
+  });
 });
 
 /**
