@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
 import { SiteHeader } from "@/features/navigation/components/SiteHeader";
@@ -9,6 +9,13 @@ import {
   buildClarityScript,
   isClarityEnabled,
 } from "@/lib/analytics/clarity";
+import {
+  APPLE_TOUCH_ICON,
+  FAVICON_PNG,
+  FAVICON_SVG,
+  WEB_MANIFEST,
+} from "@/lib/brand/assets";
+import { BRAND_COLOR } from "@/lib/brand/colors";
 import { METADATA_BASE } from "@/lib/seo/site";
 
 export const metadata: Metadata = {
@@ -20,6 +27,46 @@ export const metadata: Metadata = {
   title: "OpenReport | 有価証券報告書ベースの平均年収ランキング",
   description:
     "金融庁 EDINET の有価証券報告書に載っている平均年間給与そのままの実測値で、上場・非上場の年収を比較する。平均年齢の違いをならした推定年収に切り替えて並べ直すこともできる。",
+  /*
+    ブランドのアイコン（S4・Issue #163）。パスと寸法は `lib/brand/assets.ts` が正。
+
+    **SVG を先頭に置く。** 濃色サーフェスでの色の切り替えを持っているのは
+    SVG だけで（`@media (prefers-color-scheme: dark)` を中に書いてある）、
+    PNG は1色しか持てないフォールバックである。
+
+    **`/favicon.ico` は `<link>` に出さない。** 出すと SVG より先に選ぶ
+    ブラウザがあり、切り替えを持たないほうが使われる。固定パスで取りに来る
+    相手（RSSリーダー等）のためにファイル自体は `public/` に置いてある。
+  */
+  icons: {
+    icon: [
+      { url: FAVICON_SVG, type: "image/svg+xml" },
+      ...FAVICON_PNG.map(({ path, size }) => ({
+        url: path,
+        type: "image/png",
+        sizes: `${size}x${size}`,
+      })),
+    ],
+    apple: {
+      url: APPLE_TOUCH_ICON.path,
+      type: "image/png",
+      sizes: `${APPLE_TOUCH_ICON.size}x${APPLE_TOUCH_ICON.size}`,
+    },
+  },
+  manifest: WEB_MANIFEST,
+};
+
+/*
+ * ブラウザのUIを塗る色（S4・AC-24）。**CSS変数を受け付けない**ので、
+ * `lib/brand/colors.ts` の hex を渡す（そこがトークンと一致することは
+ * `colors.test.ts` が固定している）。
+ *
+ * **表示モードで出し分けない。** ライト/ダークの選択は `<html>` のクラスが正で
+ * サーバーには送らない（`docs/site-chrome/site-header-theme/design.md`）ため、
+ * ここでモードを見ることはできない。1色に決め打つ。
+ */
+export const viewport: Viewport = {
+  themeColor: BRAND_COLOR,
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

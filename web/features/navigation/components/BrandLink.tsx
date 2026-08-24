@@ -14,6 +14,11 @@ import { pushRankingReset } from "@/features/ranking/lib/queryBroadcast";
  *
  * `/` 以外のページでは素の `<Link>` として振る舞う。修飾キー付き（新しいタブで開く）
  * はブラウザに任せる——`IndustryChips` と同じ扱い。
+ *
+ * **色は `--primary`**（S4・Issue #163・`docs/site-chrome/spec.md` 6.3）。
+ * 地の文と同じ色だと、ブランドと隣のナビゲーションの区別が付かない。
+ * **画像にはしない**——文字のままのほうが選択・検索・拡大のどれでも勝り、
+ * この要素が担っている「絞り込みを解く」振る舞いも変わらない。
  */
 export function BrandLink() {
   const pathname = usePathname();
@@ -33,7 +38,7 @@ export function BrandLink() {
       ページ（gzip 72KB）。全ページのヘッダから先読みさせる価値はない。
       理由の詳細は RankingTable.tsx。
     */
-    <NavLink href="/" prefetch={false} onClick={handleClick} className="text-base font-bold sm:text-lg">
+    <NavLink href="/" prefetch={false} onClick={handleClick} className="text-primary text-base font-bold sm:text-lg">
       OpenReport
     </NavLink>
   );
