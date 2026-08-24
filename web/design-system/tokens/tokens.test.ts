@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { parseOklch, toLinearSrgb } from "./oklch";
+import { readTokenBlock, type Tokens } from "./readTokens";
 
 /*
  * tokens.css の色トークンを固定するテスト（Issue #62）。
@@ -14,50 +16,8 @@ import { describe, expect, it } from "vitest";
 const cssPath = fileURLToPath(new URL("./tokens.css", import.meta.url));
 const css = readFileSync(cssPath, "utf8");
 
-type Tokens = Record<string, string>;
-
-/** `:root { ... }` / `.dark { ... }` ブロックの custom property を取り出す。 */
-function parseBlock(selector: string): Tokens {
-  const pattern = new RegExp(`${selector.replace(".", "\\.")}\\s*\\{([\\s\\S]*?)\\n\\}`);
-  const body = css.match(pattern)?.[1];
-  if (body === undefined) {
-    throw new Error(`tokens.css に ${selector} ブロックが見つからない`);
-  }
-  const tokens: Tokens = {};
-  for (const [, name, value] of body.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
-    tokens[name] = value.trim();
-  }
-  return tokens;
-}
-
-const root = parseBlock(":root");
-const dark = parseBlock(".dark");
-
-/** oklch(L C H) / oklch(L C H / A) をパースする。A は白背景合成のために使う。 */
-function parseOklch(value: string): { l: number; c: number; h: number; alpha: number } {
-  const match = value.match(
-    /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*(?:\/\s*([\d.]+)(%?)\s*)?\)$/,
-  );
-  if (!match) throw new Error(`oklch として読めない: ${value}`);
-  const [, l, c, h, a, pct] = match;
-  const alpha = a === undefined ? 1 : Number(a) / (pct === "%" ? 100 : 1);
-  return { l: Number(l), c: Number(c), h: Number(h), alpha };
-}
-
-/** Oklab → 線形sRGB。https://bottosson.github.io/posts/oklab/ の逆変換。 */
-function toLinearSrgb({ l: L, c: C, h: H }: { l: number; c: number; h: number }) {
-  const rad = (H * Math.PI) / 180;
-  const a = C * Math.cos(rad);
-  const b = C * Math.sin(rad);
-  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
-  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
-  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
-  return [
-    4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
-    -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
-    -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
-  ].map((channel) => Math.min(1, Math.max(0, channel)));
-}
+const root = readTokenBlock(":root");
+const dark = readTokenBlock(".dark");
 
 /** WCAG 2.1 の相対輝度。線形sRGBなので係数を掛けるだけでよい。 */
 function relativeLuminance(value: string): number {
