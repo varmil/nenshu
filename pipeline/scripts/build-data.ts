@@ -123,6 +123,7 @@ export function buildData(outDir: string) {
   };
 
   const stats = buildStats(companies, curves);
+  const population = pickPopulation(stats);
   const history = buildHistory(rows, companyRows);
   const worklife = buildWorklife(companyRows);
 
@@ -130,6 +131,7 @@ export function buildData(outDir: string) {
   const companiesPath = resolve(outDir, "companies.json");
   const curvesPath = resolve(outDir, "curves.json");
   const statsPath = resolve(outDir, "stats.json");
+  const populationPath = resolve(outDir, "population.json");
   const historyPath = resolve(outDir, "history.json");
   const worklifePath = resolve(outDir, "worklife.json");
   const companiesJson = JSON.stringify(companies);
@@ -138,6 +140,7 @@ export function buildData(outDir: string) {
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
+  writeFileSync(populationPath, JSON.stringify(population));
   writeFileSync(historyPath, historyJson);
   writeFileSync(worklifePath, worklifeJson);
 
@@ -166,17 +169,48 @@ export function buildData(outDir: string) {
     companiesPath,
     curvesPath,
     statsPath,
+    populationPath,
     historyPath,
     worklifePath,
     companies,
     curves,
     stats,
+    population,
     history,
     worklife,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
   };
+}
+
+/**
+ * `stats.json` から母集団の統計だけを切り出したもの（R0・`docs/runtime/spec.md` 2.3）。
+ * これが `population.json` になる。
+ */
+export type PopulationJson = {
+  bases: (number | null)[];
+  count: number;
+  population: { mean: number; sd: number }[];
+};
+
+/**
+ * `/` が読むのはここだけ（337B）なのに、`stats.json` を丸ごと読むと 131KB を
+ * `JSON.parse` することになる。**import したファイルは、1バイトしか使わなくても
+ * 丸ごと解析され、しかも isolate の初回リクエストに課金される**（R0・Issue #118）。
+ *
+ * **`stats.json` は残す。** `/company/[id]` は `rankAll`・`rankIndustry`・
+ * `distribution` を使うので、あちらは丸ごと要る。
+ *
+ * 切り出した値が元とずれないことは、ここが同じオブジェクトを参照していることと
+ * `build-data.test.ts` の突き合わせで担保する（AC-5）。
+ */
+export function pickPopulation(stats: {
+  bases: (number | null)[];
+  count: number;
+  population: { mean: number; sd: number }[];
+}): PopulationJson {
+  return { bases: stats.bases, count: stats.count, population: stats.population };
 }
 
 /**
@@ -438,6 +472,7 @@ if (isMain) {
   console.log(`${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB`);
   console.log(result.curvesPath);
   console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
+  console.log(`${result.populationPath}: ${result.population.population.length}表示基準ぶんの母集団`);
   console.log(
     `${result.historyPath}: ${Object.keys(result.history.byId).length}社 × ${result.history.years.length}年, ` +
       `gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
