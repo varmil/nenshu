@@ -285,6 +285,101 @@ describe("壊れている画像の判定", () => {
   });
 });
 
+describe("明るい器で見えないロゴの判定（Issue #156）", () => {
+  /** 透明の地に、指定色の帯を1本だけ置いた図（＝ワードマークの代わり） */
+  const wordmark = async (rgba: [number, number, number, number], border?: [number, number, number]) => {
+    const sharp = (await import("sharp")).default;
+    const bar = {
+      input: {
+        create: {
+          width: 90,
+          height: 12,
+          channels: 4 as const,
+          background: { r: rgba[0], g: rgba[1], b: rgba[2], alpha: rgba[3] / 255 },
+        },
+      },
+      left: 15,
+      top: 14,
+    };
+    const composite = border
+      ? [
+          {
+            input: {
+              create: {
+                width: 96,
+                height: 18,
+                channels: 4 as const,
+                background: { r: border[0], g: border[1], b: border[2], alpha: 1 },
+              },
+            },
+            left: 12,
+            top: 11,
+          },
+          bar,
+        ]
+      : [bar];
+    return sharp({
+      create: { width: 120, height: 40, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite(composite)
+      .png()
+      .toBuffer();
+  };
+
+  it("白いワードマークは空白と見なす", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 255]))).toBe(true);
+  });
+
+  it("黒いワードマークは残す", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([0, 0, 0, 255]))).toBe(false);
+  });
+
+  it("薄いアルファの白も空白と見なす（重ねてから見る）", async () => {
+    // 生の RGB は白、アルファは 40。**アルファを掛けずに見ると白い画素として数えられ、
+    // 掛けても白のまま**——どちらにせよ明るい器の上には何も乗らない
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 40]))).toBe(true);
+  });
+
+  it("薄いアルファの黒は残す（重ねると灰色のインクになる）", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([0, 0, 0, 160]))).toBe(false);
+  });
+
+  it("色の付いた縁を持つ白抜きロゴは残す", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([255, 255, 255, 255], [200, 30, 40]))).toBe(false);
+  });
+
+  it("ほとんど白い薄い灰色も空白と見なす", async () => {
+    const { blankOnLight } = await import("./lib/logo/image");
+    expect(await blankOnLight(await wordmark([246, 246, 246, 255]))).toBe(true);
+  });
+});
+
+describe("配っている画像（web/public/logos/）", () => {
+  it("明るい器の上で空白に見える画像を1枚も配らない", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const { blankOnLight } = await import("./lib/logo/image");
+    const { mapLimit } = await import("./lib/logo/fetcher");
+
+    // 判定を足すのは安いが、**足す前に配ってしまったものは残る**。
+    // 実際に Issue #156 の時点で50枚（1,636枚中3.1%）が空白のマス目として出ていた。
+    // パイプラインを回すのは年1回なので、見張りはリポジトリ側に置く
+    const dir = resolve(__dirname, "../../web/public/logos");
+    const files = readdirSync(dir).filter((f) => f.endsWith(".webp"));
+    expect(files.length).toBeGreaterThan(1400);
+    const blank: string[] = [];
+    await mapLimit(files, 8, async (file) => {
+      if (await blankOnLight(readFileSync(resolve(dir, file)))) blank.push(file);
+    });
+    expect(blank.sort()).toEqual([]);
+  }, 60_000);
+});
+
 describe("ICO の展開（sharp は ICO を読めない）", () => {
   const dirEntry = (w: number, h: number, length: number, offset: number) => {
     const b = Buffer.alloc(16);

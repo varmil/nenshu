@@ -14,7 +14,15 @@ import {
   defaultIconCandidates,
 } from "./lib/logo/site";
 import { Candidate, sortCandidates } from "./lib/logo/candidates";
-import { probe, reject, normalize, looksLikeSvg, icoToImage, ImageProbe } from "./lib/logo/image";
+import {
+  probe,
+  reject,
+  normalize,
+  looksLikeSvg,
+  icoToImage,
+  blankOnLight,
+  ImageProbe,
+} from "./lib/logo/image";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = resolve(ROOT, "logo-cache");
@@ -149,13 +157,25 @@ async function main() {
   );
 
   // 6. 索引を書いて検証する
+  const dropped = new Set<string>();
   for (const company of targets) {
-    if (!entries[company.id] && previous?.byId[company.id]) {
-      // 取れなかった会社は既存の記録を残す。消すと、直しに来たはずが画像を1枚減らして帰ることになる
-      console.warn(`  ${company.id}（${company.name}）は取れませんでした。前回の記録を残します`);
+    if (entries[company.id] || !previous?.byId[company.id]) continue;
+    // 取れなかった会社は既存の記録を残す。消すと、直しに来たはずが画像を1枚減らして帰ることになる。
+    // **ただし残すのは、いま配っている画像がいまの判定を通るときだけ。** 通らないものを残すと、
+    // 直しに来た当の対象をそのまま置いて帰ることになる（Issue #156 の白いロゴがこれ）
+    const file = resolve(logosDir, `${company.id}.webp`);
+    if (existsSync(file) && (await blankOnLight(readFileSync(file)))) {
+      console.warn(`  ${company.id}（${company.name}）は代わりが無いので記録を消します（頭文字に戻る）`);
+      dropped.add(company.id);
+      rmSync(file);
+      continue;
     }
+    console.warn(`  ${company.id}（${company.name}）は取れませんでした。前回の記録を残します`);
   }
-  const byId = previous ? { ...previous.byId, ...entries } : entries;
+  const carried = previous
+    ? Object.fromEntries(Object.entries(previous.byId).filter(([id]) => !dropped.has(id)))
+    : null;
+  const byId = carried ? { ...carried, ...entries } : entries;
   const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0 };
   for (const e of Object.values(byId)) bySource[e.src]++;
   const json: LogosJson = {
@@ -277,6 +297,12 @@ async function pick(fetcher: Fetcher, candidates: readonly Candidate[]): Promise
     try {
       // 20KBを超えたら画質を落として入れ直す。捨てるのは最後の手段にする
       let webp = await normalize(body, svg);
+      // 白いロゴは明るい器の上で空白のマス目になる（Issue #156）。**画質を落とす前に見る**——
+      // 白いことは画質と関わりが無いので、落として入れ直しても結論は変わらない
+      if (await blankOnLight(webp)) {
+        reasons.push("blankOnLight");
+        continue;
+      }
       for (const quality of [58, 40]) {
         if (webp.length <= MAX_FILE_BYTES) break;
         webp = await normalize(body, svg, quality);

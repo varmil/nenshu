@@ -106,7 +106,7 @@ ranking-pagination・company-page・company-refresh・theme）
 
 ## /about の帰属表示
 
-`attributionCredits` が `attr: true` のものだけを拾う（**44社**）。パブリックドメインの394社は並べない——帰属を求めていないものまで並べると、本当に帰属が要る44件が埋もれる。
+`attributionCredits` が `attr: true` のものだけを拾う（**44社**）。パブリックドメインの397社は並べない——帰属を求めていないものまで並べると、本当に帰属が要る44件が埋もれる。
 
 出典そのもの（Commons 441社・公式サイト 1,195社）と、**ロゴが各社の商標であること**は節の本文に書く。
 
