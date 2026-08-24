@@ -19,47 +19,36 @@ const keyence = buildCompanyView(companies, curves, stats, "6861")!;
 const PERIOD = "2026年3月期";
 
 describe("companyPageMeta", () => {
-  it("実測値では有報そのままの金額を出し、推定の語を出さない（AC-9）", () => {
-    const meta = companyPageMeta(keyence, null, PERIOD);
+  it("有報そのままの金額を出し、推定の語を出さない（AC-9）", () => {
+    const meta = companyPageMeta(keyence, PERIOD);
     expect(meta.title).toBe("株式会社キーエンスの平均年収 | 有価証券報告書は2,178万円");
     expect(meta.description).toContain("平均年間給与は2,178万円");
     expect(meta.title).not.toContain("推定");
     expect(meta.description).not.toContain("推定");
   });
 
-  it("年齢そろえでは年齢とその年齢の金額が入る", () => {
-    const at25 = companyPageMeta(keyence, 25, PERIOD);
-    expect(at25.title).toBe("株式会社キーエンスの年収 | 25歳時点の推定は788万円");
-    expect(at25.description).toContain("25歳時点の推定年収は788万円");
-    expect(at25.description).toContain("推定値です");
-  });
-
   /**
-   * U16 が直しているのはここ。**表示基準ごとにタイトルが違う**からこそ、
-   * 切り替えたときに更新しないと画面の金額と食い違う（親 Issue #130）。
+   * **表示基準を引数に取らない**（R1・ADR-0012）。`?age=` を無くしたので、
+   * 1つのURLに対してメタデータは1つしか存在しない。U16 が企業詳細で直していた
+   * 食い違い（親 Issue #130）は起きようが無くなった。
    */
-  it("表示基準ごとにタイトルが変わる", () => {
-    const titles = new Set(
-      [null, 25, 30, 40, 60].map((age) => companyPageMeta(keyence, age as null, PERIOD).title)
-    );
-    expect(titles.size).toBe(5);
+  it("同じ会社なら常に同じメタデータを返す（表示基準で変わらない）", () => {
+    expect(companyPageMeta(keyence, PERIOD)).toEqual(companyPageMeta(keyence, PERIOD));
   });
 
-  it("canonical は表示基準に依らず素の `/company/[id]`（ADR-0006）", () => {
-    // `?age=N` を付けると1,867社×9基準の16,803 URL を申告することになる。
-    for (const age of [null, 25, 35, 60] as const) {
-      expect(companyPageMeta(keyence, age, PERIOD).canonical).toBe("/company/6861");
-    }
+  it("canonical は素の `/company/[id]`（ADR-0006）", () => {
+    // 配ってしまった `?age=N` のリンクの寄せ先として、canonical は変わらず必要。
+    expect(companyPageMeta(keyence, PERIOD).canonical).toBe("/company/6861");
   });
 
   it("順位は全体と業界内の両方を description に出す", () => {
-    const meta = companyPageMeta(keyence, null, PERIOD);
+    const meta = companyPageMeta(keyence, PERIOD);
     expect(meta.description).toContain("全1,867社中1位");
     expect(meta.description).toContain("電気機器");
   });
 
   it("`companyMetadata` は `companyPageMeta` を包むだけ", () => {
     // 文言が2か所に分かれていないことをここで固定する（U16 の要）。
-    expect(companyMetadata(keyence, 35, PERIOD)).toEqual(toMetadata(companyPageMeta(keyence, 35, PERIOD)));
+    expect(companyMetadata(keyence, PERIOD)).toEqual(toMetadata(companyPageMeta(keyence, PERIOD)));
   });
 });

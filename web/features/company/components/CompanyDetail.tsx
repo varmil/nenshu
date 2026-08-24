@@ -1,7 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { NavLink } from "@/features/navigation/components/NavLink";
-import { useLocationSyncedState } from "@/lib/history/useLocationSyncedState";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { Badge } from "@/design-system/ui/badge";
@@ -15,7 +15,7 @@ import {
   formatInt,
   formatManYen,
 } from "@/features/ranking/lib/format";
-import { TARGET_AGES, type TargetAge } from "@/features/ranking/types";
+import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, SalaryHistory } from "../types";
 import {
   formatDeviation,
@@ -38,44 +38,36 @@ import {
   buildHistorySummary,
 } from "../lib/highlights";
 
-function parseAge(raw: string | null): TargetAge | null {
-  const n = Number(raw);
-  return (TARGET_AGES as readonly number[]).includes(n)
-    ? (n as TargetAge)
-    : null;
-}
-
-/** URL → 表示基準。`age` が無ければ実測値（既定、ADR-0007）。 */
-function readTargetAge(params: URLSearchParams): TargetAge | null {
-  return parseAge(params.get("age"));
-}
-
 /**
- * 表示基準 → 検索文字列。実測値（既定）は `age` を出さない。年齢そろえなら
- * 35歳でも出す——`age` の有無そのものが表示基準を表しているため（ADR-0007）。
- */
-function targetAgeSearch(targetAge: TargetAge | null): string {
-  return targetAge === null ? "" : `age=${targetAge}`;
-}
-
-/**
- * 表示基準と `?age=` の同期。
+ * 表示基準（実測値／年齢そろえ）。**URL には出さない**（R1・ADR-0012）。
  *
- * 規則はランキングと同じもの（`lib/history/useLocationSyncedState`）を使う。
- * **以前はここに同じ処理を書き写していて、ランキング側だけを直すと企業詳細に
- * 同じ壊れ方が残る形になっていた**（Issue #108: ランキングへ遷移してから戻ると、
- * 抜けていく途中のこのフックがランキングのURLを `?age=` だけに書き潰し、
- * 画面は企業ページのまま動かなくなっていた）。
+ * 以前は `?age=N` として `useLocationSyncedState` で同期していた。やめた理由は2つ。
+ *
+ * 1. **このページを事前生成するため。** `force-static` のページは `searchParams` を
+ *    読めない。読めるようにすると1,867枚がまた毎リクエストの描画に戻る（Issue #118）
+ * 2. **年齢そろえで変わるのは推定年収まわりだけで、ページ全体ではない。** 実測値の節も
+ *    10年推移も変わらない。ページ全体にかかるパラメータとして持つと、後から項目が
+ *    増えるほど「URLが指しているのは何なのか」が曖昧になる。いずれ推定年収の要素に
+ *    付いたスイッチへ寄せる
  *
  * `useRankingState` を共用しないのは変わらない。あちらは7つの値とページ番号を持ち、
  * その大半は企業ページに存在しない概念になる。
  */
-function useTargetAge(initialAge: TargetAge | null) {
-  const [targetAge, setTargetAge] = useLocationSyncedState(
-    initialAge,
-    readTargetAge,
-    targetAgeSearch
-  );
+function useTargetAge() {
+  const [targetAge, setTargetAge] = useState<TargetAge | null>(null);
+
+  /*
+   * 配ってしまった `?age=N` のリンクは掃除する。**読みはしない**——読むと 1. の
+   * 「URLが正」に半分戻ることになる。落とさずに置くと、URL は35歳・画面は実測値、
+   * という食い違いがそのまま残る（親 Issue #130 が報告したのはこの形の DOM だった）。
+   * `replaceState` なので履歴は増えない。
+   */
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("age")) return;
+    url.searchParams.delete("age");
+    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   return { targetAge, setTargetAge };
 }
@@ -83,13 +75,11 @@ function useTargetAge(initialAge: TargetAge | null) {
 export function CompanyDetail({
   view,
   history,
-  initialAge,
   fiscalPeriod,
 }: {
   view: CompanyView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
-  initialAge: TargetAge | null;
   /**
    * 掲載データの決算期（`2026年3月期`）。**文字列にするのはサーバー側**
    * （`app/company/[id]/page.tsx` が `lib/data/period.ts` を通す）で、ここは
@@ -98,13 +88,16 @@ export function CompanyDetail({
    */
   fiscalPeriod: string;
 }) {
-  const { targetAge, setTargetAge } = useTargetAge(initialAge);
-  /**
-   * タイトルには金額が入る（`キーエンスの平均年収 | 有価証券報告書は2,178万円`）ので、
-   * 表示基準を切り替えたまま放っておくと**タイトルと画面の金額が食い違う**
-   * （U16・親 Issue #130）。文言はサーバーの `generateMetadata` と同じ関数から引く。
+  const { targetAge, setTargetAge } = useTargetAge();
+  /*
+   * **表示基準では動かない。この会社のメタデータは1組しかない**（R1・ADR-0012）。
+   * それでも書くのは、**ランキングから遷移してきたときに前のページの canonical と
+   * description が `<head>` に残るため**。`usePageMeta` は DOM を直接書き換えるので
+   * React の管理外にあり、遷移しても元に戻らない（`<title>` だけは React が
+   * 書き戻すので、書かないと「タイトルは会社・canonical は `/?age=40`」になる。
+   * `e2e/metadata.spec.ts` の進む/戻るのテストが実際にこれを捕まえた）。
    */
-  usePageMeta(companyPageMeta(view, targetAge, fiscalPeriod));
+  usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
   const isRaw = targetAge === null;
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、

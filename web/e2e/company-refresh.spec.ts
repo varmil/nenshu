@@ -54,7 +54,7 @@ test.describe("AC-12 水準が近い会社", () => {
     const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     expect(requests).toHaveLength(0);
   });
 });
@@ -74,7 +74,8 @@ test.describe("AC-13 分布の中での位置", () => {
     const bins = () => page.getByText(/全1,867社の分布/).locator("xpath=../ul[1]/li");
     const before = await bins().first().textContent();
 
-    await page.goto("/company/6861?age=25");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await page.getByRole("button", { name: "25歳" }).click();
     const after = await bins().first().textContent();
     expect(after).not.toBe(before);
   });
@@ -157,7 +158,7 @@ test.describe("T1 平均年収推移（10年）", () => {
     const before = await historyRows(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     expect(await historyRows(page)).toEqual(before);
   });
 
@@ -368,7 +369,8 @@ test.describe("C3 モックとの一致", () => {
   });
 
   test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
 
     const table = page
       .getByRole("heading", { name: "年齢別の推定年収" })
@@ -386,7 +388,8 @@ test.describe("C3 モックとの一致", () => {
 
   // 説明文は数値から機械的に導ける事実だけ（spec 1.11 と同じ線）。
   test("説明文が最高水準の年齢と伸びの最大区間を述べる", async ({ page }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
     // C4 で到達年齢の文が1文目に入り、最高水準は2文目になった（#146）。
     await expect(page.getByText("最も高い水準は55歳の2,699万円")).toBeVisible();
     await expect(page.getByText("25歳から30歳の伸びが最も大きく")).toBeVisible();
@@ -547,7 +550,8 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
       });
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
     const pc = await measure();
     expect(pc.max).toBeLessThanOrEqual(14.5);
     expect(pc.min).toBeGreaterThanOrEqual(9);
@@ -674,7 +678,7 @@ test.describe("C4 説明文の強化", () => {
     const before = await first.textContent();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     expect(await first.textContent()).toBe(before);
   });
 

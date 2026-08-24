@@ -14,6 +14,18 @@ import { collectPageRequests } from "./network";
  */
 const card = (page: import("@playwright/test").Page) => page.locator("dl").first();
 
+/**
+ * 年齢そろえに切り替え、指定の年齢を選ぶ。
+ *
+ * **`/company/6861?age=35` を直接開く形はもう使えない**（R1・ADR-0012）。企業詳細は
+ * 全社を事前生成しており、表示基準は URL に出さずクライアントの状態としてだけ持つ。
+ * 「年齢そろえ」の初期値は35歳（`DEFAULT_TARGET_AGE`）。
+ */
+async function alignToAge(page: import("@playwright/test").Page, age: number) {
+  await page.getByRole("button", { name: "年齢そろえ" }).click();
+  if (age !== 35) await page.getByRole("button", { name: `${age}歳` }).click();
+}
+
 test.describe("企業詳細ページ", () => {
   // 既定は実測値（ADR-0007）。有報の平均年間給与そのままで、順位も偏差値も
   // 実測値の分布に対して出す。
@@ -41,8 +53,9 @@ test.describe("企業詳細ページ", () => {
     await expect(rawFacts.getByText("3,306人", { exact: true })).toBeVisible();
   });
 
-  test("AC-1: /company/6861?age=35 でキーエンスの35歳時点の数値が出る", async ({ page }) => {
-    await page.goto("/company/6861?age=35");
+  test("AC-1: 年齢そろえ（35歳）でキーエンスの35歳時点の数値が出る", async ({ page }) => {
+    await page.goto("/company/6861");
+    await alignToAge(page, 35);
 
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
@@ -63,14 +76,15 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
   });
 
-  test("見せ方を「年齢そろえ」に切り替えると35歳の推定になり、URLに age=35 が出る", async ({
+  // 表示基準は URL に出さない（R1・ADR-0012）。切り替えても URL は素のまま。
+  test("見せ方を「年齢そろえ」に切り替えると35歳の推定になり、URLは変わらない", async ({
     page,
   }) => {
     await page.goto("/company/6861");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page).toHaveURL(/\/company\/6861$/);
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByRole("button", { name: "25歳" })).toBeEnabled();
   });
@@ -85,7 +99,8 @@ test.describe("企業詳細ページ", () => {
   test("AC-2: 偏差値は数字だけを出し、順位と位置バーが同じ視界にある", async ({
     page,
   }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await alignToAge(page, 35);
 
     await expect(page.getByText("年収偏差値")).toBeVisible();
     const deviation = page.locator("dd").filter({ hasText: /^150\.0$/ });
@@ -103,7 +118,8 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-2: /company/7203（トヨタ）の順位", async ({ page }) => {
-    await page.goto("/company/7203?age=35");
+    await page.goto("/company/7203");
+    await alignToAge(page, 35);
 
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
@@ -123,7 +139,8 @@ test.describe("企業詳細ページ", () => {
   test("AC-3: 年齢スイッチで25歳を選ぶと金額と偏差値が変わり、ネットワークリクエストが発生しない", async ({
     page,
   }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await alignToAge(page, 35);
 
     const requests = collectPageRequests(page);
 
@@ -133,40 +150,50 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
     await expect(page.locator("dd").filter({ hasText: /^127\.3/ })).toBeVisible();
     await expect(page.getByText("＋369万円")).toBeVisible();
-    await expect(page).toHaveURL(/[?&]age=25/);
+    await expect(page).toHaveURL(/\/company\/6861$/);
 
     expect(requests).toHaveLength(0);
   });
 
-  test("AC-3: /company/6861?age=60 を直接開くと60歳の状態で復元される", async ({ page }) => {
-    await page.goto("/company/6861?age=60");
+  test("AC-3: 60歳を選ぶと60歳の金額になる", async ({ page }) => {
+    await page.goto("/company/6861");
+    await alignToAge(page, 60);
 
     await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText("2,213万円", { exact: true }).first()).toBeVisible();
   });
 
-  // 既定（実測値）は age を出さない。年齢そろえなら35歳でも出す（ADR-0007）。
-  test("実測値はURLにageを出さない。戻ると実測値に戻る", async ({ page }) => {
-    await page.goto("/company/6861");
+  /*
+   * 配ってしまった `?age=N` のリンク（R1 より前に共有されたもの）。**読まないが、
+   * URL からは落とす**——落とさないと「URLは60歳・画面は実測値」が残り続ける
+   * （親 Issue #130 が報告したのはこの形）。`replaceState` なので履歴は増えない。
+   */
+  test("古い `?age=N` のリンクは実測値で開き、URLから age が落ちる", async ({ page }) => {
+    await page.goto("/company/6861?age=60");
+
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
     await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page.getByRole("button", { name: "60歳" })).toBeDisabled();
+  });
+
+  // 表示基準はクライアントの状態だけで持ち、URL にも履歴にも出さない（ADR-0012）。
+  test("表示基準を切り替えても URL は変わらず、履歴も増えない", async ({ page }) => {
+    await page.goto("/about");
+    await page.goto("/company/6861");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
-
     await page.getByRole("button", { name: "45歳" }).click();
-    await expect(page).toHaveURL(/[?&]age=45/);
-
-    await page.goBack();
-    await expect(page).toHaveURL(/[?&]age=35/);
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-
-    await page.goBack();
+    await expect(page.getByText("45歳時点の推定年収")).toBeVisible();
     await expect(page).toHaveURL(/\/company\/6861$/);
-    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
+
+    // 2回操作したが履歴は積まれていないので、1度戻れば `/about` に着く。
+    await page.goBack();
+    await expect(page).toHaveURL(/\/about$/);
   });
 
   test("AC-4: 25〜60歳のチャートが8点ぶんの金額と注記を持つ", async ({ page }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await alignToAge(page, 35);
 
     const chart = page.getByRole("img", { name: /年齢別の推定年収/ });
     await expect(chart).toBeVisible();
@@ -189,7 +216,8 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-5: 非上場のみずほ銀行はEDINETコードのURLで開ける", async ({ page }) => {
-    await page.goto("/company/E03532?age=35");
+    await page.goto("/company/E03532");
+    await alignToAge(page, 35);
 
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
@@ -222,7 +250,8 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-9: 年齢そろえでは推定であることを明示し、計算方法ページへ導線がある", async ({ page }) => {
-    await page.goto("/company/6861?age=35");
+    await page.goto("/company/6861");
+    await alignToAge(page, 35);
 
     // 見出しそのものが「35歳時点の推定年収」なので、隣に「推定」バッジは重ねない
     // （Issue #128）。AC-9 は見出しの語と下の断り書きで満たしている。
@@ -255,12 +284,17 @@ test.describe("企業詳細ページ", () => {
     );
   });
 
-  test("AC-10: JS実行前のHTMLに金額が入っている（SSR）", async ({ request }) => {
-    const response = await request.get("/company/6861?age=25");
+  /*
+   * **事前生成した HTML に実測値が入っている**（R1・ADR-0012）。表示基準は URL に
+   * 出さないので、どのURLで開いても HTML は同じ実測値のもの。年齢そろえはこの HTML の
+   * 上でクライアントが切り替える。
+   */
+  test("AC-10: JS実行前のHTMLに実測値の金額が入っている", async ({ request }) => {
+    const response = await request.get("/company/6861");
     expect(response.status()).toBe(200);
     const html = await response.text();
 
-    expect(html).toContain("788万円");
+    expect(html).toContain("2,178万円");
     expect(html).toContain("株式会社キーエンス");
     // 折れ線もサーバー側で描かれている。
     expect(html).toContain("<polyline");
@@ -287,25 +321,22 @@ test.describe("企業詳細ページ", () => {
 });
 
 /**
- * 企業ページを離れて戻ってくる（Issue #108）。表示基準はURLの `?age=` が正なので、
- * ルーターキャッシュから復元された古い初期値（実測値）で上書きしない。
+ * 企業ページを離れて戻ってくる（Issue #108）。**表示基準は URL に出さないので
+ * 戻ると実測値に戻る**（R1・ADR-0012）。ランキング側の絞り込み・ページ番号は
+ * これまでどおり URL が正で、復元される（`e2e/ranking-url-sync.spec.ts`）。
  */
 test.describe("ランキングとの行き来", () => {
-  test("年齢そろえにしてランキングへ行き、戻ると年齢そろえのまま", async ({ page }) => {
+  test("年齢そろえにしてランキングへ行き、戻ると実測値で開く", async ({ page }) => {
     await page.goto("/company/6861");
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
 
     await page.getByRole("link", { name: "ランキング" }).first().click();
     await expect(page).toHaveURL(/\/$/);
 
     await page.goBack();
 
-    await expect(page).toHaveURL(/\/company\/6861\?age=35$/);
-    await expect(page.getByRole("button", { name: "年齢そろえ" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
   });
 });
