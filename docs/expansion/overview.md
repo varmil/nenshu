@@ -9,17 +9,18 @@
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
 | E1 | [決算期を幅で出す](https://github.com/varmil/nenshu/issues/172) | なし | AC-7 | `dominantFiscalPeriod` の「代表を1つ」をやめる。site-chrome の S3 を改訂する。※共有: `web/lib/data/period.ts` |
-| E2 | [母集団の拡大](https://github.com/varmil/nenshu/issues/173) | E1（#172） | AC-1〜AC-4, AC-5b, AC-8 | 取得の窓を12か月に広げる（ADR-0011）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
+| E2 | [母集団の拡大](https://github.com/varmil/nenshu/issues/173) | E1（#172） | AC-1〜AC-4, AC-5b, AC-8, AC-9 | 取得の窓を12か月に広げる（ADR-0011）。CSV・`build-data.ts`・`ranking` の AC-1・`/about`・product.md まで同じ PR |
 | E3 | [ロゴの追随](https://github.com/varmil/nenshu/issues/175) | E2（#173） | AC-8 | 新規社ぶんを `npm run build:logos` で調達する。※共有: `logo` 施策 |
-| E4 | [10年推移の追随](https://github.com/varmil/nenshu/issues/176) | E2（#173） | AC-8 | 新規社ぶん10年を取得する。※共有: `timeseries` 施策 |
-| E5 | [働きやすさ指標の再突合](https://github.com/varmil/nenshu/issues/177) | E2（#173） | AC-8 | 新しい母集団で `extract.ts` を回し直す。※共有: `worklife` 施策 |
-| E6 | [稼ぐ力・レーダーの追随](https://github.com/varmil/nenshu/issues/182) | E2（#173） | AC-8 | 新規社ぶんを `pipeline/performance/extract.py` で抜き直す。※共有: `performance` 施策 |
+| E4 | [10年推移の追随](https://github.com/varmil/nenshu/issues/176) | E2（#173） | AC-8, AC-9 | 新規社ぶん10年を取得する。※共有: `timeseries` 施策 |
+| E5 | [働きやすさ指標の再突合](https://github.com/varmil/nenshu/issues/177) | E2（#173） | AC-8, AC-9 | 新しい母集団で `extract.ts` を回し直す。※共有: `worklife` 施策 |
+| E6 | [稼ぐ力・レーダーの追随](https://github.com/varmil/nenshu/issues/182) | E2（#173）・**E4（#176）** | AC-8, AC-9 | 新規社ぶんを `pipeline/performance/extract.py` で抜き直す。※共有: `performance` 施策 |
 | E0 | [初回ロードのペイロード方式](https://github.com/varmil/nenshu/issues/174) | なし | AC-5, AC-6 | 全件embedをやめる（ADR-0013）。**拡大の前提条件ではない**（実測で予算内）。余白と Worker の CPU のために入れる。※共有: ranking の絞り込み状態 |
 
 ## 実施順序
 
 ```
-E1 ─→ E2 ─→ (E3, E4, E5, E6 は並列)
+E1 ─→ E2 ─→ (E3, E5 は並列)
+             └─→ E4 ─→ E6
 
 E0（独立。E2 の前でも後でもよい）
 ```
@@ -32,7 +33,7 @@ E0（独立。E2 の前でも後でもよい）
 
 **E0 は現行の1,867社でも単独で価値がある。** トップページの HTML が軽くなり、リクエストごとの直列化も減る。母集団の拡大を待たずにマージしてよい。
 
-**E3・E4・E5・E6 は E2 の後で並列に進められる。** どれも「新しく入った会社だけ中身が薄い」状態を埋める作業で、互いに依存しない。**E2 と同じ PR にはしない**——ロゴの調達も10年推移の取得も外部への大量アクセスを伴い、失敗したときに母集団の拡大まで巻き戻すことになるため。
+**E3・E5 は E2 の後で並列に進められる。** どれも「新しく入った会社だけ中身が薄い」状態を埋める作業になる。**E6 だけは E4 に依存する**——稼ぐ力の推移（P2）が10年ぶんの書類を要るため、E4 が温めたキャッシュを使う。**E2 と同じ PR にはしない**——ロゴの調達も10年推移の取得も外部への大量アクセスを伴い、失敗したときに母集団の拡大まで巻き戻すことになるため。
 
 ## 他施策から触られる箇所
 
@@ -93,6 +94,8 @@ site-chrome の S3（Issue #134）が置いた「決算期を1つ選んで全ペ
 - E3 — `npm run build:logos`（`docs/logo/logo-pipeline/design.md`）。到達率は現状87.0%で、新規社ぶんも同程度を見込む
 - E4 — `warm_lists.py` → `fetch_history.py` → `history.py`（`pipeline/salary/README.md`）。**新規社ぶん（1,095社×10年）で約1万件の追加取得**になる
 - E5 — 女性活躍DBの全件版ZIPを手元に置いて `npm run extract:worklife`（`docs/worklife/data-ingest/`）。**ZIPはリポジトリに入っていない**ので、運営者が取得したものを使う
-- E6 — `pipeline/performance/extract.py`（`docs/performance/`）。**最新年の書類1件に5期ぶんの経常利益が入っている**ので、E2 が落とした ZIP がそのまま使える。追加のダウンロードは要らない
+- E6 — `pipeline/performance/extract.py`（`docs/performance/`）。**要る書類が2つに割れる。** 稼ぐ力（P0・レーダーの軸）は**最新年の書類1件で足りる**（5期ぶんの経常利益が1書類に入っている）が、**稼ぐ力の推移（P2・`profit-history.json`）は10年ぶんの書類が要る**——各年の従業員数はその年の書類の当期からしか取れない（`docs/performance/profit-trend/design.md`）。**後者のぶんだけ E4 に依存する**
+
+**`worklife.json` と `profit-history.json` は gzip の上限を超える見込み**（spec 1.6a）。**上限は気づくための線**なので、超えたら実測に合わせて引き上げる——ただし `worklife.json` は「増分の6割が注釈なので、超えたらそこを別ファイルにする」と `docs/worklife/overview.md` が決めているので、そちらの判断を先に通す。
 
 **ロゴと10年推移は外部への大量アクセスを伴う。** どちらも既存のパイプラインが流量制限を織り込んである（EDINET は並列3・ロゴは失敗をキャッシュしない）。手順を変えない。

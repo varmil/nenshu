@@ -92,11 +92,33 @@
 | `logo` | 新規社ぶんを `npm run build:logos` で調達 | 頭文字のマス目が並ぶ（壊れはしない） |
 | `timeseries` | 新規社ぶん10年を `fetch_history.py` → `history.py` | 推移の節が出ない |
 | `worklife` | 新しい母集団で `extract.ts` を回し直す | 「掲載なし」になる |
-| `performance` | 新規社ぶんを `pipeline/performance/extract.py` で抜き直す | 稼ぐ力とレーダーの軸が欠ける |
+| `performance` | 新規社ぶんを `pipeline/performance/extract.py` で抜き直す | 稼ぐ力の軸と推移の節が欠ける |
 
-**`performance` は最新年の書類1件から5期ぶんが取れる**（`jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults` が5つのコンテキストで来る）ので、**E2 が落とした ZIP がそのまま使える**。10年ぶんの取得（E4）を待たなくてよい。
+**`performance` は2つのデータを持ち、要る書類が違う。**
+
+- **稼ぐ力（P0・`performance.json`・レーダーの軸）は最新年の書類1件で足りる。** 5期ぶんの経常利益が1書類にタグ付けされている（`jpcrp_cor:OrdinaryIncomeLossSummaryOfBusinessResults` が5つのコンテキストで来る）ので、**E2 が落とした ZIP がそのまま使える**
+- **稼ぐ力の推移（P2・`profit-history.json`）は10年ぶんの書類が要る。** 各年の従業員数は**その年の書類の当期からしか取れない**（`docs/performance/profit-trend/design.md`）。**E4 と同じキャッシュを使う**
 
 **壊れはしないが、追随の順序を決めずに公開すると「新しく入った会社は中身が薄い」状態が固定される。** overview.md で Unit の順序として持つ。
+
+### 1.6a データファイルの上限に当たるもの
+
+`build-data.ts` は生成物ごとに gzip の上限を持ち、**超えるとビルドが落ちる**。母集団が 1.59倍になると、**2つが上限を超える見込み**になる。
+
+| ファイル | 現状（gzip -9） | 2,962社の見込み | 上限 | |
+| --- | ---: | ---: | ---: | --- |
+| `companies.json` | 44,631 B | 70,610 B（実測） | 102,400 B | |
+| `history.json` | 68,012 B | 約108,000 B | 153,600 B | |
+| `worklife.json` | 130,222 B | **約207,000 B** | 163,840 B | **超える** |
+| `performance.json` | 7,882 B | 約12,500 B | 32,768 B | |
+| `radar.json` | 11,303 B | 約18,000 B | 49,152 B | |
+| `profit-history.json` | 194,085 B | **約308,000 B** | 262,144 B | **超える** |
+
+**見込みは 1.587倍を掛けただけで、実測ではない。** `companies.json` の実測（44,631 → 70,610 B = 1.582倍）がほぼ比例だったので、同じ形（会社ごとの数値配列）のファイルは比例で読んでよい。
+
+**上限は「気づくための線」であって守るべき値ではない**（`build-data.ts` のコメントがどれもそう書いている）。**超えたら実測に合わせて引き上げる。** ただし `worklife.json` は「増分の6割が注釈なので、超えたらそこを別ファイルにする」と `docs/worklife/overview.md` が決めているので、そちらの判断を先に通す。
+
+**`profit-history.json` と `worklife.json` は `/company/[id]` だけが読む。** `/` のペイロードには効かない。
 
 ### 1.6b Worker の実行予算
 
@@ -194,5 +216,14 @@ And 決算期の直書きが1つも無い
 ```gherkin
 Given 母集団を組み直したあと
 When ビルドのサマリーを読む
-Then ロゴ・10年推移・働きやすさ指標のそれぞれについて、母集団のうち何社ぶんが揃っているかが出る
+Then ロゴ・10年推移・働きやすさ指標・稼ぐ力のそれぞれについて、母集団のうち何社ぶんが揃っているかが出る
+```
+
+### AC-9 生成物の上限
+
+```gherkin
+Given 母集団を組み直したあと
+When npm run build:data を実行する
+Then どの生成物も gzip の上限で落ちない
+And 上限を引き上げたファイルは、引き上げた値が実測に基づいている
 ```
