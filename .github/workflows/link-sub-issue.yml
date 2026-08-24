@@ -26,7 +26,7 @@ jobs:
   link:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v9
         # 入力は env 経由で渡す。script に ${{ }} を直接埋めるとスクリプトの構文ごと
         # 差し替わりうるため（GitHub Actions のスクリプトインジェクション）。
         env:
