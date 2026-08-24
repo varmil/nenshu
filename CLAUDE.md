@@ -155,7 +155,7 @@ Unit の実装を終えたら、次の順で進める。
 - **`/favicon.ico` は置くが `<link>` には出さない。** 出すと SVG より先に選ぶブラウザがあり、切り替えを持たないほうが使われる。置くのはページを読まずに固定パスを叩く相手（RSSリーダー等）のため。**`sharp` は ICO を書けない**ので器は `pipeline/brand/ico.ts` で組む（中身は PNG）
 - **ヘッダのワードマークは文字のまま**で、色だけ `--primary` にした。画像にすると選択・検索・拡大のどれでも劣り、`BrandLink` の「絞り込みを解く」振る舞いも変わらない
 - **`e2e/network.ts` の除外を `/favicon.ico` 決め打ちから `assets.ts` の表に広げた。** ファビコンのリクエストは `resourceType()` が `image` にならないことがあり、既存の画像の除外に掛からない
-- `/` の HTML は raw 373,821 B → **374,617 B**（gzip 63,655 → 63,843 B）。`/company/[id]` も同じ +796 B（共通ヘッダと `<head>` の変更なので全ページに同じだけ効く）
+- `/` の HTML は raw 373,821 B → **374,617 B**（gzip 63,665 → 63,855 B）。`/company/[id]` も同じ +796 B（共通ヘッダと `<head>` の変更なので全ページに同じだけ効く）
 
 **データの時点は「決算期」で出す**（site-chrome の S3・Issue #134・親 #104）。**`2026年3月期` を直書きしない。** 値は `companies.meta.fiscalPeriod`（`build-data.ts` が CSV の `period_end` の最頻を採る）で、文字列にするのは `web/lib/data/period.ts` の1か所だけ。社数（`meta.count`）と同じ扱い。
 
