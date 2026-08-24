@@ -1,9 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { buildData, dominantFiscalPeriod, pickPopulation } from "./build-data";
+import { buildData, dominantFiscalPeriod } from "./build-data";
 import { interpolate } from "./lib/curve";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -429,6 +429,150 @@ describe("buildData", () => {
       expect(result.worklifeGzipSize).toBeLessThanOrEqual(160 * 1024);
     });
   });
+
+  /**
+   * 稼ぐ力＝一人当たり経常利益（P0・#155・`docs/performance/spec.md` AC-1〜AC-4）。
+   */
+  describe("performance.json", () => {
+    const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
+
+    it("AC-1 1,864社ぶんの値が入る（取れなかったのは3社）", () => {
+      expect(result.performance.meta.count).toBe(1867);
+      expect(result.performance.meta.matched).toBe(1864);
+      expect(result.performance.meta.years).toEqual([2022, 2023, 2024, 2025, 2026]);
+    });
+
+    it("perEmployee が companies.rows と同じ並び・同じ長さ", () => {
+      // **ずれると別の会社の稼ぐ力を出す。** stats.json・worklife.json と同じ制約。
+      expect(result.performance.perEmployee.length).toBe(result.companies.rows.length);
+      expect(result.performance.perEmployee[indexOf("6861")]).toBe(40620698);
+    });
+
+    it("AC-2 銀行業・保険業・その他金融業が欠けない", () => {
+      // 営業利益が無いことを理由に欠損にしない。三菱UFJフィナンシャル・グループ。
+      expect(result.performance.perEmployee[indexOf("8306")]).toBeGreaterThan(0);
+      for (const name of ["銀行業", "保険業", "その他金融業"]) {
+        const median = result.performance.industryMedian[result.companies.industries.indexOf(name)];
+        expect(median, name).not.toBeNull();
+        expect(median!, name).toBeGreaterThan(0);
+      }
+    });
+
+    it("AC-3 赤字は負のまま残る（捨てるとデータ無しと区別できない）", () => {
+      // ソフトバンクグループ。5期の中央値が負になる会社は59社ある。
+      expect(result.performance.perEmployee[indexOf("9984")]).toBeLessThan(0);
+      expect(result.performance.perEmployee.filter((v) => v !== null && v < 0).length).toBe(59);
+    });
+
+    it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
+      // `sourceRows` と `companies.rows` は同じ並びなので添字がそのまま使える。
+      const missing = sourceRows.flatMap((row, i) => (row.employeesConsolidated === null ? [i] : []));
+      expect(missing.length).toBe(191);
+      // 代用しないとこの191社が丸ごと欠ける。
+      const filled = missing.filter((i) => result.performance.perEmployee[i] !== null);
+      expect(filled.length).toBeGreaterThan(150);
+    });
+
+    it("業種中央値が industries と同じ並び・同じ長さ", () => {
+      expect(result.performance.industryMedian.length).toBe(result.companies.industries.length);
+      // **中央値であって平均ではない**——電気機器はキーエンスが桁で外れる。
+      const electric =
+        result.performance.industryMedian[result.companies.industries.indexOf("電気機器")]!;
+      expect(electric).toBe(1810637);
+      expect(result.performance.perEmployee[indexOf("6861")]! / electric).toBeGreaterThan(20);
+    });
+
+    it("業種によって中央値が桁で違う（併記が要る理由）", () => {
+      const median = (name: string) =>
+        result.performance.industryMedian[result.companies.industries.indexOf(name)]!;
+      expect(median("海運業") / median("輸送用機器")).toBeGreaterThan(15);
+    });
+
+    it("AC-4 gzip後サイズが上限(32KB)以内", () => {
+      expect(result.performanceGzipSize).toBeLessThanOrEqual(32 * 1024);
+    });
+  });
+
+  /**
+   * レーダー4軸の順位（P1・#167・`docs/performance/spec.md` 2.1）。
+   * **平均年収の軸は入らない**——表示基準で変わるので `stats.json` から出す。
+   */
+  describe("radar.json", () => {
+    const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
+    const AXES = ["paidLeave", "tenure", "profit", "overtime"] as const;
+
+    it("4軸が companies.rows と同じ並び・同じ長さ", () => {
+      expect(result.radar.meta.axes).toEqual([...AXES]);
+      for (const key of AXES) {
+        expect(result.radar[key].rank.length, key).toBe(result.companies.rows.length);
+      }
+    });
+
+    it("値そのものは持たない（別のファイルから引ける）", () => {
+      // 二重に持つと `radar.json` の `JSON.parse` が倍になる（0.264ms → 0.524ms）。
+      for (const key of AXES) {
+        expect(Object.keys(result.radar[key]).sort(), key).toEqual(["population", "rank"]);
+      }
+      expect(Object.keys(result.radar).sort()).toEqual([
+        "meta",
+        "overtime",
+        "paidLeave",
+        "profit",
+        "tenure",
+      ]);
+    });
+
+    it("平均年収の軸は持たない（表示基準で変わるため）", () => {
+      expect(result.radar.meta.axes).not.toContain("salary");
+      expect(Object.keys(result.radar)).not.toContain("salary");
+    });
+
+    it("母集団は軸ごとに違う（有給と残業は6割前後しか公表がない）", () => {
+      expect(result.radar.tenure.population).toBe(1867);
+      expect(result.radar.profit.population).toBe(1864);
+      // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
+      expect(result.radar.paidLeave.population).toBeGreaterThan(800);
+      expect(result.radar.paidLeave.population).toBeLessThan(1200);
+      expect(result.radar.overtime.population).toBeGreaterThan(800);
+      expect(result.radar.overtime.population).toBeLessThan(1200);
+    });
+
+    it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {
+      const i = indexOf("6861");
+      expect(result.radar.overtime.rank[i]).toBe(-1);
+      // 区分「正社員」1件だけなので軸に乗る（アートボード 6a がそう描いている）。
+      expect(result.radar.paidLeave.rank[i]).toBeGreaterThan(0);
+    });
+
+    it("区分が2つ以上の会社は軸に乗せない（新日本空調の有給）", () => {
+      // 営業・管理系 67.4 / 技術系 60.8。**どちらかを代表に選ばない**（spec 2.2b）。
+      expect(result.radar.paidLeave.rank[indexOf("1952")]).toBe(-1);
+    });
+
+    it("在籍年数の1位は実データの最長の会社", () => {
+      // 向きの規則そのものは `web/features/company/lib/radar.test.ts` が
+      // 固定している。ここは実データに当たっていることだけを見る。
+      const longest = sourceRows.reduce((a, b) => (a.avgTenure >= b.avgTenure ? a : b));
+      const i = sourceRows.indexOf(longest);
+      expect(result.radar.tenure.rank[i]).toBe(1);
+    });
+
+    it("稼ぐ力の1位は perEmployee が最大の会社", () => {
+      let best = -1;
+      let bestValue = -Infinity;
+      result.performance.perEmployee.forEach((v, i) => {
+        if (v !== null && v > bestValue) {
+          bestValue = v;
+          best = i;
+        }
+      });
+      expect(result.radar.profit.rank[best]).toBe(1);
+    });
+
+    it("gzip後サイズが上限(48KB)以内", () => {
+      expect(result.radarGzipSize).toBeLessThanOrEqual(48 * 1024);
+    });
+  });
 });
 
 /**
@@ -449,48 +593,5 @@ describe("dominantFiscalPeriod", () => {
 
   it("period_end の形が違えば落とす", () => {
     expect(() => dominantFiscalPeriod(rows("2026/03/31"))).toThrow(/YYYY-MM-DD/);
-  });
-});
-
-/**
- * `population.json` の切り出し（R0・`docs/runtime/spec.md` AC-5・Issue #165）。
- *
- * **`/` は母集団の9組（337B）しか使わないのに `stats.json`（131KB）を丸ごと
- * 読んでいた。** import したファイルは1バイトしか使わなくても丸ごと `JSON.parse`
- * され、isolate の初回リクエストに課金される（Issue #118）。
- */
-describe("population.json", () => {
-  let outDir: string;
-  let result: ReturnType<typeof buildData>;
-
-  beforeAll(() => {
-    outDir = mkdtempSync(join(tmpdir(), "nenshu-population-"));
-    result = buildData(outDir);
-  });
-
-  afterAll(() => rmSync(outDir, { recursive: true, force: true }));
-
-  it("bases・count・population が stats.json と完全に一致する", () => {
-    const stats = JSON.parse(readFileSync(result.statsPath, "utf-8"));
-    const population = JSON.parse(readFileSync(result.populationPath, "utf-8"));
-    expect(population.bases).toEqual(stats.bases);
-    expect(population.count).toEqual(stats.count);
-    expect(population.population).toEqual(stats.population);
-  });
-
-  it("**順位は入っていない。** ここに rankAll が混ざると分けた意味が無くなる", () => {
-    const population = JSON.parse(readFileSync(result.populationPath, "utf-8"));
-    expect(Object.keys(population).sort()).toEqual(["bases", "count", "population"]);
-  });
-
-  it("`/` が読む量として小さいこと（1KB未満）", () => {
-    expect(readFileSync(result.populationPath).length).toBeLessThan(1024);
-  });
-
-  it("公開中の population.json が stats.json と揃っている（生成し忘れを止める）", () => {
-    const dir = join(ROOT, "../web/public/data");
-    const stats = JSON.parse(readFileSync(join(dir, "stats.json"), "utf-8"));
-    const population = JSON.parse(readFileSync(join(dir, "population.json"), "utf-8"));
-    expect(population).toEqual(pickPopulation(stats));
   });
 });

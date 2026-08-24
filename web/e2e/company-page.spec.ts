@@ -12,7 +12,10 @@ import { collectPageRequests } from "./network";
  * C3 でカードは2カラムになり、全体平均との差は `dl` の外の段落に、平均年齢・
  * 在籍年数・従業員数は2つ目の `dl` に移った。ここは1つ目の `dl` を指す。
  */
-const card = (page: import("@playwright/test").Page) => page.locator("dl").first();
+const card = (page: import("@playwright/test").Page) =>
+  // **カードの中に限る。** P1（#167）がページの先頭にレーダーの指標リスト
+  // （これも `dl`）を置いたので、`page.locator("dl").first()` ではそちらを指す。
+  page.locator('[data-slot="card"] dl').first();
 
 test.describe("企業詳細ページ", () => {
   // 既定は実測値（ADR-0007）。有報の平均年間給与そのままで、順位も偏差値も
