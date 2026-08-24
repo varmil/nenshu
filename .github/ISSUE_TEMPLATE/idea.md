@@ -5,7 +5,8 @@ title: '【親】'
 ---
 
 <!-- Unit に割れる形になっていない段階のものはこちら。
-     割ると決めた時点で overview.md の Unit 一覧に足し、[Unit] Issue を子として立てて、この Issue を親にする。 -->
+     割ると決めた時点で overview.md の Unit 一覧に足し、[Unit] Issue を立てて、その本文の「親:」行に
+     この Issue の番号を書く（sub-issue の紐づけはワークフローが行う）。 -->
 
 ## 何を
 
