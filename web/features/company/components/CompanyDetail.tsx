@@ -27,6 +27,10 @@ import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { SalaryHistoryChart } from "./SalaryHistoryChart";
 import { SalaryHistoryTable } from "./SalaryHistoryTable";
 import { AgeSalaryTable } from "./AgeSalaryTable";
+import { WorklifeSection } from "./WorklifeSection";
+import type { WorklifeView } from "../lib/worklife";
+import { OverviewSection } from "./OverviewSection";
+import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { HowItWorks } from "./HowItWorks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
@@ -82,11 +86,25 @@ function useTargetAge(initialAge: TargetAge | null) {
 
 export function CompanyDetail({
   view,
+  radar,
+  worklife,
   history,
   initialAge,
   fiscalPeriod,
 }: {
   view: CompanyView;
+  /**
+   * レーダー4軸（P1・Issue #167）。**平均年収の軸は入っていない**——
+   * 表示基準で変わるので、ここで `current` から作って5軸目に足す（AC-11）。
+   */
+  radar: CompanyRadarInput;
+  /**
+   * 残業・有給・男女の賃金の差異（W1・Issue #150）。**`byBasis` の外に置く**
+   * ——年齢補正を通さない値で、表示基準を切り替えても1つも変わらない（AC-11）。
+   * 推移（`history`）と同じ扱いにしてある。**掲載が無い会社でも `null` にならない**
+   * （器を空のまま出すのが AC-10）。
+   */
+  worklife: WorklifeView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
   initialAge: TargetAge | null;
@@ -117,6 +135,35 @@ export function CompanyDetail({
   const historyPeak = history ? buildHistoryPeak(history.years, history.values) : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
   const actualsSummary = buildActualsSummary(view);
+  /*
+   * レーダーの5軸（P1）。**平均年収の軸だけが表示基準に追随する**（AC-11）——
+   * 残り4軸は年齢補正を通さない値なので、`radar` に確定したまま渡ってくる。
+   */
+  const radarAxes = buildRadarAxes(
+    {
+      salary: {
+        value: current.salary,
+        rank: current.rankAll,
+        population: view.totalCount,
+      },
+      ...radar,
+    },
+    {
+      salary: formatManYen,
+      paidLeave: (v) => `${formatDecimal1(v)}%`,
+      tenure: (v) => `${formatDecimal1(v)}年`,
+      profit: formatManYen,
+      overtime: (v) => `${formatDecimal1(v)}時間`,
+    },
+    {
+      // **業種の中央値を併記しないと読み違える**（spec 1.3）。稼ぐ力は
+      // 海運業と輸送用機器で19倍開く。
+      profit:
+        radar.profitIndustryMedian === null
+          ? "1人当たり経常利益"
+          : `1人当たり経常利益 ・ ${view.tse33}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
+    }
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
@@ -201,6 +248,12 @@ export function CompanyDetail({
       {/* PC は本文＋右サイドバー、モバイルは1カラム（アートボード 4b / 2b）。 */}
       <div className="flex flex-col gap-4 md:grid md:grid-cols-[1fr_19.75rem] md:items-start md:gap-6">
         <div className="flex min-w-0 flex-col gap-12">
+          {/*
+            **本文の先頭に置く**（P1、アートボード 6b）。5軸を1枚にまとめた図なので、
+            下の節（金額・働きやすさ・年齢別・推移）の要約として最初に来る。
+          */}
+          <OverviewSection axes={radarAxes} />
+
           {/*
             **カードは2カラム**（C3、アートボード 5b）。左が「いくらか」、右が
             「その額が母集団のどこか」。C2 は全部を縦に積んでいたため、金額と位置の
@@ -314,6 +367,13 @@ export function CompanyDetail({
               </div>
             </CardContent>
           </Card>
+
+          {/*
+            **上のカードと「年齢別の推定年収」の間に置く**（W1、アートボード 6b）。
+            上のカードまでが有報の数字、ここから下は別の出典・別の時点になるので、
+            推定の話（年齢別）に入る前に区切りを1つ挟む形にしてある。
+          */}
+          <WorklifeSection view={worklife} />
 
           {/*
             **表 → 説明文 → チャート**の順（C3、アートボード 4b）。C2 は図が先だったが、
