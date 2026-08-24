@@ -573,6 +573,71 @@ describe("buildData", () => {
       expect(result.radarGzipSize).toBeLessThanOrEqual(48 * 1024);
     });
   });
+
+  /**
+   * 稼ぐ力の10年推移（P2・#168・`docs/performance/spec.md` 2.3）。
+   */
+  describe("profit-history.json", () => {
+    it("3本とも years と同じ長さ", () => {
+      const { years, profit, income, employees } = result.profitHistory;
+      expect(years.length).toBeGreaterThan(0);
+      for (const id of Object.keys(profit)) {
+        expect(profit[id].length, id).toBe(years.length);
+        expect(income[id].length, id).toBe(years.length);
+        expect(employees[id].length, id).toBe(years.length);
+      }
+    });
+
+    it("年は昇順にそろっている", () => {
+      const { years } = result.profitHistory;
+      expect([...years].sort((a, b) => a - b)).toEqual(years);
+    });
+
+    it("キーは companies.json の id（証券コード／EDINETコード）", () => {
+      const ids = new Set(result.companies.rows.map((row) => row[0]));
+      for (const id of Object.keys(result.profitHistory.profit)) {
+        expect(ids.has(id), id).toBe(true);
+      }
+    });
+
+    it("稼ぐ力は その年の経常利益 ÷ その年の従業員数", () => {
+      // **年ごとに割る。** P0 の「5期の中央値 ÷ 当期の従業員数」とは分母が違う。
+      const { profit, income, employees } = result.profitHistory;
+      for (const id of Object.keys(profit)) {
+        profit[id].forEach((value, i) => {
+          if (value === null) return;
+          const expected = Math.round(
+            (income[id][i] as number) / (employees[id][i] as number)
+          );
+          expect(value, `${id} ${i}`).toBe(expected);
+        });
+      }
+    });
+
+    it("従業員数が無い年は稼ぐ力も null（内挿しない）", () => {
+      const { profit, employees } = result.profitHistory;
+      for (const id of Object.keys(profit)) {
+        profit[id].forEach((value, i) => {
+          if (employees[id][i] === null) expect(value, `${id} ${i}`).toBeNull();
+        });
+      }
+    });
+
+    it("全年 null の会社はキーごと落とす", () => {
+      for (const values of Object.values(result.profitHistory.profit)) {
+        expect(values.some((v) => v !== null)).toBe(true);
+      }
+    });
+
+    it("赤字は負のまま残る", () => {
+      const negatives = Object.values(result.profitHistory.income).flat();
+      expect(negatives.some((v) => v !== null && v < 0)).toBe(true);
+    });
+
+    it("gzip後サイズが上限(256KB)以内", () => {
+      expect(result.profitHistoryGzipSize).toBeLessThanOrEqual(256 * 1024);
+    });
+  });
 });
 
 /**

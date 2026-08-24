@@ -126,6 +126,16 @@ export interface PerformanceHistoryRow {
   ordinaryIncome: number;
   /** `consolidated` / `nonconsolidated`。連結が無い年だけ単体で埋まる。 */
   basis: string;
+  /**
+   * その年の**連結**従業員数。
+   *
+   * **その年の書類の「当期」からしか取れない**（P2・Issue #168）。経常利益は
+   * 1書類に5期ぶんタグ付けされているが、従業員数は当期だけで、5期ぶんは本文の
+   * 中にしかない。だから遡って埋めた年（`back > 0`）では `null` になる。
+   */
+  employeesConsolidated: number | null;
+  /** 同じくその年の**単体**従業員数。連結が無い会社の代用に使う。 */
+  employeesNonConsolidated: number | null;
 }
 
 const PERFORMANCE_HEADER = [
@@ -161,11 +171,14 @@ export function parsePerformanceHistoryCsv(text: string): PerformanceHistoryRow[
         `data/performance_history.csv の${lineIndex + 2}行目が${PERFORMANCE_HEADER.length}列でありません: ${line}`
       );
     }
+    const numberOrNull = (raw: string) => (raw === "" ? null : Number(raw));
     return {
       edinetCode: cols[0],
       year: Number(cols[1]),
       ordinaryIncome: Number(cols[2]),
       basis: cols[3],
+      employeesConsolidated: numberOrNull(cols[4]),
+      employeesNonConsolidated: numberOrNull(cols[5]),
     };
   });
 }

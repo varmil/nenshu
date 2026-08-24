@@ -30,6 +30,8 @@ const PERFORMANCE_JSON_GZIP_LIMIT_BYTES = 32 * 1024;
 const PERFORMANCE_YEARS = 5;
 // 実測 12.3KB（1,867社 × 4軸のパーセンタイルと値）。上限は 48KB。
 const RADAR_JSON_GZIP_LIMIT_BYTES = 48 * 1024;
+// 1,867社 × 10年 × 3本（稼ぐ力・経常利益・従業員数）。上限は 256KB。
+const PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES = 256 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -139,6 +141,7 @@ export function buildData(outDir: string) {
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
+  const profitHistory = buildProfitHistory(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -148,11 +151,13 @@ export function buildData(outDir: string) {
   const worklifePath = resolve(outDir, "worklife.json");
   const performancePath = resolve(outDir, "performance.json");
   const radarPath = resolve(outDir, "radar.json");
+  const profitHistoryPath = resolve(outDir, "profit-history.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
   const performanceJson = JSON.stringify(performance);
   const radarJson = JSON.stringify(radar);
+  const profitHistoryJson = JSON.stringify(profitHistory);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
@@ -160,6 +165,7 @@ export function buildData(outDir: string) {
   writeFileSync(worklifePath, worklifeJson);
   writeFileSync(performancePath, performanceJson);
   writeFileSync(radarPath, radarJson);
+  writeFileSync(profitHistoryPath, profitHistoryJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -196,6 +202,13 @@ export function buildData(outDir: string) {
     );
   }
 
+  const profitHistoryGzipSize = gzipSync(profitHistoryJson).length;
+  if (profitHistoryGzipSize > PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `profit-history.json のgzipサイズが上限(256KB)を超えています: ${(profitHistoryGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
@@ -204,6 +217,7 @@ export function buildData(outDir: string) {
     worklifePath,
     performancePath,
     radarPath,
+    profitHistoryPath,
     companies,
     curves,
     stats,
@@ -211,11 +225,13 @@ export function buildData(outDir: string) {
     worklife,
     performance,
     radar,
+    profitHistory,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
     performanceGzipSize,
     radarGzipSize,
+    profitHistoryGzipSize,
   };
 }
 
@@ -357,6 +373,71 @@ function buildRadar(
     // レーダーは図として読めない（#154）。
     overtime: ranks(overtimeValue, true),
   };
+}
+
+/**
+ * 稼ぐ力の10年推移（P2・#168・`docs/performance/spec.md` 2.3）。
+ *
+ * ```
+ * その年の稼ぐ力 ＝ その年の経常利益 ÷ その年の連結従業員数
+ * ```
+ *
+ * **年ごとに割る。** P0 の「5期の中央値 ÷ 当期の従業員数」とは分母が違う——
+ * あちらは1点の代表値で、こちらは各年の実績になる。従業員数が10年で倍になった
+ * 会社では、当期の分母で割った過去の年は実態と合わない。
+ *
+ * **従業員数はその年の書類の当期からしか取れない**（`extract.py` の注記）。
+ * 遡って埋めた年（`back > 0`）には無いので、その年の書類が取れていない会社では
+ * 経常利益はあっても稼ぐ力が出ない。**内挿しない**——推移の既存の扱いと同じで、
+ * 欠けていること自体を画面に出す（AC-10）。
+ *
+ * **全年 `null` の会社はキーごと落とす。** 1,867社ぶんの空配列を配る意味がない。
+ */
+function buildProfitHistory(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const csvPath = resolve(ROOT, "data/performance_history.csv");
+  const historyRows = parsePerformanceHistoryCsv(readFileSync(csvPath, "utf-8"));
+
+  const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
+  const yearIndex = new Map(years.map((y, i) => [y, i]));
+
+  type Series = { profit: (number | null)[]; income: (number | null)[]; employees: (number | null)[] };
+  const byEdinetCode = new Map<string, Series>();
+  for (const row of historyRows) {
+    let series = byEdinetCode.get(row.edinetCode);
+    if (series === undefined) {
+      series = {
+        profit: new Array<number | null>(years.length).fill(null),
+        income: new Array<number | null>(years.length).fill(null),
+        employees: new Array<number | null>(years.length).fill(null),
+      };
+      byEdinetCode.set(row.edinetCode, series);
+    }
+    const i = yearIndex.get(row.year)!;
+    series.income[i] = row.ordinaryIncome;
+    // 連結が無い年は単体で代用する（P0 と同じ規則）。
+    const employees = row.employeesConsolidated ?? row.employeesNonConsolidated;
+    if (employees) {
+      series.employees[i] = employees;
+      series.profit[i] = Math.round(row.ordinaryIncome / employees);
+    }
+  }
+
+  const profit: Record<string, (number | null)[]> = {};
+  const income: Record<string, (number | null)[]> = {};
+  const employees: Record<string, (number | null)[]> = {};
+  rows.forEach((row, i) => {
+    const series = byEdinetCode.get(row.edinetCode);
+    if (series === undefined || series.profit.every((v) => v === null)) return;
+    const id = companyRows[i][0] as string;
+    profit[id] = series.profit;
+    income[id] = series.income;
+    employees[id] = series.employees;
+  });
+
+  return { years, profit, income, employees };
 }
 
 /** 中央値。偶数個なら中央2つの平均。 */
@@ -646,5 +727,9 @@ if (isMain) {
   console.log(
     `${result.radarPath}: ${result.radar.meta.axes.length}軸 × ${result.radar.meta.count}社, ` +
       `gzip ${(result.radarGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.profitHistoryPath}: ${Object.keys(result.profitHistory.profit).length}社 × ` +
+      `${result.profitHistory.years.length}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
   );
 }
