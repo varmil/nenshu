@@ -40,6 +40,11 @@ const GRID_STEPS = [1 / 3, 2 / 3, 1];
  */
 const TEXT_LABEL = "text-[11px]";
 const TEXT_VALUE = "text-[12px]";
+/**
+ * 「掲載なし」だけは一段小さく置く（運営者の指示）。**実数と同じ 12px で並ぶと、
+ * 無い軸のほうが読む順で先に来る**——値の大きさは軸の重みではない。
+ */
+const TEXT_MISSING = "text-[10px]";
 
 /** 12時から時計回り（アートボード 6a）。 */
 function angleOf(index: number): number {
@@ -147,10 +152,14 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
             <tspan className={`${TEXT_LABEL} fill-[var(--muted-foreground)]`}>{axis.label}</tspan>
             <tspan
               x={lx}
-              dy="1.35em"
-              className={`${TEXT_VALUE} font-bold ${
-                missing ? "fill-[var(--muted-foreground)] font-normal" : "fill-[var(--foreground)]"
-              }`}
+              // **`dy` は tspan 自身の font-size 基準**なので、10px にすると行間も
+              // 縮む。実数の行と同じ位置に置くため user unit で指定する。
+              dy={12 * 1.35}
+              className={
+                missing
+                  ? `${TEXT_MISSING} fill-[var(--muted-foreground)]`
+                  : `${TEXT_VALUE} fill-[var(--foreground)] font-bold`
+              }
             >
               {axis.valueText}
             </tspan>

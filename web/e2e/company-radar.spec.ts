@@ -214,6 +214,29 @@ test.describe("モックとの一致（2巡目）", () => {
     expect(medianRight).toBe(rankRight);
   });
 
+  test("「掲載なし」は実数より一段小さい（運営者の指示）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/6861");
+    // 値の大きさは軸の重みではない。実数と同じ 12px で並ぶと、無い軸のほうが
+    // 読む順で先に来る。**行の位置は変えない**（`dy` は user unit で指定してある）。
+    const sizes = await chart(page)
+      .locator("text > tspan:nth-child(2)")
+      .evaluateAll((spans) =>
+        spans.map((s) => ({
+          text: s.textContent,
+          size: parseFloat(getComputedStyle(s).fontSize),
+          y: Math.round((s as SVGTSpanElement).getBoundingClientRect().top),
+        }))
+      );
+    const missing = sizes.filter((s) => s.text === "掲載なし");
+    const shown = sizes.filter((s) => s.text !== "掲載なし");
+    expect(missing).toHaveLength(1);
+    expect(shown.length).toBeGreaterThan(0);
+    for (const m of missing) {
+      for (const s of shown) expect(m.size).toBeLessThan(s.size);
+    }
+  });
+
   test("有給の値がどの雇用管理区分のものかが添う", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto("/company/6861");
