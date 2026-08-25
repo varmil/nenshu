@@ -41,6 +41,3 @@ export const BRAND_ICON_BACKGROUND = "#ffffff";
  * ホーム画面のアイコンと同じ「白地にブランド色」の版面に揃える。
  */
 export const BRAND_TEXT = "#090b0c";
-
-/** OG画像に置く公開ホストの色。`:root` の `--muted-foreground`。 */
-export const BRAND_TEXT_MUTED = "#67787c";

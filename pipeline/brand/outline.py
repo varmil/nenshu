@@ -92,9 +92,3 @@ emit(
 )
 emit("TAGLINE_1", "説明文の1行目（IPAGothic）。", IPA_GOTHIC, "有価証券報告書ベースの")
 emit("TAGLINE_2", "説明文の2行目（IPAGothic）。", IPA_GOTHIC, "平均年収ランキング")
-emit(
-    "DOMAIN",
-    "公開ホスト。`lib/seo/site.ts` の `SITE_ORIGIN` からホスト名だけを取った文字列と一致する。",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    "openreport.net",
-)

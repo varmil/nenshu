@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { ogOverflow, ogSvg, OG_HEIGHT, OG_WIDTH } from "./og";
-import { DOMAIN, TAGLINE_1, TAGLINE_2, WORDMARK } from "./lettering";
+import { TAGLINE_1, TAGLINE_2, WORDMARK } from "./lettering";
 import { OG_IMAGE } from "../../web/lib/brand/assets";
-import { SITE_ORIGIN } from "../../web/lib/seo/site";
 
 /*
  * OG画像の版面（S2・Issue #116・`docs/site-chrome/spec.md` 4.3）。
@@ -11,12 +10,7 @@ import { SITE_ORIGIN } from "../../web/lib/seo/site";
  * `web/lib/brand/assets.test.ts` が見る。
  */
 
-const svg = ogSvg({
-  brand: "#007595",
-  text: "#090b0c",
-  muted: "#67787c",
-  background: "#ffffff",
-});
+const svg = ogSvg({ brand: "#007595", text: "#090b0c", background: "#ffffff" });
 
 describe("ogSvg", () => {
   it("SNS が要求する寸法で、`assets.ts` の表と一致する（AC-13）", () => {
@@ -29,12 +23,18 @@ describe("ogSvg", () => {
     expect(svg).toContain(`<rect width="${OG_WIDTH}" height="${OG_HEIGHT}" fill="#ffffff"/>`);
   });
 
-  it("シンボルとワードマークと説明文と公開ホストが全部入っている", () => {
+  it("シンボルとワードマークと説明文が入っている", () => {
     // シンボルは `symbol.ts` の1か所から来る（形を書き写していない）。
     expect(svg).toContain('<circle cx="24" cy="24" r="16"');
-    for (const lettering of [WORDMARK, TAGLINE_1, TAGLINE_2, DOMAIN]) {
+    for (const lettering of [WORDMARK, TAGLINE_1, TAGLINE_2]) {
       expect(svg).toContain(lettering.path);
     }
+  });
+
+  it("公開ホストを載せない", () => {
+    // 貼られたカードにはURLが別枠で出るので、絵の中の1行は情報を足さないまま
+    // 広告の体裁だけを持ち込む（運営者の指示）。
+    expect(svg).not.toContain("openreport");
   });
 
   it("`<text>` を1つも使わない", () => {
@@ -63,15 +63,10 @@ describe("書いてある文字", () => {
     expect(OG_IMAGE.alt).toContain(`${TAGLINE_1.text}${TAGLINE_2.text}`);
   });
 
-  it("公開ホストが `SITE_ORIGIN` と一致する", () => {
-    // ドメインを取り直したときに、絵の中だけ古いホスト名で残るのを止める。
-    expect(DOMAIN.text).toBe(new URL(SITE_ORIGIN).host);
-  });
-
   it("数字を1つも載せない", () => {
     // 社数も金額も載せない。載せると年1回のデータ更新のたびに焼き直しが要り、
     // 更新を忘れた1枚が SNS のキャッシュに残る。
-    const text = [WORDMARK, TAGLINE_1, TAGLINE_2, DOMAIN].map((l) => l.text).join("");
+    const text = [WORDMARK, TAGLINE_1, TAGLINE_2].map((l) => l.text).join("");
     expect(text).not.toMatch(/[0-9０-９]/);
   });
 });

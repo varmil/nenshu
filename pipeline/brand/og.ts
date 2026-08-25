@@ -1,5 +1,5 @@
 import { symbolMark } from "./symbol";
-import { DOMAIN, TAGLINE_1, TAGLINE_2, WORDMARK, type Lettering } from "./lettering";
+import { TAGLINE_1, TAGLINE_2, WORDMARK, type Lettering } from "./lettering";
 
 /**
  * SNS に貼られたときの1枚（S2・Issue #116・`docs/site-chrome/spec.md` 4.3）。
@@ -13,6 +13,9 @@ import { DOMAIN, TAGLINE_1, TAGLINE_2, WORDMARK, type Lettering } from "./letter
  * 並んだときに出所を見分けられること（`docs/ranking/intent.md` の差別化要因）が
  * 読み取れれば足りる。数字は載せない——載せると年1回のデータ更新のたびに
  * 焼き直す必要が出るうえ、更新を忘れた1枚が SNS のキャッシュに残る。
+ *
+ * **公開ホスト（`openreport.net`）も置かない。** 貼られたカードにはURLが別枠で
+ * 出るので、絵の中の1行は情報を足さないまま広告の体裁だけを持ち込む（運営者の指示）。
  *
  * 文字はアウトライン（`lettering.ts`）で置く。理由はそちらに書いてある。
  */
@@ -47,9 +50,10 @@ const TAGLINE_SIZE = 86;
 const TAGLINE_LEADING = 122;
 const TAGLINE_BASELINE = 396;
 
-const DOMAIN_SIZE = 32;
-const DOMAIN_BASELINE = 578;
-
+/**
+ * シンボルの上端。**下の余白と釣り合わせてある**——説明文の2行目の字面は
+ * およそ 525 で終わるので、上に 92 空けると下が 105 になり、ほぼ天地中央になる。
+ */
 const SYMBOL_TOP = 92;
 
 export type OgSvgColors = {
@@ -57,8 +61,6 @@ export type OgSvgColors = {
   brand: string;
   /** 説明文の色。 */
   text: string;
-  /** 公開ホストの色。 */
-  muted: string;
   /** 地の色。 */
   background: string;
 };
@@ -83,7 +85,7 @@ function letters(
   );
 }
 
-export function ogSvg({ brand, text, muted, background }: OgSvgColors): string {
+export function ogSvg({ brand, text, background }: OgSvgColors): string {
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_WIDTH}" height="${OG_HEIGHT}"`,
     ` viewBox="0 0 ${OG_WIDTH} ${OG_HEIGHT}">`,
@@ -116,12 +118,6 @@ export function ogSvg({ brand, text, muted, background }: OgSvgColors): string {
       size: TAGLINE_SIZE,
       fill: text,
     }),
-    letters(DOMAIN, {
-      x: MARGIN,
-      baseline: DOMAIN_BASELINE,
-      size: DOMAIN_SIZE,
-      fill: muted,
-    }),
     `</svg>`,
   ].join("");
 }
@@ -131,14 +127,16 @@ export function ogOverflow(): string | null {
   const widest = Math.max(
     MARGIN + SYMBOL_SIZE + WORDMARK_GAP + (WORDMARK.width * WORDMARK_SIZE) / 100,
     MARGIN + (TAGLINE_1.width * TAGLINE_SIZE) / 100,
-    MARGIN + (TAGLINE_2.width * TAGLINE_SIZE) / 100,
-    MARGIN + (DOMAIN.width * DOMAIN_SIZE) / 100
+    MARGIN + (TAGLINE_2.width * TAGLINE_SIZE) / 100
   );
   if (widest > OG_WIDTH - MARGIN) {
     return `OG画像の文字が右の余白を割っている（${widest.toFixed(0)}px > ${OG_WIDTH - MARGIN}px）`;
   }
-  if (DOMAIN_BASELINE > OG_HEIGHT - MARGIN / 2) {
-    return "OG画像の文字が下の余白を割っている";
+  // 説明文の2行目の字面はベースラインより下にもわずかに出る（全角の em box の
+  // 下端まで見る）ので、そのぶんを足してから下の余白と比べる。
+  const bottom = TAGLINE_BASELINE + TAGLINE_LEADING + TAGLINE_SIZE * 0.12;
+  if (bottom > OG_HEIGHT - MARGIN / 2) {
+    return `OG画像の文字が下の余白を割っている（${bottom.toFixed(0)}px）`;
   }
   return null;
 }

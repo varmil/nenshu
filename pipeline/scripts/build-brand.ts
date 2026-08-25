@@ -14,7 +14,6 @@ import {
   BRAND_COLOR_DARK,
   BRAND_ICON_BACKGROUND,
   BRAND_TEXT,
-  BRAND_TEXT_MUTED,
 } from "../../web/lib/brand/colors";
 import {
   APPLE_TOUCH_ICON,
@@ -177,7 +176,6 @@ export async function buildBrand(outDir: string): Promise<string[]> {
         ogSvg({
           brand: BRAND_COLOR,
           text: BRAND_TEXT,
-          muted: BRAND_TEXT_MUTED,
           background: BRAND_ICON_BACKGROUND,
         }),
       ),
