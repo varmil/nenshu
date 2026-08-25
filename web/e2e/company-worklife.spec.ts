@@ -147,6 +147,25 @@ test.describe("AC-10 データが無いとき", () => {
       await expect(metric(page, label)).toContainText("掲載なし");
     }
   });
+
+  /**
+   * Issue #192。ベンチマークの iPhone 12 Pro（横幅390px）で、3指標の1文が
+   * **どれも1行に収まる**こと。**文言ではなく高さで見る**——折り返しは字数と
+   * 器の幅の兼ね合いで決まるので、文言を書き写しても崩れは捕まらない。
+   */
+  test("「掲載なし」の1文が390pxで1行に収まる", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/company/8306");
+    for (const label of ["平均残業時間", "年次有給休暇の取得率", "男女の賃金の差異"]) {
+      const note = metric(page, label).getByText("データベースに登録していません");
+      await expect(note).toBeVisible();
+      const lines = await note.evaluate(
+        (el) =>
+          el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)
+      );
+      expect(Math.round(lines), `${label} の1文が折り返している`).toBe(1);
+    }
+  });
 });
 
 test.describe("AC-11 表示基準と独立", () => {

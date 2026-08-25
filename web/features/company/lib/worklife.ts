@@ -45,7 +45,12 @@ export interface WorklifeMetricView {
   /** ラベルの下に置く定義。無ければ空文字。 */
   definition: string;
   rows: WorklifeValueRow[];
-  /** 行が1つも無いときに出す文。 */
+  /**
+   * 行が1つも無いときに出す文。**iPhone 12 Pro（横幅390px・本文幅358px）で
+   * 1行に収める**（Issue #192）。12px の字で29文字までしか入らないので、
+   * 指標名は**隣の `label` が持っているぶんを繰り返さない**——
+   * `有給休暇の取得率` は `取得率`、`男女の賃金の差異` は `差異` と書く。
+   */
   emptyNote: string;
 }
 
@@ -147,7 +152,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       valueSuffix: "%",
       definition: "",
       rows: record ? withAll(record.paidLeaveAll, "全体", record.paidLeaveUnits) : [],
-      emptyNote: "この会社は有給休暇の取得率をデータベースに登録していません。",
+      emptyNote: "この会社は取得率をデータベースに登録していません。",
     },
     {
       key: "wageGap",
@@ -159,7 +164,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       // 降ろした理由のひとつがこれ）。
       definition: "女性の平均賃金 ÷ 男性の平均賃金 × 100",
       rows: record ? wageGapRows(record) : [],
-      emptyNote: "この会社は男女の賃金の差異をデータベースに登録していません。",
+      emptyNote: "この会社は差異をデータベースに登録していません。",
     },
   ];
 

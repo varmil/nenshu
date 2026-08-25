@@ -16,7 +16,7 @@ web/features/company/
     NeighborCompanies.tsx         水準が近い会社
     HowItWorks.tsx                この数字の作り方（3ステップ）
   lib/
-    neighbors.ts                  同業種で金額が近い5社
+    neighbors.ts                  同業種で金額が近い10社（Issue #195 で5社から）
     highlights.ts                 要点の箇条書き・推移の増減の文
     stats.ts                      binOf / formatBinLabel / positionPercent / estimateRange を追加
 pipeline/scripts/build-data.ts    buildStats に buildDistribution を追加
@@ -30,7 +30,7 @@ pipeline/scripts/build-data.ts    buildStats に buildDistribution を追加
 | --- | --- | --- |
 | 金額・順位・偏差値・全体平均との差 | ○ | |
 | 中位・ヒストグラムの階級と形 | ○ | |
-| 水準が近い会社の5社 | ○ | |
+| 水準が近い会社の10社 | ○ | |
 | 要点の箇条書き（位置の記述） | ○ | |
 | 年齢別の折れ線と表 | 選択中の点の強調だけ | 8点の値そのものは不変 |
 | **平均年収推移（10年）** | | **○** |
@@ -60,7 +60,31 @@ pipeline/scripts/build-data.ts    buildStats に buildDistribution を追加
 
 ## 水準が近い会社（`findNeighbors`）
 
-**リクエスト時に算出する。** ビルド時に持つと 1,867社 × 9基準 × 5社 の表になる。
+**リクエスト時に算出する。** ビルド時に持つと 1,867社 × 9基準 × 10社 の表になる。
+
+**出す社数は `NEIGHBOR_COUNT` の1か所。** C2 の時点は5社で、2026-08-25 に10社へ増やした
+（Issue #195・回遊のため）。増えるのは `slice` の長さだけで、業種を並べ直す計算は変わらない。
+**リクエスト時の CPU は増えない**——R1（#180）以降 `/company/[id]` は全社をビルド時に生成するので、
+`findNeighbors` が走るのはビルドの中だけ（実測でも生成は 20.5s のまま）。
+
+増えるのは配るバイト数で、`byBasis` 9基準ぶんの近傍が5社から10社になる。同一手順（`next build` の
+`.next/server/app/company/*.html`）で前後を測ると:
+
+| | 5社 | 10社 | 差 |
+| --- | ---: | ---: | ---: |
+| `/company/6861`（電気機器150社） | 126,241 B | 135,913 B | +9,672 B |
+| `/company/8058`（卸売業97社） | 131,233 B | 140,573 B | +9,340 B |
+| `/company/7203`（輸送用機器68社） | 127,012 B | 136,530 B | +9,518 B |
+| `/company/9202`（空運業5社） | 123,544 B | 123,544 B | **±0** |
+| `/company/6861`（gzip） | 17,762 B | 18,584 B | +822 B |
+
+**空運業が動かないのが対照になる。** 5社しかない業種は自分を除いた4社で既に頭打ちで、上限を
+10社にしても出る社数が変わらない（該当は鉱業2・空運業5・石油石炭製品6・水産農林業6・海運業7 の
+5業種＝26社）。全1,867ページぶんでは `.next/server/app/company/` が 430MB になる——無料枠の上限は
+ファイル数 20,000（1,867 のまま）と1ファイル 25MiB なので、どちらにも触れない。
+
+`<Link>` は10本に増えるが `prefetch={false}` のままなので、`/company/6861` を開いて下まで送っても
+`/company/` への先読みは **0件**（`npm run measure:prefetch` と同じ手順を企業詳細に向けて実測）。
 
 1業種は最大173社（情報・通信業）。実測で **0.05ms/基準**、9基準ぶんまとめても 0.5ms 未満で、
 C1 が確かめた「リクエスト時は当該1社ぶんの16回だけ」に足しても Workers Free の

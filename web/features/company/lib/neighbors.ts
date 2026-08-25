@@ -13,20 +13,25 @@ export interface NeighborCompany {
   avgAge: number;
 }
 
-/** 出す社数（`docs/company/spec.md` 1.12）。 */
-export const NEIGHBOR_COUNT = 5;
+/**
+ * 出す社数（`docs/company/spec.md` 1.12）。
+ *
+ * **5社から10社に増やした**（Issue #195・運営者の判断）。同じ業種を回遊する経路が
+ * この節しかないので、5社では業種の中の一帯が見えないまま終わっていた。
+ */
+export const NEIGHBOR_COUNT = 10;
 
 /**
  * 同じ業種で、その表示基準の金額が近い会社（spec 1.12）。
  *
- * **リクエスト時に算出する。** ビルド時に持つと 1,867社 × 9基準 × 5社 の表になり、
+ * **リクエスト時に算出する。** ビルド時に持つと 1,867社 × 9基準 × 10社 の表になり、
  * `stats.json` が数倍になる。1業種は最大173社（情報・通信業）なので、当該1社ぶんの
  * 計算に足しても Workers Free の CPU 制約に収まる（`docs/company/company-page/design.md`）。
  *
  * **自分自身は含めない。** 表示基準を切り替えると金額の系列ごと変わるので、
- * 選ばれる5社も変わる。
+ * 選ばれる10社も変わる。
  *
- * 同じ業種に5社に満たない会社しかなければ、その社数だけ返す（鉱業は2社）。
+ * 同じ業種に10社に満たない会社しかなければ、その社数だけ返す（鉱業は2社）。
  */
 export function findNeighbors(
   companies: CompaniesData,

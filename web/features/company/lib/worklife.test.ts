@@ -52,6 +52,19 @@ describe("buildWorklifeView", () => {
     expect(view.metrics[0].unit).not.toContain("時間");
   });
 
+  /**
+   * Issue #192。iPhone 12 Pro（横幅390px）で本文幅は358px、12px の字で29文字。
+   * **文言を書き写さず長さで固定する**——書き写すと、文言を直すたびにテストも
+   * 直すことになり、そのとき何も守らない。
+   */
+  it("掲載なしの1文は390pxで1行に収まる長さに収める", () => {
+    for (const m of buildWorklifeView(null).metrics) {
+      expect(m.emptyNote.length).toBeLessThanOrEqual(29);
+      // 指標名は隣の見出しが持っているので繰り返さない。
+      expect(m.emptyNote).not.toContain(m.label);
+    }
+  });
+
   it("AC-6 全体値を先に置き、区分は登録順のまま", () => {
     const view = buildWorklifeView(
       record({

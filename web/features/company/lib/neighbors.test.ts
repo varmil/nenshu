@@ -11,7 +11,7 @@ const industryOf = (id: string) =>
   companies.industries[companies.rows.find((r) => r[0] === id)![2]];
 
 describe("findNeighbors（AC-12）", () => {
-  it("同じ業種の5社を返し、自分自身は含めない", () => {
+  it("同じ業種の10社を返し、自分自身は含めない", () => {
     const neighbors = findNeighbors(companies, curves, "6861", null);
     expect(neighbors).toHaveLength(NEIGHBOR_COUNT);
     expect(neighbors.map((n) => n.id)).not.toContain("6861");
@@ -27,8 +27,8 @@ describe("findNeighbors（AC-12）", () => {
 
   /*
    * 近さで選んでいることの確認。キーエンスは電気機器の1位なので、選ばれるのは
-   * その業種の上位5社になる。順位で切っているのではなく金額の距離で選んでいるが、
-   * 1位の隣は結果的に2〜6位になる。
+   * その業種の上位10社になる。順位で切っているのではなく金額の距離で選んでいるが、
+   * 1位の隣は結果的に2〜11位になる。
    */
   it("金額が近い順に選ばれる", () => {
     const target = companies.rows.find((r) => r[0] === "6861")![6];
@@ -42,17 +42,29 @@ describe("findNeighbors（AC-12）", () => {
     expect(picked).toEqual(others.slice(0, NEIGHBOR_COUNT));
   });
 
-  it("表示基準を変えると選ばれる5社が変わりうる", () => {
+  it("表示基準を変えると選ばれる10社が変わりうる", () => {
     const raw = findNeighbors(companies, curves, "6861", null).map((n) => n.id);
     const at35 = findNeighbors(companies, curves, "6861", 35).map((n) => n.id);
     expect(at35).not.toEqual(raw);
   });
 
-  // 鉱業は2社しかない。無理に5社出さない。
+  // 鉱業は2社しかない。無理に10社出さない。
   it("業種の社数が足りなければその数だけ返す", () => {
     const mining = companies.industries.indexOf("鉱業");
     const id = companies.rows.find((r) => r[2] === mining)![0];
     expect(findNeighbors(companies, curves, id, null)).toHaveLength(1);
+  });
+
+  /*
+   * 10社に増やしたことで「足りない業種」が鉱業だけではなくなった（Issue #195）。
+   * 空運業5社・石油石炭製品6社・水産農林業6社・海運業7社の4業種が新たに該当する。
+   * 5社の頃は上限ちょうどで通っていた空運業で、自分を除いた4社が返ることを固定する。
+   */
+  it("10社に満たない業種では自分を除いた全社を返す", () => {
+    const air = companies.industries.indexOf("空運業");
+    const rows = companies.rows.filter((r) => r[2] === air);
+    expect(rows).toHaveLength(5);
+    expect(findNeighbors(companies, curves, rows[0][0], null)).toHaveLength(rows.length - 1);
   });
 
   it("存在しないIDなら空配列", () => {

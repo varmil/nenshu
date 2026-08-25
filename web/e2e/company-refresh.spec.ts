@@ -36,10 +36,10 @@ test.describe("AC-11 この会社の要点", () => {
 });
 
 test.describe("AC-12 水準が近い会社", () => {
-  test("同業種の5社が企業詳細へのリンクとして並ぶ", async ({ page }) => {
+  test("同業種の10社が企業詳細へのリンクとして並ぶ", async ({ page }) => {
     await page.goto("/company/6861");
     const section = page.getByRole("heading", { name: "電気機器で水準が近い会社" }).locator("xpath=../ul");
-    await expect(section.getByRole("listitem")).toHaveCount(5);
+    await expect(section.getByRole("listitem")).toHaveCount(10);
     await expect(section.getByRole("link").first()).toHaveAttribute("href", /^\/company\//);
   });
 
@@ -56,6 +56,29 @@ test.describe("AC-12 水準が近い会社", () => {
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     expect(requests).toHaveLength(0);
+  });
+
+  /*
+   * 10社に増やした（Issue #195）ぶん、節が縦に伸びる。行の構造は5社の頃と同じなので
+   * 横には広がらないはずだが、器（PCは316pxの右カラム）が変わっていないことを
+   * モバイル幅で固定しておく。社名は `truncate` で切れる前提。
+   */
+  test("10行に増えても390pxで横スクロールを起こさない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/6861");
+    const section = page.locator("section", { hasText: "電気機器で水準が近い会社" });
+    await expect(section.getByRole("listitem")).toHaveCount(10);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  // 空運業は5社しかない。上限に届かない業種では自分を除いた社数だけ並ぶ。
+  test("10社に満たない業種ではその社数だけ並ぶ", async ({ page }) => {
+    await page.goto("/company/9202");
+    const section = page.getByRole("heading", { name: "空運業で水準が近い会社" }).locator("xpath=../ul");
+    await expect(section.getByRole("listitem")).toHaveCount(4);
   });
 });
 
