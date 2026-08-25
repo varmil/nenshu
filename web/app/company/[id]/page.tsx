@@ -17,6 +17,9 @@ import type {
   RadarData,
 } from "@/features/company/lib/radar";
 import { companyMetadata } from "@/lib/seo/company";
+import { JsonLd } from "@/lib/seo/JsonLd";
+import { breadcrumbJsonLd } from "@/lib/seo/jsonLd";
+import { companyBreadcrumb } from "@/features/company/lib/breadcrumb";
 import type {
   CompanyStatsData,
   CompanyView,
@@ -221,6 +224,11 @@ export default async function CompanyPage({ params }: Props) {
 
   return (
     <LogoIdsProvider ids={logoIdsOnPage(view)}>
+      {/*
+        画面のパンくずと同じ階層を機械可読にする（S2・AC-14）。**同じ配列から
+        出す**ので、段を足したり行き先を変えたりしても片方だけ古くならない。
+      */}
+      <JsonLd data={breadcrumbJsonLd(companyBreadcrumb(view))} />
       <CompanyDetail
         view={view}
         radar={radarFor(view.id, worklifeRecord)}

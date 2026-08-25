@@ -37,11 +37,30 @@
   // どちらでも走るので、ダッシュボードを触らずに両方を直せる。**静かに壊れる経路
   // なので、写した結果を数える検証まで含めてビルドを落とす形にしてある。**
   "build": {
-    "command": "npx opennextjs-cloudflare populateCache local && node scripts/assert-prerendered-assets.mjs",
+    "command": "npx opennextjs-cloudflare populateCache local && node scripts/write-404-asset.mjs && node scripts/assert-prerendered-assets.mjs",
   },
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
+    // **存在しないパスで Worker を起動しない**（Issue #200 の一部・親 #118）。
+    // ボットのスキャン（`/wp-admin/install.php`・`/.env` 等）が Worker を起こして
+    // CPU を使っていた（本番の実測で 122ms）。アセットに一致しないリクエストは
+    // `404.html` で返し、Worker を呼ばない。
+    //
+    // **`not_found_handling` だけを書くとサイトが全部 404 になる。** 既定で有効な
+    // `assets_navigation_prefers_asset_serving`（2025-04-01 以降）により、
+    // ナビゲーションリクエストは**アセットに一致しなくても Worker より先に
+    // `404.html` が返る**——`/` も `/about` も `/company/[id]` もアセットには
+    // 無いので、全滅する（ローカルで実際に全部 404 になった）。
+    "not_found_handling": "404-page",
+    // **だから Worker が処理するパスを明示する。** ここに載っていないパスは
+    // Worker を経由せず 404 になる。
+    //
+    // **ページを足したらここにも足すこと。** 忘れると本番でそのページだけが
+    // 404 になり、**dev サーバーには `run_worker_first` が効かないので E2E では
+    // 気づけない**（#183 と同じ穴）。`e2e/asset-routing.spec.ts` を Worker に
+    // 向けて回すと落ちる。
+    "run_worker_first": ["/", "/about", "/company/*", "/sitemap.xml", "/robots.txt"],
   },
   "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "nenshu" }],
   "cache": {

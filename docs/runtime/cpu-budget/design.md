@@ -127,10 +127,40 @@ Next.js のルーティングに入る前にキャッシュから返す設定な
 
 **`E2E_BASE_URL` で Worker に向けたときだけ走る。** dev で走らせると「暴走していない」が自明に通り、**守っているつもりで守っていない**状態になる——それが起きたことそのものなので、skip する側を既定にした。
 
+## 存在しないパスで Worker を起動しない
+
+本番の Observability で `GET /wp-admin/install.php` が **122ms** の CPU を使っていた。ボットのスキャンで Worker が起きている。**アセットに一致しないリクエストは `404.html` で返し、Worker を呼ばない。**
+
+**`not_found_handling: "404-page"` だけを書くとサイトが全部 404 になる。** 既定で有効な `assets_navigation_prefers_asset_serving`（2025-04-01 以降）により、**ナビゲーションリクエストはアセットに一致しなくても Worker より先に `404.html` が返る**——`/` も `/about` も `/company/[id]` もアセットには無いので全滅する（ローカルで実際に全部 404 になった）。
+
+**だから `run_worker_first` で Worker が処理するパスを明示する。**
+
+```jsonc
+"not_found_handling": "404-page",
+"run_worker_first": ["/", "/about", "/company/*", "/sitemap.xml", "/robots.txt"],
+```
+
+| パス | 結果 |
+| --- | --- |
+| `/`・`/?age=35`・`/about`・`/company/6861`・`/sitemap.xml`・`/robots.txt` | 200（Worker 経由） |
+| `/company/<一覧に無いID>` | 404（Worker 経由・Next.js の404） |
+| `/wp-admin/install.php`・`/.env` | **404・Worker を起動しない** |
+| `/logos/*`・`/_next/static/*` | 200（アセット直配信・従来どおり） |
+
+**代償は許可リストの保守。** ページを足して `run_worker_first` への追記を忘れると、本番でそのページだけが 404 になる。**dev サーバーには `run_worker_first` が効かないので E2E では気づけない**（#183 と同じ穴）。`e2e/asset-routing.spec.ts` を Worker に向けて回すと落ちる——`/about` を許可リストから外して実際に落ちること（「`/about` が 404 なら run_worker_first の漏れ」）を確かめてある。
+
+**`asset-routing` はデプロイ済みのプレビューURLに向けても通る**（見ているのがステータスと `x-opennext` 系ヘッダの有無だけなので）。**`cache-headers` は逆で、プレビューURLに向けると必ず落ちる**——`Cloudflare-CDN-Cache-Control` はエッジで消費されて外からは見えないため。宛先を取り違えないこと。
+
+`404.html` は Next.js が事前生成した `_not-found` の HTML をそのまま置く（`scripts/write-404-asset.mjs`）。**`/company/<無いID>` は Worker が返す404、`/wp-admin/…` はアセットの404**という2経路になるので、**出どころを1つにして見た目が割れないようにしてある。**
+
 ## この先
 
 **`/` は動的なまま。** `searchParams` を読むので事前生成できない。ここが予算に触るようなら、次は #165 で戻したデータ分割か、ファセットの持ち方そのものを見直すことになる。
 
 **新しい項目を足す Unit は `searchParams` を読めない**（C5〜C7・#159〜#161）。読みたくなったらそれは「このページを動的に戻す」という決定なので ADR-0012 を改訂すること。
+
+**ページ（ルート）を足したら `wrangler.jsonc` の `run_worker_first` にも足すこと。** 忘れると本番でそのページだけが 404 になる。
+
+**Worker の起動そのものは、この構成では消せない。** 事前生成でページを描く CPU は消えたが、`handler.mjs`（7.3MB）の評価は残る。本番の実測で `/company/[id]` は cold 107〜137ms・warm 24ms、`/about` は cold 208〜213ms・warm 22ms。Cloudflare のドキュメントは「平均的な Worker は 2.2ms、重い処理でも 10〜20ms」としており、桁が違う。**事前生成した HTML を静的アセットとして置けば Worker は起動しない**ことはローカルで実証したが、**クライアント遷移（RSC）と両立しない**——アセットは `RSC: 1` 付きのリクエストにも `text/html` を返す。フレームワークごと見直す線を **Issue #200** に切り出した。
 
 **年齢そろえの UI は、いずれ推定年収の要素に付いたスイッチへ寄せる**（運営者の方針）。R1 は URL から外すところまでで、画面の作り直しは別 Unit。

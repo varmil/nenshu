@@ -49,4 +49,10 @@ for (const name of ["about.cache", "sitemap.xml.cache", "robots.txt.cache"]) {
   if (!existsSync(resolve(base, name))) fail(`${name} がありません`);
 }
 
+// 静的アセットの 404（`wrangler.jsonc` の `not_found_handling`）。**無いと存在しない
+// パスで Worker が起動する**（`scripts/write-404-asset.mjs` が書く）。
+if (!existsSync(resolve(ROOT, ".open-next/assets/404.html"))) {
+  fail("404.html がありません（scripts/write-404-asset.mjs が走っていない）");
+}
+
 console.log(`事前生成の検証: 企業詳細 ${actual} 枚 ＋ about・sitemap・robots を確認しました`);

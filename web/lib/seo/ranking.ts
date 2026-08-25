@@ -4,20 +4,12 @@ import { PAGE_SIZE } from "@/features/ranking/types";
 import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
 import { fiscalPeriodLabel } from "@/lib/data/period";
 import { toMetadata, type PageMeta } from "./pageMeta";
+import { agePath, industryPath } from "./paths";
 import { SITE_NAME } from "./site";
 
-/** `/?age=N`。`age` は数値なのでエンコードは要らない。 */
-export function agePath(age: TargetAge): string {
-  return `/?age=${age}`;
-}
-
-/**
- * `/?ind=X`。**業種名は日本語なので必ずエンコードする。**
- * canonical も sitemap もここを通し、生の文字列を混ぜない。
- */
-export function industryPath(industry: string): string {
-  return `/?ind=${encodeURIComponent(industry)}`;
-}
+// パスの組み立ては `lib/seo/paths.ts` に移した（S2）。**再輸出しておく**——
+// sitemap も canonical もパンくずも同じ2本を通ることが、この施策の要点である。
+export { agePath, industryPath };
 
 /**
  * ランキングURLの正規化。`path` が canonical で、`targetAge`・`industry`・`page` は
