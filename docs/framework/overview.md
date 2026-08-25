@@ -8,9 +8,9 @@
 
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
-| F0 | `next/*` への依存を剥がす | なし | AC-5, AC-6 | **Next.js のまま行う。** `notFound`・`usePathname`・`Link`＋`useLinkStatus`・`Script` の5か所を自前の薄い層へ寄せる。※共有: `features/navigation/` |
-| F1 | Astro へ移す（カットオーバー） | F0 | AC-1〜AC-3, AC-5〜AC-15 | **1つの PR で切り替える。** 足場・ルーティング・事前生成・メタデータ・キャッシュ・`run_worker_first`・sitemap・robots・E2E の付け替えを含む。※共有: 全体 |
-| F2 | 遷移の待ち表示を作り直す | F1 | AC-5 | **まず「要るのか」を測ってから作る。** 素の HTML 取得が十分速ければ作らない。※共有: `features/navigation/` |
+| F0 | [`next/*` への依存を剥がす](https://github.com/varmil/nenshu/issues/208) | なし | AC-5, AC-6 | **Next.js のまま行う。** `notFound`・`usePathname`・`Link`＋`useLinkStatus`・`Script` の5か所を自前の薄い層へ寄せる。※共有: `features/navigation/` |
+| F1 | [Astro へ移す（カットオーバー）](https://github.com/varmil/nenshu/issues/209) | F0（#208） | AC-1〜AC-3, AC-5〜AC-15 | **1つの PR で切り替える。** 足場・ルーティング・事前生成・メタデータ・キャッシュ・`run_worker_first`・sitemap・robots・E2E の付け替えを含む。※共有: 全体 |
+| F2 | [遷移の待ち表示を作り直す](https://github.com/varmil/nenshu/issues/210) | F1（#209） | AC-5 | **まず「要るのか」を測ってから作る。** 素の HTML 取得が十分速ければ作らない。※共有: `features/navigation/` |
 
 ## 実施順序
 
@@ -22,7 +22,7 @@ F0 → F1 → F2
 
 **ADR-0013（E0・#174）とは独立。** 先にやっても後でもよい。**後にすると Astro 側で実装することになる**ので、E0 に着手済みならそちらを先に終わらせるほうが手戻りが少ない。
 
-## F0 `next/*` への依存を剥がす
+## F0 `next/*` への依存を剥がす（[#208](https://github.com/varmil/nenshu/issues/208)）
 
 spec.md の 2.（AC-5・AC-6）。
 
@@ -42,7 +42,7 @@ spec.md の 2.（AC-5・AC-6）。
 - **`eslint.config.mjs` の `no-restricted-imports`（`next/link` の直接 import を止めている）は残す。** 対象を自前の層に付け替える
 - **`usePathname` の置き換えは `lib/history/` の規則に乗せる**——あそこが「URL を読む・書く」の1か所になっている（U14・#108）
 
-## F1 Astro へ移す（カットオーバー）
+## F1 Astro へ移す（カットオーバー・[#209](https://github.com/varmil/nenshu/issues/209)）
 
 spec.md の 1.・3.・4. と 2. の全部。
 
@@ -55,7 +55,7 @@ spec.md の 1.・3.・4. と 2. の全部。
 - **AC-1 は E2E で固定する。** 「`/about` と `/company/[id]` が Worker を起こさない」ことを、CPU が床のままであることで確かめる。**ヘッダでは判らない**
 - **`wrangler.jsonc` は main に入るまで効かない**（2026-08-21・#119）。ブランチのプレビューでの結果で「効かない」と判断しないこと
 
-## F2 遷移の待ち表示を作り直す
+## F2 遷移の待ち表示を作り直す（[#210](https://github.com/varmil/nenshu/issues/210)）
 
 spec.md の 2.（AC-5）。
 

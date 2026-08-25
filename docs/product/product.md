@@ -32,7 +32,7 @@
 | performance | 稼ぐ力（一人当たり経常利益） | 着手中 | `docs/performance/` |
 | runtime | Worker の実行予算（CPU 10ms に収める） | 着手中 | `docs/runtime/` |
 | expansion | 掲載企業数の拡大（母集団を有報提出会社の全件へ） | 未着手（Inception完了・E0〜E6） | `docs/expansion/` |
-| framework | 配信フレームワークの移行（Next.js + OpenNext → Astro） | 未着手（Inception完了・F0〜F2。ADR-0014） | `docs/framework/` |
+| framework | 配信フレームワークの移行（Next.js + OpenNext → Astro） | 未着手（Inception完了・F0〜F2 = #208〜#210。ADR-0014） | `docs/framework/` |
 | market-data | 株価推移・信用格付け | 未着手（データ調達の可否から） | — |
 | monetize | 収益化（広告・アフィリエイト） | 未着手 | — |
 

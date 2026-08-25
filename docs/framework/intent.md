@@ -223,7 +223,7 @@ Issue [#200](https://github.com/varmil/nenshu/issues/200)（親 [#118](https://g
 **B（Astro）を採用した**（2026-08-25）。
 
 1. **ADR-0014** に決定を置いた。ADR-0002 のフレームワーク選定と ADR-0004 の配信方式を supersede し、**ADR-0012 の決定は残して実現手段だけ差し替える**。ADR-0006（公開URL）は据え置き
-2. **`spec.md`・`overview.md`** を書いた。Unit は **F0 → F1 → F2** の3つ（`overview.md`）
+2. **`spec.md`・`overview.md`** を書いた。Unit は **F0（#208）→ F1（#209）→ F2（#210）** の3つ
 3. **一直線にしかできない。** Next.js と Astro は同じ Worker に同居できないので、F1 は分割不能なカットオーバーになる。だから F0 で先に `next/*` を剥がして、カットオーバーの差分から「API の置き換え」という関心を抜く
 
 ## 測り方（次に測る人へ）
