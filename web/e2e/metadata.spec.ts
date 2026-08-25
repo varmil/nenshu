@@ -1,5 +1,6 @@
-import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { collectPageRequests } from "./network";
+import { test, expect } from "./rankingTest";
+import type { APIRequestContext, Page } from "@playwright/test";
+import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**
  * U16（Issue #135・親 #130）。**画面の中で状態を切り替えたあとのメタデータ**を固定する。
@@ -149,6 +150,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
 
   test("メタデータの更新でネットワークリクエストは発生しない（AC-7）", async ({ page }) => {
     await page.goto("/");
+    await waitForRankingReady(page);
     const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();

@@ -4,17 +4,19 @@ import { useMemo } from "react";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { rankingPageMeta } from "@/lib/seo/ranking";
 import { useRankingState } from "../hooks/useRankingState";
-import { buildSearchParams, DEFAULT_TARGET_AGE } from "../lib/urlState";
+import { useCompaniesDataset } from "../hooks/useCompaniesDataset";
+import { buildSearchParams, DEFAULT_TARGET_AGE, rankingHref } from "../lib/urlState";
 import { pageRange } from "../lib/pagination";
 import { populationForBasis } from "../lib/population";
-import { industryCounts } from "../lib/industryCounts";
 import { formatInt } from "../lib/format";
 import { fiscalPeriodLabel } from "@/lib/data/period";
+import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
+import { logoIdSet } from "@/features/logo/lib/mask";
 import { PAGE_SIZE } from "../types";
 import type {
-  CompaniesData,
   CurvesData,
   PopulationStats,
+  RankingBootstrap,
   RankingState,
   SortSelection,
   TargetAge,
@@ -32,28 +34,55 @@ import { RankingCardList } from "./RankingCardList";
 import { RankingPagination } from "./RankingPagination";
 
 export function RankingApp({
-  companies,
+  bootstrap,
   curves,
   population,
   initialState,
 }: {
-  companies: CompaniesData;
+  bootstrap: RankingBootstrap;
   curves: CurvesData;
   population: PopulationStats;
   initialState: RankingState;
 }) {
-  const { state, setState, rankedCompanies, totalCount, pageMaxSalary } = useRankingState(
+  /**
+   * 全件は初回に1度だけ取りに行く（E0・ADR-0013）。**サーバーは1ページぶんしか
+   * 渡さない**ので、届くまではそれを出す。
+   */
+  const companies = useCompaniesDataset(
+    bootstrap.dataUrl,
+    bootstrap.meta.version,
+  );
+  const { state, setState, page, ready } = useRankingState(
     companies,
     curves,
-    initialState
+    initialState,
+    bootstrap.page,
   );
+  const { companies: rankedCompanies, totalCount, pageMaxSalary } = page;
 
   /**
-   * 絞り込みの変更はすべてここを通す。**`page` を1に戻すのをここ1か所に閉じる**——
-   * 呼び出し側ごとに書いていると、増やしたフィルタで戻し忘れる。
+   * 状態の変更はすべてここを通る。**分岐を1か所に閉じる**——ボタンごとに書くと、
+   * 増やしたフィルタで倒し忘れる（`page` を1に戻すのを1か所にしているのと同じ理由）。
+   *
+   * **全件が届くまでは実ナビゲーションに倒す**（E0・ADR-0013）。すべての状態は
+   * URL にあり、`/` はどの URL でも正しく SSR できる（ADR-0004）ので、遷移すれば
+   * サーバーが同じ画面を返す。**この経路を持たないと、届かなかったときに操作が
+   * 沈黙する。**
+   */
+  const commit = (next: RankingState) => {
+    if (ready) {
+      setState(next);
+      return;
+    }
+    window.location.assign(rankingHref(next));
+  };
+
+  /**
+   * 絞り込みの変更。**`page` を1に戻すのをここ1か所に閉じる**——呼び出し側ごとに
+   * 書いていると、増やしたフィルタで戻し忘れる。
    */
   const applyFilter = (patch: Partial<RankingState>) => {
-    setState((prev) => ({ ...prev, ...patch, page: 1 }));
+    commit({ ...state, ...patch, page: 1 });
   };
 
   const handleAgeChange = (targetAge: TargetAge) => applyFilter({ targetAge });
@@ -61,16 +90,18 @@ export function RankingApp({
     applyFilter({ targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE });
   // 軸と向きは1つの値なので、そのまま差分として当たる（`types.ts` の `SortSelection`）。
   const handleSortChange = (sort: SortSelection) => applyFilter({ sort });
-  const handlePageChange = (page: number) => setState((prev) => ({ ...prev, page }));
+  const handlePageChange = (nextPage: number) =>
+    commit({ ...state, page: nextPage });
 
   const isRaw = state.targetAge === null;
-  // データの時点と掲載社数は、どちらも `companies.meta` から引く（spec 1.4・5.3）。
-  const fiscalPeriod = fiscalPeriodLabel(companies.meta);
-  const total = formatInt(companies.meta.count);
+  // データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
+  const fiscalPeriod = fiscalPeriodLabel(bootstrap.meta);
+  const total = formatInt(bootstrap.meta.count);
   const basisPopulation = populationForBasis(population, state.targetAge);
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
-  // 業種ごとの社数は絞り込みで変わらない（母集団の内訳）ので、データが同じ間は数え直さない。
-  const counts = useMemo(() => industryCounts(companies), [companies]);
+  // 業種ごとの社数は**母集団の内訳なので絞り込みで変わらない**。サーバーが数えた
+  // ものをそのまま使い、全件が届いても数え直さない（E0）。
+  const counts = bootstrap.industryCounts;
 
   /**
    * 画面の状態に対応する title・description・canonical を DOM に反映する（U16）。
@@ -82,173 +113,220 @@ export function RankingApp({
    * 同じ関数である。
    */
   const countOf = useMemo(() => {
-    const byIndustry = new Map(companies.industries.map((name, i) => [name, counts[i]]));
+    const byIndustry = new Map(
+      bootstrap.industries.map((name, i) => [name, counts[i]]),
+    );
     return (industry: string) => byIndustry.get(industry) ?? 0;
-  }, [companies, counts]);
-  usePageMeta(rankingPageMeta(buildSearchParams(state), companies, countOf));
+  }, [bootstrap.industries, counts]);
+  usePageMeta(rankingPageMeta(buildSearchParams(state), bootstrap, countOf));
 
   const filterProps = {
     state,
     onChange: applyFilter,
-    industries: companies.industries,
+    industries: bootstrap.industries,
   };
 
+  /**
+   * ロゴを持つ会社のID（L1）。**マスクを開くには `rows` が要る**ので、全件が届く
+   * まではサーバーが渡した「いま出ている1ページぶん」で代用する（E0）。
+   *
+   * **マスクを丸ごと ids に開いてサーバーから渡さない**——2,509件のIDは
+   * gzip でもマスク（約540B）より大きい。
+   */
+  const logoIds = useMemo(
+    () =>
+      companies === null
+        ? bootstrap.pageLogoIds
+        : logoIdSet(companies.rows, bootstrap.logoMask),
+    [companies, bootstrap.pageLogoIds, bootstrap.logoMask],
+  );
+
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
-      <header className="flex flex-col gap-3">
-        {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
-        <div className="flex flex-col gap-1">
-          {/* 見出しはモバイル 20px / PC 30px（アートボード 5c / 5a）。 */}
-          <h1 className="text-xl font-bold md:text-3xl">
-            {isRaw ? "平均年収ランキング" : `${state.targetAge}歳年収ランキング`}
-          </h1>
-          {/*
+    <LogoIdsProvider ids={logoIds}>
+      {/*
+        **全件が手元にあるか**を DOM に出す（E0・ADR-0013）。届くまでは操作が
+        実ナビゲーションに倒れるので、**「操作でネットワークが発生しない」を測る
+        E2E はこれを待ってから計測する**——待たずに測ると、初回の1回を操作由来と
+        取り違える。
+      */}
+      <div
+        className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4"
+        data-ranking-ready={ready ? "true" : undefined}
+      >
+        <header className="flex flex-col gap-3">
+          {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
+          <div className="flex flex-col gap-1">
+            {/* 見出しはモバイル 20px / PC 30px（アートボード 5c / 5a）。 */}
+            <h1 className="text-xl font-bold md:text-3xl">
+              {isRaw
+                ? "平均年収ランキング"
+                : `${state.targetAge}歳年収ランキング`}
+            </h1>
+            {/*
             **モバイルは先頭の1文だけを出す**（アートボード 5c、公開後の指摘）。
             2文まとめて出すと 390px で3行になり、本文が下に押し出されていた。
             同じ文を2つ書いて出し分けるのではなく、続きの1文だけを PC で足す。
           */}
-          {/*
+            {/*
             **データの時点は1文目に置く**（S3・`docs/site-chrome/spec.md` 5.1）。
             モバイルは2文目を隠すので、2文目に回すと狭い画面でだけ「いつの数字か」が
             消える。社数と同じく直書きせず `companies.meta` から引く（spec 1.4）。
           */}
-          <p className="text-muted-foreground text-xs md:text-sm">
-            {isRaw ? (
-              <>
-                {`${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。`}
-                <span className="hidden md:inline">
-                  年齢は会社ごとに違うため、若い会社は低めに出ます。
-                </span>
-              </>
-            ) : (
-              <>
-                {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。`}
-                <span className="hidden md:inline">
-                  元になる金額は有価証券報告書の平均年間給与です。
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-        {/*
+            <p className="text-muted-foreground text-xs md:text-sm">
+              {isRaw ? (
+                <>
+                  {`${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。`}
+                  <span className="hidden md:inline">
+                    年齢は会社ごとに違うため、若い会社は低めに出ます。
+                  </span>
+                </>
+              ) : (
+                <>
+                  {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。`}
+                  <span className="hidden md:inline">
+                    元になる金額は有価証券報告書の平均年間給与です。
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          {/*
           表示基準と年齢は「何の列か」が分かる帯に入れる（U13、アートボード 5a）。
           年齢の帯は実測値のとき破線＋減光になる——**消さずに残す**のが AC-11。
         */}
-        {/*
+          {/*
           説明文もモバイルは1文だけ（公開後の指摘）。帯の中で折り返すと、スイッチと
           説明のどちらが主役なのか読み取りにくくなる。
         */}
-        <ControlBand
-          label="並べ方"
-          hint={
-            isRaw ? (
-              <>
-                有価証券報告書の数値のまま。
-                <span className="hidden md:inline">年齢の違いは補正していません。</span>
-              </>
-            ) : (
-              <>
-                業種の賃金カーブで補正した推定値です。
-                <span className="hidden md:inline">全社を同じ年齢に置き換えています。</span>
-              </>
-            )
-          }
-        >
-          <BasisSwitch value={state.targetAge} onChange={handleBasisChange} label="並べ方" />
-        </ControlBand>
-        <ControlBand
-          label="年齢"
-          tone={isRaw ? "dashed" : "solid"}
-          hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
-        >
-          <AgeSwitch value={state.targetAge} onChange={handleAgeChange} disabled={isRaw} />
-        </ControlBand>
-      </header>
+          <ControlBand
+            label="並べ方"
+            hint={
+              isRaw ? (
+                <>
+                  有価証券報告書の数値のまま。
+                  <span className="hidden md:inline">
+                    年齢の違いは補正していません。
+                  </span>
+                </>
+              ) : (
+                <>
+                  業種の賃金カーブで補正した推定値です。
+                  <span className="hidden md:inline">
+                    全社を同じ年齢に置き換えています。
+                  </span>
+                </>
+              )
+            }
+          >
+            <BasisSwitch
+              value={state.targetAge}
+              onChange={handleBasisChange}
+              label="並べ方"
+            />
+          </ControlBand>
+          <ControlBand
+            label="年齢"
+            tone={isRaw ? "dashed" : "solid"}
+            hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
+          >
+            <AgeSwitch
+              value={state.targetAge}
+              onChange={handleAgeChange}
+              disabled={isRaw}
+            />
+          </ControlBand>
+        </header>
 
-      {/* PC は左に絞り込みを常設した2カラム、モバイルは1カラム＋シート（アートボード 5a / 5c）。 */}
-      <div className="flex flex-col gap-4 md:grid md:grid-cols-[13.5rem_1fr] md:items-start md:gap-6">
-        {/*
+        {/* PC は左に絞り込みを常設した2カラム、モバイルは1カラム＋シート（アートボード 5a / 5c）。 */}
+        <div className="flex flex-col gap-4 md:grid md:grid-cols-[13.5rem_1fr] md:items-start md:gap-6">
+          {/*
           **「適用中」は PC ではサイドバーの先頭に置く**（アートボード 5a）。効いている
           条件と、それを外す場所が同じ列に並ぶ。モバイルはサイドバーごとシートに
           隠れるので、`aside` の中身のうちチップだけを本文の上に残す——**2つ描いて
           出し分けない**。同じ解除ボタンが2つ存在すると、片方が隠れていても
           「同じ名前の要素が2つ」になり、テストからも読み上げからも曖昧になる。
         */}
-        <aside className="md:sticky md:top-4 md:flex md:flex-col md:gap-4">
-          <ActiveFilterChips state={state} onChange={applyFilter} />
-          <div className="hidden md:block">
-            <RankingFilters {...filterProps} />
-          </div>
-        </aside>
+          <aside className="md:sticky md:top-4 md:flex md:flex-col md:gap-4">
+            <ActiveFilterChips state={state} onChange={applyFilter} />
+            <div className="hidden md:block">
+              <RankingFilters {...filterProps} />
+            </div>
+          </aside>
 
-        <div className="flex min-w-0 flex-col gap-3">
-          {/*
+          <div className="flex min-w-0 flex-col gap-3">
+            {/*
             件数（左）と並び替え（右）を同じ行に置く。モバイルでは並び替えの列が
             全幅を取るので、件数が次の行へ回る（アートボード 5c と同じ並び）。
           */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/*
+            <div className="flex flex-wrap items-center gap-2">
+              {/*
               `flex-wrap`。390px では並び替え3つと「絞り込み」が1行に収まるが、
               360px では収まらない。**折り返させる**——横スクロールを出すと
               ページ全体が横に動く（U3 で踏んだ）。
             */}
-            <div className="order-1 flex w-full min-w-0 flex-wrap items-center gap-1.5 md:order-2 md:ml-auto md:w-auto">
-              <span aria-hidden="true" className="text-muted-foreground hidden text-xs md:inline">
-                並び替え
-              </span>
-              <SortSwitch value={state.sort} onChange={handleSortChange} />
-              <RankingFilterSheet {...filterProps} />
+              <div className="order-1 flex w-full min-w-0 flex-wrap items-center gap-1.5 md:order-2 md:ml-auto md:w-auto">
+                <span
+                  aria-hidden="true"
+                  className="text-muted-foreground hidden text-xs md:inline"
+                >
+                  並び替え
+                </span>
+                <SortSwitch value={state.sort} onChange={handleSortChange} />
+                <RankingFilterSheet {...filterProps} />
+              </div>
+              <p className="text-muted-foreground order-2 text-xs md:order-1">
+                {totalCount === 0 ? (
+                  "0社"
+                ) : (
+                  <>
+                    <span className="text-foreground font-semibold">
+                      {formatInt(totalCount)}社
+                    </span>{" "}
+                    中 {formatInt(range.from)}〜{formatInt(range.to)}社目
+                  </>
+                )}
+              </p>
             </div>
-            <p className="text-muted-foreground order-2 text-xs md:order-1">
-              {totalCount === 0 ? (
-                "0社"
-              ) : (
-                <>
-                  <span className="text-foreground font-semibold">{formatInt(totalCount)}社</span>{" "}
-                  中 {formatInt(range.from)}〜{formatInt(range.to)}社目
-                </>
-              )}
-            </p>
-          </div>
 
-          {totalCount === 0 ? (
-            <p className="text-muted-foreground py-12 text-center text-sm">
-              条件に一致する企業が見つかりませんでした。フィルタや検索条件を緩めてお試しください。
-            </p>
-          ) : (
-            <>
-              <RankingTable
-                companies={rankedCompanies}
-                targetAge={state.targetAge}
-                pageMaxSalary={pageMaxSalary}
-                population={basisPopulation}
-              />
-              <RankingCardList
-                companies={rankedCompanies}
-                targetAge={state.targetAge}
-                pageMaxSalary={pageMaxSalary}
-                population={basisPopulation}
-              />
-              <RankingPagination
-                state={state}
-                totalCount={totalCount}
-                onPageChange={handlePageChange}
-              />
-            </>
-          )}
+            {totalCount === 0 ? (
+              <p className="text-muted-foreground py-12 text-center text-sm">
+                条件に一致する企業が見つかりませんでした。フィルタや検索条件を緩めてお試しください。
+              </p>
+            ) : (
+              <>
+                <RankingTable
+                  companies={rankedCompanies}
+                  targetAge={state.targetAge}
+                  pageMaxSalary={pageMaxSalary}
+                  population={basisPopulation}
+                />
+                <RankingCardList
+                  companies={rankedCompanies}
+                  targetAge={state.targetAge}
+                  pageMaxSalary={pageMaxSalary}
+                  population={basisPopulation}
+                />
+                <RankingPagination
+                  state={state}
+                  totalCount={totalCount}
+                  onPageChange={handlePageChange}
+                />
+              </>
+            )}
 
-          {/*
+            {/*
             業種チップは本文カラムの中（アートボード 5a）。U12 では2カラムの外に
             全幅で置いていたため、サイドバーの下の空白と地続きに見えていた。
           */}
-          <IndustryChips
-            industries={companies.industries}
-            counts={counts}
-            current={state.industry}
-            onSelect={(industry) => applyFilter({ industry })}
-          />
+            <IndustryChips
+              industries={bootstrap.industries}
+              counts={counts}
+              current={state.industry}
+              onSelect={(industry) => applyFilter({ industry })}
+            />
+          </div>
         </div>
       </div>
-    </div>
+    </LogoIdsProvider>
   );
 }

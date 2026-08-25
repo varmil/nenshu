@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { collectPageRequests } from "./network";
+import { test, expect } from "./rankingTest";
+import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**
  * 表示基準（実測値 / 年齢そろえ）の切替。ADR-0007。
@@ -116,6 +116,7 @@ test.describe("表示基準の切替", () => {
   test("切替でネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/");
 
+    await waitForRankingReady(page);
     const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();

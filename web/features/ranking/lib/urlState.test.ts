@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSearchParams,
   parseSearchParams,
+  rankingHref,
   searchParamsRecordToURLSearchParams,
   INITIAL_STATE,
 } from "./urlState";
@@ -280,5 +281,37 @@ describe("searchParamsRecordToURLSearchParams", () => {
 
   it("空オブジェクトからは空のURLSearchParamsになる", () => {
     expect(searchParamsRecordToURLSearchParams({}).toString()).toBe("");
+  });
+});
+
+/*
+ * 全社ぶんのデータが届く前の操作は実ナビゲーションに倒れる（E0・#174・ADR-0013）。
+ * その行き先を作るのが `rankingHref` で、**倒れた先が同じ state に戻らないと、
+ * 押した絞り込みが効いていない画面が返る。**
+ */
+describe("rankingHref", () => {
+  it("既定の状態は `/`（`/?` にしない）", () => {
+    expect(rankingHref(INITIAL_STATE)).toBe("/");
+  });
+
+  it("state が付けばクエリ付きになる", () => {
+    expect(rankingHref(stateFor({ targetAge: 35 }))).toBe("/?age=35");
+    expect(rankingHref(stateFor({ page: 2 }))).toBe("/?page=2");
+  });
+
+  /*
+   * 実ナビゲーションの行き先は、サーバーが同じ画面を返せるURLでなければならない
+   * （`/` はどのURLでも正しく SSR できる・ADR-0004）。往復で state が戻ることで
+   * それを固定する。
+   */
+  it.each([
+    { targetAge: 30 as const, industry: "銀行業" },
+    { query: "トヨタ", page: 3 },
+    { sort: { key: "age", order: "asc" } as RankingState["sort"] },
+  ])("往復して同じ state に戻る（%o）", (overrides) => {
+    const state = stateFor(overrides);
+    const href = rankingHref(state);
+    const search = href.startsWith("/?") ? href.slice(2) : "";
+    expect(stateFor(parseSearchParams(new URLSearchParams(search)))).toEqual(state);
   });
 });

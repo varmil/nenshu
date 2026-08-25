@@ -4,6 +4,17 @@
 /logos/*
   Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
 
+# ランキングが初回に1度だけ取る全社ぶんのデータ（E0・ADR-0013）。
+# **`/` の HTML に埋めるのをやめてここへ移した**——同じバイト数でも、
+# `/?age=25`・`/?ind=銀行業`・`/?page=2` …のどのURLからも同じ1つのファイルを
+# 共有する。`run_worker_first`（wrangler.jsonc）に無いので Worker は起きない。
+#
+# **`immutable` にはしない。** 固定パスなので、クエリを付けずに叩かれたときに
+# 1年古いデータを掴ませることになる。版はHTML側がクエリ（`?v=<generatedAt>`）で
+# 切っており、新しいビルドは必ず新しいURLを引く。
+/data/*
+  Cache-Control: public, max-age=604800, stale-while-revalidate=2592000
+
 # ブランドのアイコンと manifest（S4・Issue #163）。
 # 固定パスなので `immutable` にはできないが、中身が変わるのはロゴを描き直した
 # ときだけなので `/logos/*` と同じ扱いでよい。
