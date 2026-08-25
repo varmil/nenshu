@@ -135,11 +135,31 @@ function WorklifeRowLine({
   hasBar: boolean;
   valueSuffix: string;
 }) {
+  const sub = row.subordinate === true;
   return (
     <div className="flex items-center gap-2">
-      <span className={`min-w-0 flex-1 ${labelClass(row.label)}`}>{row.label}</span>
+      {/*
+        **ラベルの幅は固定**（アートボード 6b・6c の `width:96px`）。伸ばすと
+        バーの左端が行ごとに動き、長さを見比べられなくなる。
+      */}
+      <span
+        className={`${hasBar ? "w-24 shrink-0" : "min-w-0 flex-1"} ${labelClass(row.label)} ${
+          sub ? "text-muted-foreground" : ""
+        }`}
+      >
+        {row.label}
+      </span>
       {hasBar && <WorklifeBar ratio={row.ratio} />}
-      <span className="shrink-0 text-base font-semibold tabular-nums">
+      {/*
+        **値の列は固定幅**（アートボード 6b の `min-width:56px`）。桁数で幅が
+        変わると器の右端が行ごとに動き、**器の長さが違うので棒を見比べられない**
+        （`10.5` と `3.3` で9pxずれていた・実測）。
+      */}
+      <span
+        className={`min-w-14 shrink-0 text-right tabular-nums ${
+          sub ? "text-sm font-normal" : "text-base font-semibold"
+        }`}
+      >
         {row.value.toFixed(1)}
         {valueSuffix !== "" && (
           <span className="text-muted-foreground ml-0.5 text-xs font-normal">
@@ -151,35 +171,35 @@ function WorklifeRowLine({
   );
 }
 
-/** バーのメモリ数。**1メモリ＝10時間・10%**（アートボード 6c）。 */
-const TICKS = 10;
-
 /**
  * 値そのものは丸めずに出し、**棒の長さだけ上限100で止める**（AC-7）。
  *
- * 塗られていないメモリは**描かない**——10個の空セルを敷くと、値の小さい会社ほど
- * 灰色の帯が目立ち、棒が短いことより器の長さが先に目に入る。
+ * **器（グレーの下敷き）を敷き、その上に塗りと10等分の区切り線を重ねる**
+ * （アートボード 6b・6c、Issue #191）。W1 は「空のメモリを描くと器の長さが
+ * 先に目に入る」として塗られたメモリだけを並べていたが、**下敷きが無いと
+ * 目盛りの基準が消え、10.5 と 26.0 の差が「どれだけのうちの差か」読めない。**
+ * 区切り線は地の色で抜く——線を足すのではなく器を切る形にすると、塗りの上でも
+ * 空の上でも同じ位置に出る。
  */
 function WorklifeBar({ ratio }: { ratio: number | null }) {
-  if (ratio === null) return <span className="w-24 shrink-0" aria-hidden="true" />;
-  const filled = ratio * TICKS;
-  // 器は96px・高さ8px（アートボード 6c）。64pxだと1メモリが6pxしかなく、
-  // 残業10.5時間のような小さい値で**棒があること自体が見えない**（実測）。
+  if (ratio === null) return <span className="h-[7px] flex-1" aria-hidden="true" />;
   return (
-    <span className="flex h-2 w-24 shrink-0 gap-px" aria-hidden="true">
-      {Array.from({ length: TICKS }, (_, i) => {
-        const width = Math.min(Math.max(filled - i, 0), 1);
-        return (
-          <span key={i} className="flex-1 overflow-hidden rounded-[1px]">
-            {width > 0 && (
-              <span
-                className="bg-primary block h-full"
-                style={{ width: `${width * 100}%` }}
-              />
-            )}
-          </span>
-        );
-      })}
+    <span
+      className="bg-muted relative block h-[7px] flex-1 overflow-hidden rounded-[2px]"
+      aria-hidden="true"
+    >
+      <span
+        className="bg-primary absolute inset-y-0 left-0"
+        style={{ width: `${ratio * 100}%` }}
+      />
+      {/* 1メモリ＝10時間・10%（上限100）。 */}
+      <span
+        className="absolute inset-0"
+        style={{
+          background:
+            "repeating-linear-gradient(90deg, transparent 0 calc(10% - 2px), var(--background) calc(10% - 2px) 10%)",
+        }}
+      />
     </span>
   );
 }

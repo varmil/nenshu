@@ -1,4 +1,4 @@
-import type { RadarAxis } from "../lib/radar";
+import { RADAR_LIST_ORDER, type RadarAxis } from "../lib/radar";
 import { OverviewRadar } from "./OverviewRadar";
 
 /**
@@ -23,44 +23,27 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
         各軸は、その指標を公表している会社の中での相対位置（外側ほど上位）を示します。
       </p>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-center md:gap-6">
+      {/*
+        **左は 340px 固定**（アートボード 6b の `340px 1fr`）。`1fr 1fr` で割ると
+        器の幅が画面ごとに変わり、図の実効サイズと文字の大きさが一緒に動く。
+      */}
+      {/*
+        **左は 340px 固定、2カラムは `lg` から**（アートボード 6b の `340px 1fr`）。
+        `1fr 1fr` で割ると器の幅が画面ごとに変わり、図の実効サイズと文字の
+        大きさが一緒に動く。**`md` では2カラムにできない**——この画面は
+        768px でサイドバーが出るので本文が 396px しかない（実測。652px になるのは
+        1024px から）。
+      */}
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)] lg:items-center lg:gap-4">
         <OverviewRadar axes={axes} />
 
         {/* 図の外にも値を出す（AC-9）。PC だけ——モバイルは図のラベルが持つ。 */}
-        <dl className="hidden flex-col gap-1.5 md:flex">
-          {axes.map((axis) => (
-            <div
-              key={axis.key}
-              className="border-border flex flex-wrap items-baseline justify-between gap-x-2 border-b pb-1.5 last:border-b-0"
-            >
-              <dt className="text-sm">{axis.label}</dt>
-              <dd className="flex items-baseline gap-2">
-                <span
-                  className={
-                    axis.position === null
-                      ? "text-muted-foreground text-sm"
-                      : "text-sm font-semibold tabular-nums"
-                  }
-                >
-                  {axis.valueText}
-                </span>
-                {/*
-                  **「上位◯%」は採らない。** アートボード 6b はそう書いているが、
-                  `上位82%` は上から82%の位置という意味で、日本語としては
-                  上位＝良いに読める。**順位で読ませる**——偏差値の隣の「上位◯%」を
-                  2026-08-20 に外したのと同じ線（CLAUDE.md）。
-                */}
-                {axis.rankText !== "" && (
-                  <span className="text-muted-foreground text-[0.7rem] tabular-nums">
-                    {axis.rankText}
-                  </span>
-                )}
-              </dd>
-              {axis.note !== "" && (
-                <p className="text-muted-foreground w-full text-[0.7rem]">{axis.note}</p>
-              )}
-            </div>
-          ))}
+        <dl className="hidden flex-col lg:flex">
+          {RADAR_LIST_ORDER.map((key) => {
+            const axis = axes.find((a) => a.key === key);
+            if (axis === undefined) return null;
+            return <OverviewAxisRow key={key} axis={axis} />;
+          })}
         </dl>
       </div>
 
@@ -74,5 +57,58 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
         稼ぐ力は、連結の経常利益（直近5期の中央値）を連結の従業員数で割った額です。パート・アルバイトは従業員数に含まれません。公表の無い指標は頂点を打たず、残りの点で閉じています。
       </p>
     </section>
+  );
+}
+
+/*
+ * 1軸ぶんの行（アートボード 6b）。**縦を2本そろえる**（Issue #191）。
+ *
+ * - 値は固定幅で**右寄せ**（`min-w-[4.75rem]`）——桁数が違っても右端が動かない
+ * - 相対位置は固定幅で**左寄せ**（`w-[5.5rem]`）——書き出しが動かない
+ *
+ * 掲載なしの軸も**同じ幅の空きを残す**。詰めると、その行だけ値の右端が
+ * 右へ寄って列が折れる。
+ */
+function OverviewAxisRow({ axis }: { axis: RadarAxis }) {
+  const missing = axis.position === null;
+  return (
+    <div className="border-border flex items-baseline justify-between gap-2 border-b py-[7px] last:border-b-0">
+      <dt className={`text-[13px] ${missing ? "text-muted-foreground" : ""}`}>
+        {axis.label}
+        {axis.subLabel !== "" && (
+          // 稼ぐ力の注記だけは長いので**下に折る**（アートボード 6b）。
+          <span
+            className={`text-muted-foreground text-[0.7rem] ${
+              axis.key === "profit" ? "mt-0.5 block whitespace-nowrap" : "ml-1.5"
+            }`}
+          >
+            {axis.subLabel}
+          </span>
+        )}
+      </dt>
+      <dd className="shrink-0 text-right text-[13px] whitespace-nowrap">
+        <span
+          className={`inline-block min-w-[4.75rem] text-right ${
+            missing ? "text-muted-foreground" : "font-semibold tabular-nums"
+          }`}
+        >
+          {axis.valueText}
+        </span>
+        {/*
+          **「上位◯%」は採らない。** アートボード 6b はそう書いているが、
+          `上位82%` は上から82%の位置という意味で、日本語としては
+          上位＝良いに読める。**順位で読ませる**——偏差値の隣の「上位◯%」を
+          2026-08-20 に外したのと同じ線（CLAUDE.md）。
+        */}
+        <span className="text-muted-foreground ml-1.5 inline-block w-[5.25rem] text-left text-[0.65rem] tabular-nums">
+          {axis.rankText}
+        </span>
+        {axis.note !== "" && (
+          <span className="text-muted-foreground mt-0.5 block text-[0.7rem] font-normal">
+            {axis.note}
+          </span>
+        )}
+      </dd>
+    </div>
   );
 }

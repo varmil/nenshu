@@ -101,6 +101,32 @@ describe("buildWorklifeView", () => {
     for (const row of wageGap.rows) expect(row.ratio).toBeNull();
   });
 
+  it("全労働者だけが会社全体の値で、うち正規・うち非正規は内訳として弱める", () => {
+    const view = buildWorklifeView(
+      record({ wageGapAll: 67, wageGapRegular: 66.8, wageGapNonRegular: 59.7 })
+    );
+    // **太字が3つ並ぶと、どれが会社全体の値なのかが読み取れない**（Issue 191）。
+    expect(metric(view, "wageGap").rows.map((r) => r.subordinate === true)).toEqual([
+      false,
+      true,
+      true,
+    ]);
+  });
+
+  it("残業・有給の行は内訳ではない（全体値も区分も対等に並べる）", () => {
+    const view = buildWorklifeView(
+      record({
+        overtimeAll: 20.3,
+        overtimeScope: "対象正社員",
+        overtimeUnits: [{ unit: "総合職", value: 26 }],
+      })
+    );
+    // spec 2.2b の「代表を選ばない」は、見た目の強弱を付けないことでもある。
+    for (const row of metric(view, "overtime").rows) {
+      expect(row.subordinate).toBeUndefined();
+    }
+  });
+
   it("非正規が `-`（欠測）の会社は、その行だけ落ちる", () => {
     const view = buildWorklifeView(record({ wageGapAll: 67, wageGapNonRegular: null }));
     expect(metric(view, "wageGap").rows.map((r) => r.label)).toEqual(["全労働者"]);

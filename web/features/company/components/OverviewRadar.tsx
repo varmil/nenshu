@@ -11,29 +11,35 @@ import { RADAR_AXES, type RadarAxis } from "../lib/radar";
  */
 
 /*
- * **余白を削って図を大きくする。** 400×330・R=88 では、図の直径が viewBox 幅の
- * 44% しかなく、器（PC の本文カラムの左半分＝約300px）に置くと5角形が
- * 130px ほどに縮んでいた（実測）。ラベルを**すべて中央寄せ**にすると左右の
- * 必要余白が半分で済むので、そのぶん R を上げられる。
+ * **寸法はアートボード 6a / 6b と同じにする**（Issue #191・2巡目）。
+ *
+ * `@container` を `<svg>` 自身に置いていたのが、図が小さかった原因だった。
+ * `container-type: inline-size` は**その要素の縦横比を無かったことにする**ので、
+ * `height: auto` が置換要素の既定（150px）に落ち、`preserveAspectRatio` が
+ * 図全体を半分に縮めていた（実測: PC で 314×150・倍率 0.5）。**器のクエリは
+ * 包む `<div>` に置く**——`SalaryCurveChart` が `<figure>` に置いているのと同じ形。
+ *
+ * 併せて viewBox をモックの値そのものにした。器の幅を 340px（PC の左列）と
+ * 揃えてあるので、**モックと同じ倍率・同じ実効文字サイズで出る。**
  */
-const WIDTH = 360;
-const HEIGHT = 300;
-const CX = WIDTH / 2;
-const CY = 150;
-const R = 105;
-/** ラベルを外周からどれだけ離すか。2行ぶんの高さを見込む。 */
+const WIDTH = 300;
+const HEIGHT = 232;
+const CX = 150;
+const CY = 136;
+const R = 70;
+/** ラベルを外周からどれだけ離すか。 */
 const LABEL_GAP = 20;
-/** グリッドの同心5角形。外周を含む。 */
-const GRID_STEPS = [0.4, 0.7, 1];
+/** グリッドの同心5角形。外周を含む（アートボード 6a は 1/3・2/3・1）。 */
+const GRID_STEPS = [1 / 3, 2 / 3, 1];
 
 /*
- * 文字は**器の幅で決める**（`SalaryCurveChart` と同じ理由）。viewBox が固定なので
- * SVG ごと拡大縮小し、user unit で書いた文字も同じ倍率で伸びる。PC ではレーダーが
- * 本文カラムの左半分（器 約300px）に、モバイルでは幅いっぱい（器 約358px）に
- * 入るので、倍率の逆数で刻んで実効 11〜13px に収める。
+ * **文字は user unit のまま置く。器のクエリで刻まない**（2巡目）。
+ * 器の幅は PC が 340px 固定、モバイルが `max-w-[370px]` で頭打ちなので、
+ * 倍率は 1.13〜1.23 に収まる。11 / 12 は実効 12.5〜14.8px になり、
+ * これはモックがその幅で出している大きさそのものになる。
  */
-const TEXT_LABEL = "text-[15px] @sm:text-[14px] @md:text-[16px] @lg:text-[15px]";
-const TEXT_VALUE = "text-[19px] @sm:text-[18px] @md:text-[20px] @lg:text-[19px]";
+const TEXT_LABEL = "text-[11px]";
+const TEXT_VALUE = "text-[12px]";
 
 /** 12時から時計回り（アートボード 6a）。 */
 function angleOf(index: number): number {
@@ -50,14 +56,14 @@ function polygon(ratio: number): string {
 }
 
 /**
- * ラベルの縦位置。**寄せは5軸とも中央**——左右の軸を `start`/`end` にすると、
- * 「残業の少なさ」のような6文字のラベルが左端の外へ出る（viewBox の外は切れる）。
- * 中央寄せなら必要な余白が半分になり、そのぶん図を大きく取れる。
+ * ラベルの縦位置の微調整。**寄せは5軸とも中央**——左右の軸を `start`/`end` に
+ * すると、「残業の少なさ」のような6文字のラベルが左端の外へ出る（viewBox の外は
+ * 切れる）。中央寄せなら必要な余白が半分になり、そのぶん図を大きく取れる。
+ *
+ * 真上の軸だけ余計に上げる。値の行が外周の頂点に近づきすぎるため。
  */
 function labelDy(index: number): number {
-  const [, y] = pointAt(index, 1);
-  if (Math.abs(pointAt(index, 1)[0] - CX) < 1) return y < CY ? -10 : 20;
-  return y < CY ? 0 : 10;
+  return Math.abs(pointAt(index, 1)[0] - CX) < 1 ? -6 : -2;
 }
 
 export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
@@ -71,7 +77,7 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
   return (
     <svg
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      className="@container h-auto w-full"
+      className="mx-auto block h-auto w-full max-w-[370px]"
       role="img"
       aria-label={axes.map((a) => `${a.label} ${a.valueText}`).join("、")}
     >
@@ -83,17 +89,24 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
           strokeWidth={1}
         />
       ))}
-      {RADAR_AXES.map((_, i) => {
+      {axes.map((axis, i) => {
         const [x, y] = pointAt(i, 1);
+        // **掲載なしの軸は軸線を破線にする**（アートボード 6a/6b/6d）。頂点が
+        // 無いことは図から読み取りにくいので、線の側にも印を残す。
+        const missing = axis.position === null;
         return (
           <line
-            key={i}
+            key={axis.key}
             x1={CX}
             y1={CY}
             x2={x}
             y2={y}
-            className="stroke-[var(--border)]"
+            className={
+              missing ? "stroke-[var(--muted-foreground)]" : "stroke-[var(--border)]"
+            }
             strokeWidth={1}
+            strokeDasharray={missing ? "3 3" : undefined}
+            opacity={missing ? 0.6 : undefined}
           />
         );
       })}
@@ -117,7 +130,7 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
       )}
       {drawn.map(({ axis, i }) => {
         const [x, y] = pointAt(i, axis.position as number);
-        return <circle key={axis.key} cx={x} cy={y} r={3.5} className="fill-[var(--chart-1)]" />;
+        return <circle key={axis.key} cx={x} cy={y} r={3} className="fill-[var(--chart-1)]" />;
       })}
 
       {axes.map((axis, i) => {
