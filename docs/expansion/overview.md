@@ -75,7 +75,7 @@ site-chrome の S3（Issue #134）が置いた「決算期を1つ選んで全ペ
 - `pipeline/salary/unified.py` の窓、`edinet.annual_reports()` の寄せ方（証券コード → EDINETコード・期末の新しいほうを採る）、内国法人への絞り込み
 - `pipeline/scripts/build-data.ts` の `EXPECTED_ROW_COUNT`
 - **`docs/ranking/spec.md` の AC-1** — 1位がキーエンスからヒューリック（2,295万円）に変わる。E2E も同じ値を固定している
-- `/about`「対象範囲」の窓の説明（`web/lib/data/period.ts` の `filingWindowLabel`）
+- `/about`「対象範囲」の窓の説明（`web/lib/data/period.ts` の `filingWindowLabel`）と、**単体従業員100人未満で省いた社数**（spec 1.3・運営者の指示。**社数は直書きせずデータから引く**——`meta.count` と同じ扱い）
 - `docs/product/product.md`「データの前提」
 - `docs/ranking/spec.md` の「1,867社」
 
