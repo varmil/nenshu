@@ -194,7 +194,20 @@ if (isMain) {
   console.log(`  男女の賃金の差異    ${rate(r.filled.wageGap)}`);
   console.log(`  賃金の差異の注釈    ${rate(r.filled.note)}`);
   if (r.dropped.length > 0) {
+    // **理由ごとにまとめる。** 0 を落とす規則（W2・#185）で件数が3桁になったので、
+    // 平坦に並べると読めない。**それでも会社名は全部出す**——黙って消さない
+    // （spec.md 1.4）のに、数だけ出して中身を隠しては同じことになる。
     console.log(`\n落とした異常値 ${r.dropped.length}件:`);
-    for (const d of r.dropped) console.log(`  ${d.name}（${d.corporateNumber}） ${d.field} = ${d.raw}`);
+    const byReason = new Map<string, typeof r.dropped>();
+    for (const d of r.dropped) {
+      const key = `${d.reason}（${d.field.split(":")[0]}）`;
+      const list = byReason.get(key) ?? [];
+      list.push(d);
+      byReason.set(key, list);
+    }
+    for (const [reason, list] of [...byReason].sort((a, b) => b[1].length - a[1].length)) {
+      console.log(`  ${reason}: ${list.length}件`);
+      for (const d of list) console.log(`    ${d.name}（${d.corporateNumber}） ${d.field} = ${d.raw}`);
+    }
   }
 }

@@ -10,6 +10,8 @@ import {
   normalizeRow,
   hasAnyMetric,
   toNumber,
+  dropReasonForRate,
+  isMisenteredFullRate,
 } from "./positivedb";
 import { parseCsv } from "./csv";
 import { WORKLIFE_HEADER } from "./extract";
@@ -68,8 +70,63 @@ describe("normalizeRow", () => {
     const { record, dropped } = normalizeRow(row({ 2: "9010001101119", 1: "テスト株式会社", 129: "-16.8" }));
     expect(record.overtimeAll).toBeNull();
     expect(dropped).toEqual([
-      { corporateNumber: "9010001101119", name: "テスト株式会社", field: "overtime_all", raw: "-16.8" },
+      {
+        corporateNumber: "9010001101119",
+        name: "テスト株式会社",
+        field: "overtime_all",
+        raw: "-16.8",
+        reason: "負の値",
+      },
     ]);
+  });
+
+  it("残業 0 時間は全体値も区分別も落とす（W2・#185 例2）", () => {
+    const { record, dropped } = normalizeRow(
+      row({ 129: "0", 132: "総合職", 133: "0", 134: "事務職", 135: "0" })
+    );
+    expect(record.overtimeAll).toBeNull();
+    // **区分の行そのものは残す**——その会社が何を切っているかは情報（spec 2.2b）。
+    expect(record.overtimeUnits).toEqual([
+      { unit: "総合職", value: null },
+      { unit: "事務職", value: null },
+    ]);
+    expect(dropped.map((d) => d.field)).toEqual([
+      "overtime_unit:総合職",
+      "overtime_unit:事務職",
+      "overtime_all",
+    ]);
+    expect(new Set(dropped.map((d) => d.reason))).toEqual(new Set(["0"]));
+  });
+
+  it("有給取得率 0% も落とす（残業と同じ理由）", () => {
+    const { record } = normalizeRow(row({ 145: "全従業員", 146: "0" }));
+    expect(record.paidLeaveUnits).toEqual([{ unit: "全従業員", value: null }]);
+  });
+
+  it("100%ちょうどの全体値は、区分別がすべてそれ未満なら落とす（W2・#185 例1）", () => {
+    const { record, dropped } = normalizeRow(row({ 143: "100", 145: "全体", 146: "63.7" }));
+    expect(record.paidLeaveAll).toBeNull();
+    expect(record.paidLeaveUnits).toEqual([{ unit: "全体", value: 63.7 }]);
+    expect(dropped).toEqual([
+      {
+        corporateNumber: "",
+        name: "",
+        field: "paid_leave_all",
+        raw: "100",
+        reason: "全体値が100%ちょうど",
+      },
+    ]);
+  });
+
+  it("100%ちょうどでも、区分別が無い会社・100以上の区分がある会社は落とさない", () => {
+    expect(normalizeRow(row({ 143: "100" })).record.paidLeaveAll).toBe(100);
+    expect(
+      normalizeRow(row({ 143: "100", 145: "正社員", 146: "103.0" })).record.paidLeaveAll
+    ).toBe(100);
+  });
+
+  it("99.9% や 98.8% は落とさない（どちらが正しいか決める根拠が無い）", () => {
+    expect(normalizeRow(row({ 143: "98.8", 145: "正社員・契約社員", 146: "34.5" })).record.paidLeaveAll).toBe(98.8);
   });
 
   it("100%を超える有給取得率は落とさない（前年繰越の消化）", () => {
@@ -117,6 +174,23 @@ describe("normalizeRow", () => {
   });
 });
 
+describe("dropReasonForRate / isMisenteredFullRate", () => {
+  it("負と 0 だけを落とす", () => {
+    expect(dropReasonForRate(-16.8)).toBe("負の値");
+    expect(dropReasonForRate(0)).toBe("0");
+    expect(dropReasonForRate(0.1)).toBeNull();
+    expect(dropReasonForRate(103)).toBeNull();
+  });
+
+  it("100 ちょうど、かつ区分別がすべて 100 未満のときだけ入力ミスとみなす", () => {
+    expect(isMisenteredFullRate(100, [{ unit: "全体", value: 63.7 }])).toBe(true);
+    expect(isMisenteredFullRate(100, [])).toBe(false);
+    expect(isMisenteredFullRate(100, [{ unit: "正社員", value: null }])).toBe(false);
+    expect(isMisenteredFullRate(100, [{ unit: "正社員", value: 100 }])).toBe(false);
+    expect(isMisenteredFullRate(99.9, [{ unit: "正社員", value: 60 }])).toBe(false);
+  });
+});
+
 describe("hasAnyMetric", () => {
   it("3指標が1つも無ければ行を作らない", () => {
     expect(hasAnyMetric(normalizeRow(row({ 223: "2026年3月時点" })).record)).toBe(false);
@@ -126,8 +200,8 @@ describe("hasAnyMetric", () => {
     expect(hasAnyMetric(normalizeRow(row({ 146: "38.8" })).record)).toBe(true);
   });
 
-  it("残業0時間は「持っている」（欠測と区別する）", () => {
-    expect(hasAnyMetric(normalizeRow(row({ 129: "0" })).record)).toBe(true);
+  it("残業0時間しか持たない会社は「持っていない」（W2 で 0 を落としたため）", () => {
+    expect(hasAnyMetric(normalizeRow(row({ 129: "0" })).record)).toBe(false);
   });
 });
 
@@ -141,8 +215,9 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
     expect(header).toEqual([...WORKLIFE_HEADER]);
   });
 
-  it("法人番号で突合できた会社のうち、3指標のいずれかを持つ2,369社が入っている", () => {
-    expect(body).toHaveLength(2369);
+  it("法人番号で突合できた会社のうち、3指標のいずれかを持つ2,367社が入っている", () => {
+    // W2（#185）で 0 を落とした結果、残業 0 しか持たなかった2社が行ごと消えた。
+    expect(body).toHaveLength(2367);
   });
 
   it("すべての行が13桁の法人番号を持つ", () => {
@@ -155,13 +230,31 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("負の残業時間が1件も残っていない", () => {
-    const negatives = body.flatMap((r) =>
-      [col("overtime_all"), ...[1, 2, 3, 4, 5].map((n) => col(`overtime_unit${n}_hours`))]
-        .map((i) => r[i])
-        .filter((v) => v !== "" && Number(v) < 0)
-    );
-    expect(negatives).toEqual([]);
+  it("0 以下の残業時間・有給取得率が1件も残っていない（W2・#185）", () => {
+    const cells = (prefix: string, suffix: string, allColumn: string) =>
+      body.flatMap((r) =>
+        [col(allColumn), ...[1, 2, 3, 4, 5].map((n) => col(`${prefix}${n}${suffix}`))]
+          .map((i) => r[i])
+          .filter((v) => v !== "" && Number(v) <= 0)
+      );
+    expect(cells("overtime_unit", "_hours", "overtime_all")).toEqual([]);
+    expect(cells("paid_leave_unit", "_rate", "paid_leave_all")).toEqual([]);
+  });
+
+  it("ソニーグループの有給は区分別の 63.7% だけが残る（#185 例1）", () => {
+    const r = body.find((x) => x[col("id")] === "6758")!;
+    expect(r[col("paid_leave_all")]).toBe("");
+    expect(r[col("paid_leave_unit1")]).toBe("全体");
+    expect(r[col("paid_leave_unit1_rate")]).toBe("63.7");
+  });
+
+  it("野村総合研究所の残業は全部空になる（#185 例2）", () => {
+    const r = body.find((x) => x[col("id")] === "4307")!;
+    expect(r[col("overtime_all")]).toBe("");
+    expect(r[col("overtime_unit1")]).toBe("総合職");
+    expect(r[col("overtime_unit1_hours")]).toBe("");
+    // 有給は残る。落とすのは残業の値だけ。
+    expect(r[col("paid_leave_unit1_rate")]).toBe("73.4");
   });
 
   it("100%を超える有給取得率は残っている（前年繰越の消化。丸めていない）", () => {

@@ -320,8 +320,65 @@ export type WorklifeRecord = {
   updatedAt: string;
 };
 
+/**
+ * 落とす理由（W2・Issue #185）。**種別ごとに数えてサマリーに出す**ので、
+ * 会社名だけでなく理由も持つ。件数は3桁になるので、理由が無いと読めない。
+ */
+export type DropReason = "負の値" | "0" | "全体値が100%ちょうど";
+
 /** 落とした異常値。**黙って消さない**ので、呼び出し側がサマリーに出す。 */
-export type DroppedValue = { corporateNumber: string; name: string; field: string; raw: string };
+export type DroppedValue = {
+  corporateNumber: string;
+  name: string;
+  field: string;
+  raw: string;
+  reason: DropReason;
+};
+
+/**
+ * 残業時間・有給取得率として採らない値（W2・Issue #185・spec.md 1.4）。
+ *
+ * - **負** — 入力ミス以外にありえない（実測で残業に1社・`-16.8`）
+ * - **0** — 「1か月あたりの平均」が 0 になるのは対象者が1年間まったく残業して
+ *   いないときだけで、**未記入を 0 で埋めたのか本当に 0 なのかを我々は
+ *   区別できない**。実測では自社の中で矛盾している会社がある（花王は全体
+ *   15.4h なのに区分5件すべて 0.0、東洋エンジニアリングは全体 0.0 なのに
+ *   総合職 8.0h）。**区別できない値を画面に出さない**——残業の軸は小さいほど
+ *   上位なので、0 を残すとその会社が最上位に出る（野村総合研究所）
+ *
+ * **代償として、パート・嘱託の本物の 0.0 も一緒に消える**（商船三井の嘱託社員、
+ * みずほの無期契約パートタイム等）。取り込み時点で落とすので、節・レーダー・
+ * 順位のすべてで同じ扱いになる——片方だけ残すと「節には 0.0 があるのに
+ * レーダーは掲載なし」という食い違いを新しく作ることになる。
+ */
+export function dropReasonForRate(value: number): DropReason | null {
+  if (value < 0) return "負の値";
+  if (value === 0) return "0";
+  return null;
+}
+
+/**
+ * 有給取得率の**全体値**が入力ミスとみなせるか（W2・Issue #185・spec.md 1.4）。
+ *
+ * 判定は **100 ちょうど、かつ区分別の値がすべて 100 未満**のときだけ。実測で
+ * この条件を満たすのは4社（ソニーグループ 100 / 全体 63.7、富士電機 100 /
+ * 正社員 78.1、ＩＭＶ 100 / 社員 67.0 ほか2区分、極東貿易 100 / 正社員 60.2）で、
+ * **いずれも自社の登録した区分別の値がその 100 を否定している。**
+ *
+ * 列の見出しが `8.(1)年次有給休暇の取得率-対象労働者(%)` で「対象労働者の割合」
+ * とも読めるため、100 は「対象は全労働者（100%）」の意味で書かれたとみられる。
+ *
+ * **100 ちょうど以外は判定しない。** 98.8 / 34.5 のように怪しい組み合わせは
+ * 他にもあるが、どちらが正しいかを決める根拠が無い（区分は会社の全労働者を
+ * 覆っているとは限らないので、全体値が区分の範囲外にあること自体は矛盾を
+ * 意味しない——実測で残業50社・有給33社ある）。**100超の有給取得率は
+ * 落とさない**方針も変えていない（前年繰越の消化で正しい）。
+ */
+export function isMisenteredFullRate(all: number, units: readonly UnitValue[]): boolean {
+  if (all !== 100) return false;
+  const values = units.map((u) => u.value).filter((v): v is number => v !== null);
+  return values.length > 0 && values.every((v) => v < 100);
+}
 
 /**
  * 数値として読む。**空文字・`-`・「非公表」は `null`。`0` とは区別する。**
@@ -347,7 +404,8 @@ function units(row: readonly string[], nameIdx: readonly number[], valueIdx: rea
  * 1行を取り込む形に直す。
  *
  * **異常値の扱いは項目ごとに違う**（spec.md 1.4）。
- * - 負の残業時間は入力ミス以外にありえないので落とす（実測で1社・`-16.8`）
+ * - 負の残業時間・0の残業時間・0の有給取得率は落とす（`dropReasonForRate`）
+ * - 100%ちょうどで区分別と矛盾する有給の全体値は落とす（`isMisenteredFullRate`）
  * - 100%を超える有給取得率は落とさない（前年繰越の消化。実測で7社）
  * - 極端な賃金の差異も落とさない（少人数区分の外れ値だが値としては正しい）
  */
@@ -355,25 +413,44 @@ export function normalizeRow(row: readonly string[]): { record: WorklifeRecord; 
   const corporateNumber = (row[COL.corporateNumber] ?? "").trim();
   const positivedbName = (row[COL.name] ?? "").trim();
   const dropped: DroppedValue[] = [];
+  const drop = (field: string, raw: string, reason: DropReason) =>
+    dropped.push({ corporateNumber, name: positivedbName, field, raw, reason });
 
-  let overtimeAll = toNumber(row[COL.overtimeAll] ?? "");
-  if (overtimeAll !== null && overtimeAll < 0) {
-    dropped.push({
-      corporateNumber,
-      name: positivedbName,
-      field: "overtime_all",
-      raw: (row[COL.overtimeAll] ?? "").trim(),
-    });
-    overtimeAll = null;
-  }
+  /** 全体値を1つ読む。`dropReasonForRate` に当たれば落として `null` を返す。 */
+  const readAll = (index: number, field: string): number | null => {
+    const raw = (row[index] ?? "").trim();
+    const value = toNumber(raw);
+    if (value === null) return null;
+    const reason = dropReasonForRate(value);
+    if (reason === null) return value;
+    drop(field, raw, reason);
+    return null;
+  };
 
-  const overtimeUnits = units(row, COL.overtimeUnitName, COL.overtimeUnitValue).map((u) => {
-    if (u.value !== null && u.value < 0) {
-      dropped.push({ corporateNumber, name: positivedbName, field: `overtime_unit:${u.unit}`, raw: String(u.value) });
+  /** 区分別を読む。値だけ落とし、**区分の行そのものは残す**（何を切っているかは情報）。 */
+  const readUnits = (
+    nameIdx: readonly number[],
+    valueIdx: readonly number[],
+    field: string
+  ): UnitValue[] =>
+    units(row, nameIdx, valueIdx).map((u) => {
+      if (u.value === null) return u;
+      const reason = dropReasonForRate(u.value);
+      if (reason === null) return u;
+      drop(`${field}:${u.unit}`, String(u.value), reason);
       return { unit: u.unit, value: null };
-    }
-    return u;
-  });
+    });
+
+  // **読む順を明示する。** オブジェクトリテラルの中で呼ぶと、落とした値が
+  // 並ぶ順が書いた順と一致しない（`dropped` はサマリーにそのまま出る）。
+  const overtimeUnits = readUnits(COL.overtimeUnitName, COL.overtimeUnitValue, "overtime_unit");
+  const overtimeAll = readAll(COL.overtimeAll, "overtime_all");
+  const paidLeaveUnits = readUnits(COL.paidLeaveUnitName, COL.paidLeaveUnitValue, "paid_leave_unit");
+  let paidLeaveAll = readAll(COL.paidLeaveAll, "paid_leave_all");
+  if (paidLeaveAll !== null && isMisenteredFullRate(paidLeaveAll, paidLeaveUnits)) {
+    drop("paid_leave_all", String(paidLeaveAll), "全体値が100%ちょうど");
+    paidLeaveAll = null;
+  }
 
   return {
     record: {
@@ -382,8 +459,8 @@ export function normalizeRow(row: readonly string[]): { record: WorklifeRecord; 
       overtimeAll,
       overtimeScope: (row[COL.overtimeScope] ?? "").trim(),
       overtimeUnits,
-      paidLeaveAll: toNumber(row[COL.paidLeaveAll] ?? ""),
-      paidLeaveUnits: units(row, COL.paidLeaveUnitName, COL.paidLeaveUnitValue),
+      paidLeaveAll,
+      paidLeaveUnits,
       wageGapAll: toNumber(row[COL.wageGapAll] ?? ""),
       wageGapRegular: toNumber(row[COL.wageGapRegular] ?? ""),
       wageGapNonRegular: toNumber(row[COL.wageGapNonRegular] ?? ""),

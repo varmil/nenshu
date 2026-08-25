@@ -537,7 +537,7 @@ describe("buildData", () => {
     it("突合できた会社数が CSV の行数と一致する", () => {
       const csv = parseCsv(readFileSync(join(ROOT, "data/worklife_2026.csv"), "utf-8"));
       expect(result.worklife.meta.matched).toBe(csv.length - 1);
-      expect(result.worklife.meta.matched).toBe(2369);
+      expect(result.worklife.meta.matched).toBe(2367);
     });
 
     it("トヨタ自動車の値が読み戻せる", () => {
@@ -696,8 +696,9 @@ describe("buildData", () => {
       expect(result.radar.tenure.population).toBe(2961);
       expect(result.radar.profit.population).toBe(1865);
       // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
-      expect(result.radar.paidLeave.population).toBe(1266);
-      expect(result.radar.overtime.population).toBe(1420);
+      // W2（#185）で 0 と入力ミスの100%を落としたぶん、両軸とも母集団が減った。
+      expect(result.radar.paidLeave.population).toBe(1264);
+      expect(result.radar.overtime.population).toBe(1413);
     });
 
     it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {

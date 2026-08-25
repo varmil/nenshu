@@ -48,9 +48,28 @@ export function representativeValue(
   all: number | null,
   units: readonly { value: number | null }[]
 ): number | null {
-  if (all !== null) return all;
+  return representative(all, units).value;
+}
+
+/**
+ * `representativeValue` に**なぜ1点に決められなかったか**を添えた版（W2・Issue #185）。
+ *
+ * `byUnit` は「値が無い」のではなく「**区分ごとには公表されているが、1点には
+ * まとめられない**」ことを表す。区分が2つ以上ある会社は有給221社・残業114社あり、
+ * その全部で**節には値が出ているのにレーダーだけ「掲載なし」**になっていた
+ * （Issue #207 例1）。**規則は変えない**——ここで1つ選ぶのは spec 2.2b が禁じた
+ * 「代表を選ぶ」ことで、単純平均は人数の重みが無いぶん実際の全体値とずれる
+ * （ラクスは正社員88.0・契約社員96.8で、単純平均は全体より高く出る）。
+ * **変えるのは図とリストの文言だけ**にして、読者が節を見に行けるようにする。
+ */
+export function representative(
+  all: number | null,
+  units: readonly { value: number | null }[]
+): { value: number | null; byUnit: boolean } {
+  if (all !== null) return { value: all, byUnit: false };
   const values = units.filter((u) => u.value !== null);
-  return values.length === 1 ? (values[0].value as number) : null;
+  if (values.length === 1) return { value: values[0].value as number, byUnit: false };
+  return { value: null, byUnit: values.length > 1 };
 }
 
 /*
@@ -181,6 +200,11 @@ export interface RadarAxisInput {
   value: number | null;
   rank: number;
   population: number;
+  /**
+   * 値は無いが**区分ごとには公表されている**（W2・Issue #185）。有給・残業の
+   * 2軸だけが持つ。頂点を打たないのは掲載なしと同じで、文言だけが変わる。
+   */
+  byUnit?: boolean;
 }
 
 /**
@@ -228,7 +252,17 @@ export function buildRadarAxes(
     return {
       key,
       label: LABELS[key],
-      valueText: missing ? "掲載なし" : format[key](value),
+      /*
+       * **「掲載なし」と「区分別」を分ける**（W2・Issue #185・#207 例1）。
+       * 区分ごとに公表している会社では、節には値が出ているのに図だけが
+       * 「掲載なし」になり、公表していない会社と見分けが付かなかった。
+       *
+       * **3文字に収める。** リストの値の列は 13px・76px 固定で、右寄せの
+       * 文字が器を超えると左へはみ出して隣のラベルを押す（`OverviewSection`）。
+       * 「区分別で公表」は6文字＝約78pxで入らない。**何の区分かは節の説明文が
+       * 引き受ける**（`OverviewSection` の末尾の1文）。
+       */
+      valueText: missing ? (inputs[key].byUnit === true ? "区分別" : "掲載なし") : format[key](value),
       position: missing ? null : axisPosition(rank, population),
       rankText: missing
         ? ""
