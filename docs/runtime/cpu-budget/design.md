@@ -149,6 +149,8 @@ Next.js のルーティングに入る前にキャッシュから返す設定な
 
 **代償は許可リストの保守。** ページを足して `run_worker_first` への追記を忘れると、本番でそのページだけが 404 になる。**dev サーバーには `run_worker_first` が効かないので E2E では気づけない**（#183 と同じ穴）。`e2e/asset-routing.spec.ts` を Worker に向けて回すと落ちる——`/about` を許可リストから外して実際に落ちること（「`/about` が 404 なら run_worker_first の漏れ」）を確かめてある。
 
+**`asset-routing` はデプロイ済みのプレビューURLに向けても通る**（見ているのがステータスと `x-opennext` 系ヘッダの有無だけなので）。**`cache-headers` は逆で、プレビューURLに向けると必ず落ちる**——`Cloudflare-CDN-Cache-Control` はエッジで消費されて外からは見えないため。宛先を取り違えないこと。
+
 `404.html` は Next.js が事前生成した `_not-found` の HTML をそのまま置く（`scripts/write-404-asset.mjs`）。**`/company/<無いID>` は Worker が返す404、`/wp-admin/…` はアセットの404**という2経路になるので、**出どころを1つにして見た目が割れないようにしてある。**
 
 ## この先
