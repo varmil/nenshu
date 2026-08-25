@@ -211,6 +211,63 @@ test.describe("モックとの一致（2巡目）", () => {
     for (const row of withRank) expect(row[2]).toBe(withRank[0][2]);
   });
 
+  /*
+   * **右寄せの文字は、器を超えると左へはみ出す。** 右端はそろったままなので、
+   * 上の「右端がそろう」テストでは捕まらない——84px の器に実測83px の
+   * `1,867社中1,468位` が入っていたとき、隣のラベルを押していたのに通っていた。
+   *
+   * **「収まる」では足りない。1文字ぶんの余裕を要求する。** このサイトは
+   * webfont を持たずOSのフォントで組むので、**同じ文字列の幅が環境で変わる**
+   * （モバイルの行で「円」だけが実機で2行目に落ちたのと同じ理由・CLAUDE.md）。
+   * 1px の余りは、別のフォントでは溢れる。
+   */
+  const MIN_SLACK = 8;
+
+  for (const [label, id] of [
+    ["4桁の順位（キーエンスの定着 1,468位）", "6861"],
+    ["最下位（1,867社中1,867位）", "E04168"],
+  ] as const) {
+    test(`${label}に1文字ぶんの余裕がある`, async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 1000 });
+      await page.goto(`/company/${id}`);
+      const fit = await section(page)
+        .locator("dl > div")
+        .evaluateAll((els) =>
+          els.map((row) => {
+            const spans = row.querySelectorAll("dd > span");
+            const inner = (el: Element) => {
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              return Math.round(range.getBoundingClientRect().width);
+            };
+            return {
+              text: spans[1].textContent ?? "",
+              // 値・順位とも「中身の幅 ≤ 器の幅」。
+              value: [inner(spans[0]), Math.round(spans[0].getBoundingClientRect().width)],
+              rank: [inner(spans[1]), Math.round(spans[1].getBoundingClientRect().width)],
+              // ラベルが2行に折れていないか（稼ぐ力だけは副題ぶん高い）。
+              dtLines: Math.round(
+                row.querySelector("dt")!.getBoundingClientRect().height /
+                  parseFloat(getComputedStyle(row.querySelector("dt")!).lineHeight)
+              ),
+            };
+          })
+        );
+      expect(fit).toHaveLength(5);
+      for (const row of fit) {
+        expect(row.value[1] - row.value[0], `値の器（${row.text} の行）`).toBeGreaterThanOrEqual(
+          MIN_SLACK
+        );
+        expect(row.rank[1] - row.rank[0], `順位の器（${row.text}）`).toBeGreaterThanOrEqual(
+          MIN_SLACK
+        );
+      }
+      // **ラベルは折り返しを直接見る。** 器の余りから逆算するより確か。
+      // 稼ぐ力（末尾）だけは副題ぶん2行になる。
+      for (const row of fit.slice(0, 4)) expect(row.dtLines).toBe(1);
+    });
+  }
+
   test("稼ぐ力の業種中央値は値と同じ右端にそろう（右寄せ）", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto("/company/6861");

@@ -59,12 +59,18 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
 /*
  * 1軸ぶんの行（アートボード 6b）。**縦を2本そろえる**（Issue #191）。
  *
- * - 値は固定幅で**右寄せ**（`min-w-[4.75rem]`）——桁数が違っても右端が動かない
- * - 順位も固定幅で**右寄せ**（`w-[5.25rem]`。運営者の指示。当初は左寄せだった）
+ * - 値は固定幅で**右寄せ**（`min-w-[4.75rem]`＝76px）——桁数が違っても右端が動かない
+ * - 順位も固定幅で**右寄せ**（`w-[5.75rem]`＝92px。運営者の指示。当初は左寄せだった）
  *   ——`1,867社中1位` と `895社中883位` で桁が違っても右端が動かない
  *
  * 掲載なしの軸も**同じ幅の空きを残す**。詰めると、その行だけ値の右端が
  * 右へ寄って列が折れる。
+ *
+ * **固定幅は最長の文字列より実測で1割以上広く取る。** 右寄せの文字が器を
+ * 超えると**左へはみ出して隣のラベルを押す**ので、`text-align` では気づけない。
+ * 84px にしていたときは `1,867社中1,468位`（実測83px）が1pxしか余らず、
+ * フォントの違う環境で崩れた。右カラム296pxの内訳は
+ * ラベル104 ＋ 8 ＋ 値76 ＋ 8 ＋ 順位92 ＝ 288px で、8pxが余白として残る。
  */
 function OverviewAxisRow({ axis }: { axis: RadarAxis }) {
   const missing = axis.position === null;
@@ -97,7 +103,7 @@ function OverviewAxisRow({ axis }: { axis: RadarAxis }) {
           上位＝良いに読める。**順位で読ませる**——偏差値の隣の「上位◯%」を
           2026-08-20 に外したのと同じ線（CLAUDE.md）。
         */}
-        <span className="text-muted-foreground ml-1.5 inline-block w-[5.25rem] text-right text-[0.65rem] tabular-nums">
+        <span className="text-muted-foreground ml-2 inline-block w-[5.75rem] text-right text-[0.65rem] tabular-nums">
           {axis.rankText}
         </span>
         {axis.note !== "" && (
