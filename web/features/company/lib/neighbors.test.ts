@@ -48,22 +48,23 @@ describe("findNeighbors（AC-12）", () => {
     expect(at35).not.toEqual(raw);
   });
 
-  // 鉱業は2社しかない。無理に10社出さない。
+  // 鉱業は3社しかない。無理に10社出さない。
   it("業種の社数が足りなければその数だけ返す", () => {
     const mining = companies.industries.indexOf("鉱業");
     const id = companies.rows.find((r) => r[2] === mining)![0];
-    expect(findNeighbors(companies, curves, id, null)).toHaveLength(1);
+    expect(findNeighbors(companies, curves, id, null)).toHaveLength(2);
   });
 
   /*
    * 10社に増やしたことで「足りない業種」が鉱業だけではなくなった（Issue #195）。
-   * 空運業5社・石油石炭製品6社・水産農林業6社・海運業7社の4業種が新たに該当する。
-   * 5社の頃は上限ちょうどで通っていた空運業で、自分を除いた4社が返ることを固定する。
+   * E2 で母集団を広げた後は 鉱業3社・空運業6社・石油石炭製品8社・海運業9社・
+   * 水産農林業10社。**社数そのものは母集団に依存するので、`rows.length` から
+   * 引いて比べる**——数を書き写すと母集団が動くたびにここも直すことになる。
    */
   it("10社に満たない業種では自分を除いた全社を返す", () => {
     const air = companies.industries.indexOf("空運業");
     const rows = companies.rows.filter((r) => r[2] === air);
-    expect(rows).toHaveLength(5);
+    expect(rows.length).toBeLessThan(10);
     expect(findNeighbors(companies, curves, rows[0][0], null)).toHaveLength(rows.length - 1);
   });
 

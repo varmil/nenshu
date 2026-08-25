@@ -31,9 +31,9 @@ describe("buildHighlights（AC-11）", () => {
   it("金額・全体順位・業界内順位を必ず含む", () => {
     const items = highlights("6861", null);
     expect(items[0]).toContain("2,178万円");
-    expect(items[0]).toContain("1位");
+    expect(items[0]).toContain("3位");
     // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
-    expect(items[0]).toContain("偏差値122.9");
+    expect(items[0]).toContain("偏差値124.8");
     expect(items[1]).toContain("電気機器");
   });
 
@@ -122,7 +122,7 @@ describe("findSalaryMilestones（C4・AC-14）", () => {
   /*
    * **表の金額と文の金額が食い違わないこと。** 判定は画面に出ている万円の値
    * （`toManYen`）で行う——円のまま比べると、表が「600万円」と描いている行を
-   * 文が数えないことが起こりうる。全1,867社で突き合わせる。
+   * 文が数えないことが起こりうる。全2,961社で突き合わせる。
    */
   it("段に届いたと書いた年齢の行は、表でもその金額以上になっている", () => {
     for (const row of companies.rows) {

@@ -45,7 +45,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     expect(await canonicalOf(request, "/company/6861?age=35")).toBe(`${ORIGIN}/company/6861`);
   });
 
-  test("sitemap.xml に 1,910 URL が載り、canonical と同じ文字列になっている", async ({
+  test("sitemap.xml に 3,004 URL が載り、canonical と同じ文字列になっている", async ({
     request,
   }) => {
     const response = await request.get("/sitemap.xml");
@@ -53,7 +53,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const xml = await response.text();
 
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-    expect(locs).toHaveLength(1910);
+    expect(locs).toHaveLength(3004);
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
 
@@ -98,7 +98,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 「有価証券報告書」がSERPで見える位置から押し出される。
     await page.goto("/");
     await expect(page).toHaveTitle(
-      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期〜4月期】"
+      "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】"
     );
   });
 
@@ -121,16 +121,17 @@ test.describe("検索エンジン向け導線（U8）", () => {
       return [...html.matchAll(/href="\?[^"]*page=(\d+)"/g)].map((m) => Number(m[1]));
     };
 
+    // 2,961社 / 30件 = 99ページ。
     for (const page of await pageLinks("/")) {
       expect(page, "/").toBeGreaterThanOrEqual(1);
-      expect(page, "/").toBeLessThanOrEqual(63);
+      expect(page, "/").toBeLessThanOrEqual(99);
     }
-    for (const page of await pageLinks("/?page=63")) {
-      expect(page, "/?page=63").toBeLessThanOrEqual(63);
+    for (const page of await pageLinks("/?page=99")) {
+      expect(page, "/?page=99").toBeLessThanOrEqual(99);
     }
     // 手で叩いた範囲外のURLからも、範囲外へは繋がない。
     for (const page of await pageLinks("/?page=999")) {
-      expect(page, "/?page=999").toBeLessThanOrEqual(63);
+      expect(page, "/?page=999").toBeLessThanOrEqual(99);
     }
   });
 

@@ -117,9 +117,35 @@ def list_documents(day, retries=5):
         time.sleep(2 ** (i + 1))
 
 
+def doc_rank(r):
+    """同じ会社の書類のうちどれを採るかの順序（大きいほうが勝つ）。
+
+    **期末が新しいほう、同じなら `docID` が大きいほう**（ADR-0011・
+    `docs/expansion/spec.md` 1.2）。後者は訂正報告を後勝ちにするためで、
+    `fetch_history.targets()` が10年ぶんで使っている規則と同じ。
+    """
+    return (r.get("periodEnd") or "", r.get("docID") or "")
+
+
 def annual_reports(start, end, verbose=True):
-    """期間内に提出された有価証券報告書（docTypeCode=120）を列挙する。"""
-    out = []
+    """窓の中に提出された有価証券報告書（`docTypeCode=120`）を、**EDINETコードで
+    1社1件に寄せて**返す。両端を含む。
+
+    **証券コードの有無で経路を分けない。** 非上場の有報提出会社（みずほ銀行・
+    三井住友銀行など）も同じ経路で入る。**提出者種別（内国法人・組合）による
+    絞り込みは呼び出し側**（`run.build`）が EDINETコードリストで行う——ここは
+    API の答えを窓で切って寄せるだけにする。
+
+    **寄せ方は `doc_rank` の順で「勝ったほうを残す」。** 以前は証券コードをキーに
+    「後に見つかったものが勝つ」で潰しており、**どれが残るかが走査順に依存して
+    いた**。窓を12か月に広げるとこれが会社を落とす——りそな銀行と三井住友信託銀行は
+    窓の中にそれぞれ4件の有報を持ち、**「従業員の状況」を持たない書類が残って
+    母集団から消えていた**（実測。ADR-0011）。
+
+    **キーが証券コードでは足りない理由**（ADR-0006 と同じ）。証券コードは非上場の
+    会社に無く、上場廃止で外れる。EDINETコードは年をまたいで変わらない。
+    """
+    best = {}
     day = start
     while day <= end:
         if day.weekday() < 5:  # 土日はまず提出がない
@@ -132,18 +158,18 @@ def annual_reports(start, end, verbose=True):
                 continue
             hits = [
                 r for r in (data.get("results") or [])
-                if r.get("docTypeCode") == "120" and r.get("secCode")
+                if r.get("docTypeCode") == "120" and r.get("edinetCode")
                 and not r.get("withdrawalStatus") == "1"
             ]
-            out.extend(hits)
+            for r in hits:
+                code = r["edinetCode"]
+                cur = best.get(code)
+                if cur is None or doc_rank(r) > doc_rank(cur):
+                    best[code] = r
             if verbose and hits:
                 print(f"  {day} 有報 {len(hits)}件")
         day += timedelta(days=1)
-    # 同一企業の訂正・重複は後勝ちで1件に寄せる
-    uniq = {}
-    for r in out:
-        uniq[r["secCode"]] = r
-    return list(uniq.values())
+    return list(best.values())
 
 
 def fetch_csv(doc_id, retries=5):

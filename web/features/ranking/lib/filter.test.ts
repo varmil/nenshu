@@ -29,39 +29,39 @@ function countBy<T>(classify: (row: CompaniesData["rows"][number]) => T) {
 }
 
 describe("分類関数（spec.md §1.5 の区分件数を固定する）", () => {
-  it("従業員数: 〜300人=517, 300〜1,000人=734, 1,000人以上=616", () => {
+  it("従業員数: 〜300人=1,049, 300〜1,000人=1,109, 1,000人以上=803", () => {
     const counts = countBy((row) => classifyEmployeeSize(row[7]));
-    expect(counts.get("under300")).toBe(517);
-    expect(counts.get("300to1000")).toBe(734);
-    expect(counts.get("1000plus")).toBe(616);
+    expect(counts.get("under300")).toBe(1049);
+    expect(counts.get("300to1000")).toBe(1109);
+    expect(counts.get("1000plus")).toBe(803);
   });
 
-  it("在籍年数: 〜13年=545, 13〜17年=732, 17年以上=590", () => {
+  it("在籍年数: 〜13年=1,230, 13〜17年=981, 17年以上=750", () => {
     const counts = countBy((row) => classifyTenure(row[5]));
-    expect(counts.get("under13")).toBe(545);
-    expect(counts.get("13to17")).toBe(732);
-    expect(counts.get("17plus")).toBe(590);
+    expect(counts.get("under13")).toBe(1230);
+    expect(counts.get("13to17")).toBe(981);
+    expect(counts.get("17plus")).toBe(750);
   });
 
-  it("平均年齢: 〜40歳=450, 40〜43歳=709, 43歳以上=708", () => {
+  it("平均年齢: 〜40歳=983, 40〜43歳=1,006, 43歳以上=972", () => {
     const counts = countBy((row) => classifyAvgAgeBucket(row[4]));
-    expect(counts.get("under40")).toBe(450);
-    expect(counts.get("40to43")).toBe(709);
-    expect(counts.get("43plus")).toBe(708);
+    expect(counts.get("under40")).toBe(983);
+    expect(counts.get("40to43")).toBe(1006);
+    expect(counts.get("43plus")).toBe(972);
   });
 });
 
 describe("matchesFilters", () => {
-  it("AC-3: 業種で「海運業」を選ぶと7社になる", () => {
+  it("AC-3: 業種で「海運業」を選ぶと9社になる", () => {
     const state = stateFor({ industry: "海運業" });
     const matched = companies.rows.filter((row) => matchesFilters(row, companies.industries, state));
-    expect(matched).toHaveLength(7);
+    expect(matched).toHaveLength(9);
   });
 
-  it("AC-4: 従業員数で「1,000人以上」を選ぶと616社になる", () => {
+  it("AC-4: 従業員数で「1,000人以上」を選ぶと803社になる", () => {
     const state = stateFor({ employeeSize: "1000plus" });
     const matched = companies.rows.filter((row) => matchesFilters(row, companies.industries, state));
-    expect(matched).toHaveLength(616);
+    expect(matched).toHaveLength(803);
   });
 
   it("AC-5: 業種と平均年齢を重ねると、業種のみより件数が減る", () => {

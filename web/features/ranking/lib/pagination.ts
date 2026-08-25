@@ -27,7 +27,7 @@ export function getPaginationRange(currentPage: number, totalPages: number): Pag
 }
 
 /**
- * 「1,867社 中 1〜30社目」の数字（spec.md 1B）。
+ * 「2,961社 中 1〜30社目」の数字（spec.md 1B）。
  *
  * ページ番号は `buildRankedCompanies` と同じ規則で総ページ数にクランプする——
  * 範囲外のページを直接開いても、件数表示だけが空ページを指す状態にしない。

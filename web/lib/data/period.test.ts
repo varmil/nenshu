@@ -2,10 +2,16 @@ import { describe, it, expect } from "vitest";
 import type { CompaniesData, CompaniesMeta, CompanyRow } from "@/features/ranking/types";
 import { fiscalPeriodLabel, companyFiscalPeriodLabel, filingWindowLabel } from "./period";
 
-const meta = (from: string, to = from): CompaniesMeta => ({
+const meta = (
+  from: string,
+  to = from,
+  filingWindow = { from: "2025-08-25", to: "2026-08-25" }
+): CompaniesMeta => ({
   version: "2026-06",
-  count: 1867,
+  count: 2961,
   fiscalPeriodRange: { from, to },
+  filingWindow,
+  excluded: { minEmployees: 100, byEmployees: 1047 },
   generatedAt: "2026-08-25T00:00:00.000Z",
 });
 
@@ -70,9 +76,22 @@ describe("companyFiscalPeriodLabel", () => {
 });
 
 describe("filingWindowLabel", () => {
-  // 年は幅の**最新側**から採る。
+  // **窓はデータから引く**（E2・ADR-0011）。回した日から遡って12か月なので、
+  // 日付を直書きすると作り直すたびに嘘になる。決算期とは別物——あちらは会社ごとの
+  // 期末、こちらは提出日の範囲。
   it("提出の窓を出す", () => {
-    expect(filingWindowLabel(meta("2026-03", "2026-04"))).toBe("2026年6月1日〜7月10日");
-    expect(filingWindowLabel(meta("2025-03", "2026-05"))).toBe("2026年6月1日〜7月10日");
+    expect(filingWindowLabel(meta("2025-03", "2026-05"))).toBe("2025年8月25日〜2026年8月25日");
+  });
+
+  it("月日の先頭の0を落とす", () => {
+    const window = { from: "2025-01-05", to: "2026-01-05" };
+    expect(filingWindowLabel(meta("2025-03", "2026-05", window))).toBe(
+      "2025年1月5日〜2026年1月5日"
+    );
+  });
+
+  it("形が違えば落とす", () => {
+    const window = { from: "2025-8-25", to: "2026-08-25" };
+    expect(() => filingWindowLabel(meta("2025-03", "2026-05", window))).toThrow(/YYYY-MM-DD/);
   });
 });

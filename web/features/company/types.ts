@@ -4,7 +4,7 @@ import type { NeighborCompany } from "./lib/neighbors";
 /**
  * 企業詳細ページが使う母集団統計。`pipeline/scripts/build-data.ts` が生成する。
  *
- * 順位は「その年齢時点の推定年収で全1,867社を並べたときの位置」なので、1社ぶんを
+ * 順位は「その年齢時点の推定年収で全2,961社を並べたときの位置」なので、1社ぶんを
  * 出すにも母集団全体の推定が要る。ビルド時に確定させておき、リクエスト時は当該
  * 1社ぶんの計算だけで済ませる（`docs/company/company-page/design.md` 参照）。
  *

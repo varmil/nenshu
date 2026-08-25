@@ -20,9 +20,9 @@ describe("industryCounts", () => {
     expect(counts.reduce((a, b) => a + b, 0)).toBe(companies.rows.length);
   });
 
-  it("海運業は7社", () => {
+  it("海運業は9社", () => {
     const counts = industryCounts(companies);
-    expect(counts[companies.industries.indexOf("海運業")]).toBe(7);
+    expect(counts[companies.industries.indexOf("海運業")]).toBe(9);
   });
 
   // 業種のインデックスが範囲外の行が混ざってもページを壊さない（データ側の事故に備える）。

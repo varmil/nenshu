@@ -22,11 +22,11 @@ async function pressToggle(page: import("@playwright/test").Page, filterLabel: s
 }
 
 test.describe("初期表示（AC-1のスモーク確認）", () => {
-  test("1位はキーエンス、推定年収2,178万円", async ({ page }) => {
+  test("1位はヒューリック、実測値2,295万円", async ({ page }) => {
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
-    await expect(firstRow).toContainText("株式会社キーエンス");
-    await expect(firstRow).toContainText("2,178万円");
+    await expect(firstRow).toContainText("ヒューリック株式会社");
+    await expect(firstRow).toContainText("2,295万円");
   });
 
   // U12 で絞り込みは左サイドバーへ、検索は共通ヘッダへ移った。
@@ -61,12 +61,12 @@ test.describe("初期表示（AC-1のスモーク確認）", () => {
 });
 
 test.describe("フィルタ", () => {
-  test("AC-3: 業種で「海運業」を選ぶと7社になり、順位が1から振り直される", async ({ page }) => {
+  test("AC-3: 業種で「海運業」を選ぶと9社になり、順位が1から振り直される", async ({ page }) => {
     await page.goto("/");
     await selectOption(page, "業種", "海運業");
 
     const rows = page.getByRole("table").locator("tbody tr");
-    await expect(rows).toHaveCount(7);
+    await expect(rows).toHaveCount(9);
     // 順位はロゴ左上のバッジ。読み上げ用の「位」が textContent に付く。
     await expect(rows.first().locator("[data-rank-badge]")).toHaveText("1位");
   });
@@ -100,7 +100,7 @@ test.describe("フィルタ", () => {
     // 2 偏差値。**業種は meta 行に出していない**ので、業種で絞れている
     // ことは総件数の表示（情報・通信業 173社のうち平均年齢40歳未満）で見る——
     // 1ページの行数は PAGE_SIZE で頭打ちなので判定に使えない（Issue #103）。
-    await expect(page.getByText("1,867社 中")).toHaveCount(0);
+    await expect(page.getByText("2,961社 中")).toHaveCount(0);
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
       const meta = (await rows.nth(i).locator("td").first().textContent())!;
@@ -118,18 +118,20 @@ test.describe("フィルタ", () => {
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
 
-    // 何らかの業種が選ばれ、表が絞り込まれて全1,867社ではなくなっていることを確認する。
+    // 何らかの業種が選ばれ、表が絞り込まれて全2,961社ではなくなっていることを確認する。
     // **行数では判定できない**——1ページは PAGE_SIZE 件で頭打ちなので、絞り込みが
     // 効いていなくても行数は同じ。総件数の表示が減ったかで見る（Issue #103）。
     await expect(page).toHaveURL(/[?&]ind=/);
-    await expect(page.getByText("1,867社 中")).toHaveCount(0);
+    await expect(page.getByText("2,961社 中")).toHaveCount(0);
     const rows = page.getByRole("table").locator("tbody tr");
     expect(await rows.count()).toBeGreaterThan(0);
   });
 
-  // 従業員数の3区分（517/734/616）はいずれもPAGE_SIZE(30)より多いため、
-  // 「表示行数が減るか」では絞り込みの有無を判定できない。1位のキーエンス（3,306人、
+  // 従業員数の3区分（1,049/1,109/803）はいずれもPAGE_SIZE(30)より多いため、
+  // 「表示行数が減るか」では絞り込みの有無を判定できない。キーエンス（3,306人、
   // 「〜300人」には該当しない）が絞り込みで表から外れるかどうかで判定する。
+  // **1位の行では見ない**——E2 で1位になったヒューリックは234人で、「〜300人」でも
+  // 残ってしまう。
   test("キーボードだけで従業員数のスイッチを操作できる", async ({ page }) => {
     await page.goto("/");
 
@@ -141,23 +143,22 @@ test.describe("フィルタ", () => {
       "aria-pressed",
       "true"
     );
-    const firstRow = page.getByRole("table").locator("tbody tr").first();
-    await expect(firstRow).not.toContainText("株式会社キーエンス");
+    await expect(page.getByRole("table")).not.toContainText("株式会社キーエンス");
   });
 
   test("スイッチはもう一度押すと解除され、絞り込みが外れる", async ({ page }) => {
     await page.goto("/");
-    const firstRow = page.getByRole("table").locator("tbody tr").first();
+    const table = page.getByRole("table");
     const toggleButton = page
       .getByRole("group", { name: "従業員数" })
       .getByRole("button", { name: "〜300人" });
 
     await pressToggle(page, "従業員数", "〜300人");
-    await expect(firstRow).not.toContainText("株式会社キーエンス");
+    await expect(table).not.toContainText("株式会社キーエンス");
 
     await pressToggle(page, "従業員数", "〜300人");
     await expect(toggleButton).toHaveAttribute("aria-pressed", "false");
-    await expect(firstRow).toContainText("株式会社キーエンス");
+    await expect(table).toContainText("株式会社キーエンス");
   });
 });
 
