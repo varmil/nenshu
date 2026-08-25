@@ -73,7 +73,7 @@
 
 **`/` の事前生成。** `searchParams` を読むため。動的なまま残す。
 
-**フレームワークの CPU。** Next.js・React・OpenNext の処理そのものには触らない。
+**フレームワークの CPU。** Next.js・React・OpenNext の処理そのものには触らない。**ここは `framework` 施策（`docs/framework/intent.md`・Issue #200）に切り出した**——R1 の後に残った CPU がそこだけになったため。
 
 **有料プランへの移行**・**掲載データの削減**。
 
