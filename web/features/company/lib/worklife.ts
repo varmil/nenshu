@@ -33,17 +33,24 @@ export interface WorklifeMetricView {
   key: "overtime" | "paidLeave" | "wageGap";
   label: string;
   /**
-   * 見出しの右端に1回だけ出す単位。**行ごとに繰り返さない**（アートボード 6c）。
-   * 定義文を持つ指標（男女の賃金の差異）はそちらが場所を取るので空にし、
-   * 代わりに `valueSuffix` で値の隣に付ける。
+   * 見出しの右端に1回だけ出す但し書き。無ければ空文字。
+   *
+   * **単位そのものはここに置かない**（運営者の指示）。3指標とも `valueSuffix` で
+   * 値の隣に出すので、ここに単位を書くと同じものが2か所に出る。残業の `月あたり`
+   * のように、**単位では表せない情報**（期間）だけが残る。
    */
   unit: string;
-  /** 値の直後に付ける単位。`unit` を持つ指標では空。 */
+  /** 値の直後に付ける単位（`h` / `%`）。3指標とも持つ。 */
   valueSuffix: string;
   /** ラベルの下に置く定義。無ければ空文字。 */
   definition: string;
   rows: WorklifeValueRow[];
-  /** 行が1つも無いときに出す文。 */
+  /**
+   * 行が1つも無いときに出す文。**iPhone 12 Pro（横幅390px・本文幅358px）で
+   * 1行に収める**（Issue #192）。12px の字で29文字までしか入らないので、
+   * 指標名は**隣の `label` が持っているぶんを繰り返さない**——
+   * `有給休暇の取得率` は `取得率`、`男女の賃金の差異` は `差異` と書く。
+   */
   emptyNote: string;
 }
 
@@ -123,8 +130,10 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
     {
       key: "overtime",
       label: "平均残業時間",
-      unit: "時間 / 月",
-      valueSuffix: "",
+      // 単位は値の隣（`28.5h`）。**見出しには期間だけを残す**——`h` が単位を
+      // 持つので `時間 / 月` だと「時間」が2か所に出る（運営者の指示）。
+      unit: "月あたり",
+      valueSuffix: "h",
       definition: "",
       rows: record
         ? withAll(
@@ -138,11 +147,12 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
     {
       key: "paidLeave",
       label: "年次有給休暇の取得率",
-      unit: "%",
-      valueSuffix: "",
+      // **見出しの `%` は落とす。** 値の隣に出すので、同じ単位が2か所に出る。
+      unit: "",
+      valueSuffix: "%",
       definition: "",
       rows: record ? withAll(record.paidLeaveAll, "全体", record.paidLeaveUnits) : [],
-      emptyNote: "この会社は有給休暇の取得率をデータベースに登録していません。",
+      emptyNote: "この会社は取得率をデータベースに登録していません。",
     },
     {
       key: "wageGap",
@@ -154,7 +164,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       // 降ろした理由のひとつがこれ）。
       definition: "女性の平均賃金 ÷ 男性の平均賃金 × 100",
       rows: record ? wageGapRows(record) : [],
-      emptyNote: "この会社は男女の賃金の差異をデータベースに登録していません。",
+      emptyNote: "この会社は差異をデータベースに登録していません。",
     },
   ];
 
