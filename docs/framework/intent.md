@@ -2,7 +2,9 @@
 
 Issue [#200](https://github.com/varmil/nenshu/issues/200)（親 [#118](https://github.com/varmil/nenshu/issues/118)）。
 
-**この文書は判断の材料までを置く。移すとは決めていない。** 決めたら spec.md・overview.md と ADR を書く。
+**Astro へ移すと決めた**（2026-08-25・運営者の判断）。決定は **ADR-0014**、何を作るかは `spec.md`、Unit の分解は `overview.md` にある。
+
+**この文書はその判断に使った実測を残す。** 下の「選択肢」A〜E は、決めた後も**却下した案の記録**として残す——ADR-0014 の却下案はここの実測を引いている。
 
 ## 狙い
 
@@ -163,9 +165,7 @@ Issue [#200](https://github.com/varmil/nenshu/issues/200)（親 [#118](https://g
 
 **Astro の既定は `/about/` のようにスラッシュで終わる。** `trailingSlash: "never"` ＋ `build: { format: "file" }` で `/about`・`/company/6861` になることを実測で確認した。**SvelteKit は既定でスラッシュ無し**（`about.html`・`company/6861.html`）。**どちらも ADR-0006 の canonical をそのまま使える。**
 
-## 選択肢
-
-**どれも「決め」ではない。運営者が選ぶ。**
+## 選択肢（**B を採用した**。ADR-0014）
 
 | | Worker を起こす URL | バンドル gzip | 書き直す行数 | 代償 |
 | --- | ---: | ---: | ---: | --- |
@@ -218,13 +218,13 @@ Issue [#200](https://github.com/varmil/nenshu/issues/200)（親 [#118](https://g
 
 **この文書での決定。** ADR も spec も overview も、移すと決めてから書く。
 
-## 次の一歩
+## 決めたあと
 
-**運営者が A〜E を選ぶ。** 選んだら次の順で進める。
+**B（Astro）を採用した**（2026-08-25）。
 
-1. **ADR を書く**（ADR-0002・ADR-0004・ADR-0012 の一部を supersede する。ADR-0006 は据え置き）
-2. **`docs/framework/spec.md`・`overview.md`** を書き、Unit に割って Issue を立てる
-3. 見込みの分解は「`/` 以外を静的アセットへ移す」「`/` の SSR を移す」「クライアント遷移と待ち表示を移す」「ヘッダ・キャッシュ・`run_worker_first` を移す」の4つ。**割るのは決めてからにする**
+1. **ADR-0014** に決定を置いた。ADR-0002 のフレームワーク選定と ADR-0004 の配信方式を supersede し、**ADR-0012 の決定は残して実現手段だけ差し替える**。ADR-0006（公開URL）は据え置き
+2. **`spec.md`・`overview.md`** を書いた。Unit は **F0 → F1 → F2** の3つ（`overview.md`）
+3. **一直線にしかできない。** Next.js と Astro は同じ Worker に同居できないので、F1 は分割不能なカットオーバーになる。だから F0 で先に `next/*` を剥がして、カットオーバーの差分から「API の置き換え」という関心を抜く
 
 ## 測り方（次に測る人へ）
 
