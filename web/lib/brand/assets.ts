@@ -60,6 +60,23 @@ export const APP_ICONS: (BrandIconFile & { purpose: "any" | "maskable" })[] = [
 
 export const WEB_MANIFEST = "/site.webmanifest";
 
+/**
+ * SNS に貼られたときの1枚（S2・Issue #116・`docs/site-chrome/spec.md` 4.3・AC-13）。
+ *
+ * **全ページで同じ1枚を使う。** 会社ごとに数字を焼き込む案は1,867社ぶんの動的生成に
+ * なり、Workers の CPU 予算（Issue #118）に踏み込む——効果を見てから判断する。
+ *
+ * 寸法は SNS が要求する 1200×630。`og:image:width` / `og:image:height` として
+ * そのまま出す——先に寸法が分かると、画像が届く前にカードの枠を確保できる。
+ */
+export const OG_IMAGE = {
+  path: "/og.png",
+  width: 1200,
+  height: 630,
+  /** 絵の中に書いてあることをそのまま。読み上げと、画像が出ないときの代替。 */
+  alt: "OpenReport — 有価証券報告書ベースの平均年収ランキング",
+} as const;
+
 /** 地の色を敷く（＝不透明にする）成果物。 */
 export const OPAQUE_ICONS: BrandIconFile[] = [APPLE_TOUCH_ICON, ...APP_ICONS];
 
@@ -70,6 +87,7 @@ export const BRAND_ASSET_PATHS: string[] = [
   FAVICON_SVG,
   FAVICON_ICO,
   WEB_MANIFEST,
+  OG_IMAGE.path,
   ...FAVICON_PNG.map(({ path }) => path),
   APPLE_TOUCH_ICON.path,
   ...APP_ICONS.map(({ path }) => path),

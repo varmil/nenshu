@@ -8,6 +8,7 @@ import {
   FAVICON_ICO,
   FAVICON_PNG,
   FAVICON_SVG,
+  OG_IMAGE,
   OPAQUE_ICONS,
   TRANSPARENT_ICONS,
   WEB_MANIFEST,
@@ -104,6 +105,24 @@ describe("ホーム画面のアイコン", () => {
 
   it.each(TRANSPARENT_ICONS)("$path は透過のまま", ({ path }) => {
     expect(pngHeader(path).colorType).toBe(6);
+  });
+});
+
+describe("OG画像（S2・Issue 116・AC-13）", () => {
+  it("SNS が要求する 1200×630 で焼けている", () => {
+    const { width, height } = pngHeader(OG_IMAGE.path);
+    expect([width, height]).toEqual([OG_IMAGE.width, OG_IMAGE.height]);
+  });
+
+  it("透過を持たない", () => {
+    // 地の色を敷いていないと、暗い背景に置く SNS で文字が読めなくなる。
+    expect(pngHeader(OG_IMAGE.path).colorType).toBe(2);
+  });
+
+  it("代替テキストが絵の中の文字と揃っている", () => {
+    // 絵に書いてあるのはブランド名と説明文の2つ（`pipeline/brand/og.ts`）。
+    expect(OG_IMAGE.alt).toContain("OpenReport");
+    expect(OG_IMAGE.alt).toContain("有価証券報告書ベースの平均年収ランキング");
   });
 });
 

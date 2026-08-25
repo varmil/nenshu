@@ -8,10 +8,13 @@ import {
   MAX_COVERAGE_WITH_CLEAR_SPACE,
 } from "../brand/symbol";
 import { buildIco } from "../brand/ico";
+import { ogOverflow, ogSvg } from "../brand/og";
 import {
   BRAND_COLOR,
   BRAND_COLOR_DARK,
   BRAND_ICON_BACKGROUND,
+  BRAND_TEXT,
+  BRAND_TEXT_MUTED,
 } from "../../web/lib/brand/colors";
 import {
   APPLE_TOUCH_ICON,
@@ -19,6 +22,7 @@ import {
   FAVICON_ICO,
   FAVICON_PNG,
   FAVICON_SVG,
+  OG_IMAGE,
   WEB_MANIFEST,
 } from "../../web/lib/brand/assets";
 import { SITE_NAME } from "../../web/lib/seo/site";
@@ -113,6 +117,8 @@ export async function buildBrand(outDir: string): Promise<string[]> {
   if (MASKABLE_COVERAGE > MAX_COVERAGE_MASKABLE) {
     throw new Error("maskable がセーフゾーンからはみ出す");
   }
+  const overflow = ogOverflow();
+  if (overflow !== null) throw new Error(overflow);
   mkdirSync(outDir, { recursive: true });
 
   const written: string[] = [];
@@ -161,6 +167,27 @@ export async function buildBrand(outDir: string): Promise<string[]> {
     const coverage = purpose === "maskable" ? MASKABLE_COVERAGE : APP_ICON_COVERAGE;
     write(path, await png(plateSvg(size, coverage), size, BRAND_ICON_BACKGROUND));
   }
+
+  // SNS に貼られたときの1枚（S2・Issue #116）。**文字はアウトラインで置いてある**
+  // ので、`sharp`（librsvg）が実行環境のフォントを引くことは無い（`brand/lettering.ts`）。
+  write(
+    OG_IMAGE.path,
+    await sharp(
+      Buffer.from(
+        ogSvg({
+          brand: BRAND_COLOR,
+          text: BRAND_TEXT,
+          muted: BRAND_TEXT_MUTED,
+          background: BRAND_ICON_BACKGROUND,
+        }),
+      ),
+      { density: 384 },
+    )
+      .resize(OG_IMAGE.width, OG_IMAGE.height)
+      .flatten({ background: BRAND_ICON_BACKGROUND })
+      .png()
+      .toBuffer(),
+  );
 
   write(WEB_MANIFEST, manifestJson());
   return written;

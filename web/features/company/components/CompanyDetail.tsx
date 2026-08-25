@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { NavLink } from "@/features/navigation/components/NavLink";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
@@ -17,6 +17,7 @@ import {
 } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
+import { companyBreadcrumb } from "../lib/breadcrumb";
 import {
   formatDeviation,
   formatDiffFromMean,
@@ -125,6 +126,7 @@ export function CompanyDetail({
   usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
   const isRaw = targetAge === null;
+  const breadcrumb = companyBreadcrumb(view);
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
@@ -168,28 +170,32 @@ export function CompanyDetail({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
+      {/*
+        段の並びは `features/company/lib/breadcrumb.ts` が持つ。**構造化データ
+        （`BreadcrumbList`）が同じ配列を読む**ので、ここで書き足すと画面と
+        JSON-LD が食い違う（S2・AC-14）。
+      */}
       <nav className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-        {/*
-          prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
-          ページ（gzip 72KB）。読むとは限らない導線を先読みさせる価値はない。
-          理由の詳細は RankingTable.tsx。
-        */}
-        <NavLink href="/" prefetch={false} className="text-primary underline">
-          ランキング
-        </NavLink>
-        <span aria-hidden="true">/</span>
-        <NavLink
-          href={`/?ind=${encodeURIComponent(view.tse33)}`}
-          prefetch={false}
-          className="text-primary underline"
-        >
-          {view.tse33}
-        </NavLink>
-        <span aria-hidden="true">/</span>
-        {/* パンくずの末尾は現在地なのでリンクにしない（アートボード 4b）。 */}
-        <span aria-current="page" className="text-foreground min-w-0 truncate">
-          {view.name}
-        </span>
+        {breadcrumb.map((item, index) =>
+          index === breadcrumb.length - 1 ? (
+            // パンくずの末尾は現在地なのでリンクにしない（アートボード 4b）。
+            <span key={item.path} aria-current="page" className="text-foreground min-w-0 truncate">
+              {item.name}
+            </span>
+          ) : (
+            <Fragment key={item.path}>
+              {/*
+                prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
+                ページ（gzip 72KB）。読むとは限らない導線を先読みさせる価値はない。
+                理由の詳細は RankingTable.tsx。
+              */}
+              <NavLink href={item.path} prefetch={false} className="text-primary underline">
+                {item.name}
+              </NavLink>
+              <span aria-hidden="true">/</span>
+            </Fragment>
+          )
+        )}
       </nav>
 
       <header className="flex flex-col gap-3">

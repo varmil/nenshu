@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { openGraphFor, TWITTER_DEFAULTS } from "./openGraph";
 
 /**
  * 1ページぶんのメタデータ（U16・Issue #135）。
@@ -22,11 +23,20 @@ export interface PageMeta {
   canonical: string;
 }
 
-/** `generateMetadata` が返す形に包む。**ここ以外で `alternates` を組み立てない。** */
+/**
+ * `generateMetadata` が返す形に包む。**ここ以外で `alternates` と `openGraph` を
+ * 組み立てない。**
+ *
+ * `og:` を同じ関数から出すのは、**`og:title`・`og:description`・`og:url` が
+ * `<title>`・`description`・canonical と同じ文字列でなければならない**ため
+ * （S2・AC-11・AC-12）。別々の場所で組み立てると、片方だけを直した状態に必ずなる。
+ */
 export function toMetadata(meta: PageMeta): Metadata {
   return {
     title: meta.title,
     description: meta.description,
     alternates: { canonical: meta.canonical },
+    openGraph: openGraphFor(meta),
+    twitter: TWITTER_DEFAULTS,
   };
 }

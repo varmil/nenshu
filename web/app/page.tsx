@@ -9,6 +9,8 @@ import {
   searchParamsRecordToURLSearchParams,
 } from "@/features/ranking/lib/urlState";
 import { rankingMetadata } from "@/lib/seo/ranking";
+import { JsonLd } from "@/lib/seo/JsonLd";
+import { webSiteJsonLd } from "@/lib/seo/jsonLd";
 import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
 import { buildLogoMask } from "@/features/logo/lib/mask";
 import companiesData from "../public/data/companies.json";
@@ -58,6 +60,8 @@ export default async function Home({
 
   return (
     <LogoIdsProvider rows={companies.rows} mask={logoMask}>
+      {/* サイト名と `/` のURLだけ（S2・spec 4.4）。画面に無い主張は入れない。 */}
+      <JsonLd data={webSiteJsonLd()} />
       <RankingApp
         companies={companies}
         curves={curvesData as CurvesData}

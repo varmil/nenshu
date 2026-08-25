@@ -2,8 +2,8 @@
  * サイトのURLの起点（`docs/ranking/spec.md` 5.・ADR-0006）。
  *
  * **`metadataBase` を組み立てるのはこの1か所だけにする。** canonical・sitemap・
- * robots・将来のOGPが全部この値の上に乗るので、ドメインを取り直したときに
- * 直す場所が散っていると、どれか1つだけ古いオリジンのまま残る。
+ * robots・OGP（S2・Issue #116）が全部この値の上に乗るので、ドメインを取り直した
+ * ときに直す場所が散っていると、どれか1つだけ古いオリジンのまま残る。
  *
  * `openreport.net` は 2026-08-21 に取得済み。Cloudflare の Worker Custom Domain を
  * apex に付けてあり、`www` は apex へ 301 する（正規ホストは apex）。
