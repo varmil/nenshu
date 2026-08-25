@@ -27,7 +27,7 @@ import type {
   SalaryHistory,
 } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
-import { fiscalPeriodLabel } from "@/lib/data/period";
+import { companyFiscalPeriodLabel } from "@/lib/data/period";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
@@ -180,6 +180,25 @@ export function generateStaticParams() {
   return companies.rows.map((row) => ({ id: row[0] }));
 }
 
+/**
+ * 企業IDからその会社の決算期を引く（E1・`docs/expansion/spec.md` 1.4）。
+ * **このページは1社ぶんなので、母集団の幅ではなく実際の決算期を出す。**
+ *
+ * モジュールの初期化で1度だけ作る。**全社をビルド時に生成する**（ADR-0012）ので
+ * リクエスト時には走らない。
+ */
+const FISCAL_PERIOD_BY_ID = new Map(
+  companies.rows.map((row) => [row[0], companyFiscalPeriodLabel(companies, row)])
+);
+
+function fiscalPeriodFor(id: string): string {
+  const label = FISCAL_PERIOD_BY_ID.get(id);
+  if (label === undefined) {
+    throw new Error(`企業ID ${id} の決算期が引けません`);
+  }
+  return label;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const view = buildCompanyView(companies, curves, stats, (await params).id);
   if (view === null) return { title: "見つかりませんでした" };
@@ -187,7 +206,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // 文言は `lib/seo/company.ts` が持つ。**ビルド時に1度決まればそれきりで、
   // クライアントは書き換えない**——表示基準が URL に出ないので、URL とメタデータが
   // 食い違いようが無い（ADR-0012。U16 が企業詳細で直していたのはこの食い違いだった）。
-  return companyMetadata(view, fiscalPeriodLabel(companies.meta));
+  return companyMetadata(view, fiscalPeriodFor(view.id));
 }
 
 /**
@@ -216,7 +235,7 @@ export default async function CompanyPage({ params }: Props) {
         worklife={buildWorklifeView(worklifeRecord)}
         history={historyFor(view.id)}
         profitHistory={profitHistoryFor(view.id)}
-        fiscalPeriod={fiscalPeriodLabel(companies.meta)}
+        fiscalPeriod={fiscalPeriodFor(view.id)}
       />
     </LogoIdsProvider>
   );

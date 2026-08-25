@@ -98,7 +98,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 「有価証券報告書」がSERPで見える位置から押し出される。
     await page.goto("/");
     await expect(page).toHaveTitle(
-      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期】"
+      "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期〜4月期】"
     );
   });
 

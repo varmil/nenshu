@@ -16,7 +16,9 @@ import { SITE_NAME } from "./site";
  * **タイトルに「有価証券報告書」を入れない**（`docs/site-chrome/spec.md` 1.4）。
  * 入れるのは `/` のタイトルだけで、他は description で足りる。
  *
- * **決算期は description に入れる**（AC-18）。社数と同じく `companies.meta` から
+ * **決算期の幅は description に入れる**（AC-18）。掲載社の決算期は1つではないので
+ * `2026年3月期〜4月期` のように幅で出す（E1・`docs/expansion/spec.md` 1.4）。
+ * 文字列にするのは `lib/data/period.ts` の1か所で、社数と同じく `companies.meta` から
  * 引く——直書きすると年1回のデータ更新でここだけ古い年が残る。
  */
 export function aboutPageMeta(meta: CompaniesMeta): PageMeta {
