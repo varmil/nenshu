@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { collectPageRequests } from "./network";
+import { collectPageRequests, waitForRankingReady } from "./network";
 
 test.describe("URLクエリとの同期", () => {
   test("SSR: 生HTTPリクエスト（JS実行なし）でも/?age=45&ind=銀行業のレスポンスHTMLが絞り込み済みになっている", async ({
@@ -97,6 +97,7 @@ test.describe("URLクエリとの同期", () => {
   test("フィルタ操作中にネットワークリクエストが発生しない", async ({ page }) => {
     await page.goto("/?age=35");
 
+    await waitForRankingReady(page);
     const requests = collectPageRequests(page);
 
     await page.getByRole("button", { name: "実測値" }).click();

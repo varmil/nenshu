@@ -2,7 +2,7 @@
 
 import { useMemo, type Dispatch, type SetStateAction } from "react";
 import { useLocationSyncedState } from "@/lib/history/useLocationSyncedState";
-import type { CompaniesData, CurvesData, RankedCompany, RankingState } from "../types";
+import type { CompaniesData, CurvesData, RankingPage, RankingState } from "../types";
 import { buildRankedCompanies } from "../lib/rank";
 import { buildSearchParams, INITIAL_STATE, parseSearchParams } from "../lib/urlState";
 import { RANKING_STATE_CHANGED_EVENT } from "../lib/queryBroadcast";
@@ -10,10 +10,12 @@ import { RANKING_STATE_CHANGED_EVENT } from "../lib/queryBroadcast";
 export interface UseRankingStateResult {
   state: RankingState;
   setState: Dispatch<SetStateAction<RankingState>>;
-  rankedCompanies: RankedCompany[];
-  totalCount: number;
-  /** 年収バーの基準（そのページの1位の金額）。 */
-  pageMaxSalary: number;
+  page: RankingPage;
+  /**
+   * 全件が手元にあるか（E0・ADR-0013）。**`false` の間はクライアント側で
+   * 絞り込めない**ので、呼び出し側は操作を実ナビゲーションに倒す。
+   */
+  ready: boolean;
 }
 
 /** URL → state。URLに無い項目は初期値（＝実測値・絞り込みなし・1ページ目）に倒す。 */
@@ -27,7 +29,7 @@ function rankingSearch(state: RankingState): string {
 }
 
 /**
- * state と URL のクエリパラメータを両方向で同期する。
+ * state と URL のクエリパラメータを両方向で同期し、いま出す1ページぶんを導く。
  *
  * 同期そのものは `lib/history/useLocationSyncedState` が持つ（企業詳細ページの
  * 表示基準と同じ規則で動かすため。Issue #108）。ここはランキングの語彙
@@ -40,14 +42,19 @@ function rankingSearch(state: RankingState): string {
  * `initialState` は「そのツリーを作ったときのURL」の値になる。フックはマウント時に
  * URL を読み直してこれを直す。
  *
+ * **`companies` は初回ロードの直後には無い**（E0・ADR-0013）。届くまでは
+ * サーバーが計算した `initialPage` をそのまま出す——**そのページは現在のURLに
+ * 対応している**（操作は実ナビゲーションに倒すので、届く前に state は動かない）。
+ *
  * 共通ヘッダの検索欄（`features/navigation/components/HeaderSearch.tsx`）は
  * `RankingApp` の祖先ではないので、URL を経路にして `RANKING_STATE_CHANGED_EVENT`
  * で届く（`lib/queryBroadcast.ts`）。
  */
 export function useRankingState(
-  companies: CompaniesData,
+  companies: CompaniesData | null,
   curves: CurvesData,
-  initialState: RankingState
+  initialState: RankingState,
+  initialPage: RankingPage
 ): UseRankingStateResult {
   const [state, setState] = useLocationSyncedState(
     initialState,
@@ -56,10 +63,10 @@ export function useRankingState(
     RANKING_STATE_CHANGED_EVENT
   );
 
-  const { companies: rankedCompanies, totalCount, pageMaxSalary } = useMemo(
-    () => buildRankedCompanies(companies, curves, state),
-    [companies, curves, state]
+  const page = useMemo(
+    () => (companies === null ? initialPage : buildRankedCompanies(companies, curves, state)),
+    [companies, curves, state, initialPage]
   );
 
-  return { state, setState, rankedCompanies, totalCount, pageMaxSalary };
+  return { state, setState, page, ready: companies !== null };
 }

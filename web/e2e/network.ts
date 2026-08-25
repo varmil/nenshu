@@ -34,6 +34,18 @@ const BRAND_ASSETS = new Set<string>(BRAND_ASSET_PATHS);
 /** Next.js の開発オーバーレイが自分のフォントを置いている場所。 */
 const DEV_OVERLAY_FONT_PREFIX = "/__nextjs_font/";
 
+/**
+ * ランキングが全件を手にするまで待つ（E0・ADR-0013）。
+ *
+ * **`/` は初回に1度だけ `/data/companies.json` を取りに行く。** 待たずに
+ * `collectPageRequests` を仕掛けると、その1回を操作由来と取り違える——逆に、
+ * 除外リストに足してしまうと**操作のたびに取りに行っていても気づけない**。
+ * 「届いてから測る」ことで AC-6（操作でネットワークが発生しない）はそのまま残る。
+ */
+export async function waitForRankingReady(page: Page): Promise<void> {
+  await page.locator("[data-ranking-ready]").waitFor({ state: "attached" });
+}
+
 export function collectPageRequests(page: Page): string[] {
   const requests: string[] = [];
   page.on("request", (req) => {

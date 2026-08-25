@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { collectPageRequests } from "./network";
+import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**
  * L1 企業ロゴの表示（`docs/logo/spec.md` 2. AC-7〜AC-14）。
@@ -153,6 +153,7 @@ test.describe("AC-10 モバイル", () => {
 test.describe("AC-11 操作でページを取り直さない", () => {
   test("ページ送りで文書・RSCのリクエストが発生しない（ロゴ画像は除く）", async ({ page }) => {
     await page.goto("/");
+    await waitForRankingReady(page);
     await page.waitForLoadState("networkidle");
 
     const requests = collectPageRequests(page);

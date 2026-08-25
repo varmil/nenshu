@@ -53,7 +53,7 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 
 **ただし Astro へ移すと決まった（ADR-0014・`docs/framework/`・Issue #200）。まだ着手していないので、上の記述がいまのコードの正のまま。** 移行は F0（`next/*` への依存を剥がす）→ F1（カットオーバー）→ F2 の3 Unit で、**F1 は分割できない**——Next.js と Astro は同じ Worker に同居できない。**新しいページや `next/*` の新しい API を足す前に `docs/framework/overview.md` を読むこと**（足すほど F1 の差分が増える）。
 
-**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ。**規則は`web/lib/history/useLocationSyncedState.ts`の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、現状1,867社ぶんの全データが初回HTMLにembedされておりクライアントが既に全件保持しているため、`<Link>`にする意味が無く使っていない（U6・Issue #22参照）。
+**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ。**規則は`web/lib/history/useLocationSyncedState.ts`の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ため`<Link>`にする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
 
 ## エージェントが従う優先順位
 

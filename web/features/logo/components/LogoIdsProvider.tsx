@@ -22,11 +22,22 @@ export function LogoIdsProvider({
 }: {
   rows?: readonly CompanyRow[];
   mask?: string;
-  ids?: readonly string[];
+  /**
+   * ID の集合。**`Set` をそのまま受ける**——ランキングはマスクを開いた `Set` を
+   * 渡すので（E0）、配列に直してから作り直すのは往復になる。
+   */
+  ids?: readonly string[] | ReadonlySet<string>;
   children: ReactNode;
 }) {
   const value = useMemo(
-    () => (ids ? new Set(ids) : rows && mask ? logoIdSet(rows, mask) : new Set<string>()),
+    () =>
+      ids
+        ? ids instanceof Set
+          ? (ids as Set<string>)
+          : new Set(ids as readonly string[])
+        : rows && mask
+          ? logoIdSet(rows, mask)
+          : new Set<string>(),
     [ids, rows, mask]
   );
   return <LogoIdsContext.Provider value={value}>{children}</LogoIdsContext.Provider>;

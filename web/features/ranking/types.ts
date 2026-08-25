@@ -6,8 +6,9 @@ export const TARGET_AGES: readonly TargetAge[] = [25, 30, 35, 40, 45, 50, 55, 60
  * 1ページあたりの表示件数（Issue #103）。
  *
  * **100件は1画面のスクロール量として多すぎる**という指摘を受けて30件にした。
- * 全2,961社ぶんのデータは表示件数に関わらず初回HTMLに埋まっている（Issue #22）
- * ので、この値を変えても送るデータ量は変わらない。変わるのは描画する行数だけ。
+ * **この値は送るデータ量を決めない**——全件は初回に1度だけアセットとして届き
+ * （E0・ADR-0013）、HTML に入るのは1ページぶんだけになる。変わるのは描画する
+ * 行数と、サーバーが直列化する行数の両方。
  */
 export const PAGE_SIZE = 30;
 
@@ -96,6 +97,52 @@ export interface CompaniesMeta {
     byEmployees: number;
   };
   generatedAt: string;
+}
+
+/**
+ * `/` がサーバーから受け取るもの（E0・ADR-0013）。**全社ぶんの配列は入っていない。**
+ *
+ * `RankingApp` は `"use client"` なので、props はハイドレーション用データとして
+ * HTML に直列化される。**全2,961社を渡していた頃はそれが `/` の gzip の 85.8%
+ * （78,722 B）を占めていた**——しかも `/?age=25`・`/?ind=銀行業`・`/?page=2` …の
+ * どのURLのHTMLにも同じものが入っていた。
+ *
+ * **クライアントは初回に1度だけ `dataUrl` から全件を取る。** 届くまでは `page`
+ * （そのURLで表示する1ページぶん）を出し、操作は実ナビゲーションに倒す——
+ * すべての状態は URL にあり、`/` はどの URL でも正しく SSR できる（ADR-0004）。
+ */
+export interface RankingBootstrap {
+  meta: CompaniesMeta;
+  /** 業種名（33件）。フィルタの選択肢と業種チップに要る。 */
+  industries: string[];
+  /**
+   * 業種ごとの社数。**母集団の内訳なので絞り込みでは変わらない**——全件が
+   * 届いた後も数え直さず、この値を使い続ける。
+   */
+  industryCounts: number[];
+  /** そのURLで表示する1ページぶん。全件が届くまでこれを出す。 */
+  page: RankingPage;
+  /**
+   * ロゴの有無（`companies.rows` と同じ並びの1文字ずつ・gzip 約540B）。
+   * **開くには `rows` が要る**ので、全件が届いてから `logoIdSet` に通す。
+   */
+  logoMask: string;
+  /** いま出ている1ページぶんのうちロゴを持つID。全件が届くまでの代わり。 */
+  pageLogoIds: string[];
+  /**
+   * 全件データの在り処。**クエリで版を切る**（`?v=<generatedAt のミリ秒>`）——
+   * `/` はブラウザ1時間・エッジ24時間キャッシュされる（ADR-0004）ので、
+   * 古いHTMLが新しいJSONを引く組み合わせが起きうる。
+   */
+  dataUrl: string;
+}
+
+/** 1ページぶんの描画に要るもの。サーバーもクライアントも同じ形で持つ。 */
+export interface RankingPage {
+  companies: RankedCompany[];
+  totalCount: number;
+  /** 年収バーの基準（そのページの1位の金額）。 */
+  pageMaxSalary: number;
 }
 
 export interface CompaniesData {
