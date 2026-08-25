@@ -93,8 +93,29 @@ describe("decodeWorklife", () => {
     expect(record?.wageGapAll).toBe(43.2);
   });
 
-  it("欠測と 0 を分ける（みずほ銀行の無期契約パートタイムは残業 0 時間）", () => {
+  it("残業 0 時間は落とすが、区分の行そのものは残す（みずほ銀行の無期契約パートタイム）", () => {
+    /*
+     * **W2（#185）で方針を変えた。** 以前は「欠測と 0 を分ける」として 0 を
+     * そのまま持っていたが、**未記入を 0 で埋めたのか本当に 0 なのかを
+     * 区別できない**ので取り込み時に落とすことにした（spec.md 1.4）。
+     * **区分名は残る**——その会社が自社をどう切っているかは消えない（spec 2.2b）。
+     */
     const units = recordOf("E03532")?.overtimeUnits ?? [];
-    expect(units[units.length - 1]).toEqual({ unit: "無期契約パートタイム", value: 0 });
+    expect(units[units.length - 1]).toEqual({ unit: "無期契約パートタイム", value: null });
+  });
+
+  it("有給の全体値 100% ちょうどは落とし、区分別を残す（ソニーグループ・Issue 185 例1）", () => {
+    // 全体 100% と区分「全体」63.7% が並んでいて、100% のほうが入力ミス。
+    const record = recordOf("6758");
+    expect(record?.paidLeaveAll).toBeNull();
+    expect(record?.paidLeaveUnits).toEqual([{ unit: "全体", value: 63.7 }]);
+  });
+
+  it("残業 0.0h は全体値も区分別も落とす（野村総合研究所・Issue 185 例2）", () => {
+    const record = recordOf("4307");
+    expect(record?.overtimeAll).toBeNull();
+    expect(record?.overtimeUnits.map((u) => u.value)).toEqual([null, null]);
+    // 有給と賃金の差異は残る。落とすのは残業の値だけ。
+    expect(record?.paidLeaveUnits).toEqual([{ unit: "正社員", value: 73.4 }]);
   });
 });

@@ -80,6 +80,57 @@ test.describe("AC-7 欠測軸", () => {
     await page.goto("/company/7203");
     await expect(chart(page).locator("circle")).toHaveCount(5);
   });
+
+  /*
+   * W2（Issue 185・Issue 207 例1）。**「公表していない」と「区分ごとに公表して
+   * いる」を図の上で分ける。** 規則（1点に代表を選ばない）は変えていないので
+   * 頂点は打たないが、「掲載なし」のままだと**節に値が出ているのに図だけ
+   * 掲載なし**になり、読者からは壊れて見える（有給221社・残業114社）。
+   */
+  test("区分ごとに公表している軸は「区分別」（ラクス）", async ({ page }) => {
+    await page.goto("/company/3923");
+    const svg = chart(page);
+    await expect(svg).toContainText("有給の取得");
+    await expect(svg).toContainText("区分別");
+    // 頂点は打たない（有給を除く4軸）。
+    await expect(svg.locator("circle")).toHaveCount(4);
+    // 値そのものは下の節に区分のまま出ている。
+    const worklife = page
+      .getByRole("heading", { name: "残業・有給・男女の賃金の差異" })
+      .locator("xpath=..");
+    await expect(worklife).toContainText("92.7");
+    await expect(worklife).toContainText("96.8");
+    // 図の説明文が「区分別」の意味を引き受ける（値の列は3文字ぶんしか無い）。
+    await expect(section(page)).toContainText("雇用管理区分ごとに公表している会社は「区分別」");
+  });
+});
+
+/*
+ * W2（Issue 185）——女性活躍DBの入力ミスとみられる値を取り込み時に落とした。
+ * **図と節の両方で消えていること**を見る（片方だけ残ると食い違いを作る）。
+ */
+test.describe("W2 入力ミスとみられる値", () => {
+  test("有給 100% ちょうどは落とし、区分別の 63.7% が出る（ソニーグループ）", async ({
+    page,
+  }) => {
+    await page.goto("/company/6758");
+    await expect(chart(page)).toContainText("63.7%");
+    // 100% はページのどこにも出ない。
+    await expect(page.locator("body")).not.toContainText("100.0%");
+  });
+
+  test("残業 0.0h は落として掲載なしにする（野村総合研究所）", async ({ page }) => {
+    await page.goto("/company/4307");
+    const svg = chart(page);
+    await expect(svg).toContainText("残業時間");
+    await expect(svg).toContainText("掲載なし");
+    // 「区分別」ではない——値が1つも残っていないので公表していない扱いになる。
+    await expect(svg).not.toContainText("区分別");
+    const worklife = page
+      .getByRole("heading", { name: "残業・有給・男女の賃金の差異" })
+      .locator("xpath=..");
+    await expect(worklife).not.toContainText("0.0h");
+  });
 });
 
 test.describe("AC-8 男女の賃金の差異は軸にしない", () => {
@@ -99,7 +150,7 @@ test.describe("AC-9 図だけが情報源にならない", () => {
     await page.goto("/company/6861");
     const list = section(page).locator("dl");
     await expect(list).toContainText("2,961社中3位");
-    await expect(list).toContainText("1,266社中1,246位");
+    await expect(list).toContainText("1,264社中1,245位");
     // 「上位◯%」は使わない（上位82%が良い意味に読まれるため）。
     await expect(list).not.toContainText("上位");
   });
