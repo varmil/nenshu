@@ -26,10 +26,18 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = resolve(ROOT, "logo-cache");
-const EXPECTED_ROW_COUNT = 1867;
-const MIN_WITH_LOGO = 1400;
+const EXPECTED_ROW_COUNT = 2961;
+/**
+ * ロゴを持つ会社の下限（AC-3）。**気づくための線であって目標ではない。**
+ * E2（#173）で母集団が 1,867 → 2,961社になったぶん、新しく入った会社の到達率が
+ * 揃うまでは全体の率が下がる。**社数で置く**——率で置くと、母集団が動いたときに
+ * 「何社ぶん取れなくなったか」が読めない。
+ */
+const MIN_WITH_LOGO = 2300;
 const MAX_FILE_BYTES = 20 * 1024;
-const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
+// 実測 8.8MB（1,625社ぶん・1枚平均5.4KB）。**E2 で母集団が1.59倍になったので
+// 上限も引き上げる**——1枚あたりの大きさは `MAX_FILE_BYTES` が別に見ている。
+const MAX_TOTAL_BYTES = 18 * 1024 * 1024;
 const MAX_ATTEMPTS_PER_COMPANY = 6;
 
 export type LogoEntry = {
@@ -45,11 +53,22 @@ export type LogoEntry = {
 export type LogosJson = {
   meta: {
     generatedAt: string;
+    /** 母集団の社数（＝CSV の行数）。**今回叩いた社数ではない。** */
     count: number;
     withLogo: number;
     bySource: Record<string, number>;
+    /**
+     * ロゴが1枚も取れなかった理由の内訳。**`--only` で回したときは対象社ぶんだけ**
+     * を数えるので、母集団ぜんぶの内訳にはならない。そのことは `partialOf` が示す。
+     */
     missReasons: Record<string, number>;
     rejectReasons: Record<string, number>;
+    /**
+     * `--only` で回したときの対象社数（E3・#175）。**`missReasons` と
+     * `rejectReasons` はこの社数に対する内訳**で、母集団ぜんぶのものではない。
+     * 全社を回したときは付かない。
+     */
+    partialOf?: number;
   };
   byId: Record<string, LogoEntry>;
 };
@@ -181,12 +200,20 @@ async function main() {
   const json: LogosJson = {
     meta: {
       generatedAt: new Date().toISOString(),
-      count: previous ? previous.meta.count : targets.length,
+      // **母集団の社数。今回叩いた社数ではない。** 以前は部分実行のとき前回の値を
+      // 引き継いでいたが、**E2（#173）で母集団そのものが 1,867 → 2,961社に変わった
+      // ときに古い数が残った**（到達率が 2500/1867 = 133.9% と出た）。CSV の行数は
+      // 部分実行でも変わらないので、そこから引けばよい。
+      count: companies.length,
       withLogo: Object.keys(byId).length,
       bySource,
-      // 落ちた理由は母集団ぜんぶを回して初めて意味を持つ数なので、部分実行では前回の値を残す
-      missReasons: previous ? previous.meta.missReasons : miss,
-      rejectReasons: previous ? previous.meta.rejectReasons : rejectReasons,
+      // **落ちた理由は「回した社数」に対する内訳。** 部分実行では前回の値を残すのを
+      // やめた——E3（#175）で1,336社を回したとき、旧母集団の231件がそのまま残り、
+      // 実際の欠け（461社）と食い違った。今回のぶんを入れ、`partialOf` で
+      // 「何社を回した内訳か」が読めるようにする。
+      missReasons: miss,
+      rejectReasons,
+      ...(only ? { partialOf: targets.length } : {}),
     },
     byId,
   };
@@ -347,10 +374,12 @@ export function validate(json: LogosJson, ids: Set<string>, logosDir: string, pa
 }
 
 function report(json: LogosJson, total: number) {
-  const { withLogo, bySource, missReasons } = json.meta;
+  const { withLogo, bySource, missReasons, partialOf } = json.meta;
   console.log(`\n=== ロゴあり ${withLogo}/${total} = ${((withLogo / total) * 100).toFixed(1)}%`);
   console.log("出典の内訳:", bySource);
-  console.log("落ちた理由:", missReasons);
+  // **内訳は「回した社数」に対する値。** 全社を回していないときは分母を明示する
+  // ——さもないと母集団に対する欠けの内訳として読まれる。
+  console.log(`落ちた理由${partialOf === undefined ? "" : `（${partialOf}社を回したぶん）`}:`, missReasons);
 }
 
 function argValue(flag: string): string | undefined {
