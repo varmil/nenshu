@@ -30,7 +30,7 @@ const rankValues = async (page: import("@playwright/test").Page) => {
 test.describe("AC-12 並び替え", () => {
   test("平均年齢で並び替えても、順位は1から振り直されない", async ({ page }) => {
     await page.goto("/");
-    await expect(rows(page).first()).toContainText("株式会社キーエンス");
+    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
 
     // 3軸とも既定は降順なので、平均年齢を押すと「高い順」から始まる。
     await page
@@ -103,7 +103,7 @@ test.describe("AC-12 並び替え", () => {
 
   test("既定の並びで「平均年収」を押すと低い順になる", async ({ page }) => {
     await page.goto("/");
-    await expect(rows(page).first()).toContainText("株式会社キーエンス");
+    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
 
     await page
       .getByRole("group", { name: "並び替え" })
@@ -111,8 +111,8 @@ test.describe("AC-12 並び替え", () => {
       .click();
 
     await expect(page).toHaveURL(/[?&]sort=salary-asc/);
-    // 順位は金額基準のまま。低い順の先頭は最下位（1,867位）。読み上げ用の「位」が付く。
-    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1867位");
+    // 順位は金額基準のまま。低い順の先頭は最下位（2,961位）。読み上げ用の「位」が付く。
+    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("2961位");
   });
 
   test("逆向きの軸から別の軸へ移ると、その軸の既定の向きになる", async ({ page }) => {
@@ -233,14 +233,17 @@ test.describe("AC-13 年収バー", () => {
 });
 
 test.describe("AC-14 偏差値", () => {
-  test("実測値のキーエンスは122.9、年齢そろえ35歳では150.0", async ({ page }) => {
+  // 1位は基準ごとに違う（E2 で母集団を広げた後）——実測値はヒューリック、
+  // 35歳そろえはＭ＆Ａキャピタルパートナーズ。**偏差値も基準ごとの母集団で出す。**
+  test("実測値の1位は130.7、年齢そろえ35歳の1位は159.1", async ({ page }) => {
     await page.goto("/");
     // 偏差値は3列目（index 2）。順位の列を廃した（アートボード 4d）ぶん1つ左。
-    await expect(rows(page).first().locator("td").nth(2)).toContainText("122.9");
+    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
+    await expect(rows(page).first().locator("td").nth(2)).toContainText("130.7");
 
     await page.goto("/?age=35");
-    await expect(rows(page).first()).toContainText("株式会社キーエンス");
-    await expect(rows(page).first().locator("td").nth(2)).toContainText("150.0");
+    await expect(rows(page).first()).toContainText("Ｍ＆Ａキャピタルパートナーズ株式会社");
+    await expect(rows(page).first().locator("td").nth(2)).toContainText("159.1");
   });
 
   test("100を超えうることが脚注に書いてある", async ({ page }) => {
@@ -255,19 +258,19 @@ test.describe("AC-14 偏差値", () => {
   test("偏差値の列は数字だけで、上位◯%を出さない", async ({ page }) => {
     await page.goto("/");
     const cell = rows(page).first().locator("td").nth(2);
-    await expect(cell).toHaveText("122.9");
+    await expect(cell).toHaveText("130.7");
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
   });
 
   /*
-   * 偏差値の母集団は絞り込み後ではなく全1,867社。海運業7社に絞ったときの1位が
+   * 偏差値の母集団は絞り込み後ではなく全2,961社。海運業9社に絞ったときの1位が
    * 「50.0」付近になったら、絞り込んだ集団で計算してしまっている。
    */
   test("絞り込んでも偏差値は全体の分布に対する値のまま", async ({ page }) => {
     await page.goto("/?ind=海運業");
-    await expect(rows(page)).toHaveCount(7);
+    await expect(rows(page)).toHaveCount(9);
     await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1位");
-    await expect(rows(page).first().locator("td").nth(2)).toHaveText("97.0");
+    await expect(rows(page).first().locator("td").nth(2)).toHaveText("98.7");
   });
 });
 
@@ -289,9 +292,9 @@ test.describe("サイドバーと件数表示", () => {
     expect(after!.y).toBeLessThan(800);
   });
 
-  test("件数が「1,867社 中 1〜30社目」の形で出る", async ({ page }) => {
+  test("件数が「2,961社 中 1〜30社目」の形で出る", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
+    await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
   });
 
   test("適用中のチップが出て、1つずつ解除できる", async ({ page }) => {
@@ -327,11 +330,11 @@ test.describe("業種チップ", () => {
 
     await page
       .getByRole("navigation", { name: "業種から見る" })
-      .getByRole("link", { name: "海運業 7社", exact: true })
+      .getByRole("link", { name: "海運業 9社", exact: true })
       .click();
 
     await expect(page).toHaveURL(/ind=%E6%B5%B7%E9%81%8B%E6%A5%AD/);
-    await expect(rows(page)).toHaveCount(7);
+    await expect(rows(page)).toHaveCount(9);
     expect(requests).toHaveLength(0);
   });
 });
@@ -420,13 +423,13 @@ test.describe("U13 モックとの一致", () => {
   test("平均年齢・在籍年数・従業員数は社名の下の1行にまとまっている", async ({ page }) => {
     await page.goto("/");
     const meta = rows(page).first().locator("td").first();
-    await expect(meta).toContainText("平均35.0歳 ・ 在籍11.3年 ・ 3,306人");
-    await expect(meta).not.toContainText("電気機器");
+    await expect(meta).toContainText("平均39.0歳 ・ 在籍7.0年 ・ 234人");
+    await expect(meta).not.toContainText("不動産業");
   });
 
   test("年齢そろえのときは meta 行に実測値が併記される", async ({ page }) => {
     await page.goto("/?age=35");
-    await expect(rows(page).first().locator("td").first()).toContainText("実績 2,178万円");
+    await expect(rows(page).first().locator("td").first()).toContainText("実績 2,266万円");
   });
 
   test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
@@ -455,7 +458,7 @@ test.describe("U13 モックとの一致", () => {
     await page.goto("/");
 
     const nav = page.getByRole("navigation", { name: "業種から見る" });
-    await expect(nav.getByRole("link", { name: "海運業 7社", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "海運業 9社", exact: true })).toBeVisible();
 
     // 表と左端が揃っている＝サイドバーの下ではなく本文カラムの中にいる。
     const navBox = (await nav.boundingBox())!;
@@ -491,7 +494,7 @@ test.describe("U13 モックとの一致", () => {
     await expect(name).toHaveCSS("font-weight", "700");
 
     const salary = row.locator("td").nth(1).locator("span").first();
-    await expect(salary).toHaveText("2,178万円");
+    await expect(salary).toHaveText("2,295万円");
     await expect(salary).toHaveCSS("font-size", "16px");
   });
 });
@@ -652,7 +655,7 @@ test.describe("公開後の手直し", () => {
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
+    await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
     await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
       "aria-pressed",
       "true"
@@ -664,7 +667,7 @@ test.describe("公開後の手直し", () => {
     await page.goto("/about");
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(rows(page).first()).toContainText("株式会社キーエンス");
+    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
   });
 });
 
@@ -696,7 +699,7 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     await page.goto("/");
     const row = firstRow(page);
     const bar = row.locator('[aria-hidden="true"]').last();
-    const salary = row.getByText("2,178万円");
+    const salary = row.getByText("2,295万円");
 
     const barBox = (await bar.boundingBox())!;
     const rowBox = (await row.boundingBox())!;
@@ -785,7 +788,7 @@ test.describe("公開後の手直し（モバイルの行）", () => {
 
     const logo = row.locator('[data-logo="image"], [data-logo="initial"]');
     const name = row.getByRole("link").first();
-    const salary = row.getByText("2,178万円");
+    const salary = row.getByText("2,295万円");
 
     const boxes = await Promise.all(
       [logo, name, salary].map(async (l) => (await l.boundingBox())!)
@@ -884,7 +887,7 @@ test.describe("公開後の手直し（モバイルの行）", () => {
 
     await expect(row.getByRole("link").first()).toHaveCSS("font-weight", "700");
 
-    const salary = row.getByText("2,178万円");
+    const salary = row.getByText("2,295万円");
     await expect(salary).toHaveCSS("font-size", "16px");
   });
 
@@ -894,7 +897,7 @@ test.describe("公開後の手直し（モバイルの行）", () => {
       locator.evaluate((el) => el.getClientRects().length);
 
     expect(await lines(page.getByRole("heading", { level: 1 }))).toBe(1);
-    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）で1,867社。"))).toBe(1);
+    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）で2,961社。"))).toBe(1);
     expect(await lines(page.getByText("有価証券報告書の数値のまま。"))).toBe(1);
   });
 });

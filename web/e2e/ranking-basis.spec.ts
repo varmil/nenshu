@@ -22,8 +22,8 @@ test.describe("表示基準の切替", () => {
     await expect(table.getByRole("columnheader", { name: "平均年収（有報）" })).toBeVisible();
 
     const firstRow = table.locator("tbody tr").first();
-    await expect(firstRow).toContainText("株式会社キーエンス");
-    await expect(firstRow).toContainText("2,178万円");
+    await expect(firstRow).toContainText("ヒューリック株式会社");
+    await expect(firstRow).toContainText("2,295万円");
   });
 
   test("AC-9: 実測値では「推定」の語が画面に出ない", async ({ page }) => {
@@ -53,14 +53,16 @@ test.describe("表示基準の切替", () => {
     expect(ageOrder).not.toEqual(rawOrder);
   });
 
-  test("AC-2: 年齢そろえで25歳を選ぶとキーエンスが788万円になる", async ({ page }) => {
+  // **1位は基準ごとに違う。** 実測値はヒューリック（平均39.0歳）、25歳・35歳では
+  // 平均32.4歳のＭ＆Ａキャピタルパートナーズが上に来る（E2 で母集団を広げた後）。
+  test("AC-2: 年齢そろえで25歳を選ぶと1位が1,028万円になる", async ({ page }) => {
     await page.goto("/?age=35");
     await page.getByRole("button", { name: "25歳" }).click();
 
     await expect(page).toHaveURL(/[?&]age=25/);
     const firstRow = page.getByRole("table").locator("tbody tr").first();
-    await expect(firstRow).toContainText("株式会社キーエンス");
-    await expect(firstRow).toContainText("788万円");
+    await expect(firstRow).toContainText("Ｍ＆Ａキャピタルパートナーズ株式会社");
+    await expect(firstRow).toContainText("1,028万円");
   });
 
   // 消すと「年齢そろえ」で何が使えるようになるかが分からなくなるので、
@@ -134,7 +136,7 @@ test.describe("表示基準の切替", () => {
     // 「推定」の一語を添えていたが、30行ぶん同じ語が繰り返されていた。推定である
     // ことは帯と一覧の脚注が持つ（AC-9 は下の行で見ている）。
     const firstRow = page.locator("div.md\\:hidden > div").first();
-    await expect(firstRow).toContainText("2,178万円");
+    await expect(firstRow).toContainText("2,295万円");
     await expect(firstRow).not.toContainText("推定");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();

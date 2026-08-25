@@ -75,7 +75,7 @@ describe("estimateSalary", () => {
   // （金融業・保険業は47歳→57歳、鉱業は42歳→47歳で下がる）、推定もそこでは下がる。
   // 旧式でも同じ挙動で、モデルの変更で入った性質ではない。
   // 保証されるのは「カーブの値が上がれば推定も上がる」こと。ここを固定する。
-  it("推定はカーブの値に対して単調に増加する（全1,867社・8段の全組み合わせ）", () => {
+  it("推定はカーブの値に対して単調に増加する（全2,961社・8段の全組み合わせ）", () => {
     for (const row of companies.rows) {
       const curveValues = curveValuesInYen(curves.curves[companies.curveKeys[row[3]]]);
       const points = TARGET_AGES.map((age) => ({
@@ -99,7 +99,7 @@ describe("estimateSalary", () => {
     expect(estimated).toBe(Math.round(3_000_000 * (5_000_000 / 6_000_000)));
   });
 
-  it("全1,867社・8段のどこでも0円以下や NaN にならない", () => {
+  it("全2,961社・8段のどこでも0円以下や NaN にならない", () => {
     for (const row of companies.rows) {
       const curveValues = curveValuesInYen(curves.curves[companies.curveKeys[row[3]]]);
       for (const age of TARGET_AGES) {

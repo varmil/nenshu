@@ -3,7 +3,7 @@ import { collectPageRequests } from "./network";
 
 // 数値は `docs/company/spec.md` §3 の受け入れ基準（2026-06 版データの実測値）。
 //
-// C2 で h1 の直下にも順位を出すようにしたため、「1位 / 1,867社」のような文字列は
+// C2 で h1 の直下にも順位を出すようにしたため、「3位 / 2,961社」のような文字列は
 // ページ内に2か所ある。**カードの中の値**を見たいので `dl` に絞る。
 
 /**
@@ -39,11 +39,12 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
 
-    // 順位は実測値の分布に対する値。
-    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("1位 /150社")).toBeVisible();
+    // 順位は実測値の分布に対する値。**E2 で母集団を広げてキーエンスは3位になった**
+    // （上はヒューリック 2,295万円・Ｍ＆Ａキャピタルパートナーズ 2,266万円）。
+    await expect(card(page).getByText("3位 /2,961社")).toBeVisible();
+    await expect(card(page).getByText("1位 /193社")).toBeVisible();
     // 全体平均との差は C3 で `dl` の外の段落に移した。
-    await expect(page.getByText("全体平均 719万円 に対して")).toBeVisible();
+    await expect(page.getByText("全体平均 693万円 に対して")).toBeVisible();
 
     // 実測値では「推定」の語を出さない（spec AC-9）。
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
@@ -62,8 +63,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("1位 /150社")).toBeVisible();
+    await expect(card(page).getByText("2位 /2,961社")).toBeVisible();
+    await expect(card(page).getByText("1位 /193社")).toBeVisible();
   });
 
   // 実測値のとき年齢スイッチは消さずに無効化する（ADR-0007）。
@@ -106,18 +107,18 @@ test.describe("企業詳細ページ", () => {
     await alignToAge(page, 35);
 
     await expect(page.getByText("年収偏差値")).toBeVisible();
-    const deviation = page.locator("dd").filter({ hasText: /^150\.0$/ });
+    const deviation = page.locator("dd").filter({ hasText: /^149\.5$/ });
     await expect(deviation).toBeVisible();
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
     await expect(page.getByText("偏差値は100を超えることがあります")).toHaveCount(0);
     await expect(page.getByText(/偏差値は分布が右に裾を引くため/)).toHaveCount(0);
 
     // 偏差値と同じ視界に置く順位・位置バーは残っている（単独で置かないための担保）。
-    await expect(card(page).getByText("1位 /1,867社")).toBeVisible();
-    await expect(page.getByText("全体1,867社の中の位置")).toBeVisible();
+    await expect(card(page).getByText("2位 /2,961社")).toBeVisible();
+    await expect(page.getByText("全体2,961社の中の位置")).toBeVisible();
 
-    await expect(page.getByText("＋1,549万円")).toBeVisible();
-    await expect(page.getByText("全体平均 629万円")).toBeVisible();
+    await expect(page.getByText("＋1,562万円")).toBeVisible();
+    await expect(page.getByText("全体平均 616万円")).toBeVisible();
   });
 
   test("AC-2: /company/7203（トヨタ）の順位", async ({ page }) => {
@@ -126,17 +127,17 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "トヨタ自動車株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("859万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("120位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("2位 /71社")).toBeVisible();
+    await expect(card(page).getByText("169位 /2,961社")).toBeVisible();
+    await expect(card(page).getByText("2位 /79社")).toBeVisible();
   });
 
   // 実測値と年齢そろえで順位が変わることを、平均年齢が高めのトヨタで固定する。
-  test("AC-2: トヨタは実測値では1,006万円・121位", async ({ page }) => {
+  test("AC-2: トヨタは実測値では1,006万円・162位", async ({ page }) => {
     await page.goto("/company/7203");
 
     await expect(page.getByText("1,006万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("121位 /1,867社")).toBeVisible();
-    await expect(card(page).getByText("2位 /71社")).toBeVisible();
+    await expect(card(page).getByText("162位 /2,961社")).toBeVisible();
+    await expect(card(page).getByText("2位 /79社")).toBeVisible();
   });
 
   test("AC-3: 年齢スイッチで25歳を選ぶと金額と偏差値が変わり、ネットワークリクエストが発生しない", async ({
@@ -151,8 +152,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
-    await expect(page.locator("dd").filter({ hasText: /^127\.3/ })).toBeVisible();
-    await expect(page.getByText("＋369万円")).toBeVisible();
+    await expect(page.locator("dd").filter({ hasText: /^125\.7/ })).toBeVisible();
+    await expect(page.getByText("＋373万円")).toBeVisible();
     await expect(page).toHaveURL(/\/company\/6861$/);
 
     expect(requests).toHaveLength(0);
@@ -224,7 +225,7 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "株式会社みずほ銀行", level: 1 })).toBeVisible();
     await expect(page.getByText("755万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).getByText("280位 /1,867社")).toBeVisible();
+    await expect(card(page).getByText("383位 /2,961社")).toBeVisible();
     await expect(card(page).getByText("17位 /82社")).toBeVisible();
   });
 

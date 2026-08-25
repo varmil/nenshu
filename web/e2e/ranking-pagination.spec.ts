@@ -15,29 +15,29 @@ test.describe("0件・端の状態と段階表示", () => {
   test("1ページは30件で、件数表示と行数が一致する", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(30);
-    await expect(page.getByText("1,867社 中 1〜30社目")).toBeVisible();
-    // 1,867 / 30 = 63ページ。末尾のページ番号がそのまま総ページ数になる。
+    await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
+    // 2,961 / 30 = 99ページ。末尾のページ番号がそのまま総ページ数になる。
     // `PaginationLink` は `<a role="button">` なので role は button で引く。
-    await expect(page.getByRole("button", { name: "63", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "99", exact: true })).toBeVisible();
   });
 
-  test("最終ページは端数の7社で、件数表示も1,861〜1,867社目になる", async ({ page }) => {
-    await page.goto("/?page=63");
-    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(7);
-    await expect(page.getByText("1,867社 中 1,861〜1,867社目")).toBeVisible();
+  test("最終ページは端数の21社で、件数表示も2,941〜2,961社目になる", async ({ page }) => {
+    await page.goto("/?page=99");
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(21);
+    await expect(page.getByText("2,961社 中 2,941〜2,961社目")).toBeVisible();
   });
 
   test("ページ送りをクリックすると内容が変わり、URLにpage=2が反映される", async ({ page }) => {
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
-    await expect(firstRow).toContainText("株式会社キーエンス");
+    await expect(firstRow).toContainText("ヒューリック株式会社");
 
     await page.getByRole("button", { name: "次のページへ" }).click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
     // 既定は実測値なので、2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社になる。
-    await expect(firstRow).toContainText("ソニーフィナンシャルグループ株式会社");
-    await expect(firstRow).not.toContainText("株式会社キーエンス");
+    await expect(firstRow).toContainText("ジャフコ　グループ株式会社");
+    await expect(firstRow).not.toContainText("ヒューリック株式会社");
   });
 
   // Issue #96。ページ送りのボタンは表1ページぶん下にあるので、位置を保ったままだと
@@ -84,8 +84,8 @@ test.describe("0件・端の状態と段階表示", () => {
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    expect(tableHtml).toContain("ソニーフィナンシャルグループ株式会社");
-    expect(tableHtml).not.toContain("株式会社キーエンス");
+    expect(tableHtml).toContain("ジャフコ　グループ株式会社");
+    expect(tableHtml).not.toContain("ヒューリック株式会社");
   });
 
   test("範囲外のpageは最終ページにクランプされる（クラッシュしない）", async ({ request }) => {
@@ -94,6 +94,6 @@ test.describe("0件・端の状態と段階表示", () => {
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    expect(tableHtml).toContain("オーケー株式会社");
+    expect(tableHtml).toContain("株式会社ＷＯＬＶＥＳ　ＨＡＮＤ");
   });
 });

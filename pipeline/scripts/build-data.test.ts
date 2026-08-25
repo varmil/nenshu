@@ -28,30 +28,38 @@ describe("buildData", () => {
     return () => rmSync(outDir, { recursive: true, force: true });
   });
 
-  it("companies.json が1,867行を持つ", () => {
-    expect(result.companies.rows.length).toBe(1867);
+  it("companies.json が2,961行を持つ", () => {
+    expect(result.companies.rows.length).toBe(2961);
   });
 
   // S3（Issue #134）と E1（`docs/expansion/spec.md` 1.4）。決算期は画面と
   // title・description の何箇所にも出るので、CSV から導いて `meta` に載せる。
   // ここが崩れると全ページの「いつのデータか」が一斉に嘘になる。
   it("meta に決算期の幅が入る。値は CSV の period_end の最古と最新", () => {
-    expect(result.companies.meta.fiscalPeriodRange).toEqual({ from: "2026-03", to: "2026-04" });
+    expect(result.companies.meta.fiscalPeriodRange).toEqual({ from: "2025-03", to: "2026-05" });
 
     const counts = new Map<string, number>();
     for (const row of sourceRows) {
       const period = row.periodEnd.slice(0, 7);
       counts.set(period, (counts.get(period) ?? 0) + 1);
     }
-    // 実測。3月期が1,865社、4月期が2社（ヤガミ・ダイサン）。**最頻を代表として
+    // 実測（E2 で母集団を直近12か月に広げた後・ADR-0011）。**最頻を代表として
     // 名乗るのはやめた**（E1）が、偏っていること自体は `/about` が断る。
-    expect(counts.get("2026-03")).toBe(1865);
-    expect(counts.get("2026-04")).toBe(2);
+    // **3月期は 63.5% しかない**——旧ガード（過半に届かなければ落とす）はここを
+    // 通ってしまうので、幅そのものをガードにしてある。
+    expect(counts.get("2026-03")).toBe(1880);
+    expect(counts.get("2025-12")).toBe(387);
+    expect([...counts.values()].reduce((a, b) => a + b, 0)).toBe(2961);
   });
 
   // E1。企業詳細は1社ぶんなので幅ではなく実際の決算期を出せる。
   it("会社ごとの決算期を文字列プールの添字で持つ", () => {
-    expect(result.companies.periods).toEqual(["2026-03", "2026-04"]);
+    // 14種類（`2025-03` 〜 `2026-05`）。**`YYYY-MM` をそのまま行に並べず添字にする**
+    // ——種類が少ないので、プールにすればトップページの HTML が4分の1で済む。
+    expect(result.companies.periods).toEqual([
+      "2025-03", "2025-05", "2025-06", "2025-07", "2025-08", "2025-09", "2025-10",
+      "2025-11", "2025-12", "2026-01", "2026-02", "2026-03", "2026-04", "2026-05",
+    ]);
 
     const idx = result.companies.periods;
     result.companies.rows.forEach((row, i) => {
@@ -67,7 +75,7 @@ describe("buildData", () => {
   //
   // 丸めにも注意が要る。Python の組み込み round() は偶数丸めで JavaScript の
   // Math.round と違うため、Python 側は floor(x + 0.5) を使っている。
-  it("2点モデル（ADR-0005）で再計算した35歳時点の推定年収がCSVのsalary35と全1,867社で一致する", () => {
+  it("2点モデル（ADR-0005）で再計算した35歳時点の推定年収がCSVのsalary35と全2,961社で一致する", () => {
     const { agePoints, curves } = result.curves;
     const mismatches: string[] = [];
 
@@ -83,7 +91,7 @@ describe("buildData", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("id が1,867件すべて一意", () => {
+  it("id が2,961件すべて一意", () => {
     const ids = result.companies.rows.map((r) => r[0]);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -93,15 +101,15 @@ describe("buildData", () => {
   // リセットされてしまう。証券コード／EDINETコードはどちらも年をまたいで変わらない。
   it("証券コードを持つ会社の id は証券コードそのもの", () => {
     const withSecCode = sourceRows.filter((r) => r.secCode !== "");
-    expect(withSecCode.length).toBe(1760);
+    expect(withSecCode.length).toBe(2819);
     for (const row of withSecCode) {
       expect(makeId(row)).toBe(row.secCode);
     }
   });
 
-  it("証券コードを持たない107社の id はEDINETコード（E＋5桁）", () => {
+  it("証券コードを持たない142社の id はEDINETコード（E＋5桁）", () => {
     const withoutSecCode = sourceRows.filter((r) => r.secCode === "");
-    expect(withoutSecCode.length).toBe(107);
+    expect(withoutSecCode.length).toBe(142);
     for (const row of withoutSecCode) {
       expect(makeId(row)).toMatch(/^E\d{5}$/);
     }
@@ -114,6 +122,61 @@ describe("buildData", () => {
       .map((r) => r[0])
       .filter((id) => /s1\d{2}[0-9a-z]{4}$/.test(id));
     expect(docIdShaped).toEqual([]);
+  });
+
+  /*
+   * E2（`docs/expansion/spec.md` AC-2）。**寄せ方が走査順に依存すると会社が消える。**
+   * 窓を12か月に広げると、同じ年に有報を複数出す会社が現れる——りそな銀行と
+   * 三井住友信託銀行は窓の中にそれぞれ4件持ち、**「後に見つかったものが勝つ」で
+   * 「従業員の状況」を持たない書類が残って母集団から消えていた**（実測）。
+   * `edinet.doc_rank`（期末の新しいほう、同じなら docID が大きいほう）で選び直す。
+   */
+  it("AC-2: EDINETコードが1社1行で、同じ年に有報を複数出す会社も残っている", () => {
+    const codes = sourceRows.map((r) => r.edinetCode);
+    expect(codes.filter((c) => c === "")).toEqual([]);
+    expect(new Set(codes).size).toBe(codes.length);
+
+    // りそな銀行・三井住友信託銀行。**「従業員の状況」を持つ書類から作られている**
+    // ことは、金額と平均年齢が入っていることで分かる（持たない書類なら欠ける）。
+    for (const code of ["E03538", "E03627"]) {
+      const row = sourceRows.find((r) => r.edinetCode === code);
+      expect(row, code).toBeDefined();
+      expect(row!.avgSalary, code).toBeGreaterThan(0);
+      expect(row!.avgAge, code).toBeGreaterThan(0);
+    }
+  });
+
+  /*
+   * E2（AC-4）。**掲載の条件は窓を広げても変えていない**（ADR-0011）。社数を目標に
+   * ここを緩めると、載っている数字の意味が薄まる。
+   */
+  it("AC-4: 全行が掲載条件（単体従業員100人以上・平均年齢20〜65歳・平均年間給与100万円超）を満たす", () => {
+    for (const row of sourceRows) {
+      expect(row.employeesNonConsolidated, row.name).toBeGreaterThanOrEqual(100);
+      expect(row.avgAge, row.name).toBeGreaterThanOrEqual(20);
+      expect(row.avgAge, row.name).toBeLessThanOrEqual(65);
+      expect(row.avgSalary, row.name).toBeGreaterThan(1_000_000);
+    }
+  });
+
+  /*
+   * E2（AC-1）。**決算期で会社が消えない。** 以前の窓（6/1〜7/10）は3月期決算の
+   * 提出ピークに貼り付いており、この5社は1社も入っていなかった。
+   */
+  it("AC-1: 決算期が3月でない会社が母集団に入っている", () => {
+    const byName = new Map(result.companies.rows.map((r) => [r[1], r]));
+    for (const name of [
+      "キヤノン株式会社",
+      "日本たばこ産業株式会社",
+      "楽天グループ株式会社",
+      "イオン株式会社",
+      "株式会社ファーストリテイリング",
+    ]) {
+      const row = byName.get(name);
+      expect(row, name).toBeDefined();
+      // 決算期は3月ではない（`periods` への添字から引く）。
+      expect(result.companies.periods[row![9]].slice(5), name).not.toBe("03");
+    }
   });
 
   it("代表的な会社の id が固定されている", () => {
@@ -138,16 +201,16 @@ describe("buildData", () => {
   // stats.json は企業詳細ページ（`/company/[id]`）が使う母集団統計。順位を
   // リクエストごとに計算しないための事前計算で、companies.json と行の並びが
   // 一致していることが正しさの前提になる。
-  it("stats.json が9表示基準（実測値＋8年齢） × 1,867社ぶんの順位を持つ", () => {
+  it("stats.json が9表示基準（実測値＋8年齢） × 2,961社ぶんの順位を持つ", () => {
     const { bases, count, rankAll, rankIndustry, population, industryCounts } = result.stats;
     // 先頭の null が実測値。ADR-0007。
     expect(bases).toEqual([null, 25, 30, 35, 40, 45, 50, 55, 60]);
-    expect(count).toBe(1867);
-    expect(rankAll.length).toBe(1867);
-    expect(rankIndustry.length).toBe(1867);
+    expect(count).toBe(2961);
+    expect(rankAll.length).toBe(2961);
+    expect(rankIndustry.length).toBe(2961);
     expect(population.length).toBe(9);
     expect(industryCounts.length).toBe(result.companies.industries.length);
-    expect(industryCounts.reduce((a, b) => a + b, 0)).toBe(1867);
+    expect(industryCounts.reduce((a, b) => a + b, 0)).toBe(2961);
     for (const row of rankAll) expect(row.length).toBe(9);
     for (const row of rankIndustry) expect(row.length).toBe(9);
   });
@@ -171,15 +234,37 @@ describe("buildData", () => {
               basis
             )
       );
-      for (let i = 0; i < rows.length; i++) {
-        // 同額は同順位（自分より高い会社の数 ＋ 1）。
-        const higher = estimates.filter((e) => e > estimates[i]).length;
-        expect(rankAll[i][k]).toBe(higher + 1);
+      // **同額は同順位（自分より高い会社の数 ＋ 1）。** 素朴に「自分より高い
+      // 要素を数える」と 2,961社 × 9基準で O(n²) になり、E2 で母集団を広げた
+      // あと5秒の既定タイムアウトを超えた（実測9.8秒）。**照合の規則は変えず**、
+      // 降順に並べて「その値が最初に現れる位置」を引く形にしてある。
+      const rankTable = (indexes: number[]) => {
+        const sorted = [...indexes].sort((a, b) => estimates[b] - estimates[a]);
+        const rank = new Map<number, number>();
+        sorted.forEach((index, position) => {
+          if (!rank.has(estimates[index])) rank.set(estimates[index], position + 1);
+        });
+        return rank;
+      };
 
-        const higherInIndustry = rows.filter(
-          (row, j) => row[2] === rows[i][2] && estimates[j] > estimates[i]
-        ).length;
-        expect(rankIndustry[i][k]).toBe(higherInIndustry + 1);
+      const allIndexes = rows.map((_, i) => i);
+      const rankAllExpected = rankTable(allIndexes);
+      const byIndustry = new Map<number, number[]>();
+      for (const i of allIndexes) {
+        const members = byIndustry.get(rows[i][2]);
+        if (members === undefined) byIndustry.set(rows[i][2], [i]);
+        else members.push(i);
+      }
+      const rankIndustryExpected = new Map<number, Map<number, number>>();
+      for (const [industry, members] of byIndustry) {
+        rankIndustryExpected.set(industry, rankTable(members));
+      }
+
+      for (let i = 0; i < rows.length; i++) {
+        expect(rankAll[i][k]).toBe(rankAllExpected.get(estimates[i]));
+        expect(rankIndustry[i][k]).toBe(
+          rankIndustryExpected.get(rows[i][2])!.get(estimates[i])
+        );
         expect(rankIndustry[i][k]).toBeLessThanOrEqual(industryCounts[rows[i][2]]);
       }
     }
@@ -225,7 +310,7 @@ describe("buildData", () => {
     const rows = result.companies.rows;
     const topIndex = rows.reduce((best, row, i) => (row[6] > rows[best][6] ? i : best), 0);
     expect(result.stats.rankAll[topIndex][0]).toBe(1);
-    expect(rows[topIndex][1]).toBe("株式会社キーエンス");
+    expect(rows[topIndex][1]).toBe("ヒューリック株式会社");
   });
 
   /*
@@ -311,19 +396,27 @@ describe("buildData", () => {
   });
 
   // 同じ有報から取った同じ数字なので、ここがずれていたら抽出が壊れている。
-  it("AC-3: history.json の2026年が companies.json の平均年収と全社で一致する", () => {
+  it("AC-3: history.json の2026年が companies.json の平均年収と一致する（推移を持つ会社ぶん）", () => {
     const { years, byId } = result.history;
     const k = years.indexOf(2026);
     const rows = result.companies.rows;
 
-    // 2026年は全社ぶん揃っていなければならない（同じ有報・同じ抽出関数なので、
-    // 1社でも欠けるか値がずれたら抽出が壊れている）。
+    // 推移を持つ会社では、2026年が欠けていることも値がずれていることも許さない
+    // （同じ有報・同じ抽出関数なので、ずれたら抽出が壊れている）。
+    let covered = 0;
     for (const row of rows) {
       const values = byId[row[0]];
-      expect(values).toBeDefined();
+      if (values === undefined) continue;
       expect(values[k]).toBe(row[6]);
+      covered += 1;
     }
-    expect(rows.length).toBe(1867);
+
+    // **母集団を広げたぶん（E2・#173）は 10年推移が追随していない**——新しく
+    // 入った1,094社は `history.json` に1行も無い。追随は E4（#176）で、そこで
+    // この数が 2,961 に上がる。**「全社ぶん揃っている」に戻さず数で固定するのは、
+    // 追随したことをテストの側でも見えるようにするため**（spec AC-8）。
+    expect(covered).toBe(1867);
+    expect(rows.length).toBe(2961);
   });
 
   // 誤読はたいてい隣の年から浮く。桁の切り方を間違えると10倍・4倍に飛ぶ。
@@ -448,7 +541,7 @@ describe("buildData", () => {
     const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
 
     it("AC-1 1,865社ぶんの値が入る", () => {
-      expect(result.performance.meta.count).toBe(1867);
+      expect(result.performance.meta.count).toBe(2961);
       // **欠損0件。** 経常利益の要素名は3つの綴りがあり（`OrdinaryIncomeLoss` /
       // `OrdinaryIncome` / 会社独自の名前空間の `OrdinaryProfit`）、標準名だけを
       // 見ていた頃は13書類が取れず、東京製鐵は2013〜2017年しか残らなかった。
@@ -489,8 +582,10 @@ describe("buildData", () => {
     it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
       // `sourceRows` と `companies.rows` は同じ並びなので添字がそのまま使える。
       const missing = sourceRows.flatMap((row, i) => (row.employeesConsolidated === null ? [i] : []));
-      expect(missing.length).toBe(191);
-      // 代用しないとこの191社が丸ごと欠ける。
+      expect(missing.length).toBe(371);
+      // 代用しないとこの371社が丸ごと欠ける。**埋まるのは稼ぐ力を持つ会社ぶんだけ**
+      // ——新しく入った会社（E2・#173）は `performance.json` にまだ無く、追随は
+      // E6（#182）になる。
       const filled = missing.filter((i) => result.performance.perEmployee[i] !== null);
       expect(filled.length).toBeGreaterThan(150);
     });
@@ -550,7 +645,7 @@ describe("buildData", () => {
     });
 
     it("母集団は軸ごとに違う（有給と残業は6割前後しか公表がない）", () => {
-      expect(result.radar.tenure.population).toBe(1867);
+      expect(result.radar.tenure.population).toBe(2961);
       expect(result.radar.profit.population).toBe(1865);
       // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
       expect(result.radar.paidLeave.population).toBeGreaterThan(800);

@@ -108,8 +108,8 @@ describe("分布（AC-13）", () => {
     }
   });
 
-  it("実測値の中位は690万円", () => {
-    expect(Math.round(stats.distribution[0].median / 10000)).toBe(690);
+  it("実測値の中位は665万円", () => {
+    expect(Math.round(stats.distribution[0].median / 10000)).toBe(665);
   });
 
   it("binOf は両端で外側を吸収する", () => {

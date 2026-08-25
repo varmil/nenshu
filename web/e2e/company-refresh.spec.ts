@@ -14,7 +14,7 @@ test.describe("AC-11 この会社の要点", () => {
     const list = page.getByRole("heading", { name: "この会社の要点" }).locator("xpath=../ul");
     await expect(list.getByRole("listitem").first()).toContainText("2,178万円");
     // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
-    await expect(list.getByRole("listitem").first()).toContainText("偏差値122.9");
+    await expect(list.getByRole("listitem").first()).toContainText("偏差値124.8");
     await expect(list).toContainText("電気機器");
   });
 
@@ -74,11 +74,12 @@ test.describe("AC-12 水準が近い会社", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  // 空運業は5社しかない。上限に届かない業種では自分を除いた社数だけ並ぶ。
+  // 空運業は6社しかない（E2 で母集団を広げた後）。上限に届かない業種では
+  // 自分を除いた社数だけ並ぶ。
   test("10社に満たない業種ではその社数だけ並ぶ", async ({ page }) => {
     await page.goto("/company/9202");
     const section = page.getByRole("heading", { name: "空運業で水準が近い会社" }).locator("xpath=../ul");
-    await expect(section.getByRole("listitem")).toHaveCount(4);
+    await expect(section.getByRole("listitem")).toHaveCount(5);
   });
 });
 
@@ -87,14 +88,14 @@ test.describe("AC-13 分布の中での位置", () => {
     await page.goto("/company/6861");
     await expect(page.getByText(/中位 [\d,]+万円/)).toBeVisible();
     // 読み上げ用の一覧がヒストグラムの正。9階級ぶんある。
-    const bins = page.getByText(/全1,867社の分布/).locator("xpath=../ul[1]/li");
+    const bins = page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li");
     await expect(bins).toHaveCount(9);
     await expect(bins.filter({ hasText: "株式会社キーエンスはここ" })).toHaveCount(1);
   });
 
   test("表示基準を切り替えると階級が変わる", async ({ page }) => {
     await page.goto("/company/6861");
-    const bins = () => page.getByText(/全1,867社の分布/).locator("xpath=../ul[1]/li");
+    const bins = () => page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li");
     const before = await bins().first().textContent();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
@@ -345,7 +346,7 @@ test.describe("パンくずと見出し", () => {
   test("h1 の直下に業界内順位と全体順位が出る", async ({ page }) => {
     await page.goto("/company/6861");
     // モックの言い回し。上位◯%は添えない（運営者の指示）。
-    await expect(page.getByText("電気機器 ・業界150社中1位 ・全体1,867社中1位")).toBeVisible();
+    await expect(page.getByText("電気機器 ・業界193社中1位 ・全体2,961社中3位")).toBeVisible();
   });
 });
 
@@ -383,7 +384,7 @@ test.describe("C3 モックとの一致", () => {
   test("位置バーの両端が順位で書かれている", async ({ page }) => {
     await page.goto("/company/6861");
     const figure = page.locator("figure").first();
-    await expect(figure).toContainText("1,867位");
+    await expect(figure).toContainText("2,961位");
     await expect(figure).toContainText("1位");
     await expect(figure).toContainText("中位");
   });
@@ -392,7 +393,7 @@ test.describe("C3 モックとの一致", () => {
     await page.goto("/company/6861");
     // 9本ぶんの数字が棒の上に出ている（sr-only の一覧とは別に、目で読める形で）。
     const figure = page.locator("figure").first();
-    await expect(figure.getByText("144", { exact: true })).toBeVisible();
+    await expect(figure.getByText("327", { exact: true })).toBeVisible();
   });
 
   test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
@@ -445,9 +446,9 @@ test.describe("C3 モックとの一致", () => {
   test("水準が近い会社に業界順位と平均年齢、業種一覧への導線が付く", async ({ page }) => {
     await page.goto("/company/6861");
     const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
-    await expect(neighbors.getByText("業界2位・平均43.1歳")).toBeVisible();
+    await expect(neighbors.getByText("業界2位・平均40.1歳")).toBeVisible();
     await expect(
-      neighbors.getByRole("link", { name: "電気機器150社をすべて見る" })
+      neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })
     ).toHaveAttribute("href", /^\/\?ind=/);
   });
 
@@ -477,7 +478,7 @@ test.describe("公開後の手直し", () => {
     expect(["visible", "hidden", "clip"]).toContain(overflowY);
   });
 
-  // 110px ほどの列に収める必要がある。折り返すと「38位 /1,867社」が2行になる（報告あり）。
+  // 110px ほどの列に収める必要がある。折り返すと「38位 /2,961社」が2行になる（報告あり）。
   test("カードの順位と実測値が1行に収まる", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/8725");
@@ -494,8 +495,8 @@ test.describe("公開後の手直し", () => {
   test("位置バーに見出しと偏差値が出る", async ({ page }) => {
     await page.goto("/company/6861");
     const figure = page.locator("figure").first();
-    await expect(figure).toContainText("全体1,867社の中の位置");
-    await expect(figure).toContainText("偏差値 122.9");
+    await expect(figure).toContainText("全体2,961社の中の位置");
+    await expect(figure).toContainText("偏差値 124.8");
   });
 
   // ラベルが折り返すと軸の高さが階級ごとに変わり、棒の下端が揃わなくなる（報告あり）。

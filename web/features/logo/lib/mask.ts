@@ -8,7 +8,7 @@ import type { CompanyRow } from "@/features/ranking/types";
  * **縦横比は要らない。器の寸法が固定で、中身は `object-contain` で収まるため、
  * 画像が届いてもレイアウトは動かない**（AC-12）。
  *
- * 1,867文字＝raw 1.9KB・gzip 約250B。
+ * 2,961文字＝raw 2.9KB・gzip 約540B。
  */
 export function buildLogoMask(rows: readonly CompanyRow[], byId: Record<string, unknown>): string {
   return rows.map((row) => (byId[row[0]] ? "1" : "0")).join("");

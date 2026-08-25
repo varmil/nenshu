@@ -98,7 +98,7 @@ test.describe("AC-9 図だけが情報源にならない", () => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto("/company/6861");
     const list = section(page).locator("dl");
-    await expect(list).toContainText("1,867社中1位");
+    await expect(list).toContainText("2,961社中3位");
     await expect(list).toContainText("895社中883位");
     // 「上位◯%」は使わない（上位82%が良い意味に読まれるため）。
     await expect(list).not.toContainText("上位");
@@ -207,7 +207,7 @@ test.describe("モックとの一致（2巡目）", () => {
     const withRank = rows.filter((r) => r[2] > 0);
     expect(withRank.length).toBeGreaterThan(1);
     for (const row of rows) expect(row.slice(0, 2)).toEqual(rows[0].slice(0, 2));
-    // 桁数の違う順位（`1,867社中1位` と `895社中883位`）が右端でそろう。
+    // 桁数の違う順位（`2,961社中3位` と `895社中883位`）が右端でそろう。
     for (const row of withRank) expect(row[2]).toBe(withRank[0][2]);
   });
 
@@ -224,8 +224,8 @@ test.describe("モックとの一致（2巡目）", () => {
   const MIN_SLACK = 8;
 
   for (const [label, id] of [
-    ["4桁の順位（キーエンスの定着 1,468位）", "6861"],
-    ["最下位（1,867社中1,867位）", "E04168"],
+    ["4桁の順位（キーエンスの定着 1,955位）", "6861"],
+    ["最下位に近い順位（2,961社中2,960位）", "135A"],
   ] as const) {
     test(`${label}に1文字ぶんの余裕がある`, async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 1000 });

@@ -10,8 +10,8 @@ const facts = buildAboutFacts(companies, curves);
 
 describe("buildAboutFacts", () => {
   it("掲載社数・バッジ社数・業種数・カーブ数が実データと一致する", () => {
-    expect(facts.companyCount).toBe(1867);
-    expect(facts.badgeCount).toBe(173);
+    expect(facts.companyCount).toBe(2961);
+    expect(facts.badgeCount).toBe(244);
     expect(facts.industryCount).toBe(33);
     expect(facts.curveCount).toBe(17);
   });
@@ -104,41 +104,41 @@ describe("buildAboutFacts のモデルの偏り（限界の節で使う数値）
   const b = facts.modelBias;
 
   it("産業平均に対する倍率の分布が実データと一致する", () => {
-    expect(b.premiumMedian).toBeCloseTo(1.22, 2);
-    expect(b.premiumP90).toBeCloseTo(1.64, 2);
-    expect(b.premiumMax).toBeCloseTo(4.32, 2);
-    expect(b.premiumMaxCompanyName).toBe("株式会社キーエンス");
+    expect(b.premiumMedian).toBeCloseTo(1.19, 2);
+    expect(b.premiumP90).toBeCloseTo(1.63, 2);
+    expect(b.premiumMax).toBeCloseTo(5.47, 2);
+    expect(b.premiumMaxCompanyName).toBe("Ｍ＆Ａキャピタルパートナーズ株式会社");
   });
 
-  it("掲載企業の平均年齢の中央値は42歳", () => {
-    expect(b.avgAgeMedian).toBe(42);
+  it("掲載企業の平均年齢の中央値は41.4歳", () => {
+    expect(b.avgAgeMedian).toBe(41.4);
   });
 
   it("外挿距離は両端（25歳・60歳）で最大、平均年齢に最も近い40歳で最小になる", () => {
     const byAge = new Map(b.meanExtrapolationByAge.map((x) => [x.age, x.distance]));
-    expect(byAge.get(25)).toBeCloseTo(16.8, 1);
-    expect(byAge.get(40)).toBeCloseTo(3.1, 1);
-    expect(byAge.get(60)).toBeCloseTo(18.2, 1);
-    // 平均年齢の中央値42歳に最も近い40歳が最小になる（=最も外挿が短い）
+    expect(byAge.get(25)).toBeCloseTo(16.0, 1);
+    expect(byAge.get(40)).toBeCloseTo(3.3, 1);
+    expect(byAge.get(60)).toBeCloseTo(19.0, 1);
+    // 平均年齢の中央値41.4歳に最も近い40歳が最小になる（=最も外挿が短い）
     const min = Math.min(...b.meanExtrapolationByAge.map((x) => x.distance));
     expect(byAge.get(40)).toBe(min);
     // 両端が最大
     expect(byAge.get(60)).toBe(Math.max(...b.meanExtrapolationByAge.map((x) => x.distance)));
   });
 
-  it("上位50社は最年少・最年長の目標年齢で39社が重なる", () => {
+  it("上位50社は最年少・最年長の目標年齢で36社が重なる", () => {
     expect(b.youngestTargetAge).toBe(25);
     expect(b.oldestTargetAge).toBe(60);
-    expect(b.top50Overlap).toBe(39);
+    expect(b.top50Overlap).toBe(36);
   });
 
-  it("同業種内で目標年齢により順序が入れ替わるのは1.7%（旧式では0%だった）", () => {
-    expect(b.sameIndustrySwapPercent).toBeCloseTo(1.7, 1);
+  it("同業種内で目標年齢により順序が入れ替わるのは2.4%（旧式では0%だった）", () => {
+    expect(b.sameIndustrySwapPercent).toBeCloseTo(2.4, 1);
   });
 
-  it("倍率一定が残る60歳側の最大値を数値で持つ（キーエンス2,213万円）", () => {
-    expect(b.oldestMaxCompanyName).toBe("株式会社キーエンス");
-    expect(Math.round(b.oldestMaxEstimate / 10000)).toBe(2213);
+  it("倍率一定が残る60歳側の最大値を数値で持つ（Ｍ＆Ａキャピタルパートナーズ2,386万円）", () => {
+    expect(b.oldestMaxCompanyName).toBe("Ｍ＆Ａキャピタルパートナーズ株式会社");
+    expect(Math.round(b.oldestMaxEstimate / 10000)).toBe(2386);
   });
 });
 
@@ -149,7 +149,7 @@ describe("表示基準の節に使う数値", () => {
     const ages = companies.rows.map((row) => row[4]);
     expect(facts.coverage.minAvgAge).toBe(Math.min(...ages));
     expect(facts.coverage.maxAvgAge).toBe(Math.max(...ages));
-    expect(facts.coverage.minAvgAge).toBeCloseTo(27.1, 1);
+    expect(facts.coverage.minAvgAge).toBeCloseTo(27.0, 1);
     expect(facts.coverage.maxAvgAge).toBeCloseTo(60.6, 1);
   });
 
@@ -157,11 +157,11 @@ describe("表示基準の節に使う数値", () => {
     const values = companies.rows.map((row) => row[6]);
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     expect(facts.population.rawMean).toBe(Math.round(mean));
-    expect(Math.round(facts.population.rawMean / 10000)).toBe(719);
+    expect(Math.round(facts.population.rawMean / 10000)).toBe(693);
   });
 
   it("35歳そろえの母集団平均は実測値の平均と異なる", () => {
-    expect(Math.round(facts.population.age35Mean / 10000)).toBe(629);
+    expect(Math.round(facts.population.age35Mean / 10000)).toBe(616);
     expect(facts.population.age35Mean).not.toBe(facts.population.rawMean);
   });
 });

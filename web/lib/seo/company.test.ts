@@ -43,7 +43,7 @@ describe("companyPageMeta", () => {
 
   it("順位は全体と業界内の両方を description に出す", () => {
     const meta = companyPageMeta(keyence, PERIOD);
-    expect(meta.description).toContain("全1,867社中1位");
+    expect(meta.description).toContain("全2,961社中3位");
     expect(meta.description).toContain("電気機器");
   });
 

@@ -73,7 +73,7 @@ async function expectMetaMatchesUrl(page: Page, request: APIRequestContext) {
 test.describe("メタデータと表示状態の一致（AC-16）", () => {
   test("表示基準を切り替えるとタイトルが年齢そろえのものになる", async ({ page, request }) => {
     await page.goto("/");
-    expect((await metaFromDom(page)).title).toContain("1,867社");
+    expect((await metaFromDom(page)).title).toContain("2,961社");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);
@@ -97,7 +97,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
     await page.goto("/");
     await page
       .getByRole("navigation", { name: "業種から見る" })
-      .getByRole("link", { name: "海運業 7社", exact: true })
+      .getByRole("link", { name: "海運業 9社", exact: true })
       .click();
     await expect(page).toHaveURL(/ind=/);
 
@@ -125,7 +125,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
 
     const meta = await expectMetaMatchesUrl(page, request);
     expect(meta.canonical).toBe("https://openreport.net");
-    expect(meta.title).toContain("1,867社");
+    expect(meta.title).toContain("2,961社");
   });
 
   test("メタデータの更新でネットワークリクエストは発生しない（AC-7）", async ({ page }) => {
