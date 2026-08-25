@@ -3,7 +3,9 @@ import {
   axisPosition,
   buildRadarAxes,
   MIN_POSITION,
+  RADAR_LIST_ORDER,
   ranks,
+  representativeUnitLabel,
   representativeValue,
   type RadarAxisInput,
 } from "./radar";
@@ -97,6 +99,7 @@ describe("buildRadarAxes", () => {
       overtime: input(null, -1, 974),
     },
     FORMAT,
+    { profit: "電気機器の中央値 191万円" },
     { profit: "1人当たり経常利益" }
   );
 
@@ -144,6 +147,71 @@ describe("buildRadarAxes", () => {
   });
 
   it("稼ぐ力の注記が付く", () => {
-    expect(axes[3].note).toBe("1人当たり経常利益");
+    expect(axes[3].subLabel).toBe("1人当たり経常利益");
+    expect(axes[3].note).toBe("電気機器の中央値 191万円");
+  });
+
+  it("掲載なしの軸には注記も区分名も付けない", () => {
+    // 値が無いのに「1人あたり…」や区分名だけが残ると、掲載があるように見える。
+    expect(axes[4].subLabel).toBe("");
+    expect(axes[4].note).toBe("");
+  });
+
+  it("区分がちょうど1つのとき、その区分名が軸に添う", () => {
+    const [axis] = buildRadarAxes(
+      {
+        salary: input(2178, 1, 1867),
+        paidLeave: { ...input(38.8, 883, 895), unitLabel: "正社員" },
+        tenure: input(11.3, 1468, 1867),
+        profit: input(4062, 16, 1864),
+        overtime: input(null, -1, 974),
+      },
+      FORMAT
+    ).filter((a) => a.key === "paidLeave");
+    expect(axis.subLabel).toBe("正社員");
+  });
+});
+
+describe("RADAR_LIST_ORDER", () => {
+  /*
+   * 図（`RADAR_AXES`）は12時から時計回り、リストは別の並び（アートボード 6b）。
+   * **稼ぐ力だけが2行ぶんの高さを持つ**ので、途中に挟むとそこで行間が崩れる。
+   */
+  it("稼ぐ力を最後に置く", () => {
+    expect(RADAR_LIST_ORDER[RADAR_LIST_ORDER.length - 1]).toBe("profit");
+  });
+
+  it("5軸を1つずつ含む", () => {
+    expect([...RADAR_LIST_ORDER].sort()).toEqual(
+      ["overtime", "paidLeave", "profit", "salary", "tenure"].sort()
+    );
+  });
+});
+
+describe("representativeUnitLabel", () => {
+  it("全体値から来たときは区分名を出さない", () => {
+    expect(representativeUnitLabel(74, [{ unit: "正社員", value: 70 }])).toBe("");
+  });
+
+  it("区分がちょうど1つならその名前を返す", () => {
+    expect(representativeUnitLabel(null, [{ unit: "正社員", value: 38.8 }])).toBe("正社員");
+  });
+
+  it("区分が2つ以上なら空（代表を選ばない）", () => {
+    expect(
+      representativeUnitLabel(null, [
+        { unit: "営業・管理系", value: 67.4 },
+        { unit: "技術系", value: 60.8 },
+      ])
+    ).toBe("");
+  });
+
+  it("値の無い区分は数えない", () => {
+    expect(
+      representativeUnitLabel(null, [
+        { unit: "正社員", value: 38.8 },
+        { unit: "派遣社員", value: null },
+      ])
+    ).toBe("正社員");
   });
 });

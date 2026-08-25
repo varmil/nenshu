@@ -16,6 +16,21 @@ export const RADAR_AXES = ["salary", "paidLeave", "tenure", "profit", "overtime"
 export type RadarAxisKey = (typeof RADAR_AXES)[number];
 
 /**
+ * 図の**右に出す指標リストの並び**（アートボード 6b）。図の時計回りとは違う。
+ *
+ * **稼ぐ力を最後に置く**（Issue #191）。この行だけが2行ぶんの高さを持つ
+ * （下に「1人あたり経常利益」と業種中央値が付く）ので、途中に挟むと
+ * そこで行の間隔が崩れる。**末尾なら下に続く行が無い。**
+ */
+export const RADAR_LIST_ORDER = [
+  "salary",
+  "overtime",
+  "paidLeave",
+  "tenure",
+  "profit",
+] as const satisfies readonly RadarAxisKey[];
+
+/**
  * 雇用管理区分から**軸に打つ1点**を選ぶ規則。
  *
  * 節の表示（W1）は「代表を選ばない」——区分をそのまま全部並べる（spec 2.2b）。
@@ -36,6 +51,21 @@ export function representativeValue(
   if (all !== null) return all;
   const values = units.filter((u) => u.value !== null);
   return values.length === 1 ? (values[0].value as number) : null;
+}
+
+/**
+ * `representativeValue` が採った値の**区分名**（アートボード 6b の `正社員`）。
+ *
+ * 全体値から来たときは空文字——全体値に区分名は無い。**同じ規則を2度書かない**
+ * ように、選び方は `representativeValue` と同じ形にしてある。
+ */
+export function representativeUnitLabel(
+  all: number | null,
+  units: readonly { unit: string; value: number | null }[]
+): string {
+  if (all !== null) return "";
+  const present = units.filter((u) => u.value !== null);
+  return present.length === 1 ? present[0].unit : "";
 }
 
 /**
@@ -142,7 +172,13 @@ export interface RadarAxis {
    * （CLAUDE.md・偏差値の「上位◯%」を外した件）にも揃う。
    */
   rankText: string;
-  /** 値の下に添える注記。無ければ空文字。 */
+  /**
+   * ラベルの隣に添える小さな注記（アートボード 6b）。有給・残業では**その値が
+   * どの雇用管理区分のものか**（`正社員`）、稼ぐ力では `1人あたり経常利益`。
+   * 無ければ空文字。
+   */
+  subLabel: string;
+  /** 値の下に**右寄せで**添える注記（`電気機器の中央値 191万円`）。無ければ空文字。 */
   note: string;
 }
 
@@ -151,6 +187,11 @@ export interface RadarAxisInput {
   value: number | null;
   rank: number;
   population: number;
+  /**
+   * 値が雇用管理区分の1件から来ているときの区分名（アートボード 6b の `正社員`）。
+   * 全体値から来ているとき・区分を持たない軸では空文字。
+   */
+  unitLabel?: string;
 }
 
 /**
@@ -185,10 +226,11 @@ const LABELS: Record<RadarAxisKey, string> = {
 export function buildRadarAxes(
   inputs: Record<RadarAxisKey, RadarAxisInput>,
   format: Record<RadarAxisKey, (value: number) => string>,
-  notes: Partial<Record<RadarAxisKey, string>> = {}
+  notes: Partial<Record<RadarAxisKey, string>> = {},
+  subLabels: Partial<Record<RadarAxisKey, string>> = {}
 ): RadarAxis[] {
   return RADAR_AXES.map((key) => {
-    const { value, rank, population } = inputs[key];
+    const { value, rank, population, unitLabel } = inputs[key];
     const missing = value === null || rank < 1;
     return {
       key,
@@ -198,7 +240,10 @@ export function buildRadarAxes(
       rankText: missing
         ? ""
         : `${population.toLocaleString("ja-JP")}社中${rank.toLocaleString("ja-JP")}位`,
-      note: notes[key] ?? "",
+      // **区分名は掲載があるときだけ。** 「掲載なし」の隣に区分名を置くと、
+      // 値が無いのに区分だけある行になる。
+      subLabel: missing ? "" : (subLabels[key] ?? unitLabel ?? ""),
+      note: missing ? "" : (notes[key] ?? ""),
     };
   });
 }

@@ -157,12 +157,13 @@ export function CompanyDetail({
     },
     {
       // **業種の中央値を併記しないと読み違える**（spec 1.3）。稼ぐ力は
-      // 海運業と輸送用機器で19倍開く。
+      // 海運業と輸送用機器で19倍開く。**値の下に右寄せで置く**（アートボード 6b）。
       profit:
         radar.profitIndustryMedian === null
-          ? "1人当たり経常利益"
-          : `1人当たり経常利益 ・ ${view.tse33}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
-    }
+          ? ""
+          : `${view.tse33}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
+    },
+    { profit: "1人当たり経常利益" }
   );
 
   return (
