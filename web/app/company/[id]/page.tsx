@@ -8,7 +8,7 @@ import {
   type WorklifeData,
   type WorklifeRecord,
 } from "@/lib/data/worklife";
-import { representativeValue } from "@/features/company/lib/radar";
+import { representative } from "@/features/company/lib/radar";
 import type {
   CompanyRadarInput,
   PerformanceData,
@@ -118,29 +118,32 @@ function profitHistoryFor(id: string): ProfitHistory | null {
  *
  * **順位は `radar.json`、値はそれぞれの出どころから引く。**
  * 同じ数字を `radar.json` にも置くと、そのファイルの `JSON.parse` が倍になる。
- * 代表値の規則は `radar.ts` の `representativeValue` で、ビルド時に順位を
+ * 代表値の規則は `radar.ts` の `representative` で、ビルド時に順位を
  * 決めたときと同じ関数を通す——**別の規約で選ぶと図の頂点と値が食い違う。**
  */
 function radarFor(id: string, record: WorklifeRecord | null): CompanyRadarInput {
   const index = findRowIndex(companies, id);
   const row = companies.rows[index];
-  const axis = (data: RadarAxisData, value: number | null): RadarAxisInput => ({
+  const axis = (
+    data: RadarAxisData,
+    value: number | null,
+    byUnit = false
+  ): RadarAxisInput => ({
     value,
     rank: data.rank[index] ?? -1,
     population: data.population,
+    byUnit,
   });
+  // **区分ごとの公表かどうかも一緒に受け取る**（W2・#185）。値と別々に判定すると、
+  // 図の頂点と文言が別の規約で決まることになる。
+  const paidLeave = representative(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? []);
+  const overtime = representative(record?.overtimeAll ?? null, record?.overtimeUnits ?? []);
   return {
-    paidLeave: axis(
-      radar.paidLeave,
-      representativeValue(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? [])
-    ),
+    paidLeave: axis(radar.paidLeave, paidLeave.value, paidLeave.byUnit),
     // 在籍年数は `companies.rows` の6番目（`buildCompanyView` の分解と同じ並び）。
     tenure: axis(radar.tenure, (row?.[5] as number) ?? null),
     profit: axis(radar.profit, performance.perEmployee[index] ?? null),
-    overtime: axis(
-      radar.overtime,
-      representativeValue(record?.overtimeAll ?? null, record?.overtimeUnits ?? [])
-    ),
+    overtime: axis(radar.overtime, overtime.value, overtime.byUnit),
     profitIndustryMedian: performance.industryMedian[(row?.[2] as number) ?? -1] ?? null,
   };
 }

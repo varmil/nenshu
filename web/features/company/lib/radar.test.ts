@@ -5,6 +5,7 @@ import {
   MIN_POSITION,
   RADAR_LIST_ORDER,
   ranks,
+  representative,
   representativeValue,
   type RadarAxisInput,
 } from "./radar";
@@ -29,6 +30,30 @@ describe("representativeValue", () => {
 
   it("区分が無ければ掲載なし", () => {
     expect(representativeValue(null, [])).toBeNull();
+  });
+});
+
+describe("representative", () => {
+  it("区分が2つ以上なら「区分別」であることを添える（W2・Issue 207 例1）", () => {
+    // 値は選ばない（規則は変えない）。図とリストの文言だけが変わる。
+    expect(representative(null, [{ value: 88 }, { value: 92.7 }, { value: 96.8 }])).toEqual({
+      value: null,
+      byUnit: true,
+    });
+  });
+
+  it("値が決まったとき・1つも無いときは `byUnit` を立てない", () => {
+    expect(representative(10.5, [{ value: 14.1 }, { value: 3.3 }])).toEqual({
+      value: 10.5,
+      byUnit: false,
+    });
+    expect(representative(null, [{ value: 38.8 }])).toEqual({ value: 38.8, byUnit: false });
+    expect(representative(null, [])).toEqual({ value: null, byUnit: false });
+    // 区分の行はあるが値が無い会社（W2 で 0 を落とした野村総合研究所）。
+    expect(representative(null, [{ value: null }, { value: null }])).toEqual({
+      value: null,
+      byUnit: false,
+    });
   });
 });
 
@@ -89,14 +114,15 @@ const FORMAT = {
 };
 
 describe("buildRadarAxes", () => {
+  const inputs = {
+    salary: input(2178, 1, 1867),
+    paidLeave: input(38.8, 883, 895),
+    tenure: input(11.3, 1468, 1867),
+    profit: input(4062, 16, 1864),
+    overtime: input(null, -1, 974),
+  };
   const axes = buildRadarAxes(
-    {
-      salary: input(2178, 1, 1867),
-      paidLeave: input(38.8, 883, 895),
-      tenure: input(11.3, 1468, 1867),
-      profit: input(4062, 16, 1864),
-      overtime: input(null, -1, 974),
-    },
+    inputs,
     FORMAT,
     { profit: "電気機器の中央値 191万円" },
     { profit: "1人当たり経常利益" }
@@ -148,6 +174,19 @@ describe("buildRadarAxes", () => {
   it("稼ぐ力の注記が付く", () => {
     expect(axes[3].subLabel).toBe("1人当たり経常利益");
     expect(axes[3].note).toBe("電気機器の中央値 191万円");
+  });
+
+  it("区分ごとに公表している軸は「区分別」（W2・Issue 207 例1）", () => {
+    const withByUnit = buildRadarAxes(
+      { ...inputs, paidLeave: { value: null, rank: -1, population: 895, byUnit: true } },
+      FORMAT
+    );
+    expect(withByUnit[1].valueText).toBe("区分別");
+    // 頂点を打たないのも順位が空なのも掲載なしと同じ。変わるのは文言だけ。
+    expect(withByUnit[1].position).toBeNull();
+    expect(withByUnit[1].rankText).toBe("");
+    // 値の列は13px・76px 固定。3文字を超えると左へはみ出して隣のラベルを押す。
+    expect(withByUnit[1].valueText.length).toBeLessThanOrEqual(4);
   });
 
   it("掲載なしの軸には注記を付けない", () => {
