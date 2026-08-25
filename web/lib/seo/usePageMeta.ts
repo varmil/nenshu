@@ -20,13 +20,26 @@ function setAttributeIfPresent(selector: string, name: string, value: string): v
   }
 }
 
-/** `PageMeta` を実際の DOM に反映する。ブラウザでしか呼べない。 */
+/**
+ * `PageMeta` を実際の DOM に反映する。ブラウザでしか呼べない。
+ *
+ * **`og:` も一緒に書き換える**（S2・Issue #116）。SNS のクローラが読むのは
+ * サーバーが返す最初のHTMLなので、ここを直しても共有カードの見え方は変わらない。
+ * それでも書くのは、**`og:url` と canonical が同じ文字列であること**（AC-11）が
+ * DOM の上でも保たれていてほしいため——片方だけ動く状態を作ると、次に読む人が
+ * どちらが正か判断できなくなる。`og:site_name`・`og:type`・`og:locale`・
+ * `og:image` は状態で変わらないので触らない。
+ */
 export function applyPageMeta(meta: PageMeta): void {
   if (document.title !== meta.title) document.title = meta.title;
   setAttributeIfPresent('meta[name="description"]', "content", meta.description);
+  setAttributeIfPresent('meta[property="og:title"]', "content", meta.title);
+  setAttributeIfPresent('meta[property="og:description"]', "content", meta.description);
   // canonical はサーバーが `metadataBase` で絶対URLにして出しているので、
   // こちらも絶対URLに揃える（相対のまま書くと同じURLが2つの表記で存在する）。
-  setAttributeIfPresent('link[rel="canonical"]', "href", absoluteUrl(meta.canonical));
+  const url = absoluteUrl(meta.canonical);
+  setAttributeIfPresent('link[rel="canonical"]', "href", url);
+  setAttributeIfPresent('meta[property="og:url"]', "content", url);
 }
 
 /**

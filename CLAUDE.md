@@ -177,7 +177,18 @@ Unit の実装を終えたら、次の順で進める。
 - 決算期は全社が同じではない（3月期1,865社・4月期2社）。**「3月期が中心」と断るのは `/about` の「対象範囲」だけ**
 - 代表の決算期が過半に届かなければ `build-data.ts` が落ちる。1つで代表できないデータを黙って公開しない
 
-**OGPと構造化データは site-chrome の S2（Issue #116）として起票済み・未着手。** `og:url` は U8 の `rankingCanonical()` を通す（canonical と同じ文字列にする）ので、実装は `web/lib/seo/` に置き、**`og:title`・`og:url` は U16 の `PageMeta` に足す**（そうすれば画面の切替にも追従する）。**OG画像は v1は静的1枚**——1,867社ぶんの動的生成は Workers の CPU 予算に踏み込むため。**ブランドの図は S4（#163）で用意済み**（`web/public/` の成果物と `pipeline/brand/symbol.ts`）。JSON-LD は画面に既にある情報だけ（`BreadcrumbList`）で、`Organization` は出さない。
+**OGPと構造化データは S2（`docs/site-chrome/social-preview/`、Issue #116）で実装済み。** `og:` の入口は `toMetadata()`（`web/lib/seo/pageMeta.ts`）の1か所だけ。
+
+- **`og:title`・`og:description`・`og:url` は `<title>`・description・canonical と**同じ値から出す**（AC-11・AC-12）。だから新しい文言は1つも増えていない。**`og:url` を別の場所で組み立てない**——`/?age=35&ind=銀行業` のような非正規URLで canonical だけが寄せ先を指し `og:url` が自分自身を指す食い違いが起きる
+- **`/about` の文言は `lib/seo/about.ts` に移した。** そこだけ `app/about/page.tsx` が素の `Metadata` を直書きしていて `toMetadata()` を通っていなかった（文言は1文字も変えていない）
+- **`app/layout.tsx` の `openGraph` が出るのは `/_not-found` だけ。** Next.js のメタデータは浅くマージされるので、ページが `openGraph` を返した時点でレイアウトのものは1つも残らない。**レイアウトには `og:url` を入れない**（404 に正規URLは無い）
+- **宣言するのは `twitter:card` だけ。** HTML には `twitter:title` 等も並ぶが、それは Next.js が `title`・`description`・`openGraph.images` から埋めたもので、同じ文言を2か所に書いてはいない
+- **クライアント（`usePageMeta`）も `og:title`・`og:description`・`og:url` を書き換える。** SNS のクローラは JS を実行しないのでカードの見え方は変わらないが、DOM の上で canonical と `og:url` が食い違う状態を作らないため
+- **OG画像は全ページ共通の静的1枚**（`web/public/og.png`・1200×630）。中身はシンボル＋ワードマーク＋説明文2行だけ。**数字を載せない**——載せると年1回のデータ更新のたびに焼き直しが要り、更新を忘れた1枚が各SNSのキャッシュに残る。**公開ホスト（`openreport.net`）も載せない**——貼られたカードにはURLが別枠で出るので、絵の中の1行は情報を足さないまま広告の体裁だけを持ち込む（初版には入れていて、運営者の指摘で外した）。**文字はアウトラインで持つ**（`pipeline/brand/lettering.ts`。吐く道具は `pipeline/brand/outline.py` で、ふだんは回さない）——`sharp`（librsvg）の `<text>` は実行環境の fontconfig を引くので、日本語フォントの無い機械で焼くと**豆腐が並ぶのに寸法もバイト数もカラータイプも正しいまま**テストを通る。シンボルは `pipeline/brand/symbol.ts` の `symbolMark()` から取る（図形の定義は1か所のまま）
+- **JSON-LD は `WebSite`（`/`・`/about`）と `BreadcrumbList`（`/company/[id]`）だけ。** `Organization` は出さない（企業ページが表すのは当該企業だが、その主体を名乗るのは我々ではない）。**`potentialAction`（サイトリンク検索ボックス）も足さない**——Google が 2023年に終了した機能で、いま書いても何も起きない
+- **パンくずの段は `features/company/lib/breadcrumb.ts` の1か所。** 画面（`CompanyDetail`）と JSON-LD が同じ配列を読む（AC-14）。**`e2e/social.spec.ts` は JSON-LD の鍵の集合そのものを固定している**ので、画面に無い値を足そうとすると落ちる（AC-15）
+- **`agePath()`・`industryPath()` は `lib/seo/paths.ts` に分けた**（`ranking.ts` から再輸出）。`ranking.ts` は `parseSearchParams` まで抱えていて、パスを1本作りたいだけのクライアントコンポーネントには大きいため
+- **HTML は `/` が raw 378,474 → 382,992 B（gzip 63,727 → 64,444 B。AC-16 の予算 75,000 B）、`/company/6861` が 135,790 → 140,957 B、`/about` が 86,065 → 90,260 B。** **`<meta>` の見た目より増分が大きいのは、Next.js が同じ文言を RSC ペイロードにも流すため**（同じ description が2回出る）
 
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
@@ -201,11 +212,11 @@ Unit の実装を終えたら、次の順で進める。
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
-順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）** → **S4（#163）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
+順序: C0（#51）→ C1（#52）→ U11（#71）→ U12（#80）→ C2（#83）→ **U13（#88）** → **C3（#89）** → **U8（#53）** → **U14（#121）** → **U15（#132）** → **S3（#134）** → **U16（#135）** → **C4（#146）** → **S4（#163）** → **S2（#116）**。**U8 のリンクハブは U12 の業種チップで賄えたので、U8 の範囲は canonical・sitemap・robots に狭めた**（`docs/ranking/overview.md`）。**U8 は実装済み**（`docs/ranking/search-discovery/`）。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
-- **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・将来のOGPが全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——Next.js が `alternates.canonical: "/"` を `https://openreport.net` と正規化するため、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる
+- **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・OGP（S2）が全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——Next.js が `alternates.canonical: "/"` を `https://openreport.net` と正規化するため、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる
 - **canonical の判断は `lib/seo/ranking.ts` の `rankingCanonical()` 1か所。** インデックスさせるのは `/`・`/about`・`/?age=N` 8件・`/?ind=X` 33件・`/company/[id]` 1,867件の計1,910 URL だけ。**`?age=N&ind=X` は業種側（`/?ind=X`）へ寄せる**——同じ会社が同じ順で並ぶ near-duplicate は業種側で、`/?age=N` は1,867行の別ページだから（ADR-0006 の追記で年齢側から変更）。`/company/[id]?age=N` は素の `/company/[id]` へ
 - **`?page=N` は `/` へ寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく別の30社が並ぶ。**どのページからも `<a href>` で辿れる企業ページは30件だけで、残り1,837社への内部リンクはページ2〜63の中にしか無い**——先頭へ寄せるとその経路を細める。Google のページネーション指針も先頭ページへ寄せるなと明記している。sitemap には1ページ目しか載せないので、インデックスを勧めているわけではない
 - **ページ送りは範囲外のページへ `href` を出さない。** `RankingPagination` は `state.page` を総ページ数に丸める。丸める前は `?page=999` が200で最終ページを返しつつ `?page=1000` へリンクしており、クローラが際限なく歩けた（実測）。**`aria-disabled` と `pointer-events-none` はクローラに効かない**

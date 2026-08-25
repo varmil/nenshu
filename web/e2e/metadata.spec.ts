@@ -18,6 +18,11 @@ interface Meta {
   title: string;
   description: string | null;
   canonical: string | null;
+  /** S2（Issue #116）。**canonical と同じ文字列でなければならない**（AC-11）。 */
+  ogUrl: string | null;
+  /** `<title>` と同じ文字列でなければならない（AC-12）。 */
+  ogTitle: string | null;
+  ogDescription: string | null;
 }
 
 /** 属性値としてHTMLに出ている `&` などを実文字に戻す。 */
@@ -43,17 +48,26 @@ async function metaFromServer(request: APIRequestContext, url: string): Promise<
     title: pick(/<title>([^<]*)<\/title>/) ?? "",
     description: pick(/<meta name="description" content="([^"]*)"/),
     canonical: pick(/<link rel="canonical" href="([^"]*)"/),
+    ogUrl: pick(/<meta property="og:url" content="([^"]*)"/),
+    ogTitle: pick(/<meta property="og:title" content="([^"]*)"/),
+    ogDescription: pick(/<meta property="og:description" content="([^"]*)"/),
   };
 }
 
 /** いま画面に出ているメタデータ（＝読者のタブに出ている見出し）。 */
 async function metaFromDom(page: Page): Promise<Meta> {
-  return page.evaluate(() => ({
-    title: document.title,
-    description:
-      document.head.querySelector('meta[name="description"]')?.getAttribute("content") ?? null,
-    canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? null,
-  }));
+  return page.evaluate(() => {
+    const content = (selector: string) =>
+      document.head.querySelector(selector)?.getAttribute("content") ?? null;
+    return {
+      title: document.title,
+      description: content('meta[name="description"]'),
+      canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? null,
+      ogUrl: content('meta[property="og:url"]'),
+      ogTitle: content('meta[property="og:title"]'),
+      ogDescription: content('meta[property="og:description"]'),
+    };
+  });
 }
 
 /**
@@ -67,6 +81,11 @@ async function expectMetaMatchesUrl(page: Page, request: APIRequestContext) {
     metaFromServer(request, url.pathname + url.search),
   ]);
   expect(dom).toEqual(server);
+  // `og:` は canonical・title・description と同じ文字列（S2・AC-11・AC-12）。
+  // **操作のあとも同じ**であること——`usePageMeta` が3つとも書き換えている。
+  expect(dom.ogUrl).toBe(dom.canonical);
+  expect(dom.ogTitle).toBe(dom.title);
+  expect(dom.ogDescription).toBe(dom.description);
   return dom;
 }
 

@@ -7,7 +7,7 @@
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
 | S1 | 共通ヘッダとライト/ダーク切替 | なし | AC-1〜AC-9 | サイト名の変更を含む。design-system のダークトークン修正も含む |
-| S2 | OGPと構造化データ | S1, ranking施策のU8（#53） | AC-10〜AC-16 | `og:` 一式・静的OG画像1枚・`BreadcrumbList`。実装は `web/lib/seo/` に置く |
+| S2 | OGPと構造化データ | S1, ranking施策のU8（#53）, S4（#163） | AC-10〜AC-16 | `og:` 一式・静的OG画像1枚・`BreadcrumbList`。実装は `web/lib/seo/` に置く |
 | S3 | データの時点（決算期）の明示 | S1, ranking施策のU8（#53） | AC-17〜AC-20 | 「いつの有報か」を全ページに出す（親 Issue #104）。ranking・company の画面と `web/lib/seo/`・パイプラインの `meta` に触る。※共有: `companies.meta` |
 | S4 | サイトロゴとファビコン | S1 | AC-21〜AC-28 | `create-next-app` 既定のファビコンを差し替える。ヘッダは文字のまま。**S2 の OG画像が使う素材になる** |
 
@@ -25,12 +25,14 @@ S1 ─→ S2（ranking施策の U8 の後）
 
 ## S2 OGPと構造化データ
 
-spec.md の 4. すべて。**U8（#53）が canonical を決めたあとでないと `og:url` が決まらない**ので、順序はその後になる。
+spec.md の 4. すべて。**U8（#53）が canonical を決めたあとでないと `og:url` が決まらない**ので、順序はその後になる。**実装済み**（`social-preview/`）。
 
 - 実装は **`web/lib/seo/`**（U8 が作った場所）に置く。OGP は ranking と company の両方にかかる横断の関心で、`features/<施策>/` には属さない
 - **`og:url` は canonical と同じ文字列にする。** 別々に組み立てると、非正規URLで canonical だけが寄せ先を指し `og:url` が自分自身を指す、という食い違いが起きる
 - OG画像は **v1は静的1枚**（spec 4.3）。会社ごとに数字を焼く案は Workers の CPU 予算に踏み込むので、効果を見てから。**ブランドの図は S4（#163）が用意した**ので、そこから起こす
 - JSON-LD は **画面に既にある情報だけ**（spec 4.4）
+
+実装は `og:` の入口を `toMetadata()`（`lib/seo/pageMeta.ts`）1つに閉じる形になった。**`og:title`・`og:description`・`og:url` は title・description・canonical と同じ値から出る**ので、新しい文言は1つも増えていない。`/about` だけ素の `Metadata` を直書きしていたので、文言を `lib/seo/about.ts` へ出して同じ経路に乗せた。OG画像の文字は**アウトラインで持つ**——`sharp` の `<text>` は実行環境の fontconfig を引き、日本語フォントの無い機械では豆腐が並んだ画像が焼けるのに寸法もバイト数も正しいまま通る。詳細は `social-preview/design.md`。
 
 ## S3 データの時点（決算期）の明示
 

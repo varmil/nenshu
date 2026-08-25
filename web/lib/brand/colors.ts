@@ -10,8 +10,10 @@
  * - ファビコンやアプリアイコンは独立したファイルで、ページの CSS を読まない
  * - `theme_color` / `<meta name="theme-color">` はブラウザの UI を塗る値で、
  *   CSS 変数を受け付けない
+ * - OG画像（S2・Issue #116）は SNS のサーバーが取りに来る1枚の PNG で、
+ *   読者の表示モードもこのサイトの CSS も届かない
  *
- * **`colors.test.ts` が、この3つの値が `tokens.css` の対応するトークンを
+ * **`colors.test.ts` が、これらの値が `tokens.css` の対応するトークンを
  * sRGB に変換したものと一致することを固定している。** トークンを差し替えたときに
  * ここだけ古い色で残る（＝タブのアイコンだけ前の配色）のを止めるため。
  */
@@ -30,3 +32,12 @@ export const BRAND_COLOR_DARK = "#00b8db";
  * 1枚の絵として、明るい面の地の色で固定する。
  */
 export const BRAND_ICON_BACKGROUND = "#ffffff";
+
+/**
+ * OG画像の説明文の色。`:root` の `--foreground`。
+ *
+ * **明るい面の値で固定する。** OG画像は SNS のサーバーが1度取って配るもので、
+ * 読者ごとに出し分けられない。地の色（`BRAND_ICON_BACKGROUND`）と対にして、
+ * ホーム画面のアイコンと同じ「白地にブランド色」の版面に揃える。
+ */
+export const BRAND_TEXT = "#090b0c";

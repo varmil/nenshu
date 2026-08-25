@@ -16,6 +16,7 @@ import {
   WEB_MANIFEST,
 } from "@/lib/brand/assets";
 import { BRAND_COLOR } from "@/lib/brand/colors";
+import { OPEN_GRAPH_DEFAULTS, TWITTER_DEFAULTS } from "@/lib/seo/openGraph";
 import { METADATA_BASE } from "@/lib/seo/site";
 
 export const metadata: Metadata = {
@@ -27,6 +28,16 @@ export const metadata: Metadata = {
   title: "OpenReport | 有価証券報告書ベースの平均年収ランキング",
   description:
     "金融庁 EDINET の有価証券報告書に載っている平均年間給与そのままの実測値で、上場・非上場の年収を比較する。平均年齢の違いをならした推定年収に切り替えて並べ直すこともできる。",
+  /*
+    SNS に貼られたときの見え方（S2・Issue #116。図は S4 が用意したもの）。
+
+    **ここに出てくるのはページが `openGraph` を返さないルートだけ**——Next.js の
+    メタデータは浅くマージされるので、`toMetadata()`（`lib/seo/pageMeta.ts`）を
+    通したページでは入れ子ごと差し替わる。実際に使われるのは `/_not-found` で、
+    そこには canonical が無いので `og:url` も出さない（404 に正規URLは無い）。
+  */
+  openGraph: OPEN_GRAPH_DEFAULTS,
+  twitter: TWITTER_DEFAULTS,
   /*
     ブランドのアイコン（S4・Issue #163）。パスと寸法は `lib/brand/assets.ts` が正。
 
