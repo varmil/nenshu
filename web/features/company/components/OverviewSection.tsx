@@ -24,10 +24,6 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
       </p>
 
       {/*
-        **左は 340px 固定**（アートボード 6b の `340px 1fr`）。`1fr 1fr` で割ると
-        器の幅が画面ごとに変わり、図の実効サイズと文字の大きさが一緒に動く。
-      */}
-      {/*
         **左は 340px 固定、2カラムは `lg` から**（アートボード 6b の `340px 1fr`）。
         `1fr 1fr` で割ると器の幅が画面ごとに変わり、図の実効サイズと文字の
         大きさが一緒に動く。**`md` では2カラムにできない**——この画面は
@@ -64,7 +60,8 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
  * 1軸ぶんの行（アートボード 6b）。**縦を2本そろえる**（Issue #191）。
  *
  * - 値は固定幅で**右寄せ**（`min-w-[4.75rem]`）——桁数が違っても右端が動かない
- * - 相対位置は固定幅で**左寄せ**（`w-[5.5rem]`）——書き出しが動かない
+ * - 順位も固定幅で**右寄せ**（`w-[5.25rem]`。運営者の指示。当初は左寄せだった）
+ *   ——`1,867社中1位` と `895社中883位` で桁が違っても右端が動かない
  *
  * 掲載なしの軸も**同じ幅の空きを残す**。詰めると、その行だけ値の右端が
  * 右へ寄って列が折れる。
@@ -100,7 +97,7 @@ function OverviewAxisRow({ axis }: { axis: RadarAxis }) {
           上位＝良いに読める。**順位で読ませる**——偏差値の隣の「上位◯%」を
           2026-08-20 に外したのと同じ線（CLAUDE.md）。
         */}
-        <span className="text-muted-foreground ml-1.5 inline-block w-[5.25rem] text-left text-[0.65rem] tabular-nums">
+        <span className="text-muted-foreground ml-1.5 inline-block w-[5.25rem] text-right text-[0.65rem] tabular-nums">
           {axis.rankText}
         </span>
         {axis.note !== "" && (
