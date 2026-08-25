@@ -3,7 +3,7 @@ import { buildLogoMask, logoIdSet } from "./mask";
 import { initialOf } from "./initial";
 import type { CompanyRow } from "@/features/ranking/types";
 
-const row = (id: string, name = "テスト"): CompanyRow => [id, name, 0, 0, 40, 10, 5_000_000, 100, 0];
+const row = (id: string, name = "テスト"): CompanyRow => [id, name, 0, 0, 40, 10, 5_000_000, 100, 0, 0];
 
 describe("ロゴの有無を配るマスク", () => {
   const rows = [row("6861"), row("8058"), row("E01234")];

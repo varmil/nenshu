@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
-import { buildData, dominantFiscalPeriod } from "./build-data";
+import { buildData, fiscalPeriodRange } from "./build-data";
 import { interpolate } from "./lib/curve";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -32,20 +32,31 @@ describe("buildData", () => {
     expect(result.companies.rows.length).toBe(1867);
   });
 
-  // S3（Issue #134、`docs/site-chrome/spec.md` 5.）。決算期は画面と title・description の
-  // 何箇所にも出るので、CSV から導いて `meta` に載せる。ここが崩れると全ページの
-  // 「いつのデータか」が一斉に嘘になる。
-  it("meta に決算期が入る。値は CSV の period_end の最頻", () => {
-    expect(result.companies.meta.fiscalPeriod).toBe("2026-03");
+  // S3（Issue #134）と E1（`docs/expansion/spec.md` 1.4）。決算期は画面と
+  // title・description の何箇所にも出るので、CSV から導いて `meta` に載せる。
+  // ここが崩れると全ページの「いつのデータか」が一斉に嘘になる。
+  it("meta に決算期の幅が入る。値は CSV の period_end の最古と最新", () => {
+    expect(result.companies.meta.fiscalPeriodRange).toEqual({ from: "2026-03", to: "2026-04" });
 
     const counts = new Map<string, number>();
     for (const row of sourceRows) {
       const period = row.periodEnd.slice(0, 7);
       counts.set(period, (counts.get(period) ?? 0) + 1);
     }
-    // 1つで代表できることの実測。3月期が1,865社、4月期が2社（ヤガミ・ダイサン）。
+    // 実測。3月期が1,865社、4月期が2社（ヤガミ・ダイサン）。**最頻を代表として
+    // 名乗るのはやめた**（E1）が、偏っていること自体は `/about` が断る。
     expect(counts.get("2026-03")).toBe(1865);
     expect(counts.get("2026-04")).toBe(2);
+  });
+
+  // E1。企業詳細は1社ぶんなので幅ではなく実際の決算期を出せる。
+  it("会社ごとの決算期を文字列プールの添字で持つ", () => {
+    expect(result.companies.periods).toEqual(["2026-03", "2026-04"]);
+
+    const idx = result.companies.periods;
+    result.companies.rows.forEach((row, i) => {
+      expect(idx[row[9]]).toBe(sourceRows[i].periodEnd.slice(0, 7));
+    });
   });
 
   // **Python（`pipeline/salary/curves.py`）と TypeScript（`web/.../salary.ts`）の
@@ -652,22 +663,53 @@ describe("buildData", () => {
 });
 
 /**
- * 決算期の導出（S3・Issue #134）。`buildData` を通さずに境界だけを見る。
+ * 決算期の幅（E1・`docs/expansion/spec.md` 1.4）。`buildData` を通さずに境界だけを見る。
  */
-describe("dominantFiscalPeriod", () => {
+describe("fiscalPeriodRange", () => {
   const rows = (...periods: string[]) => periods.map((periodEnd) => ({ periodEnd }));
 
-  it("最頻の決算期を `YYYY-MM` で返す", () => {
-    expect(dominantFiscalPeriod(rows("2026-03-31", "2026-03-20", "2026-04-20"))).toBe("2026-03");
+  it("最古と最新を `YYYY-MM` で返す", () => {
+    expect(fiscalPeriodRange(rows("2026-03-31", "2026-03-20", "2026-04-20"))).toEqual({
+      from: "2026-03",
+      to: "2026-04",
+    });
   });
 
-  it("決算期が過半に届かなければ落とす（1つで代表できないため）", () => {
-    expect(() => dominantFiscalPeriod(rows("2026-03-31", "2026-04-20", "2026-05-31"))).toThrow(
-      /代表できません/
-    );
+  it("全社が同じ決算期なら from と to が同じになる", () => {
+    expect(fiscalPeriodRange(rows("2026-03-31", "2026-03-20"))).toEqual({
+      from: "2026-03",
+      to: "2026-03",
+    });
+  });
+
+  // **旧ガード（最頻が過半に届かなければ落とす）は通ってしまう分布**。母集団を
+  // 広げると3月期は 63.5% で、1,081社の決算期が違うまま代表を名乗ることになる。
+  // 幅で出すならこれは正常系。
+  it("最頻が過半でも過半でなくても落ちない", () => {
+    expect(fiscalPeriodRange(rows("2026-03-31", "2026-04-20", "2026-05-31"))).toEqual({
+      from: "2026-03",
+      to: "2026-05",
+    });
+  });
+
+  // 拡大後の実測の端（ニデックの2025-03期 〜 2026-05期 = 15か月）。
+  it("拡大後の15か月の幅は通る", () => {
+    expect(fiscalPeriodRange(rows("2025-03-31", "2026-05-31"))).toEqual({
+      from: "2025-03",
+      to: "2026-05",
+    });
+  });
+
+  // 代表の過半チェックを外したぶんのガード（ADR-0011 の窓が壊れたことに気づく）。
+  it("幅が24か月を超えたら落とす", () => {
+    expect(() => fiscalPeriodRange(rows("2024-03-31", "2026-04-20"))).toThrow(/幅が広すぎます/);
   });
 
   it("period_end の形が違えば落とす", () => {
-    expect(() => dominantFiscalPeriod(rows("2026/03/31"))).toThrow(/YYYY-MM-DD/);
+    expect(() => fiscalPeriodRange(rows("2026/03/31"))).toThrow(/YYYY-MM-DD/);
+  });
+
+  it("行が無ければ落とす", () => {
+    expect(() => fiscalPeriodRange([])).toThrow(/行がありません/);
   });
 });

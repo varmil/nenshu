@@ -36,41 +36,55 @@ const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
 /**
- * 掲載データの決算期（`YYYY-MM`）を CSV の `period_end` から導く（S3・Issue #134、
- * `docs/site-chrome/spec.md` 5.）。**最頻の1つを代表として採る**——決算期は
- * 全社が同じではなく、いまのデータは1,865社が3月期・2社が4月期になる。
+ * 掲載データの決算期の**幅**（`YYYY-MM` の最古と最新）を CSV の `period_end` から
+ * 導く（E1・`docs/expansion/spec.md` 1.4、S3・`docs/site-chrome/spec.md` 5.）。
+ *
+ * **最頻の1つを代表として採るのはやめた。** 母集団を直近12か月に広げると
+ * （ADR-0011）3月期は 63.5% まで下がり、**「過半に届かなければ落とす」という
+ * 旧ガードは通ってしまう**——1,081社の決算期が違うまま「2026年3月期」と名乗る
+ * ことになる。**落ちないほうが危ない。**
  *
  * **直書きしない理由は社数（`meta.count`）と同じ。** 画面と title・description の
  * 何箇所にも書くものなので、手で書くと年1回のデータ更新でそこだけ古い年が残る。
- *
- * 代表が過半に届かないときは落とす。そのときは「1つの決算期で代表できる」という
- * 前提そのものが崩れており、黙って多数派を出すと読者に嘘の時点を見せることになる。
  */
-export function dominantFiscalPeriod(rows: { periodEnd: string }[]): string {
-  const counts = new Map<string, number>();
+export function fiscalPeriodRange(rows: { periodEnd: string }[]): {
+  from: string;
+  to: string;
+} {
+  if (rows.length === 0) {
+    throw new Error("決算期を導く行がありません");
+  }
+  let from = "";
+  let to = "";
   for (const row of rows) {
     const period = row.periodEnd.slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(period)) {
       throw new Error(`period_end が YYYY-MM-DD の形でありません: ${row.periodEnd}`);
     }
-    counts.set(period, (counts.get(period) ?? 0) + 1);
+    if (from === "" || period < from) from = period;
+    if (to === "" || period > to) to = period;
   }
 
-  let top = "";
-  let topCount = 0;
-  for (const [period, count] of counts) {
-    if (count > topCount || (count === topCount && period > top)) {
-      top = period;
-      topCount = count;
-    }
-  }
-  if (topCount * 2 <= rows.length) {
+  // **代表の過半チェックを外したぶん、幅そのものをガードにする。** 母集団は
+  // 「直近12か月に有報を出した会社」（ADR-0011）なので、決算期の幅は普通なら
+  // 12か月に収まり、提出が遅れた会社が混じっても15か月程度で止まる（拡大後の
+  // 実測が 2025-03〜2026-05 = 15か月）。**24か月を超えるのは取得側の異常**で、
+  // 黙って通すと何年も前の数字が同じ表に並ぶ。
+  const months = monthsBetween(from, to);
+  if (months > 24) {
     throw new Error(
-      `決算期が1つに代表できません（最頻 ${top} が${topCount}/${rows.length}社）。` +
-        `docs/site-chrome/spec.md 5.3 の前提を見直すこと。`
+      `決算期の幅が広すぎます（${from} 〜 ${to} = ${months}か月）。` +
+        `取得の窓（docs/adr/0011-company-universe-twelve-month-window.md）を確認すること。`
     );
   }
-  return top;
+  return { from, to };
+}
+
+/** `YYYY-MM` 同士の月数の差。 */
+function monthsBetween(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm);
 }
 
 export function buildData(outDir: string) {
@@ -87,6 +101,12 @@ export function buildData(outDir: string) {
     a.localeCompare(b, "ja")
   );
   const curveKeys = Object.keys(annualIndustry);
+
+  // **会社ごとの決算期は文字列プールの添字で持つ**（E1）。企業詳細は1社ぶんなので
+  // 幅ではなく実際の決算期を出せる（`docs/expansion/spec.md` 1.4）。値の種類は
+  // 現状2つ・拡大後14しかないので、`YYYY-MM` をそのまま並べず添字にする——
+  // **実測でトップページの HTML が gzip +1,301 B**（そのまま並べると4倍以上）。
+  const periods = Array.from(new Set(rows.map((r) => r.periodEnd.slice(0, 7)))).sort();
 
   const ids = new Set<string>();
   const companyRows = rows.map((row) => {
@@ -114,6 +134,7 @@ export function buildData(outDir: string) {
       Math.round(row.avgSalary),
       Math.round(row.employeesNonConsolidated),
       row.badge === "本社のみ" ? 1 : 0,
+      periods.indexOf(row.periodEnd.slice(0, 7)),
     ] as const;
   });
 
@@ -121,13 +142,15 @@ export function buildData(outDir: string) {
     meta: {
       version: DATA_VERSION,
       count: companyRows.length,
-      // 掲載データの決算期（S3・`docs/site-chrome/spec.md` 5.）。web 側はこの1つの値から
-      // 「2026年3月期」を組み立てる（`web/lib/data/period.ts`）。
-      fiscalPeriod: dominantFiscalPeriod(rows),
+      // 掲載データの決算期の**幅**（E1・`docs/expansion/spec.md` 1.4）。web 側は
+      // この2つの値から「2026年3月期〜4月期」を組み立てる（`web/lib/data/period.ts`）。
+      fiscalPeriodRange: fiscalPeriodRange(rows),
       generatedAt: new Date().toISOString(),
     },
     industries,
     curveKeys,
+    // 会社ごとの決算期（`YYYY-MM`・昇順）。`rows` の末尾がこの添字を持つ。
+    periods,
     rows: companyRows,
   };
 
@@ -732,7 +755,13 @@ if (isMain) {
   const out = outIndex >= 0 ? process.argv[outIndex + 1] : "public/data";
   const outDir = resolve(ROOT, out);
   const result = buildData(outDir);
-  console.log(`${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB`);
+  const { from, to } = result.companies.meta.fiscalPeriodRange;
+  // **決算期の幅をサマリーに出す**（E1）。代表が過半に届かなければ落とす、という
+  // 旧ガードを外したぶん、幅がどうなっているかは毎回目に入るようにしておく。
+  console.log(
+    `${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB` +
+      `, 決算期 ${from}〜${to}（${result.companies.periods.length}種類）`
+  );
   console.log(result.curvesPath);
   console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
   console.log(

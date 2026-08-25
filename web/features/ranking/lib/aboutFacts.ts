@@ -82,6 +82,13 @@ export interface AboutFacts {
   coverage: { minAvgAge: number; maxAvgAge: number };
   /** 表示基準ごとの母集団の平均年収（円）。順位・偏差値が基準ごとに変わる根拠。 */
   population: { rawMean: number; age35Mean: number };
+  /**
+   * 決算期の偏り（E1・`docs/expansion/spec.md` 1.4）。**時点を幅で出すようになると、
+   * 端（現状は4月期の2社）が全体を代表しているように読めてしまう**ので、どこに
+   * 寄っているかを `/about` で断る。`period` は `YYYY-MM`——文字列にするのは
+   * `lib/data/period.ts` の仕事。
+   */
+  fiscalPeriodTop: { period: string; count: number };
 }
 
 /** 式の実例で使う目標年齢。ランキングの初期値と揃える。 */
@@ -139,7 +146,27 @@ export function buildAboutFacts(companies: CompaniesData, curves: CurvesData): A
     modelBias: buildModelBiasFacts(companies, curves),
     coverage: buildCoverage(companies),
     population: buildPopulationMeans(companies, curves),
+    fiscalPeriodTop: buildFiscalPeriodTop(companies),
   };
+}
+
+/** いちばん多い決算期とその社数（E1）。同数なら新しいほうを採る。 */
+function buildFiscalPeriodTop(companies: CompaniesData): AboutFacts["fiscalPeriodTop"] {
+  const counts = new Map<string, number>();
+  for (const row of companies.rows) {
+    const period = companies.periods[row[9]];
+    counts.set(period, (counts.get(period) ?? 0) + 1);
+  }
+  let top = { period: "", count: 0 };
+  for (const [period, count] of counts) {
+    if (count > top.count || (count === top.count && period > top.period)) {
+      top = { period, count };
+    }
+  }
+  if (top.period === "") {
+    throw new Error("決算期を1つも数えられませんでした");
+  }
+  return top;
 }
 
 function buildCoverage(companies: CompaniesData): AboutFacts["coverage"] {
