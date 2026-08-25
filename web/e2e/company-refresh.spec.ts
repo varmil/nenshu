@@ -201,6 +201,40 @@ test.describe("T1 平均年収推移（10年）", () => {
     await expect(section.getByText("2023", { exact: true })).toBeVisible();
     await expect(section.getByText("2024", { exact: true })).toBeVisible();
   });
+
+  /*
+   * E4（#176）。母集団を広げた E2（#173）で新しく入った1,094社は、しばらく推移を
+   * 1年ぶんも持っていなかった（節ごと出ない状態）。**その1,094社でも節が出る**
+   * ことをここで固定する。ヒューリックは実測値の上位で、10年すべて埋まっている。
+   */
+  test("AC-6: E4 で入った会社でも10年ぶんの推移が出る（ヒューリック）", async ({ page }) => {
+    await page.goto("/company/3003");
+    const rows = await historyRows(page);
+    expect(rows).toHaveLength(10);
+    expect(rows[0][0]).toBe("2017年");
+    expect(rows[9][0]).toBe("2026年");
+    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
+  });
+
+  /*
+   * **右端が空く会社が221社ある。** 取得の窓を直近12か月に広げた（ADR-0011）ので、
+   * 決算期が3月でない会社の最新の有報は2025年の提出になる——2026年を持たないのが
+   * 正しい。**AC-7 の「途中が欠ける」（2117）とは別の欠け方**で、右端だけに出る。
+   */
+  test("AC-7: 決算期が3月でない会社は2026年の枠が空く（ファーストリテイリング・8月期）", async ({
+    page,
+  }) => {
+    await page.goto("/company/9983");
+    const section = historySection(page);
+    const rows = await historyRows(page);
+    expect(rows).toHaveLength(10);
+    // 2017〜2025は埋まり、2026だけが空く。
+    for (const row of rows.slice(0, 9)) expect(row[1]).toMatch(/^[\d,]+万円$/);
+    expect(rows[9][0]).toBe("2026年");
+    expect(rows[9][1]).toBe("データなし");
+    // 年のラベルはグラフ側にも残る（棒は描かれない）。
+    await expect(section.getByText("2026", { exact: true })).toBeVisible();
+  });
 });
 
 /*

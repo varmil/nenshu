@@ -378,8 +378,9 @@ describe("buildData", () => {
     const { years, byId } = result.history;
     expect(years).toEqual([2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]);
 
+    // E4（#176）で全2,961社に行が付いた（E2 の直後は 1,867社だった）。
     const ids = Object.keys(byId);
-    expect(ids.length).toBeGreaterThanOrEqual(1850);
+    expect(ids.length).toBe(2961);
     for (const id of ids) {
       expect(byId[id].length).toBe(years.length);
     }
@@ -391,31 +392,46 @@ describe("buildData", () => {
       const k = years.indexOf(year);
       return Object.values(byId).filter((v) => v[k] !== null).length;
     };
-    expect(countFor(2026)).toBeGreaterThanOrEqual(1850);
-    expect(countFor(2017)).toBeGreaterThanOrEqual(1600);
+    // **2026年は全社ぶんにはならない。** 取得の窓が直近12か月なので、決算期が
+    // 3月でない会社の最新の有報は2025年の提出になる（実測 2,612社）。**下限を
+    // 母集団に合わせて上げると、正しいデータで落ちる。**
+    expect(countFor(2026)).toBeGreaterThanOrEqual(2500);
+    // 2017・2018年はタグが無く本文から拾う（`textblock.py`）。E4（#176）で
+    // 新規1,094社にもこの経路が効き、1,637 → 2,411社になった。
+    expect(countFor(2017)).toBeGreaterThanOrEqual(2300);
   });
 
   // 同じ有報から取った同じ数字なので、ここがずれていたら抽出が壊れている。
-  it("AC-3: history.json の2026年が companies.json の平均年収と一致する（推移を持つ会社ぶん）", () => {
+  it("AC-3: 採用書類の年の推移が companies.json の平均年収と一致する（全社）", () => {
     const { years, byId } = result.history;
-    const k = years.indexOf(2026);
-    const rows = result.companies.rows;
+    const { rows, periods } = result.companies;
 
-    // 推移を持つ会社では、2026年が欠けていることも値がずれていることも許さない
-    // （同じ有報・同じ抽出関数なので、ずれたら抽出が壊れている）。
+    // **「2026年と一致する」では固定できない。** 取得の窓を直近12か月に広げた
+    // （E2・#173・ADR-0011）ので、決算期が3月でない会社の最新の有報は2025年の
+    // 提出になる——実測で349社が2026年の値を持たない。**持っていないのが正しい**
+    // ので、突き合わせる相手は「その会社の採用書類の年」になる。
+    //
+    // 提出年は決算期の年か、その翌年（12月期は翌年3月に出る）。どちらかで一致
+    // すればよい——**年を1つに決め打ちすると、決算期の分布が変わったときに
+    // 抽出が壊れていないのに落ちる。**
     let covered = 0;
     for (const row of rows) {
       const values = byId[row[0]];
       if (values === undefined) continue;
-      expect(values[k]).toBe(row[6]);
+      const periodYear = Number(periods[row[9]].slice(0, 4));
+      const matched = [periodYear, periodYear + 1].some((year) => {
+        const k = years.indexOf(year);
+        return k >= 0 && values[k] === row[6];
+      });
+      expect(matched).toBe(true);
       covered += 1;
     }
 
-    // **母集団を広げたぶん（E2・#173）は 10年推移が追随していない**——新しく
-    // 入った1,094社は `history.json` に1行も無い。追随は E4（#176）で、そこで
-    // この数が 2,961 に上がる。**「全社ぶん揃っている」に戻さず数で固定するのは、
-    // 追随したことをテストの側でも見えるようにするため**（spec AC-8）。
-    expect(covered).toBe(1867);
+    // **E4（#176）で 1,867 → 2,961社になった。** 母集団を広げた E2（#173）の
+    // 時点では新しく入った1,094社が `history.json` に1行も無く、この数は 1,867
+    // だった。**「全社ぶん」と書かずに数で固定するのは、追随したことをテストの
+    // 側でも見えるようにするため**（spec AC-8）。
+    expect(covered).toBe(2961);
     expect(rows.length).toBe(2961);
   });
 
@@ -435,6 +451,34 @@ describe("buildData", () => {
     }
     expect(pairs).toBeGreaterThan(15000);
     expect(jumps.length / pairs).toBeLessThan(0.001);
+  });
+
+  /*
+   * E4（#176）で `history.resolve_scale` を足した。`run.fix_salary_typos` は1行しか
+   * 見ないので、あり得る帯（`plausible_salary_range`）に入る10の冪を小さいほうから
+   * 採り、**帯が広いぶん間違った桁で止まる**。10年ぶんを並べればその会社の他の年が
+   * 正しい桁を指す。**Python 側にテストの器が無いので、実物のデータで固定する**
+   * （`web/lib/data/worklife.test.ts` と同じ流儀）。
+   */
+  it("AC-3: 1行では決まらない桁を、その会社の他の年で選び直している", () => {
+    const { years, byId } = result.history;
+    const at = (id: string, year: number) => byId[id][years.indexOf(year)];
+
+    // トスネット: 有報のタグが 2,624,271,000円（千円単位の数字を円の欄に入れた
+    // 提出側の誤り）。÷100 の 2,624万円が帯に入るのでそこで止まっていた。
+    // 他の年は 254〜302万円なので、正しいのは ÷1000。
+    expect(at("4754", 2019)).toBe(2624271);
+    expect(at("4754", 2018)).toBe(2601319);
+
+    // Ｍ＆Ａキャピタルパートナーズ: タグの 31,093,000円・31,613,000円が**そのまま
+    // 正しい**。帯の上限3,000万円をわずかに超えるため ÷10 されていた。
+    expect(at("6080", 2019)).toBe(31093000);
+    expect(at("6080", 2022)).toBe(31613000);
+
+    // **ホットリンク2018の320万円は直さない。** 前後が約600万円で浮いて見えるが、
+    // 有報が「平均年間給与（千円）3,205」と書いている実額（原文を確認済み）。
+    // **浮いているというだけで直すと、実態のほうを消す。**
+    expect(at("3680", 2018)).toBe(3205000);
   });
 
   it("AC-4: 欠けている年は null で、内挿されていない", () => {

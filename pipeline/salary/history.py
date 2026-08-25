@@ -107,6 +107,58 @@ def resolve_candidates(recs):
     return swapped
 
 
+def resolve_scale(recs):
+    """桁を、**同じ会社の直っていない年**を基準に選び直す（E4・#176）。
+
+    `run.fix_salary_typos` は1行しか見ない。あり得る帯（`run.plausible_salary_range`）
+    に入る10の冪を**小さいほうから採る**ので、**帯が広いぶん間違った桁で止まる**。
+    10年ぶんを並べると、その会社の他の年が正しい桁を指している。
+
+    実際に2件出た（どちらも E2 で新しく入った会社）。
+
+    - **トスネット2019**: 有報のタグが `2,624,271,000円`（＝千円単位の数字を円の欄に
+      入れた提出側の誤り）。÷100 した 2,624万円が帯に入るのでそこで止まっていたが、
+      他の年は 254〜302万円で、正しいのは ÷1000 の 262万円
+    - **Ｍ＆Ａキャピタルパートナーズ2019・2022**: タグは `31,093,000円`・`31,613,000円`
+      で**そのままが正しい**。帯の上限3,000万円をわずかに超えるため ÷10 され、
+      311万円・316万円になっていた。他の年は 2,270〜2,688万円
+
+    **基準は「桁を直していない年」の中央値**。直した年どうしで基準を作ると、
+    同じ誤りが基準の側にも入る。基準が無い会社は触らない。
+    """
+    by_code = {}
+    for r in recs:
+        by_code.setdefault(r["edinet_code"], []).append(r)
+
+    rescaled = []
+    for rows in by_code.values():
+        anchor = [r["avg_salary"] for r in rows
+                  if not r.get("salary_fixed") and r.get("avg_salary")]
+        # 直っていない年が2つ以上ないと、中央値が基準として弱すぎる。
+        if len(anchor) < 2:
+            continue
+        ref = statistics.median(anchor)
+        for r in rows:
+            original = r.get("salary_original")
+            if not original or not r.get("salary_fixed"):
+                continue
+            cands = [original * f for f in (1000, 100, 10, 1, 0.1, 0.01, 0.001)]
+            pick = min(cands, key=lambda v: abs(math.log(v / ref)))
+            # **帯から出る桁は採らない。** ここは桁の選び直しであって、
+            # `plausible_salary_range` の線を緩める場所ではない……のだが、
+            # Ｍ＆Ａキャピタルのように上限をわずかに超えるのが正しい会社がいる。
+            # **他の年が同じ水準を指しているときだけ**上限の外を許す。
+            floor, ceiling = run.plausible_salary_range(r)
+            if not (floor <= pick <= ceiling) and abs(math.log(pick / ref)) > math.log(2):
+                continue
+            if round(pick) != round(r["avg_salary"]):
+                rescaled.append(
+                    f"{r['edinet_code']} {r['year']} {r['avg_salary']:.0f}→{pick:.0f}"
+                )
+                r["avg_salary"] = pick
+    return rescaled
+
+
 def main():
     first_year = int(sys.argv[1]) if len(sys.argv) > 1 else 2017
     last_year = int(sys.argv[2]) if len(sys.argv) > 2 else 2026
@@ -143,9 +195,19 @@ def main():
 
     # 現行パイプラインと同じ桁ズレ補正を通す（run.py と同じ関数を呼ぶ）。
     # 直せなかったものは avg_salary が None になるので、ここで落とす。
+    # **補正前の値を控えておく**——`resolve_scale` が桁を選び直すのに要る。
+    for r in recs:
+        if r.get("avg_salary"):
+            r["salary_original"] = r["avg_salary"]
     fixed = run.fix_salary_typos(recs)
     dropped = [r for r in fixed if r.get("avg_salary") is None]
     print(f"桁ズレ補正 {len(fixed)}件（うち除外 {len(dropped)}件）", flush=True)
+
+    # 1行では決まらない桁を、その会社の他の年を基準に選び直す（E4・#176）。
+    rescaled = resolve_scale(recs)
+    print(f"桁を選び直した {len(rescaled)}件", flush=True)
+    for line in rescaled:
+        print(f"  {line}", flush=True)
 
     rows = [to_row(r) for r in recs if r.get("avg_salary") is not None]
     rows.sort(key=lambda r: (r["edinet_code"], r["year"]))
@@ -164,11 +226,26 @@ def main():
         if r["source"] in slot:
             slot[r["source"]] += 1
 
+    # **抽出率とカバー率は別物。** 抽出率は「有報を出している会社のうち値を取れた
+    # 割合」で、こちらが下がったら抽出が壊れている。カバー率は母集団に対する割合で、
+    # 欠けのほとんどは「その年は有報を出していない」。**母集団を広げるとカバー率
+    # だけが下がる**ので、2つ並べないと E2 のような拡大の後に読み違える。
+    submitted = {}
+    for _code, y in best:
+        submitted[y] = submitted.get(y, 0) + 1
+
     print(f"\n{OUT.resolve()}: {len(rows)}行 ({time.time() - t0:.0f}s)")
-    print("\nyear  社数   tag  textblock")
+    print(f"\n母集団 {len(codes)}社")
+    print("year  提出あり  取れた  抽出率  カバー率   tag  textblock")
     for y in sorted(by_year):
         s = by_year[y]
-        print(f"{y}  {s['n']:5d} {s['tag']:5d} {s['textblock']:9d}")
+        sub = submitted.get(y, 0)
+        rate = s["n"] / sub * 100 if sub else 0.0
+        cover = s["n"] / len(codes) * 100 if codes else 0.0
+        print(
+            f"{y}  {sub:8d} {s['n']:7d} {rate:6.1f}% {cover:8.1f}%"
+            f" {s['tag']:5d} {s['textblock']:9d}"
+        )
 
 
 if __name__ == "__main__":
