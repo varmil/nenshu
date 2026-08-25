@@ -188,7 +188,7 @@ Unit の実装を終えたら、次の順で進める。
 - **JSON-LD は `WebSite`（`/`・`/about`）と `BreadcrumbList`（`/company/[id]`）だけ。** `Organization` は出さない（企業ページが表すのは当該企業だが、その主体を名乗るのは我々ではない）。**`potentialAction`（サイトリンク検索ボックス）も足さない**——Google が 2023年に終了した機能で、いま書いても何も起きない
 - **パンくずの段は `features/company/lib/breadcrumb.ts` の1か所。** 画面（`CompanyDetail`）と JSON-LD が同じ配列を読む（AC-14）。**`e2e/social.spec.ts` は JSON-LD の鍵の集合そのものを固定している**ので、画面に無い値を足そうとすると落ちる（AC-15）
 - **`agePath()`・`industryPath()` は `lib/seo/paths.ts` に分けた**（`ranking.ts` から再輸出）。`ranking.ts` は `parseSearchParams` まで抱えていて、パスを1本作りたいだけのクライアントコンポーネントには大きいため
-- **HTML は `/` が raw 374,617 → 379,055 B（gzip 63,383 → 64,092 B。AC-16 の予算 75,000 B）、`/company/6861` が 135,800 → 140,967 B、`/about` が 85,933 → 90,088 B。** **`<meta>` の見た目より増分が大きいのは、Next.js が同じ文言を RSC ペイロードにも流すため**（同じ description が2回出る）
+- **HTML は `/` が raw 378,474 → 382,992 B（gzip 63,727 → 64,444 B。AC-16 の予算 75,000 B）、`/company/6861` が 135,790 → 140,957 B、`/about` が 86,065 → 90,260 B。** **`<meta>` の見た目より増分が大きいのは、Next.js が同じ文言を RSC ペイロードにも流すため**（同じ description が2回出る）
 
 - **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
 - **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
