@@ -6,7 +6,6 @@
 """
 
 import csv
-import json
 import zipfile
 import argparse
 from pathlib import Path
@@ -60,41 +59,47 @@ def load_edinet_codelist():
     return info
 
 
-def unlisted_docs(codelist):
-    """証券コードを持たない有報提出会社（持株会社傘下の事業会社など）。
+FILER_KIND = "内国法人・組合"
 
-    みずほ銀行・三井住友銀行・三菱UFJ銀行は上場していないので証券コードが
-    ないが、有報は出している。持株会社の単体数字はグループを代表しないので、
-    実際に人が働いている事業会社側を拾う。外国の銀行や国際機関は転職先では
-    ないので、内国法人だけに絞る。
+
+def twelve_month_window(today=None):
+    """取得の窓（両端を含む）。**回す日から遡って12か月**（ADR-0011）。
+
+    **決算期に貼り付いた日付を直書きしない。** 以前は 6/1〜7/10 という3月期決算の
+    提出ピークに置いており、**それ以外の決算期の会社が1社も入らなかった**
+    （キヤノン・楽天グループ・イオン・ファーストリテイリングなど1,095社）。
+
+    **12か月にする理由。** 有報は事業年度ごとに1回出るので、12か月の窓なら決算期が
+    いつであっても各社ちょうど1回入る。**暦年にしないのは、年の途中で回すと窓の
+    後半が空になるため**。**窓を置かず「各社の最新の有報」にしないのは、上場廃止・
+    合併で提出をやめた会社が何年も残るため**——12か月の窓は「いまも有報を出して
+    いる」という条件そのものになる。
+
+    両端を含むので厳密には366日ぶんあり、**窓の両端に同じ会社の2年ぶんが入りうる**。
+    それは `edinet.annual_reports` の期末優先が受け止める。
     """
-    import glob
-    res = []
-    for f in glob.glob(str(edinet.CACHE / "list_*.json")):
-        d = json.loads(Path(f).read_text())
-        res += [r for r in (d.get("results") or [])
-                if r.get("docTypeCode") == "120" and not r.get("secCode")
-                and r.get("withdrawalStatus") != "1"]
-    uniq = {}
-    for r in res:
-        info = codelist.get(r.get("edinetCode") or "")
-        if not info or info.get("kind") != "内国法人・組合":
-            continue
-        uniq[r["edinetCode"]] = r
-    return list(uniq.values())
+    end = today or date.today()
+    try:
+        start = end.replace(year=end.year - 1)
+    except ValueError:  # 2月29日に回した場合
+        start = end.replace(year=end.year - 1, day=28)
+    return start, end
 
 
-def build(limit, curve_name, start, end, include_unlisted=False):
+def build(limit, curve_name, start, end):
     codelist = load_edinet_codelist()
     print(f"EDINETコードリスト: {len(codelist)}社")
 
     print(f"有報を列挙 ({start} 〜 {end})")
     docs = edinet.annual_reports(start, end)
-    print(f"有報（上場）{len(docs)}件")
-    if include_unlisted:
-        extra = unlisted_docs(codelist)
-        print(f"有報（非上場の内国法人）{len(extra)}件")
-        docs = docs + extra
+    print(f"有報（EDINETコードで一意）{len(docs)}件")
+
+    # **外国法人・組合と外国政府等を落とす**（ADR-0011・`docs/expansion/spec.md` 1.1）。
+    # 窓の中に外国法人200社・外国政府等28社がいるが、転職先ではない。**以前は
+    # 非上場側の経路だけがこの線を持っていた**——証券コードを持つ会社は素通りしていた。
+    docs = [d for d in docs
+            if (codelist.get(d.get("edinetCode") or "") or {}).get("kind") == FILER_KIND]
+    print(f"  うち{FILER_KIND}: {len(docs)}件")
 
     if limit:
         docs = docs[:limit]
@@ -167,6 +172,21 @@ def fitted_factor(fit, from_age, to_age=35.0):
     return math.exp(fit["predict"](b) - fit["predict"](a))
 
 
+SALARY_FLOOR = 2_000_000
+
+
+def plausible_salary_range(row):
+    """その行の平均年間給与としてあり得る帯（円）。
+
+    **従業員が少ない会社は本当に高額なことがある**（役員数人の持株会社など）ので
+    上限を分ける。`fix_salary_typos` の桁ズレ判定と、`unified.resolve_ambiguous_salary`
+    の候補の絞り込みが**同じ線を見る**ようにここに出してある——別々に持つと、
+    片方が直ったときにもう片方だけ古い線で判断する。
+    """
+    emp = row.get("employees_nonconsolidated") or 0
+    return SALARY_FLOOR, 30_000_000 if emp >= 20 else 120_000_000
+
+
 def fix_salary_typos(rows):
     """有報のタグ付けミス（桁違い）を直す。
 
@@ -178,15 +198,12 @@ def fix_salary_typos(rows):
     数字を円の欄にタグ付けした書類があり、これは上限に当たらないので素通りする。
     10年ぶんに広げて初めて5件見つかった（2026年には無い）。
     """
-    FLOOR = 2_000_000
     fixed = []
     for r in rows:
         s = r.get("avg_salary")
-        emp = r.get("employees_nonconsolidated") or 0
         if not s:
             continue
-        # 従業員が少ない会社は本当に高額なことがある（役員数人の持株会社など）
-        ceiling = 30_000_000 if emp >= 20 else 120_000_000
+        FLOOR, ceiling = plausible_salary_range(r)
         if s < FLOOR:
             for mul in (10, 100, 1000, 10000):
                 if FLOOR <= s * mul <= ceiling:
@@ -203,7 +220,7 @@ def fix_salary_typos(rows):
             continue
         original = s
         for div in (10, 100, 1000, 10000):
-            if 2_000_000 <= original / div <= ceiling:
+            if FLOOR <= original / div <= ceiling:
                 r["avg_salary"] = original / div
                 r["salary_fixed"] = f"{original:.0f}→{original/div:.0f}"
                 fixed.append(r)
@@ -348,16 +365,14 @@ def main():
     p.add_argument("--limit", type=int, default=300, help="0で全件")
     p.add_argument("--curve", default="年収",
                    help="年収 / 年収_大企業 / 所定内 / 大企業 / 中企業 / 小企業")
-    p.add_argument("--include-unlisted", action="store_true",
-                   help="持株会社傘下の事業会社（みずほ銀行など）も含める")
-    p.add_argument("--start", default="2026-06-01")
-    p.add_argument("--end", default="2026-07-10")
+    default_start, default_end = twelve_month_window()
+    p.add_argument("--start", default=default_start.isoformat())
+    p.add_argument("--end", default=default_end.isoformat())
     a = p.parse_args()
 
     rows, curve_table = build(
         a.limit, a.curve,
         date.fromisoformat(a.start), date.fromisoformat(a.end),
-        include_unlisted=a.include_unlisted,
     )
     ok, body, by_raw, by_adj = analyse(rows, curve_table)
     report(ok, body, by_raw, by_adj)

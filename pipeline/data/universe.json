@@ -1,0 +1,13 @@
+{
+  "filingWindow": {
+    "from": "2025-08-25",
+    "to": "2026-08-25"
+  },
+  "fetched": 4133,
+  "resolvedSalary": 0,
+  "ambiguousSalary": 4,
+  "eligible": 4008,
+  "minEmployees": 100,
+  "excludedByEmployees": 1047,
+  "published": 2961
+}

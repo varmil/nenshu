@@ -4,7 +4,8 @@ import { collectPageRequests } from "./network";
 /**
  * L1 企業ロゴの表示（`docs/logo/spec.md` 2. AC-7〜AC-14）。
  *
- * ロゴを持つ会社は 1,625/1,867 で、**持たない会社が242社ある**（ADR-0008 決定3で
+ * ロゴを持つ会社は 1,625/2,961 で、**持たない会社がある**（E2 で母集団を広げたぶんは
+ * まだ調達していない——追随は E3・#175。ADR-0008 決定3で
  * 解像度の下限を外し、明るい器で空白に見える白いロゴは落とす——#156）。混在した状態が
  * 崩れないことがこの Unit の眼目なので、両方が出るページで見る。
  */
@@ -23,8 +24,11 @@ test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
       .toBeGreaterThan(0);
   });
 
+  // **検索で絞ってから見る。** E2 で母集団を広げてから、この会社は実測値の42位＝
+  // 1ページ目の外に出た（`/` の1ページ目は30件）。**母集団が動くたびに別の会社を
+  // 探し直さずに済むよう、行の在処を検索で固定する。**
   test("ロゴを持たない会社は頭文字マークのまま", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(`/?q=${encodeURIComponent(WITHOUT_LOGO.name)}`);
     const row = page.getByRole("row").filter({ hasText: WITHOUT_LOGO.name });
     await expect(row.locator('[data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
     await expect(row.locator('[data-logo="image"]')).toHaveCount(0);

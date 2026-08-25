@@ -35,10 +35,18 @@ def badge(row):
     return "本社のみ"
 
 
-def build():
-    rows, curve_table = run.build(
-        0, "年収", date(2026, 6, 1), date(2026, 7, 10), include_unlisted=True
-    )
+def build(start=None, end=None):
+    """母集団を組み直す（ADR-0011・`docs/expansion/spec.md` 1.1〜1.3）。
+
+    **窓は回す日から遡って12か月**で、日付を直書きしない。`start`/`end` を渡せる
+    のは再現のため——**CSV を作り直した窓は `design.md` に残す**。
+    """
+    if start is None or end is None:
+        start, end = run.twelve_month_window()
+    rows, curve_table = run.build(0, "年収", start, end)
+    # **候補の絞り込みが先。** `fix_salary_typos` は帯の外の値を10の冪で戻すので、
+    # 先に当てると候補のどれとも一致しない値になる（`resolve_ambiguous_salary`）。
+    resolved, ambiguous = resolve_ambiguous_salary(rows)
     run.fix_salary_typos(rows)
 
     ok = [r for r in rows
@@ -52,7 +60,145 @@ def build():
         r["badge"] = badge(r)
 
     body = [r for r in ok if (r.get("employees_nonconsolidated") or 0) >= MIN_EMPLOYEES]
-    return rebuild_derived(body, curve_table)
+    out = rebuild_derived(body, curve_table)
+    save_universe(start, end, len(rows), len(ok), len(ok) - len(body), len(out),
+                  ambiguous, resolved)
+    return out
+
+
+HISTORY_CSV = ROOT.parent / "data" / "salary_history.csv"
+
+
+def salary_reference():
+    """会社ごとの平均年間給与の基準値（10年推移の中央値）。EDINETコード → 円。
+
+    **`history.resolve_candidates` が使うのと同じ基準**を、単年の母集団を組む側でも
+    引けるようにしたもの。10年ぶんの取得（`timeseries`）はここより重いので、
+    **その成果物を読むだけにする**——無い環境では基準を持たずに進む。
+    """
+    if not HISTORY_CSV.exists():
+        return {}
+    import statistics
+
+    by_code = {}
+    with open(HISTORY_CSV, encoding="utf-8-sig", newline="") as f:
+        for r in csv.DictReader(f):
+            try:
+                value = float(r["avg_salary"])
+            except (TypeError, ValueError, KeyError):
+                continue
+            if value > 0:
+                by_code.setdefault(r["edinet_code"], []).append(value)
+    return {code: statistics.median(v) for code, v in by_code.items()}
+
+
+def resolve_ambiguous_salary(rows, reference=None):
+    """**読み方が2通りに割れた平均年間給与を、2段で1つに絞る。**どちらでも決まらない
+    行は採用しない（`docs/expansion/spec.md` 1.5b・AC-5b）。
+    `(選び直した数, 落とした数)` を返す。
+
+    「従業員の状況」本文の区切りの無いセルは、`231(13)57.309.822,360,598` が
+    「勤続9.8／2,236万円」とも「勤続9.82／236万円」とも読める。**同型の並びで
+    正解が逆になる例が実在する**ので、1書類の中では決められない（`textblock._best`）。
+    いま採っているのは `DP_PAIRS` の並びで先に来たほう＝多くの場合は大きいほうで、
+    **窓を12か月に広げると株式会社山田クラブ２１（E04731・非上場・従業員231人・
+    平均年齢57.3歳）が2,236万円として実測値の3位に出ていた。**
+
+    **1段目は帯。** 候補は10倍違うので、**片方だけが「平均年間給与としてあり得る帯」に
+    入ることが多い**——サントリーホールディングスの `[1,176万, 176万]` は下が
+    `SALARY_FLOOR`（200万）を割り、竹中工務店の `[1,153万, 153万]` も同じ。
+    **判定は `run.plausible_salary_range`＝桁ズレ補正が使うのと同じ線**で、別に持つと
+    片方だけ古い線で判断することになる。
+
+    **2段目は年をまたぐ基準。** 帯で決まらなければ `history.resolve_candidates` と
+    同じ規則——その会社の他の年に近いほうを採る。基準は10年推移
+    （`pipeline/data/salary_history.csv`）の中央値で、**1年ぶんが同じ誤読をしていても
+    中央値なら他の9年に引き戻される。**
+
+    **どちらでも決まらなければ落とす。** 10倍違う2つの読みのうち片方を根拠なく選ぶ
+    くらいなら、その会社の金額は「無い」ものとして扱う（数字の出典と計算方法を読者から
+    見える場所に置く、という約束の裏返し）。**山田クラブ２１は2,236万も236万も帯の中で、
+    10年推移にも1行も無いのでここで落ちる。** 新しく入る会社で同じことが起きたら、
+    E4（#176）で10年ぶんを取り直せば基準ができ、そのとき拾い直せる。
+
+    **textblock 由来そのものは切らない**（spec 1.5b）。候補が1つに決まる行は残す——
+    同じ経路でサントリーホールディングス・日本経済新聞社・竹中工務店が正しく入る。
+
+    **`run.fix_salary_typos` より先に走らせること。** あちらは帯の外の値を10の冪で
+    帯に戻すので、先に当てると候補のどれとも一致しない値になる。
+    """
+    import math
+
+    reference = salary_reference() if reference is None else reference
+    resolved = dropped = 0
+    for r in rows:
+        cands = r.get("salary_candidates")
+        if not cands or not r.get("avg_salary"):
+            continue
+
+        floor, ceiling = run.plausible_salary_range(r)
+        plausible = [v for v in cands if floor <= v <= ceiling]
+        if len(plausible) != 1:
+            ref = reference.get(r.get("edinet_code") or "")
+            if not ref:
+                r["avg_salary"] = None
+                dropped += 1
+                continue
+            # 帯で絞れたぶんがあればその中から、無ければ全候補から選ぶ。
+            plausible = [min(plausible or cands, key=lambda v: abs(math.log(v / ref)))]
+
+        if plausible[0] != r["avg_salary"]:
+            r["avg_salary"] = plausible[0]
+            resolved += 1
+    return resolved, dropped
+
+
+# 母集団の内訳。**CSV には行として残らないもの**（落とした会社の数と、取得の窓）を置く。
+UNIVERSE_PATH = ROOT.parent / "data" / "universe.json"
+
+
+def save_universe(start, end, fetched, eligible, excluded_by_employees, published,
+                  ambiguous_salary, resolved_salary):
+    """母集団の内訳を `pipeline/data/universe.json` に残す。
+
+    **`/about` に「単体従業員100人未満で何社を省いたか」を出すため**
+    （`docs/expansion/spec.md` 1.3・AC-4、運営者の指示 2026-08-24）。条件そのものは
+    既に `/about` に理由付きで書いてあるが、**それが何社を落としているかは書いて
+    いない**。窓を広げると掲載社数の3分の1を超える会社がこの線で落ちるので、
+    **数を出さないと「有報を出している会社は全部載っている」と読めてしまう。**
+
+    **CSV には書けない。** 落ちた会社はそもそも行にならない。社数（`meta.count`）と
+    同じく**直書きせずデータから引く**ために、内訳だけを別に置く。
+
+    **取得の窓もここに置く。** `/about` の「EDINET に◯◯に提出されたもの」は、
+    窓が動くようになった以上（ADR-0011）データから引くしかない。
+    """
+    import json
+
+    UNIVERSE_PATH.write_text(
+        json.dumps(
+            {
+                "filingWindow": {"from": start.isoformat(), "to": end.isoformat()},
+                # 窓の中の内国法人・組合として書類を読んだ会社
+                "fetched": fetched,
+                # 平均年間給与の読み方が割れた会社（AC-5b）。10年推移を基準に
+                # 選び直せたぶんと、基準が無くて採用しなかったぶん。
+                "resolvedSalary": resolved_salary,
+                "ambiguousSalary": ambiguous_salary,
+                # 平均年齢20〜65歳・平均年間給与100万円超を満たす会社
+                "eligible": eligible,
+                "minEmployees": MIN_EMPLOYEES,
+                # そのうち単体従業員が足りずに落ちた会社（`/about` に出す数）
+                "excludedByEmployees": excluded_by_employees,
+                # 実際に掲載する会社（＝ CSV の行数）
+                "published": published,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 def rebuild_derived(rows, curve_table=None):

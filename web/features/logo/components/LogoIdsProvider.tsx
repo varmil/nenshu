@@ -11,7 +11,7 @@ const LogoIdsContext = createContext<Set<string>>(new Set());
  * `/logos/<id>.webp` で引けるので、経路を2つ持つ理由がない。
  *
  * 渡し方が2つあるのは、ページによって配るべき量が違うため。
- * - ランキング: 1,867社ぶんの `mask`（raw 1.9KB・gzip 約250B）を開く
+ * - ランキング: 2,961社ぶんの `mask`（raw 2.9KB・gzip 約540B）を開く
  * - 企業詳細: その画面に出る数十社だけの `ids`（マスクを送ると無駄が大きい）
  */
 export function LogoIdsProvider({

@@ -179,7 +179,7 @@ function buildCoverage(companies: CompaniesData): AboutFacts["coverage"] {
  * 基準ごとに別の分布に対して出るようになった。その差を本文で示すために使う。
  *
  * `stats.json` にも同じ値が入っているが、こちらは読まない——`/about` は静的
- * レンダリング（`○`）で、`stats.json` を import すると 1,867×9 の順位表まで
+ * レンダリング（`○`）で、`stats.json` を import すると 2,961×9 の順位表まで
  * バンドルに引き込むことになる。ここで要るのは平均2つだけなので自分で出す。
  */
 function buildPopulationMeans(

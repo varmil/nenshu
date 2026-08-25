@@ -54,15 +54,32 @@ export function companyFiscalPeriodLabel(companies: CompaniesData, row: CompanyR
 }
 
 /**
- * `/about` の「対象範囲」で使う提出の窓。**窓の日付（6/1〜7/10）は有報の提出期に
- * 貼り付いていて年で動かない**ので日付は定数のままにし、年だけデータから引く。
- * 窓そのものを決めているのは `pipeline/salary/` の取得側で、ここはその表示にすぎない。
+ * `/about` の「対象範囲」で使う提出の窓（E2・ADR-0011）。
  *
- * **年は幅の最新側から採る。** 窓を直近12か月に広げる（ADR-0011・E2）と、この関数
- * ごと書き換えることになる。
+ * **日付を直書きできない。** 窓は「回した日から遡って12か月」で、データを作り直す
+ * たびに動く。以前は 6/1〜7/10 という3月期決算の提出ピークに貼り付いていたので
+ * 定数で書けたが、**その窓こそが1,095社を落としていた**。
+ *
+ * **決算期（`fiscalPeriodLabel`）とは別物。** あちらは会社ごとの期末、こちらは
+ * 提出日の範囲になる。同じ `/about` の同じ段落に両方が出るが、片方は「いつの
+ * 数字か」、もう片方は「どこまで集めたか」を答えている。
  */
 export function filingWindowLabel(meta: CompaniesMeta): string {
-  return `${parseFiscalPeriod(meta.fiscalPeriodRange.to).year}年6月1日〜7月10日`;
+  const from = parseFilingDate(meta.filingWindow.from);
+  const to = parseFilingDate(meta.filingWindow.to);
+  return `${from.year}年${from.month}月${from.day}日〜${to.year}年${to.month}月${to.day}日`;
+}
+
+/** `YYYY-MM-DD` を数値に割る。壊れた値は決算期と同じ理由で落とす。 */
+function parseFilingDate(day: string): { year: number; month: number; day: number } {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
+  if (match === null) {
+    throw new Error(
+      `提出日が YYYY-MM-DD の形でありません: ${day}。` +
+        `pipeline/salary/unified.py の save_universe を確認すること。`
+    );
+  }
+  return { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
 }
 
 /**

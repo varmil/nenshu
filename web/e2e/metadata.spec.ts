@@ -18,6 +18,11 @@ interface Meta {
   title: string;
   description: string | null;
   canonical: string | null;
+  /** S2（Issue #116）。**canonical と同じ文字列でなければならない**（AC-11）。 */
+  ogUrl: string | null;
+  /** `<title>` と同じ文字列でなければならない（AC-12）。 */
+  ogTitle: string | null;
+  ogDescription: string | null;
 }
 
 /** 属性値としてHTMLに出ている `&` などを実文字に戻す。 */
@@ -43,17 +48,26 @@ async function metaFromServer(request: APIRequestContext, url: string): Promise<
     title: pick(/<title>([^<]*)<\/title>/) ?? "",
     description: pick(/<meta name="description" content="([^"]*)"/),
     canonical: pick(/<link rel="canonical" href="([^"]*)"/),
+    ogUrl: pick(/<meta property="og:url" content="([^"]*)"/),
+    ogTitle: pick(/<meta property="og:title" content="([^"]*)"/),
+    ogDescription: pick(/<meta property="og:description" content="([^"]*)"/),
   };
 }
 
 /** いま画面に出ているメタデータ（＝読者のタブに出ている見出し）。 */
 async function metaFromDom(page: Page): Promise<Meta> {
-  return page.evaluate(() => ({
-    title: document.title,
-    description:
-      document.head.querySelector('meta[name="description"]')?.getAttribute("content") ?? null,
-    canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? null,
-  }));
+  return page.evaluate(() => {
+    const content = (selector: string) =>
+      document.head.querySelector(selector)?.getAttribute("content") ?? null;
+    return {
+      title: document.title,
+      description: content('meta[name="description"]'),
+      canonical: document.head.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? null,
+      ogUrl: content('meta[property="og:url"]'),
+      ogTitle: content('meta[property="og:title"]'),
+      ogDescription: content('meta[property="og:description"]'),
+    };
+  });
 }
 
 /**
@@ -67,13 +81,18 @@ async function expectMetaMatchesUrl(page: Page, request: APIRequestContext) {
     metaFromServer(request, url.pathname + url.search),
   ]);
   expect(dom).toEqual(server);
+  // `og:` は canonical・title・description と同じ文字列（S2・AC-11・AC-12）。
+  // **操作のあとも同じ**であること——`usePageMeta` が3つとも書き換えている。
+  expect(dom.ogUrl).toBe(dom.canonical);
+  expect(dom.ogTitle).toBe(dom.title);
+  expect(dom.ogDescription).toBe(dom.description);
   return dom;
 }
 
 test.describe("メタデータと表示状態の一致（AC-16）", () => {
   test("表示基準を切り替えるとタイトルが年齢そろえのものになる", async ({ page, request }) => {
     await page.goto("/");
-    expect((await metaFromDom(page)).title).toContain("1,867社");
+    expect((await metaFromDom(page)).title).toContain("2,961社");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);
@@ -97,7 +116,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
     await page.goto("/");
     await page
       .getByRole("navigation", { name: "業種から見る" })
-      .getByRole("link", { name: "海運業 7社", exact: true })
+      .getByRole("link", { name: "海運業 9社", exact: true })
       .click();
     await expect(page).toHaveURL(/ind=/);
 
@@ -125,7 +144,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
 
     const meta = await expectMetaMatchesUrl(page, request);
     expect(meta.canonical).toBe("https://openreport.net");
-    expect(meta.title).toContain("1,867社");
+    expect(meta.title).toContain("2,961社");
   });
 
   test("メタデータの更新でネットワークリクエストは発生しない（AC-7）", async ({ page }) => {

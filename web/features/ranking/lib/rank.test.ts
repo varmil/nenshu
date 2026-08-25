@@ -27,7 +27,7 @@ function stateFor(
 
 describe("buildRankedCompanies", () => {
   // ADR-0007 で既定になった表示基準。補正を一切通さないので estimatedSalary は null。
-  it("AC-1: 初期状態（実測値・絞り込みなし）で上位30件、1位はキーエンスで有報のまま2,178万円", () => {
+  it("AC-1: 初期状態（実測値・絞り込みなし）で上位30件、1位はヒューリックで有報のまま2,295万円", () => {
     const { companies: ranked, totalCount } = buildRankedCompanies(
       companies,
       curves,
@@ -35,10 +35,10 @@ describe("buildRankedCompanies", () => {
     );
     expect(ranked).toHaveLength(PAGE_SIZE);
     expect(totalCount).toBe(companies.rows.length);
-    expect(ranked[0].name).toBe("株式会社キーエンス");
+    expect(ranked[0].name).toBe("ヒューリック株式会社");
     expect(ranked[0].rank).toBe(1);
     expect(ranked[0].estimatedSalary).toBeNull();
-    expect(Math.round(ranked[0].avgSalary / 10000)).toBe(2178);
+    expect(Math.round(ranked[0].avgSalary / 10000)).toBe(2295);
   });
 
   it("実測値では有報の平均年間給与の降順に並ぶ", () => {
@@ -60,10 +60,13 @@ describe("buildRankedCompanies", () => {
     expect(rankOf(raw, "8058")).toBeLessThan(rankOf(at35, "8058")!);
   });
 
-  it("AC-2前半: 35歳そろえで1位はキーエンスの推定年収2,178万円", () => {
+  // **実測値と年齢そろえで1位が入れ替わる**（E2 で母集団を広げた後）。実測値は
+  // ヒューリック（平均39.0歳・2,295万円）、35歳そろえは平均32.4歳のＭ＆Ａキャピタル
+  // パートナーズが上に来る。キーエンスは平均年齢がちょうど35.0歳なので金額が動かない。
+  it("AC-2前半: 35歳そろえで1位はＭ＆Ａキャピタルパートナーズの推定年収2,330万円", () => {
     const { companies: ranked } = buildRankedCompanies(companies, curves, stateFor(35));
-    expect(ranked[0].name).toBe("株式会社キーエンス");
-    expect(Math.round(ranked[0].estimatedSalary! / 10000)).toBe(2178);
+    expect(ranked[0].name).toBe("Ｍ＆Ａキャピタルパートナーズ株式会社");
+    expect(Math.round(ranked[0].estimatedSalary! / 10000)).toBe(2330);
   });
 
   /*
@@ -103,8 +106,8 @@ describe("buildRankedCompanies", () => {
 
   it("総ページ数を超えるpageは最終ページにクランプする", () => {
     const ranked = buildRankedCompanies(companies, curves, stateFor(35, { industry: "海運業", page: 999 }));
-    expect(ranked.totalCount).toBe(7);
-    expect(ranked.companies).toHaveLength(7);
+    expect(ranked.totalCount).toBe(9);
+    expect(ranked.companies).toHaveLength(9);
   });
 
   it("0件のときtotalCountが0でcompaniesも空になる", () => {
@@ -117,25 +120,25 @@ describe("buildRankedCompanies", () => {
     expect(ranked.companies).toHaveLength(0);
   });
 
-  it("AC-3: 業種で「海運業」を選ぶと7社になり、順位が1から振り直される", () => {
+  it("AC-3: 業種で「海運業」を選ぶと9社になり、順位が1から振り直される", () => {
     const { companies: ranked, totalCount } = buildRankedCompanies(
       companies,
       curves,
       stateFor(35, { industry: "海運業" })
     );
-    expect(totalCount).toBe(7);
-    expect(ranked).toHaveLength(7);
+    expect(totalCount).toBe(9);
+    expect(ranked).toHaveLength(9);
     expect(ranked[0].rank).toBe(1);
-    expect(ranked.map((c) => c.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(ranked.map((c) => c.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 
-  it("AC-4: 従業員数で「1,000人以上」を選ぶと616社になる", () => {
+  it("AC-4: 従業員数で「1,000人以上」を選ぶと803社になる", () => {
     const { totalCount } = buildRankedCompanies(
       companies,
       curves,
       stateFor(35, { employeeSize: "1000plus" })
     );
-    expect(totalCount).toBe(616);
+    expect(totalCount).toBe(803);
   });
 
   it("AC-5: 業種と平均年齢を重ねると、業種のみより件数が減る", () => {
@@ -268,7 +271,7 @@ describe("AC-12 並び替え", () => {
       curves,
       stateFor(null, { sort: { key: "salary", order: "asc" } })
     );
-    // 年収が低い順の1ページ目に並ぶのは最下位の30社。順位は 1,867位 から下る。
+    // 年収が低い順の1ページ目に並ぶのは最下位の30社。順位は 2,961位 から下る。
     expect(ranked[0].rank).toBe(companies.meta.count);
     expect(ranked.map((c) => c.rank)).not.toEqual(ranked.map((_, i) => i + 1));
   });
@@ -347,7 +350,7 @@ describe("AC-14 上位◯%の分母（populationRank）", () => {
 
   /*
    * 偏差値の隣に置く水準は母集団の中での位置でなければならない（glossary）。
-   * 海運業7社の rank は1〜7で、これを分子にすると「上位14%」になってしまう。
+   * 海運業9社の rank は1〜9で、これを分子にすると「上位11%」になってしまう。
    */
   it("絞り込むと rank は1から振り直され、populationRank は全体のまま", () => {
     const { companies: ranked, totalCount } = buildRankedCompanies(
@@ -355,9 +358,9 @@ describe("AC-14 上位◯%の分母（populationRank）", () => {
       curves,
       stateFor(null, { industry: "海運業" })
     );
-    expect(totalCount).toBe(7);
-    expect(ranked.map((c) => c.rank)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(ranked[0].populationRank).toBeGreaterThan(7);
+    expect(totalCount).toBe(9);
+    expect(ranked.map((c) => c.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(ranked[0].populationRank).toBeGreaterThan(9);
 
     // 全体順位は絞り込んでも変わらない。
     const all = new Map(

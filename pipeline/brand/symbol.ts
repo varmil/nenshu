@@ -39,13 +39,19 @@ export const MAX_COVERAGE_WITH_CLEAR_SPACE = 1 / 1.5;
  */
 export const MAX_COVERAGE_MASKABLE = 0.8 / Math.SQRT2;
 
-export type SymbolSvgOptions = {
-  /** 出力の一辺（px）。 */
+export type SymbolMarkOptions = {
+  /** シンボルを収める正方形の一辺（px）。 */
   size: number;
   /** 外接正方形が一辺に占める割合。1 に近いほど余白が無い。 */
   coverage: number;
   /** 線の色。 */
   stroke: string;
+  /** 収める正方形の左上（省略すると原点）。 */
+  x?: number;
+  y?: number;
+};
+
+export type SymbolSvgOptions = Omit<SymbolMarkOptions, "x" | "y"> & {
   /**
    * 濃色サーフェス用の線の色。渡すと `@media (prefers-color-scheme: dark)` を書く。
    *
@@ -62,6 +68,28 @@ function num(value: number): string {
   return Number(value.toFixed(4)).toString();
 }
 
+/**
+ * シンボル1つぶんの `<g>`。**図形を書いてあるのはここだけ**で、ファビコンも
+ * OG画像（S2・Issue #116）もこれを置く。
+ *
+ * `class="mark"` を付けてあるのは、外側で `<style>` を書く相手（濃色サーフェスの
+ * 分岐を持つファビコン）のため。`stroke` 属性も併記してあるので、`<style>` を
+ * 読まないラスタライザでも色は出る（CSS のほうが詳細度で勝つ）。
+ */
+export function symbolMark({ size, coverage, stroke, x = 0, y = 0 }: SymbolMarkOptions): string {
+  const scale = (size * coverage) / SYMBOL_EXTENT;
+  // 外接正方形の中心（= リングの中心）を、収める正方形の中心に合わせる。
+  const offset = size / 2 - CENTER * scale;
+
+  return [
+    `<g class="mark" transform="translate(${num(x + offset)} ${num(y + offset)}) scale(${num(scale)})"`,
+    ` fill="none" stroke="${stroke}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">`,
+    `<circle cx="24" cy="24" r="16" stroke-dasharray="73 28" transform="rotate(-90 24 24)"/>`,
+    `<path d="M15 25 L22 31 L35 16"/>`,
+    `</g>`,
+  ].join("");
+}
+
 export function symbolSvg({
   size,
   coverage,
@@ -69,10 +97,6 @@ export function symbolSvg({
   strokeDark,
   background,
 }: SymbolSvgOptions): string {
-  const scale = (size * coverage) / SYMBOL_EXTENT;
-  // 外接正方形の中心（= リングの中心）を出力の中心に合わせる。
-  const offset = size / 2 - CENTER * scale;
-
   const style = strokeDark
     ? `<style>.mark{stroke:${stroke}}@media(prefers-color-scheme:dark){.mark{stroke:${strokeDark}}}</style>`
     : "";
@@ -84,12 +108,7 @@ export function symbolSvg({
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`,
     style,
     plate,
-    // `stroke` 属性は `<style>` を読まない相手（ラスタライザ等）への保険。
-    // CSS のほうが詳細度で勝つので、両方書いても濃色サーフェスの分岐は効く。
-    `<g class="mark" transform="translate(${num(offset)} ${num(offset)}) scale(${num(scale)})"`,
-    ` fill="none" stroke="${stroke}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">`,
-    `<circle cx="24" cy="24" r="16" stroke-dasharray="73 28" transform="rotate(-90 24 24)"/>`,
-    `<path d="M15 25 L22 31 L35 16"/>`,
-    `</g></svg>`,
+    symbolMark({ size, coverage, stroke }),
+    `</svg>`,
   ].join("");
 }

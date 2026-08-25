@@ -2,7 +2,7 @@ import type { AvgAgeBucket, CompanyRow, EmployeeSizeBucket, RankingState, Tenure
 
 /**
  * 閾値は実データ検証済み（docs/ranking/ranking-filters/plan.md）。
- * `< / < / それ以上` の3区分で1,867社を過不足なく分割する。
+ * `< / < / それ以上` の3区分で2,961社を過不足なく分割する。
  */
 export function classifyEmployeeSize(employees: number): EmployeeSizeBucket {
   if (employees < 300) return "under300";

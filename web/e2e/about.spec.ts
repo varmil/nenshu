@@ -22,7 +22,7 @@ test.describe("計算方法ページ（/about）", () => {
 
     // 対象範囲
     await expect(page.getByRole("heading", { name: "対象範囲" })).toBeVisible();
-    await expect(page.getByText("1,867社")).toBeVisible();
+    await expect(page.getByText("2,961社")).toBeVisible();
 
     // 限界
     await expect(page.getByRole("heading", { name: "この方法の限界" })).toBeVisible();
@@ -42,15 +42,15 @@ test.describe("計算方法ページ（/about）", () => {
     ).toBeVisible();
     // 理由（同業種は必ず同じカーブを引くこと）と、動く割合の実測値まで書かれている
     await expect(page.getByText("同じ業種の2社は必ず同じカーブを引きます")).toBeVisible();
-    await expect(page.getByText("1.7%")).toBeVisible();
-    await expect(page.getByText("39社")).toBeVisible();
+    await expect(page.getByText("2.4%")).toBeVisible();
+    await expect(page.getByText("36社")).toBeVisible();
   });
 
   test("2点モデルの仮定と、残っている限界が数値付きで書かれている", async ({ page }) => {
     await page.goto("/about");
     // 若い側で置いている仮定（22歳＝業種平均）と、その開きの実データ
     await expect(page.getByRole("heading", { name: /22歳の水準を業種平均と置いています/ })).toBeVisible();
-    await expect(page.getByText("中央値1.22倍")).toBeVisible();
+    await expect(page.getByText("中央値1.19倍")).toBeVisible();
     await expect(
       page.getByText("若い側の推定は逆に低めに出ます")
     ).toBeVisible();
@@ -58,7 +58,7 @@ test.describe("計算方法ページ（/about）", () => {
     await expect(
       page.getByRole("heading", { name: /平均年齢より上は、いまも倍率を一定と置いています/ })
     ).toBeVisible();
-    await expect(page.getByText("2,213万円")).toBeVisible();
+    await expect(page.getByText("2,386万円")).toBeVisible();
   });
 
   test("式の実例を電卓で追うと、表示している推定年収と同じ金額になる", async ({ page }) => {
@@ -91,7 +91,7 @@ test.describe("計算方法ページ（/about）", () => {
     await page.getByRole("link", { name: "← ランキングに戻る" }).first().click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("table").locator("tbody tr").first()).toContainText(
-      "株式会社キーエンス"
+      "ヒューリック株式会社"
     );
   });
 
@@ -152,8 +152,8 @@ test.describe("計算方法ページ（/about）", () => {
     await expect(page.getByRole("cell", { name: "年齢そろえ" })).toBeVisible();
 
     // 平均年齢のばらつきと、母集団平均が基準ごとに違うことを数値で示す。
-    await expect(page.getByText("27.1歳から", { exact: false })).toBeVisible();
+    await expect(page.getByText("27.0歳から", { exact: false })).toBeVisible();
     await expect(page.getByText("実測値のままだと平均年齢の高い会社が上に来ます")).toBeVisible();
-    await expect(page.getByText("719万円", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText("693万円", { exact: false }).first()).toBeVisible();
   });
 });

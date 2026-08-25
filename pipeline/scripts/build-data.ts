@@ -16,7 +16,7 @@ import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { TARGET_AGES } from "../../web/features/ranking/types";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const EXPECTED_ROW_COUNT = 1867;
+const EXPECTED_ROW_COUNT = 2961;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
 const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
 // 実測 131KB（注釈・説明 716社ぶんを同梱した状態）。切り出す前に気づける余白として
@@ -87,9 +87,38 @@ function monthsBetween(from: string, to: string): number {
   return (ty - fy) * 12 + (tm - fm);
 }
 
+/**
+ * 母集団の内訳（`pipeline/data/universe.json`。E2・`docs/expansion/spec.md` 1.3）。
+ * **CSV の行からは出せないものだけ**を持つ——取得の窓と、掲載条件で落とした社数。
+ * 書くのは `pipeline/salary/unified.py` の `save_universe`。
+ */
+interface Universe {
+  filingWindow: { from: string; to: string };
+  minEmployees: number;
+  excludedByEmployees: number;
+}
+
+function readUniverse(): Universe {
+  const raw = JSON.parse(readFileSync(resolve(ROOT, "data/universe.json"), "utf-8"));
+  const { filingWindow, minEmployees, excludedByEmployees } = raw ?? {};
+  if (
+    typeof filingWindow?.from !== "string" ||
+    typeof filingWindow?.to !== "string" ||
+    typeof minEmployees !== "number" ||
+    typeof excludedByEmployees !== "number"
+  ) {
+    throw new Error(
+      "pipeline/data/universe.json の形が想定と違います。" +
+        "pipeline/salary/unified.py を回して作り直すこと。"
+    );
+  }
+  return { filingWindow, minEmployees, excludedByEmployees };
+}
+
 export function buildData(outDir: string) {
   const csvText = readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8");
   const rows = parseUnifiedCsv(csvText);
+  const universe = readUniverse();
   if (rows.length !== EXPECTED_ROW_COUNT) {
     throw new Error(`companies.json は${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
   }
@@ -145,6 +174,14 @@ export function buildData(outDir: string) {
       // 掲載データの決算期の**幅**（E1・`docs/expansion/spec.md` 1.4）。web 側は
       // この2つの値から「2026年3月期〜4月期」を組み立てる（`web/lib/data/period.ts`）。
       fiscalPeriodRange: fiscalPeriodRange(rows),
+      // 取得の窓と、掲載条件で省いた社数（E2・`docs/expansion/spec.md` 1.3）。
+      // **どちらも CSV の行からは出せない**——窓は行に残らず、落とした会社は
+      // そもそも行にならない。`unified.py` が書いた内訳を読む。
+      filingWindow: universe.filingWindow,
+      excluded: {
+        minEmployees: universe.minEmployees,
+        byEmployees: universe.excludedByEmployees,
+      },
       generatedAt: new Date().toISOString(),
     },
     industries,
@@ -749,6 +786,32 @@ function buildDistribution(values: number[]) {
   return { median: sorted[Math.floor(sorted.length / 2)], min, width, counts };
 }
 
+/**
+ * 派生データが母集団の何割を覆えているか（E2・`docs/expansion/spec.md` AC-8）。
+ *
+ * **新しく入った会社だけ中身が空になる状態を、気づけないまま公開しない。** 母集団を
+ * 広げると、追随していない施策（ロゴ・10年推移・働きやすさ指標・稼ぐ力）は
+ * 新規社ぶんがまるごと欠ける。**欠けても画面は壊れない**（どれも「掲載なし」の
+ * 表示を持っている）ので、**数を出さないと気づけない。**
+ */
+function coverage(matched: number, total: number): string {
+  return `${matched}/${total}社（${((matched / total) * 100).toFixed(1)}%）`;
+}
+
+/**
+ * ロゴの調達済み社数。**`build:data` の生成物ではない**（`build:logos` が作る）が、
+ * AC-8 が名指しする4つのうちの1つなので同じサマリーに並べる。無い環境（クローン
+ * 直後など）では黙って飛ばす——ロゴが無いことはビルドの失敗ではない。
+ */
+function logoCount(): number | null {
+  try {
+    const raw = readFileSync(resolve(ROOT, "../web/public/data/logos.json"), "utf-8");
+    return Object.keys(JSON.parse(raw).byId ?? {}).length;
+  } catch {
+    return null;
+  }
+}
+
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const outIndex = process.argv.indexOf("--out");
@@ -764,25 +827,32 @@ if (isMain) {
   );
   console.log(result.curvesPath);
   console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
+  // **母集団に対する割合を添える**（E2・AC-8）。社数だけだと、母集団が広がった
+  // ときに「追随していない施策がどれだけ欠けているか」が読み取れない。
+  const total = result.companies.meta.count;
   console.log(
-    `${result.historyPath}: ${Object.keys(result.history.byId).length}社 × ${result.history.years.length}年, ` +
-      `gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
+    `${result.historyPath}: ${coverage(Object.keys(result.history.byId).length, total)} × ` +
+      `${result.history.years.length}年, gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.worklifePath}: ${result.worklife.meta.matched}社, ` +
+    `${result.worklifePath}: ${coverage(result.worklife.meta.matched, total)}, ` +
       `gzip ${(result.worklifeGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.performancePath}: ${result.performance.meta.matched}社 ` +
+    `${result.performancePath}: ${coverage(result.performance.meta.matched, total)} ` +
       `（${result.performance.meta.years.at(0)}〜${result.performance.meta.years.at(-1)}年）, ` +
       `gzip ${(result.performanceGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.radarPath}: ${result.radar.meta.axes.length}軸 × ${result.radar.meta.count}社, ` +
+    `${result.radarPath}: ${result.radar.meta.axes.length}軸 × ${coverage(result.radar.meta.count, total)}, ` +
       `gzip ${(result.radarGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.profitHistoryPath}: ${Object.keys(result.profitHistory.profit).length}社 × ` +
+    `${result.profitHistoryPath}: ${coverage(Object.keys(result.profitHistory.profit).length, total)} × ` +
       `${result.profitHistory.years.length}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
   );
+
+  // ロゴだけは別のコマンドが作るので、パスではなく施策名で出す（E3・#175 で追随する）。
+  const logos = logoCount();
+  console.log(`logos.json（build:logos）: ${logos === null ? "未生成" : coverage(logos, total)}`);
 }

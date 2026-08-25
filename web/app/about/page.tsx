@@ -20,6 +20,9 @@ import {
 } from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/period";
+import { aboutMetadata } from "@/lib/seo/about";
+import { JsonLd } from "@/lib/seo/JsonLd";
+import { webSiteJsonLd } from "@/lib/seo/jsonLd";
 import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
 import logosData from "../../public/data/logos.json";
@@ -33,16 +36,12 @@ const logoEntries = logosData.byId as Record<string, LogoEntry>;
 const logoCredits = attributionCredits(companies.rows, logoEntries);
 const logoCounts = creditCounts(logoEntries);
 
-export const metadata: Metadata = {
-  title: "計算方法 | OpenReport",
-  // 決算期は description に入れる（`docs/site-chrome/spec.md` 5.・AC-18）。
-  // 社数と同じく `companies.meta` から引く——直書きするとデータ更新でここだけ古くなる。
-  description:
-    `金融庁 EDINET の有価証券報告書（${fiscalPeriodLabel(companies.meta)}）から平均年収をどう取り、` +
-    "年齢でどう補正しているか。式と賃金カーブの出典、対象範囲、そしてこの方法で何が言えて何が言えないかまで全部公開しています。",
-  // 自己canonical（ADR-0006 の表）。`metadataBase` は `app/layout.tsx`。
-  alternates: { canonical: "/about" },
-};
+/**
+ * 文言は `lib/seo/about.ts` が持つ（S2 でここから出した）。`og:` を
+ * title・description・canonical と同じ文字列にするのは `toMetadata()` の
+ * 仕事で、素の `Metadata` を返すページだけ `og:` が付かない状態にしないため。
+ */
+export const metadata: Metadata = aboutMetadata(companies.meta);
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -88,6 +87,8 @@ export default function AboutPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 leading-relaxed">
+      {/* サイト名と `/` のURLだけ（S2・spec 4.4）。`/` と同じものを出す。 */}
+      <JsonLd data={webSiteJsonLd()} />
       <header className="flex flex-col gap-3">
         <NavLink href="/" className="text-primary text-sm underline">
           ← ランキングに戻る
@@ -256,7 +257,16 @@ export default function AboutPage() {
             <strong>{fiscalPeriodLabel(companies.meta)}</strong>
             {`の有価証券報告書（EDINET に${filingWindowLabel(companies.meta)}に提出されたもの）。決算期は会社ごとに違い、いちばん多いのは${periodLabel(facts.fiscalPeriodTop.period)}の${formatInt(facts.fiscalPeriodTop.count)}社（全体の${((facts.fiscalPeriodTop.count / facts.companyCount) * 100).toFixed(1)}%）です`}
           </li>
-          <li>単体従業員100人以上（数人しかいない持株会社が上位を埋めるのを避けるため）</li>
+          {/*
+            **省いた社数をここに出す**（E2・`docs/expansion/spec.md` 1.3・AC-4、
+            運営者の指示 2026-08-24）。条件そのものは以前から書いてあったが、
+            **それが何社を落としているかは書いていなかった**——掲載社数の3分の1を
+            超える会社がこの線で落ちるので、数が無いと「有報を出している会社は全部
+            載っている」と読めてしまう。**社数と同じくデータから引く**（`meta.excluded`）。
+          */}
+          <li>
+            {`単体従業員${formatInt(companies.meta.excluded.minEmployees)}人以上（数人しかいない持株会社が上位を埋めるのを避けるため）。この線で${formatInt(companies.meta.excluded.byEmployees)}社を省いています`}
+          </li>
           <li>平均年齢20〜65歳、平均年間給与100万円超</li>
           <li>非上場の会社も含む</li>
         </ul>

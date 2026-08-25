@@ -4,20 +4,12 @@ import { PAGE_SIZE } from "@/features/ranking/types";
 import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
 import { fiscalPeriodLabel } from "@/lib/data/period";
 import { toMetadata, type PageMeta } from "./pageMeta";
+import { agePath, industryPath } from "./paths";
 import { SITE_NAME } from "./site";
 
-/** `/?age=N`。`age` は数値なのでエンコードは要らない。 */
-export function agePath(age: TargetAge): string {
-  return `/?age=${age}`;
-}
-
-/**
- * `/?ind=X`。**業種名は日本語なので必ずエンコードする。**
- * canonical も sitemap もここを通し、生の文字列を混ぜない。
- */
-export function industryPath(industry: string): string {
-  return `/?ind=${encodeURIComponent(industry)}`;
-}
+// パスの組み立ては `lib/seo/paths.ts` に移した（S2）。**再輸出しておく**——
+// sitemap も canonical もパンくずも同じ2本を通ることが、この施策の要点である。
+export { agePath, industryPath };
 
 /**
  * ランキングURLの正規化。`path` が canonical で、`targetAge`・`industry`・`page` は
@@ -48,7 +40,7 @@ function withPage(base: string, page: number): string {
  * 置いていたが、ADR-0007 で既定が実測値になり「年齢補正が主軸」という前提が
  * 弱まったため、U8 の実装時に決め直した（ADR-0006 の追記）。業種は行の部分集合を
  * 決めるフィルタなので `/?ind=X` とは同じ会社が並ぶ near-duplicate になる。一方
- * `/?age=N` は1,867社が並ぶ別物で、重複しているのは業種側である。
+ * `/?age=N` は2,961社が並ぶ別物で、重複しているのは業種側である。
  *
  * **ページ送りは寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく、
  * 別の30社が並ぶ別のページである。**しかもページから `<a href>` で辿れる企業ページは
