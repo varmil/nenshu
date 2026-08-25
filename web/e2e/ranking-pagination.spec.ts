@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./rankingTest";
 import { collectPageRequests, waitForRankingReady } from "./network";
 
 test.describe("0件・端の状態と段階表示", () => {

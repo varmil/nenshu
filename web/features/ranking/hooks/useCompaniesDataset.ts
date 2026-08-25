@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CompaniesData } from "../types";
+import { acceptCompaniesDataset } from "../lib/dataset";
 
 /**
  * 全社ぶんのデータを初回に1度だけ取りに行く（E0・ADR-0013）。
@@ -35,10 +36,11 @@ export function useCompaniesDataset(dataUrl: string, version: string): Companies
       try {
         const response = await fetch(dataUrl);
         if (!response.ok) return;
-        const json = (await response.json()) as CompaniesData;
+        const json: unknown = await response.json();
         if (cancelled) return;
-        if (json?.meta?.version !== version || !Array.isArray(json.rows)) return;
-        setData(json);
+        const accepted = acceptCompaniesDataset(json, version);
+        if (accepted === null) return;
+        setData(accepted);
       } catch {
         // 取れなければ実ナビゲーションのまま動く。**画面には何も出さない**
         // ——読者にとっては「操作するとページが変わる」だけで、壊れてはいない。

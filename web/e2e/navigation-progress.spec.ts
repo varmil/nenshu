@@ -1,4 +1,5 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "./rankingTest";
+import type { Page } from "@playwright/test";
 
 /** 指定パターンのリクエストを遅らせて、遷移待ちが目に見える状態を作る。 */
 async function delayNavigationTo(page: Page, pattern: RegExp, ms: number) {

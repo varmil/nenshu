@@ -102,6 +102,19 @@ export function buildSearchParams(state: RankingState): URLSearchParams {
 }
 
 /**
+ * state を `/` からの相対URLにする。**全件が届く前の操作を実ナビゲーションに倒す
+ * ときの行き先**（E0・ADR-0013。`RankingApp` の `commit`）。
+ *
+ * **既定の状態は `/` にする。`/?` にしない**——`URLSearchParams` が空のとき
+ * `` `/?${search}` `` はクエリ記号だけが残った別のURLになり、canonical
+ * （`lib/seo/ranking.ts`）の判定にも sitemap にも無い綴りになる。
+ */
+export function rankingHref(state: RankingState): string {
+  const search = buildSearchParams(state).toString();
+  return search === "" ? "/" : `/?${search}`;
+}
+
+/**
  * `sort` の値を軸と向きに割る。向きが付いていなければ `null` を返す（＝軸の既定）。
  *
  * 軸のトークン（`salary`・`age`・`emp`）に `-` は含まれないので、末尾だけ見れば足りる。

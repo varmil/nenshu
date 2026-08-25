@@ -5,7 +5,7 @@ import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { rankingPageMeta } from "@/lib/seo/ranking";
 import { useRankingState } from "../hooks/useRankingState";
 import { useCompaniesDataset } from "../hooks/useCompaniesDataset";
-import { buildSearchParams, DEFAULT_TARGET_AGE } from "../lib/urlState";
+import { buildSearchParams, DEFAULT_TARGET_AGE, rankingHref } from "../lib/urlState";
 import { pageRange } from "../lib/pagination";
 import { populationForBasis } from "../lib/population";
 import { formatInt } from "../lib/format";
@@ -74,8 +74,7 @@ export function RankingApp({
       setState(next);
       return;
     }
-    const search = buildSearchParams(next).toString();
-    window.location.assign(search === "" ? "/" : `/?${search}`);
+    window.location.assign(rankingHref(next));
   };
 
   /**
