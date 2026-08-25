@@ -19,7 +19,7 @@ import {
   formatManYen1,
 } from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
-import { fiscalPeriodLabel, filingWindowLabel } from "@/lib/data/period";
+import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/period";
 import companiesData from "../../public/data/companies.json";
 import curvesData from "../../public/data/curves.json";
 import logosData from "../../public/data/logos.json";
@@ -247,13 +247,14 @@ export default function AboutPage() {
       <Section title="対象範囲">
         <ul className="ml-5 list-disc space-y-1">
           {/*
-            **データの時点はここが本文側の正**（S3・`docs/site-chrome/spec.md` 5.）。
-            決算期は全社が同じではない（3月期が中心で4月期が2社）ので、代表を1つ出す
-            この場所でだけ「中心」であることを断る。
+            **データの時点はここが本文側の正**（S3・`docs/site-chrome/spec.md` 5.、
+            E1・`docs/expansion/spec.md` 1.4）。決算期は全社が同じではないので幅で出す。
+            **幅だけだと端（いまは4月期の2社）が全体を代表しているように読める**ので、
+            どこに寄っているかをこの場所でだけ数字で断る。社数と割合はデータから引く。
           */}
           <li>
             <strong>{fiscalPeriodLabel(companies.meta)}</strong>
-            {`の有価証券報告書（EDINET に${filingWindowLabel(companies.meta)}に提出されたもの）。決算期は3月期が中心で、4月期の会社も含みます`}
+            {`の有価証券報告書（EDINET に${filingWindowLabel(companies.meta)}に提出されたもの）。決算期は会社ごとに違い、いちばん多いのは${periodLabel(facts.fiscalPeriodTop.period)}の${formatInt(facts.fiscalPeriodTop.count)}社（全体の${((facts.fiscalPeriodTop.count / facts.companyCount) * 100).toFixed(1)}%）です`}
           </li>
           <li>単体従業員100人以上（数人しかいない持株会社が上位を埋めるのを避けるため）</li>
           <li>平均年齢20〜65歳、平均年間給与100万円超</li>

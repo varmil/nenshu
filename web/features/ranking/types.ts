@@ -56,6 +56,8 @@ export type CompanyRow = [
   avgSalary: number,
   employees: number,
   badge: 0 | 1,
+  /** その会社の決算期。`CompaniesData.periods` への添字（E1）。 */
+  periodIdx: number,
 ];
 
 /**
@@ -67,8 +69,12 @@ export interface CompaniesMeta {
   /** データの版（提出期。`YYYY-MM`）。 */
   version: string;
   count: number;
-  /** 掲載データの決算期（最頻。`YYYY-MM`）。文字列にするのは `lib/data/period.ts`。 */
-  fiscalPeriod: string;
+  /**
+   * 掲載データの決算期の**幅**（`YYYY-MM` の最古と最新。E1）。文字列にするのは
+   * `lib/data/period.ts`。**代表を1つ選ぶのはやめた**——母集団を広げると最頻は
+   * 63.5% まで下がり、1,081社の決算期が違うまま代表を名乗ることになる。
+   */
+  fiscalPeriodRange: { from: string; to: string };
   generatedAt: string;
 }
 
@@ -76,6 +82,8 @@ export interface CompaniesData {
   meta: CompaniesMeta;
   industries: string[];
   curveKeys: string[];
+  /** 会社ごとの決算期（`YYYY-MM`・昇順）。`rows` の `periodIdx` がここを指す。 */
+  periods: string[];
   rows: CompanyRow[];
 }
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { attributionCredits, creditCounts, type LogoEntry } from "./credits";
 import type { CompanyRow } from "@/features/ranking/types";
 
-const row = (id: string, name: string): CompanyRow => [id, name, 0, 0, 40, 10, 5_000_000, 100, 0];
+const row = (id: string, name: string): CompanyRow => [id, name, 0, 0, 40, 10, 5_000_000, 100, 0, 0];
 
 const rows = [row("1", "あ株式会社"), row("2", "い株式会社"), row("3", "う株式会社")];
 
