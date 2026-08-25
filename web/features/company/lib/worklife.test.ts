@@ -31,6 +31,27 @@ describe("buildWorklifeView", () => {
     for (const m of view.metrics) expect(m.rows).toEqual([]);
   });
 
+  /*
+   * 単位は**値の隣**に出す（運営者の指示）。見出し側には、単位では表せない
+   * 情報（残業の期間）だけを残す——同じ単位を2か所に出さない。
+   */
+  it("3指標とも値の隣に単位を持つ", () => {
+    const view = buildWorklifeView(null);
+    expect(view.metrics.map((m) => [m.key, m.valueSuffix])).toEqual([
+      ["overtime", "h"],
+      ["paidLeave", "%"],
+      ["wageGap", "%"],
+    ]);
+  });
+
+  it("見出しに単位を重ねない（残業は期間だけが残る）", () => {
+    const view = buildWorklifeView(null);
+    expect(view.metrics.map((m) => m.unit)).toEqual(["月あたり", "", ""]);
+    for (const m of view.metrics) expect(m.unit).not.toContain(m.valueSuffix);
+    // `時間` は値の `h` が持つので、見出しからは落ちている。
+    expect(view.metrics[0].unit).not.toContain("時間");
+  });
+
   /**
    * Issue #192。iPhone 12 Pro（横幅390px）で本文幅は358px、12px の字で29文字。
    * **文言を書き写さず長さで固定する**——書き写すと、文言を直すたびにテストも

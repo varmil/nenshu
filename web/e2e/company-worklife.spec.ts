@@ -23,8 +23,8 @@ test.describe("AC-6 平均残業時間", () => {
     const overtime = metric(page, "平均残業時間");
     await expect(overtime).toContainText("20.3");
     await expect(overtime).toContainText("対象正社員");
-    // 単位は行ごとに繰り返さず見出しに1回だけ（アートボード 6c）。
-    await expect(overtime).toContainText("時間 / 月");
+    // 単位は値の隣（`20.3h`）。見出しには期間だけが残る。
+    await expect(overtime).toContainText("月あたり");
   });
 
   test("雇用管理区分の4件が登録順で出る（三菱商事）", async ({ page }) => {
@@ -296,5 +296,53 @@ test.describe("モックとの一致（2巡目）", () => {
       expect(row.size).toBeLessThan(rows[0].size);
       expect(row.labelColor).not.toBe(rows[0].labelColor);
     }
+  });
+});
+
+/*
+ * 単位は**値の隣**に出す（運営者の指示）。数字だけが並ぶと、残業の `28.5` と
+ * 有給の `74.9` が同じ尺度に見える。見出し側には単位では表せない情報
+ * （残業の期間）だけを残す——同じ単位を2か所に出さない。
+ */
+test.describe("値の隣に単位を出す", () => {
+  test("残業は h、有給は %、賃金の差異は % が値に付く（三菱商事）", async ({ page }) => {
+    await page.goto("/company/8058");
+    await expect(metric(page, "平均残業時間").locator("dd")).toContainText("10.5h");
+    await expect(metric(page, "年次有給休暇の取得率").locator("dd")).toContainText("73.1%");
+    await expect(metric(page, "男女の賃金の差異").locator("dd")).toContainText("64.7%");
+  });
+
+  test("見出しに単位を重ねない（残業は期間だけ・有給は空）", async ({ page }) => {
+    await page.goto("/company/8058");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("月あたり");
+    // `時間` は値の `h` が持つので見出しからは落ちている。
+    await expect(overtime.getByText("時間 / 月")).toHaveCount(0);
+    // 有給の見出しは指標名だけ（`%` は値の隣）。
+    const paidHeading = await metric(page, "年次有給休暇の取得率")
+      .locator("dt")
+      .locator("xpath=..")
+      .innerText();
+    expect(paidHeading.trim()).toBe("年次有給休暇の取得率");
+  });
+
+  test("単位は行ごとに繰り返しても行の高さを変えない（区分5件）", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/8058");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    // 器の右端が単位のぶんずれていないこと（値の列は固定幅のまま）。
+    const boxes = await metric(page, "平均残業時間")
+      .locator("dd span[aria-hidden]")
+      .evaluateAll((tracks) =>
+        tracks.map((t) => {
+          const r = t.getBoundingClientRect();
+          return [Math.round(r.left), Math.round(r.width)];
+        })
+      );
+    expect(boxes.length).toBeGreaterThan(1);
+    for (const box of boxes) expect(box).toEqual(boxes[0]);
   });
 });

@@ -53,20 +53,12 @@ export function representativeValue(
   return values.length === 1 ? (values[0].value as number) : null;
 }
 
-/**
- * `representativeValue` が採った値の**区分名**（アートボード 6b の `正社員`）。
- *
- * 全体値から来たときは空文字——全体値に区分名は無い。**同じ規則を2度書かない**
- * ように、選び方は `representativeValue` と同じ形にしてある。
+/*
+ * ~~`representativeUnitLabel`~~ — その値がどの雇用管理区分のものかをリストに
+ * 添えていたが、**落とした**（運営者の指示）。`対象とする労働者すべて` のような
+ * 長い区分名で行が2行になり、そのぶんの情報量に見合わない。**区分名は
+ * W1 の節が行ごとに出している**ので、この画面から消えるわけではない。
  */
-export function representativeUnitLabel(
-  all: number | null,
-  units: readonly { unit: string; value: number | null }[]
-): string {
-  if (all !== null) return "";
-  const present = units.filter((u) => u.value !== null);
-  return present.length === 1 ? present[0].unit : "";
-}
 
 /**
  * 値の並びを**順位（1が最上位）**に直す。欠測は `-1`。
@@ -75,8 +67,10 @@ export function representativeUnitLabel(
  * 説明文）なので、**その軸に値がある会社だけを母集団にする。** 欠測を最下位として
  * 数えると、掲載率6割の軸（有給・残業）で公表している会社が軒並み上位に寄る。
  *
- * `ascendingIsBetter` が `true` の軸（残業の少なさ）は**小さいほど上位**。5軸すべてが
- * 「外側＝良い」で揃っていないとレーダーは図として読めない（#154）。
+ * `ascendingIsBetter` が `true` の軸（残業時間）は**小さいほど上位**。5軸すべてが
+ * 「外側＝良い」で揃っていないとレーダーは図として読めない（#154）。**軸の名前は
+ * 指標名そのものに戻したが、位置の決め方は変えていない**——向きは図の説明文
+ * （`外側ほど上位`）と、隣に出る順位が担う。
  *
  * **同値は同順位**（ランキング表の `rankAll` と同じ扱い）。
  *
@@ -187,11 +181,6 @@ export interface RadarAxisInput {
   value: number | null;
   rank: number;
   population: number;
-  /**
-   * 値が雇用管理区分の1件から来ているときの区分名（アートボード 6b の `正社員`）。
-   * 全体値から来ているとき・区分を持たない軸では空文字。
-   */
-  unitLabel?: string;
 }
 
 /**
@@ -212,9 +201,13 @@ const LABELS: Record<RadarAxisKey, string> = {
   paidLeave: "有給の取得",
   tenure: "定着（在籍）",
   profit: "稼ぐ力",
-  // **「残業の少なさ」。** 5軸すべてが「外側＝良い」で揃っていないと図として
-  // 読めないので、軸の名前も少ないほうが良い向きに合わせる（#154）。
-  overtime: "残業の少なさ",
+  /*
+   * **「残業時間」。** #154 は「5軸すべてが外側＝良いで揃っていないと図として
+   * 読めない」として「残業の少なさ」にしていたが、運営者の指示で指標名そのものに
+   * 戻した。**向きは図の説明文（`外側ほど上位`）と、隣に出る順位が担う**
+   * ——`974社中941位` は「公表している974社の中で下から34番目」と読める。
+   */
+  overtime: "残業時間",
 };
 
 /**
@@ -230,7 +223,7 @@ export function buildRadarAxes(
   subLabels: Partial<Record<RadarAxisKey, string>> = {}
 ): RadarAxis[] {
   return RADAR_AXES.map((key) => {
-    const { value, rank, population, unitLabel } = inputs[key];
+    const { value, rank, population } = inputs[key];
     const missing = value === null || rank < 1;
     return {
       key,
@@ -240,9 +233,9 @@ export function buildRadarAxes(
       rankText: missing
         ? ""
         : `${population.toLocaleString("ja-JP")}社中${rank.toLocaleString("ja-JP")}位`,
-      // **区分名は掲載があるときだけ。** 「掲載なし」の隣に区分名を置くと、
-      // 値が無いのに区分だけある行になる。
-      subLabel: missing ? "" : (subLabels[key] ?? unitLabel ?? ""),
+      // **注記は掲載があるときだけ。** 「掲載なし」の隣に `1人当たり経常利益` が
+      // 残ると、値が無いのに説明だけある行になる。
+      subLabel: missing ? "" : (subLabels[key] ?? ""),
       note: missing ? "" : (notes[key] ?? ""),
     };
   });

@@ -8,7 +8,7 @@ import {
   type WorklifeData,
   type WorklifeRecord,
 } from "@/lib/data/worklife";
-import { representativeUnitLabel, representativeValue } from "@/features/company/lib/radar";
+import { representativeValue } from "@/features/company/lib/radar";
 import type {
   CompanyRadarInput,
   PerformanceData,
@@ -121,30 +121,22 @@ function profitHistoryFor(id: string): ProfitHistory | null {
 function radarFor(id: string, record: WorklifeRecord | null): CompanyRadarInput {
   const index = findRowIndex(companies, id);
   const row = companies.rows[index];
-  const axis = (
-    data: RadarAxisData,
-    value: number | null,
-    unitLabel = ""
-  ): RadarAxisInput => ({
+  const axis = (data: RadarAxisData, value: number | null): RadarAxisInput => ({
     value,
     rank: data.rank[index] ?? -1,
     population: data.population,
-    unitLabel,
   });
   return {
     paidLeave: axis(
       radar.paidLeave,
-      representativeValue(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? []),
-      // **その値がどの雇用管理区分のものかを添える**（アートボード 6b の `正社員`）。
-      representativeUnitLabel(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? [])
+      representativeValue(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? [])
     ),
     // 在籍年数は `companies.rows` の6番目（`buildCompanyView` の分解と同じ並び）。
     tenure: axis(radar.tenure, (row?.[5] as number) ?? null),
     profit: axis(radar.profit, performance.perEmployee[index] ?? null),
     overtime: axis(
       radar.overtime,
-      representativeValue(record?.overtimeAll ?? null, record?.overtimeUnits ?? []),
-      representativeUnitLabel(record?.overtimeAll ?? null, record?.overtimeUnits ?? [])
+      representativeValue(record?.overtimeAll ?? null, record?.overtimeUnits ?? [])
     ),
     profitIndustryMedian: performance.industryMedian[(row?.[2] as number) ?? -1] ?? null,
   };

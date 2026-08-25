@@ -5,7 +5,6 @@ import {
   MIN_POSITION,
   RADAR_LIST_ORDER,
   ranks,
-  representativeUnitLabel,
   representativeValue,
   type RadarAxisInput,
 } from "./radar";
@@ -121,7 +120,7 @@ describe("buildRadarAxes", () => {
 
   it("AC-7 掲載なしの軸は頂点を打たず、ラベルは残る", () => {
     const overtime = axes[4];
-    expect(overtime.label).toBe("残業の少なさ");
+    expect(overtime.label).toBe("残業時間");
     expect(overtime.valueText).toBe("掲載なし");
     expect(overtime.position).toBeNull();
     expect(overtime.rankText).toBe("");
@@ -151,24 +150,23 @@ describe("buildRadarAxes", () => {
     expect(axes[3].note).toBe("電気機器の中央値 191万円");
   });
 
-  it("掲載なしの軸には注記も区分名も付けない", () => {
-    // 値が無いのに「1人あたり…」や区分名だけが残ると、掲載があるように見える。
+  it("掲載なしの軸には注記を付けない", () => {
+    // 値が無いのに「1人あたり…」だけが残ると、掲載があるように見える。
     expect(axes[4].subLabel).toBe("");
     expect(axes[4].note).toBe("");
   });
 
-  it("区分がちょうど1つのとき、その区分名が軸に添う", () => {
-    const [axis] = buildRadarAxes(
-      {
-        salary: input(2178, 1, 1867),
-        paidLeave: { ...input(38.8, 883, 895), unitLabel: "正社員" },
-        tenure: input(11.3, 1468, 1867),
-        profit: input(4062, 16, 1864),
-        overtime: input(null, -1, 974),
-      },
-      FORMAT
-    ).filter((a) => a.key === "paidLeave");
-    expect(axis.subLabel).toBe("正社員");
+  /*
+   * 有給・残業には区分名（`対象とする労働者すべて`）を添えていたが**落とした**
+   * （運営者の指示）。長い区分名で行が2行になり、そのぶんの情報量に見合わない。
+   * **区分名は W1 の節が行ごとに出している**ので、この画面から消えるわけではない。
+   */
+  it("注記を持つのは稼ぐ力だけ（有給・残業に区分名を添えない）", () => {
+    expect(axes.filter((a) => a.subLabel !== "").map((a) => a.key)).toEqual(["profit"]);
+  });
+
+  it("残業の軸は指標名そのまま（向きは説明文と順位が担う）", () => {
+    expect(axes[4].label).toBe("残業時間");
   });
 });
 
@@ -185,33 +183,5 @@ describe("RADAR_LIST_ORDER", () => {
     expect([...RADAR_LIST_ORDER].sort()).toEqual(
       ["overtime", "paidLeave", "profit", "salary", "tenure"].sort()
     );
-  });
-});
-
-describe("representativeUnitLabel", () => {
-  it("全体値から来たときは区分名を出さない", () => {
-    expect(representativeUnitLabel(74, [{ unit: "正社員", value: 70 }])).toBe("");
-  });
-
-  it("区分がちょうど1つならその名前を返す", () => {
-    expect(representativeUnitLabel(null, [{ unit: "正社員", value: 38.8 }])).toBe("正社員");
-  });
-
-  it("区分が2つ以上なら空（代表を選ばない）", () => {
-    expect(
-      representativeUnitLabel(null, [
-        { unit: "営業・管理系", value: 67.4 },
-        { unit: "技術系", value: 60.8 },
-      ])
-    ).toBe("");
-  });
-
-  it("値の無い区分は数えない", () => {
-    expect(
-      representativeUnitLabel(null, [
-        { unit: "正社員", value: 38.8 },
-        { unit: "派遣社員", value: null },
-      ])
-    ).toBe("正社員");
   });
 });
