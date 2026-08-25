@@ -2,7 +2,7 @@
 
 `docs/expansion/spec.md` を Unit に割る。親 Issue: [#22](https://github.com/varmil/nenshu/issues/22)
 
-**Unit の ID は `E`**（expansion）。Issue は E0 #174・E1 #172・E2 #173・E3 #175・E4 #176・E5 #177・E6 #182。**E1・E2・E3 は実装済み**（`period-range/`・`universe/`・`logo-catchup/`）。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
+**Unit の ID は `E`**（expansion）。Issue は E0 #174・E1 #172・E2 #173・E3 #175・E4 #176・E5 #177・E6 #182。**E1・E2・E3・E5 は実装済み**（`period-range/`・`universe/`・`logo-catchup/`・`worklife-rematch/`）。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
 
 ## Unit 一覧
 

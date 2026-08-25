@@ -493,7 +493,7 @@ describe("buildData", () => {
     it("突合できた会社数が CSV の行数と一致する", () => {
       const csv = parseCsv(readFileSync(join(ROOT, "data/worklife_2026.csv"), "utf-8"));
       expect(result.worklife.meta.matched).toBe(csv.length - 1);
-      expect(result.worklife.meta.matched).toBe(1548);
+      expect(result.worklife.meta.matched).toBe(2369);
     });
 
     it("トヨタ自動車の値が読み戻せる", () => {
@@ -529,8 +529,10 @@ describe("buildData", () => {
       expect(row[9]).toBe(0);
     });
 
-    it("gzip後サイズが上限(160KB)以内", () => {
-      expect(result.worklifeGzipSize).toBeLessThanOrEqual(160 * 1024);
+    // **切り出しの発動条件は Worker バンドルであってこのファイル単体ではない**
+    // （`docs/worklife/overview.md`）。E5（#177）で 2,369社ぶんになり 186.2KB。
+    it("gzip後サイズが上限(220KB)以内", () => {
+      expect(result.worklifeGzipSize).toBeLessThanOrEqual(220 * 1024);
     });
   });
 
@@ -644,14 +646,14 @@ describe("buildData", () => {
       expect(Object.keys(result.radar)).not.toContain("salary");
     });
 
-    it("母集団は軸ごとに違う（有給と残業は6割前後しか公表がない）", () => {
+    // **母集団を広げると公表率は下がる**（E2・E5）。新しく入った会社には非上場・
+    // 新規上場が多く、女性活躍DBへの掲載が任意なため——有給 42.8%・残業 48.0%。
+    it("母集団は軸ごとに違う（有給と残業は掲載が任意なので半数に満たない）", () => {
       expect(result.radar.tenure.population).toBe(2961);
       expect(result.radar.profit.population).toBe(1865);
       // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
-      expect(result.radar.paidLeave.population).toBeGreaterThan(800);
-      expect(result.radar.paidLeave.population).toBeLessThan(1200);
-      expect(result.radar.overtime.population).toBeGreaterThan(800);
-      expect(result.radar.overtime.population).toBeLessThan(1200);
+      expect(result.radar.paidLeave.population).toBe(1266);
+      expect(result.radar.overtime.population).toBe(1420);
     });
 
     it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {

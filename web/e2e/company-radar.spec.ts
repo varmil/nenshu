@@ -99,7 +99,7 @@ test.describe("AC-9 図だけが情報源にならない", () => {
     await page.goto("/company/6861");
     const list = section(page).locator("dl");
     await expect(list).toContainText("2,961社中3位");
-    await expect(list).toContainText("895社中883位");
+    await expect(list).toContainText("1,266社中1,246位");
     // 「上位◯%」は使わない（上位82%が良い意味に読まれるため）。
     await expect(list).not.toContainText("上位");
   });
@@ -207,7 +207,7 @@ test.describe("モックとの一致（2巡目）", () => {
     const withRank = rows.filter((r) => r[2] > 0);
     expect(withRank.length).toBeGreaterThan(1);
     for (const row of rows) expect(row.slice(0, 2)).toEqual(rows[0].slice(0, 2));
-    // 桁数の違う順位（`2,961社中3位` と `895社中883位`）が右端でそろう。
+    // 桁数の違う順位（`2,961社中3位` と `1,266社中1,246位`）が右端でそろう。
     for (const row of withRank) expect(row[2]).toBe(withRank[0][2]);
   });
 

@@ -141,8 +141,8 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
     expect(header).toEqual([...WORKLIFE_HEADER]);
   });
 
-  it("法人番号で突合できた会社のうち、3指標のいずれかを持つ1,548社が入っている", () => {
-    expect(body).toHaveLength(1548);
+  it("法人番号で突合できた会社のうち、3指標のいずれかを持つ2,369社が入っている", () => {
+    expect(body).toHaveLength(2369);
   });
 
   it("すべての行が13桁の法人番号を持つ", () => {
