@@ -79,8 +79,8 @@ const profitHistory = profitHistoryData as unknown as {
 const logoIds = logosData.byId as Record<string, unknown>;
 
 /**
- * この画面に出る会社（自身と、9基準ぶんの近傍5社）のうちロゴを持つIDだけを配る。
- * **ランキングと違ってマスクは送らない**——出るのは多くても46社で、1,867文字を
+ * この画面に出る会社（自身と、9基準ぶんの近傍10社）のうちロゴを持つIDだけを配る。
+ * **ランキングと違ってマスクは送らない**——出るのは多くても91社で、1,867文字を
  * 送るほうが大きい。
  */
 function logoIdsOnPage(view: CompanyView): string[] {
