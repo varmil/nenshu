@@ -1,5 +1,5 @@
 /**
- * 女性活躍DBの全件CSVを、有報1,867社に法人番号で突合して
+ * 女性活躍DBの全件CSVを、有報の掲載社に法人番号で突合して
  * `pipeline/data/worklife_2026.csv` を作る（W0・Issue #149）。
  *
  *   cd pipeline && npx tsx worklife/extract.ts
@@ -30,7 +30,8 @@ const PIPELINE = resolve(HERE, "..");
 const SOURCE_DIR = resolve(HERE, "source");
 const MANIFEST = resolve(HERE, "manifest.json");
 const OUT_CSV = resolve(PIPELINE, "data/worklife_2026.csv");
-const EXPECTED_COMPANY_COUNT = 1867;
+/** 有報の掲載社数（＝CSV の行数）。E2（#173）で 1,867 → 2,961社になった。 */
+const EXPECTED_COMPANY_COUNT = 2961;
 
 /** 出力の列。**注釈は改行・カンマ・引用符を含む**ので、書き出しは `toCsv` を通す。 */
 export const WORKLIFE_HEADER = [
@@ -110,7 +111,7 @@ export function extract() {
     idByNumber.set(row.corporateNumber, makeId(row));
   }
 
-  // 女性活躍DB側。要る1,867社ぶんだけ拾い、残りはその場で捨てる
+  // 女性活躍DB側。要る掲載社ぶんだけ拾い、残りはその場で捨てる
   const text = execFileSync("unzip", ["-p", zipPath], { maxBuffer: 512 * 1024 * 1024 }).toString("utf-8");
   const picked = new Map<string, string[]>();
   let sourceRows = 0;

@@ -19,10 +19,11 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_ROW_COUNT = 2961;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
 const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
-// 実測 131KB（注釈・説明 716社ぶんを同梱した状態）。切り出す前に気づける余白として
-// 上限を 160KB に置く。増分の6割が注釈なので、超えたらそこを別ファイルにする
-// （`docs/worklife/overview.md`）。
-const WORKLIFE_JSON_GZIP_LIMIT_BYTES = 160 * 1024;
+// 実測 186.2KB（E5 で母集団に追随させた後・2,369社ぶん。注釈・説明 1,057社を同梱）。
+// **切り出しの発動条件は Worker バンドルが 3MiB に近づいたときで、このファイル単体の
+// 大きさではない**（`docs/worklife/overview.md`）——実測でバンドルは gzip 2.089MB
+// （66.4%）で、余裕が1MB以上ある。上限は気づくための線として 220KB に置く。
+const WORKLIFE_JSON_GZIP_LIMIT_BYTES = 220 * 1024;
 // 実測 8.6KB（1,867社ぶんの整数1本と業種33件の中央値だけ）。数値の配列2本しか
 // 持たないので、桁が変わったら中身が変わったということ。上限は 32KB に置く。
 const PERFORMANCE_JSON_GZIP_LIMIT_BYTES = 32 * 1024;
