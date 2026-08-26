@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent } from "react";
-import { usePathname } from "next/navigation";
+import { isRankingPath } from "@/lib/history/pathname";
 import { NavLink } from "./NavLink";
 import { pushRankingReset } from "@/features/ranking/lib/queryBroadcast";
 
@@ -21,10 +21,10 @@ import { pushRankingReset } from "@/features/ranking/lib/queryBroadcast";
  * この要素が担っている「絞り込みを解く」振る舞いも変わらない。
  */
 export function BrandLink() {
-  const pathname = usePathname();
-
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (pathname !== "/") return;
+    // パスはクリックの瞬間に読む。ヘッダはページ遷移で作り直されないので、
+    // レンダー時に採った値はここへ来るまでに古くなりうる。
+    if (!isRankingPath()) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) {
       return;
     }

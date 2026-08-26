@@ -43,6 +43,22 @@ const eslintConfig = defineConfig([
               message:
                 "ページ間の遷移は features/navigation/components/NavLink の NavLink を使う（遷移中のプログレスバーが出なくなるため）。props は next/link と同じ。",
             },
+            /*
+              F0（Issue #208・ADR-0014）で剥がした2つ。**戻ってこられないようにする。**
+              Astro へ移すと決めた以上（ADR-0014）、`next/*` の実行時 API を増やすほど
+              F1 のカットオーバーの差分が増える。型（`Metadata` など）は実行時のコードが
+              0バイトなので止めない——あれは F1 でルーティングごと移すときに一緒に消える。
+            */
+            {
+              name: "next/navigation",
+              message:
+                "パスは lib/history/usePathname（購読が要るとき）か lib/history/pathname の isRankingPath（クリックの瞬間だけ）を使う。404 はルート側の分岐に寄せる（F0・#208・ADR-0014）。",
+            },
+            {
+              name: "next/script",
+              message:
+                "素の <script> を使う（F0・#208・ADR-0014）。strategy が与える「描画をブロックしない」は async 属性や置き場所で足りる。",
+            },
           ],
         },
       ],

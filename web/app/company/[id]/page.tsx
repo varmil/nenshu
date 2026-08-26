@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView } from "@/features/company/lib/worklife";
@@ -202,9 +201,29 @@ function fiscalPeriodFor(id: string): string {
   return label;
 }
 
+/**
+ * 1社ぶんを引く。**引けなかったらビルドを落とす。**
+ *
+ * `dynamicParams = false` があるので、`companies.json` に無いIDは**このページに
+ * 届く前に 404 になる**（`generateStaticParams` が返した一覧に無いため）。
+ * つまりここで `null` が返るのは、**`generateStaticParams` と
+ * `buildCompanyView` が同じ `companies.rows` を見ているのに食い違った**とき
+ * ——データが自己矛盾しているときだけになる。
+ *
+ * 以前は `notFound()` を呼んでいたが、それは**起こらない事態を 404 として
+ * 静かに配ること**になる。全社を事前生成する構成（ADR-0012）では、1社でも
+ * 引けない時点でビルドが通ってはいけない。
+ */
+function requireCompanyView(id: string): CompanyView {
+  const view = buildCompanyView(companies, curves, stats, id);
+  if (view === null) {
+    throw new Error(`企業ID ${id} の CompanyView を作れません（companies.json と生成した一覧が食い違っています）`);
+  }
+  return view;
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const view = buildCompanyView(companies, curves, stats, (await params).id);
-  if (view === null) return { title: "見つかりませんでした" };
+  const view = requireCompanyView((await params).id);
 
   // 文言は `lib/seo/company.ts` が持つ。**ビルド時に1度決まればそれきりで、
   // クライアントは書き換えない**——表示基準が URL に出ないので、URL とメタデータが
@@ -219,8 +238,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  * この1社ぶんの8年齢＝16回の補間だけで、それもビルド時に済む。
  */
 export default async function CompanyPage({ params }: Props) {
-  const view = buildCompanyView(companies, curves, stats, (await params).id);
-  if (view === null) notFound();
+  const view = requireCompanyView((await params).id);
 
   // **1社ぶんを1度だけ読み戻す。** レーダーの2軸と働きやすさの節が同じ行を使う。
   const worklifeRecord = worklifeRecordFor(view.id);

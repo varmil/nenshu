@@ -8,8 +8,8 @@
 
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
-| F0 | [`next/*` への依存を剥がす](https://github.com/varmil/nenshu/issues/208) | なし | AC-5, AC-6 | **Next.js のまま行う。** `notFound`・`usePathname`・`Link`＋`useLinkStatus`・`Script` の5か所を自前の薄い層へ寄せる。※共有: `features/navigation/` |
-| F1 | [Astro へ移す（カットオーバー）](https://github.com/varmil/nenshu/issues/209) | F0（#208）・**E0（#174）** | AC-1〜AC-3, AC-5〜AC-15 | **1つの PR で切り替える。** 足場・ルーティング・事前生成・メタデータ・キャッシュ・`run_worker_first`・sitemap・robots・E2E の付け替えを含む。※共有: 全体 |
+| F0 | [`next/*` への依存を剥がす](https://github.com/varmil/nenshu/issues/208) | なし | AC-5, AC-6 | **Next.js のまま行う。** `notFound`・`usePathname`・`Script` の4か所を自前の薄い層へ寄せる。**`next/link` は F1 へ回した**（下記）。※共有: `features/navigation/` |
+| F1 | [Astro へ移す（カットオーバー）](https://github.com/varmil/nenshu/issues/209) | F0（#208）・**E0（#174）** | AC-1〜AC-3, AC-5〜AC-15 | **1つの PR で切り替える。** 足場・ルーティング・事前生成・メタデータ・キャッシュ・`run_worker_first`・sitemap・robots・E2E の付け替え、**`next/link` と型（`Metadata` など）の始末**を含む。※共有: 全体 |
 | F2 | [遷移の待ち表示を作り直す](https://github.com/varmil/nenshu/issues/210) | F1（#209） | AC-5 | **まず「要るのか」を測ってから作る。** 素の HTML 取得が十分速ければ作らない。※共有: `features/navigation/` |
 
 ## 実施順序
@@ -41,18 +41,21 @@ spec.md の 2.（AC-5・AC-6）。
 
 **Next.js のまま完結する Unit。** main は動き続け、デプロイも通る。**F1 の差分から「Next.js の API を置き換える」という関心を抜くために先に置く**——カットオーバーの PR は触る範囲が広いので、混ぜると何が壊れたか切り分けられない。
 
-剥がす5か所は次のとおり（実測。`docs/framework/intent.md` H1）。
+剥がすのは4か所（実測。`docs/framework/intent.md` H1）。
 
 | import | 箇所 | 置き換え先 |
 | --- | --- | --- |
 | `next/navigation` の `notFound` | `app/company/[id]/page.tsx` | ルート側の分岐に寄せる |
-| `next/navigation` の `usePathname` | `HeaderSearch.tsx`・`BrandLink.tsx` | `location.pathname` を読む薄いフック |
-| `next/link` の `Link`・`useLinkStatus` | `NavLink.tsx` | `NavLink` の中だけで完結させる |
+| `next/navigation` の `usePathname` | `HeaderSearch.tsx`・`BrandLink.tsx` | `lib/history/` のフックと即時読み |
 | `next/script` の `Script` | `app/layout.tsx` | 素の `<script>` |
 
-**型（`Metadata`・`MetadataRoute`・`Viewport`・`NextConfig`）はこの Unit では触らない。** 実行時のコードが0バイトなので、F1 でルーティングごと移すときに一緒に消える。
+**`next/link`（`Link`・`useLinkStatus`）は F0 では外さない。着手して分かったので分解を改めた。**
 
-- **`eslint.config.mjs` の `no-restricted-imports`（`next/link` の直接 import を止めている）は残す。** 対象を自前の層に付け替える
+**`next/link` はクライアント遷移そのもの**で、素の `<a>` に替えると全ページが再読み込みになる。**それは「遷移の方式を変える」ことで、F1 の中身そのもの**になる。F0 に残せば「Next.js のまま完結する・main は動き続ける」という前提を失うので、**F1 へ回した**（`docs/framework/next-detach/plan.md` に経緯）。
+
+**型（`Metadata`・`MetadataRoute`・`Viewport`・`NextConfig`）も F1 の担当。** 実行時のコードが0バイトなので、ルーティングごと移すときに一緒に消える。**つまり F1 が引き取るのは「型 ＋ `next/link`」になる。**
+
+- **`eslint.config.mjs` の `no-restricted-imports` に `next/navigation` と `next/script` を足す。** 剥がした先から戻ってこられないようにする。**`next/link` の既存の規則はそのまま残す**（F1 まで使い続けるので、`NavLink` 経由に寄せる必要がある）
 - **`usePathname` の置き換えは `lib/history/` の規則に乗せる**——あそこが「URL を読む・書く」の1か所になっている（U14・#108）
 
 ## F1 Astro へ移す（カットオーバー・[#209](https://github.com/varmil/nenshu/issues/209)）
