@@ -98,6 +98,11 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 **`main` と `assets.directory` も書かなくなった。** `@astrojs/cloudflare` が `@astrojs/cloudflare/entrypoints/server` を差し込み、出力先は `@cloudflare/vite-plugin` が知っている。**書くとビルド前に「そのファイルが無い」で落ちる**（成果物を指すので鶏と卵になる）。
 
+**Node のバージョンは `web/.node-version` で固定する（`22.16.0`）。** Astro 7 が要求するのは `>=22.12.0` で、**Next.js 16 の `>=20.9.0` より上がっている**——このカットオーバーで初めて 20 系では動かなくなった。ビルド環境が既定で選ぶ版に任せると、そこが 20 系のままだと `astro build` が起動した瞬間に落ちる。`web/package.json` の `engines.node` にも同じ下限を書いてあるので、`npm ci` の時点で警告が出る。
+
+- **置き場所はルートディレクトリ（`/web`）。** リポジトリの直下ではない
+- **ダッシュボードに `NODE_VERSION` 環境変数が設定されていると、そちらが勝つ**ことがある。バージョンを変えたのに効かないときはそこを見る
+
 **マージ順序**: 2026-08-17 と同じで、**コード（`main`）を先にマージし、そのあとダッシュボードのコマンドを更新する。** 逆順だと、まだ Next.js のコードに対して `astro build` が走って失敗する。コードを先にマージした場合、ダッシュボードが旧コマンドのままだと `npx opennextjs-cloudflare build` が「そんなコマンドは無い」で失敗する。**どちらの向きでも、Cloudflare はビルド失敗時に直前の成功バージョンを配信し続けるので本番は落ちない**（更新が止まるだけ）。
 
 詳細は `docs/framework/astro-cutover/design.md` 参照。
