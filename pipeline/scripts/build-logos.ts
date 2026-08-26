@@ -13,7 +13,7 @@ import {
   manifestIcons,
   defaultIconCandidates,
 } from "./lib/logo/site";
-import { Candidate, sortCandidates } from "./lib/logo/candidates";
+import { Candidate, prioritize, sortCandidates } from "./lib/logo/candidates";
 import {
   probe,
   reject,
@@ -143,12 +143,14 @@ async function main() {
       if (commonsInfo?.fileUrl) candidates.push({ source: "commons", url: commonsInfo.fileUrl });
       if (site) candidates.push(...(await siteCandidates(fetcher, site)));
 
-      if (candidates.length === 0) {
+      // 指定のある会社では、優先順より先にその候補を試す（`candidates.ts` の表）
+      const ordered = prioritize(company.id, sortCandidates(candidates));
+      if (ordered.length === 0) {
         miss[site ? "noCandidate" : "noUrl"]++;
         return;
       }
 
-      const picked = await pick(fetcher, sortCandidates(candidates));
+      const picked = await pick(fetcher, ordered);
       if (!picked.ok) {
         miss.allRejected++;
         for (const reason of picked.reasons) {
