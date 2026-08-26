@@ -1,7 +1,8 @@
-import type {
-  WorklifeMetricView,
-  WorklifeValueRow,
-  WorklifeView,
+import {
+  metricFootnote,
+  type WorklifeMetricView,
+  type WorklifeValueRow,
+  type WorklifeView,
 } from "../lib/worklife";
 
 /**
@@ -66,6 +67,7 @@ export function WorklifeSection({ view }: { view: WorklifeView }) {
  */
 function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
   const hasBar = metric.rows.some((row) => row.ratio !== null);
+  const footnote = metricFootnote(metric.key);
   return (
     <div className="grid gap-1.5 py-3 sm:grid-cols-[14.375rem_1fr] sm:gap-4">
       {/*
@@ -110,6 +112,18 @@ function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
                 valueSuffix={metric.valueSuffix}
               />
             ))}
+            {/*
+              定義の注記（Issue #224）。**値の並びの下に、全体値と雇用管理区分
+              ごとの値の両方にかかる位置へ1つだけ置く**——行ごとに繰り返すと、
+              区分によって定義が違うように見えるうえ、区分5件の会社では同じ3文が
+              5回並ぶ。**`rows` が空のとき（「掲載なし」）は出さない**——定義を
+              添える相手の数字が画面に無い。
+            */}
+            {footnote !== "" && (
+              <p className="text-muted-foreground mt-1 text-[0.6875rem] leading-relaxed">
+                {footnote}
+              </p>
+            )}
           </div>
         )}
       </dd>
