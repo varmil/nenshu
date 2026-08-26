@@ -1,7 +1,6 @@
-import type { Metadata } from "next";
 import type { CompaniesMeta } from "@/features/ranking/types";
 import { fiscalPeriodLabel } from "@/lib/data/period";
-import { toMetadata, type PageMeta } from "./pageMeta";
+import type { PageMeta } from "./pageMeta";
 import { SITE_NAME } from "./site";
 
 /**
@@ -10,7 +9,7 @@ import { SITE_NAME } from "./site";
  * **`app/about/page.tsx` に直書きしていたものを S2 でここへ出した。** 理由は
  * `og:` にある（Issue #116・AC-10）——`og:title`・`og:description`・`og:url` は
  * title・description・canonical と同じ文字列でなければならず、それを保証して
- * いるのは `toMetadata()` 1本だからである。`/about` だけが素の `Metadata` を
+ * いるのは `PageHead` 1つだからである。`/about` だけが素のメタデータを
  * 返していると、そこだけ `og:` が付かない。
  *
  * **タイトルに「有価証券報告書」を入れない**（`docs/site-chrome/spec.md` 1.4）。
@@ -32,7 +31,3 @@ export function aboutPageMeta(meta: CompaniesMeta): PageMeta {
   };
 }
 
-/** `app/about/page.tsx` の `metadata` が返す形。包むだけ。 */
-export function aboutMetadata(meta: CompaniesMeta): Metadata {
-  return toMetadata(aboutPageMeta(meta));
-}

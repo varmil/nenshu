@@ -1,0 +1,94 @@
+---
+/**
+ * 全ページ共通の外装（`app/layout.tsx` から移した。F1・#209・ADR-0014）。
+ *
+ * **順序に意味がある。** 表示モードのスクリプトは `<body>` の先頭（描画より先に
+ * 走ってほしい）、Clarity は末尾（急がない）。`app/layout.tsx` のコメントに
+ * 書いてあった理由をそのまま持ち越している。
+ */
+import type { PageMeta } from "@/lib/seo/pageMeta";
+import PageHead from "@/src/components/PageHead.astro";
+import { SiteHeader } from "@/features/navigation/components/SiteHeader";
+import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
+import { buildThemeScript } from "@/features/theme/lib/themeScript";
+import {
+  CLARITY_PROJECT_ID,
+  buildClarityScript,
+  isClarityEnabled,
+} from "@/lib/analytics/clarity";
+import {
+  APPLE_TOUCH_ICON,
+  FAVICON_PNG,
+  FAVICON_SVG,
+  WEB_MANIFEST,
+} from "@/lib/brand/assets";
+import { BRAND_COLOR } from "@/lib/brand/colors";
+import "@/styles/globals.css";
+
+interface Props {
+  meta: PageMeta;
+}
+
+const { meta } = Astro.props;
+const themeScript = buildThemeScript();
+const clarityScript = isClarityEnabled(import.meta.env.MODE)
+  ? buildClarityScript(CLARITY_PROJECT_ID)
+  : null;
+---
+
+<html lang="ja" class="h-full antialiased">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {/*
+      ブラウザのUIを塗る色（S4・AC-24）。**CSS変数を受け付けない**ので
+      `lib/brand/colors.ts` の hex を渡す（トークンとの一致は `colors.test.ts` が固定）。
+      **表示モードで出し分けない**——選択は html 要素のクラスが正でサーバーには
+      送らないので、ここでモードを見ることはできない。
+    */}
+    <meta name="theme-color" content={BRAND_COLOR} />
+    {/*
+      ブランドのアイコン（S4・Issue #163）。**SVG を先頭に置く**——濃色サーフェスでの
+      切り替えを持っているのは SVG だけで、PNG は1色しか持てないフォールバック。
+      **`/favicon.ico` は出さない**（出すと SVG より先に選ぶブラウザがあり、
+      切り替えを持たないほうが使われる）。
+    */}
+    <link rel="icon" href={FAVICON_SVG} type="image/svg+xml" />
+    {
+      FAVICON_PNG.map(({ path, size }) => (
+        <link rel="icon" href={path} type="image/png" sizes={`${size}x${size}`} />
+      ))
+    }
+    <link
+      rel="apple-touch-icon"
+      href={APPLE_TOUCH_ICON.path}
+      sizes={`${APPLE_TOUCH_ICON.size}x${APPLE_TOUCH_ICON.size}`}
+    />
+    <link rel="manifest" href={WEB_MANIFEST} />
+    <PageHead meta={meta} />
+    <slot name="head" />
+  </head>
+  <body class="min-h-full flex flex-col">
+    {/*
+      表示モードを最初の描画より前に確定させる（Issue #68）。**HTMLパーサを止めてでも
+      先に走ってほしい**ので、`is:inline` で素のスクリプトのまま出す——Astro の既定は
+      バンドルして `type="module"`（＝defer）になり、ここで欲しい性質と逆になる。
+      詳細は `features/theme/lib/themeScript.ts`。
+    */}
+    <script is:inline set:html={themeScript} />
+    {/* ページ間の遷移中に上端へ細いバーを出す（`features/navigation`）。 */}
+    <NavProgressBar client:load />
+    <SiteHeader client:load />
+    <slot />
+    {
+      clarityScript && (
+        /*
+          Microsoft Clarity（Issue #44）。**素のインライン script。** 中身は
+          `t.async=1` で本体を非同期に読ませる数行なので、初期表示は遅れない。
+          **順序は body の末尾にあることが担保する**（上の表示モードとは目的が逆）。
+        */
+        <script is:inline id="ms-clarity" set:html={clarityScript} />
+      )
+    }
+  </body>
+</html>

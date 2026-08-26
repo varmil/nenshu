@@ -1,0 +1,55 @@
+---
+/**
+ * ランキング（U2〜U6・U11〜U16）。**この施策で唯一の SSR ルート。**
+ *
+ * `?age=N` 8件・`?ind=X` 33件を別内容・別canonicalでインデックスさせているので
+ * （ADR-0006）、ここだけはサーバーで描く。**Worker を起こすのはこの1ルートだけ**
+ * （`wrangler.jsonc` の `run_worker_first`）。
+ */
+export const prerender = false;
+
+import Base from "@/src/layouts/Base.astro";
+import { RankingIsland } from "@/features/ranking/components/RankingIsland";
+import { companies, industryCountOf, rankingPageData } from "@/features/ranking/lib/pageData";
+import { rankingPageMeta } from "@/lib/seo/ranking";
+import { webSiteJsonLd } from "@/lib/seo/jsonLd";
+import { pageCacheHeaders } from "@/lib/cache/headers";
+import { RENDERED_BY_HEADER, RENDERED_BY_WORKER } from "@/lib/runtime/renderedBy";
+
+const params = Astro.url.searchParams;
+const data = rankingPageData(params);
+const meta = rankingPageMeta(params, companies, industryCountOf);
+
+/*
+  **エッジとブラウザのキャッシュ（ADR-0004）。** 規則は `lib/cache/headers.ts` の
+  1か所にある（AC-15）。**実行時にヘッダを付けるのはこのルートだけ**——他のページは
+  静的アセットになったので `public/_headers` が受け持つ。
+*/
+for (const [key, value] of Object.entries(pageCacheHeaders())) {
+  Astro.response.headers.set(key, value);
+}
+
+/*
+  **このルートを Worker が描いたことの印**（`lib/runtime/renderedBy.ts`）。
+  事前生成したページは静的アセットとして返るのでこの印が付かず、
+  **AC-1（Worker を起こさない）が応答から確かめられる**ようになる。
+*/
+Astro.response.headers.set(RENDERED_BY_HEADER, RENDERED_BY_WORKER);
+---
+
+<Base meta={meta}>
+  {/* サイト名と `/` のURLだけ（S2・spec 4.4）。画面に無い主張は入れない。 */}
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(webSiteJsonLd())}
+  />
+  <RankingIsland
+    bootstrap={data.bootstrap}
+    curves={data.curves}
+    population={data.population}
+    initialState={data.initialState}
+    client:load
+  />
+</Base>

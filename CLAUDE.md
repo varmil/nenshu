@@ -44,21 +44,20 @@ Unit ごとの `plan.md` / `design.md` は、その Unit に着手する時点�
 
 ## 採用スタック
 
-Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
-**Cloudflare Workers上で`@opennextjs/cloudflare`によりフルSSRする（ADR-0004）。** `output: 'export'`の静的書き出しではない。API もデータベースも持たない点は変わらない（DBもAPIコールも無く、ビルド時に確定済みの静的データをリクエスト時にフィルタして返すだけ）。
+Astro、React、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
+**Astro（`@astrojs/cloudflare`）で、`/` 以外はすべてビルド時に生成して静的アセットとして返す（ADR-0014）。** Worker が起きるのは `/` とそのファセット42件だけ。API もデータベースも持たない点は最初から変わらない（DBもAPIコールも無く、ビルド時に確定済みの静的データをリクエスト時にフィルタして返すだけ）。
 
-バージョンは Next.js に限らず全般的に、特筆した理由がない限り着手時点の最新安定版を使う。固定が必要になったらADRに理由を書く。
+バージョンは全般的に、特筆した理由がない限り着手時点の最新安定版を使う。固定が必要になったらADRに理由を書く。
 
-理由は ADR-0001・ADR-0002・ADR-0004にある（ADR-0004がADR-0001の「サーバー実行環境は要らない」・ADR-0002の`output:'export'`を一部supersede）。
+**Next.js から移った**（ADR-0014・`docs/framework/`・Issue #200。F0=#208 → **F1=#209 でカットオーバー済み** → F2=#210 が残り）。理由は ADR-0001・ADR-0002・ADR-0004・ADR-0012・ADR-0014 の順に積み上がっている——**ADR-0014 が ADR-0002 のフレームワーク選択と ADR-0004 の配り方を supersede する**（ADR-0012 の決定はそのままで、実現の手段だけが変わった。ADR-0006 は変わっていない）。
 
-**ただし Astro へ移すと決まった（ADR-0014・`docs/framework/`・Issue #200）。カットオーバー（F1・#209）はまだなので、上の記述がいまのコードの正のまま。** 移行は F0（#208・実装済み）→ F1（#209）→ F2（#210）の3 Unit で、**F1 は分割できない**——Next.js と Astro は同じ Worker に同居できない。**新しいページや `next/*` の新しい API を足す前に `docs/framework/overview.md` を読むこと**（足すほど F1 の差分が増える）。
+- **`src/` は Astro が見る場所。`features/`・`design-system/`・`lib/` は移動していない。** ルーティングと head と外装が `src/pages/`・`src/layouts/`・`src/components/` にあり、画面の中身は React のまま。`@/` は `web/` の直下を指す（`astro.config.mjs` の `vite.resolve.alias`）
+- **`/` だけが `export const prerender = false`。** 他はビルド時に生成する。**ページ（ルート）を足したら `wrangler.jsonc` の `run_worker_first` も見ること**——載せると Worker が起きるので、載せる理由が無いなら載せない（載せ忘れではなく、載せすぎのほうが事故になる）
+- **島（`client:load`）は画面ごとに1つに収める。** Astro は島ごとに props を HTML の属性へ直列化するので、分けると同じデータが2回入る（実測で `/` が 481,312 → 733,979 B）。境界は `RankingIsland`・`CompanyDetailIsland` にある
+- **パスは `lib/history/` から取る。`window.location.pathname` を直接書かない。** `isRankingPath()`（即時読み）と `useIsRankingPath()`（レンダー用）。**購読はしない**——ページを移ると文書ごと入れ替わるので、文書が生きている間にパスは変わらない（F0 で入れた `history` の包みは F1 で外した）
+- **ページ間の遷移は `features/navigation/components/NavLink`（素の `a` 要素）。** `eslint.config.mjs` が素の `a` を直接書かせない——遷移中のバー（`NavProgressBar` の委譲リスナー）が拾う対象から外れるため
 
-- **`next/*` の実行時 import は `NavLink.tsx` の `next/link` 1件だけ**（F0 で `next/navigation`・`next/script` を剥がした。`docs/framework/next-detach/`）。`eslint.config.mjs` がその2つを止めている
-- **パスは `lib/history/` から取る。`window.location.pathname` を直接書かない。** 購読が要らないなら `isRankingPath()`、要るなら `useIsRankingPath()`。**共通ヘッダはページ遷移で作り直されない**ので、レンダー時に採った値はクリックが来るまでに古くなる
-- **`lib/history/pathname.ts` は `history.pushState`/`replaceState` を包んでいる。** パスが実際に変わったときだけ知らせる（同じパスの `replaceState` は打鍵のたびに飛ぶので、起こすと毎打鍵でヘッダが再レンダーされる）。**知らせるのは `queueMicrotask` 越し**——Next.js のルーターが `useInsertionEffect` の中から `pushState` を呼ぶので、同期で起こすと `useInsertionEffect must not schedule updates` が出る
-- **`next/link` を素の `a` 要素に替えない。** それは「クライアント遷移をやめる」ことで、F1 の中身そのものになる（F0 で一度書いて戻した）
-
-**クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ。**規則は`web/lib/history/useLocationSyncedState.ts`の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ため`<Link>`にする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
+**クエリ文字列を読みたいときは `src/pages/index.astro` の `Astro.url.searchParams` で読む。** 状態⇄URL の同期は `window.history.pushState`/`replaceState` を直接呼ぶ。**規則は `web/lib/history/useLocationSyncedState.ts` の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移は `NavLink`（実ナビゲーション）でよい**（`/` ⇄ `/about` がそう）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ためリンクにする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
 
 ## エージェントが従う優先順位
 
@@ -128,18 +127,18 @@ Unit の実装を終えたら、次の順で進める。
 
 **Bolt 1（MVP: ランキング1ページ＋計算方法ページ）の全Unit U0〜U7が実装済み。** U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）・U7（計算方法ページ`/about`、`docs/ranking/about-page/`、Issue #8）。
 
-**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。`output:'export'`をやめ`@opennextjs/cloudflare`でフルSSRしている（ADR-0004）。`/`は`searchParams`を読むので`ƒ (Dynamic)`、`/about`は`○ (Static)`、**`/company/[id]` は全1,867社が `●`（SSG）**（R1・ADR-0012）。SSR成果物はエッジでキャッシュ（`wrangler.jsonc`の`cache.enabled: true`＋`next.config.ts`の`headers()`）、`_next/static/*`はWorkerを経由しないため`public/_headers`で設定している。デプロイ設定は`docs/ranking/project-foundation/design.md`参照。
+**Cloudflare Workers への自動デプロイは接続済み・稼働中**（https://nenshu.fkmks-247.workers.dev/ ）。**F1（#209）をマージしたら、ダッシュボードのビルドコマンドを `npx opennextjs-cloudflare build` → `npm run build`（＝`astro build`）に変えてもらうこと**——`next` も `@opennextjs/cloudflare` も依存から消えたので旧コマンドは失敗する（ビルドが失敗しても直前の成功バージョンが配信され続けるので本番は落ちない。手順は `docs/ranking/project-foundation/design.md` の2026-08-26追記）。**Astro で `/` 以外はビルド時に生成し、静的アセットとして返す**（ADR-0014・F1）。`/` だけが `export const prerender = false` で、`/about`・`/company/[id]`（全2,961社）・`/sitemap.xml`・`/robots.txt`・`/404.html` はビルド成果物がそのまま並ぶ。デプロイ設定は `docs/ranking/project-foundation/design.md`、移行の構造は `docs/framework/astro-cutover/design.md` 参照。
 
-**キャッシュの規則は`web/lib/cache/headers.ts`の1か所。`next.config.ts`に直接書かない**（ADR-0004「キャッシュの設計」）。踏みやすい点が3つある。
+**キャッシュの規則は `web/lib/cache/headers.ts` の1か所**（ADR-0004「キャッシュの設計」）。**F1 で適用する主体が2つに割れた**——`/` は `src/pages/index.astro` が `Astro.response.headers` に付け、**それ以外は静的アセットなので `public/_headers` が付ける**。`lib/cache/headers.test.ts` が両者を突き合わせているので、片方だけ動かすと落ちる。
 
-- **デプロイ直後の全画面エラー（"This page couldn't load"）の成立条件は「古いHTMLがネットワークから届き、かつそのブラウザに旧ビルドのチャンクが無い」の1つだけ。** デプロイでチャンク名が入れ替わり（連続2デプロイの実測で4件が別名。旧名は`404`を`text/html`で返す）、`ChunkLoadError`でルートのエラー境界がページ全体を差し替える。**ブラウザキャッシュ経由の再訪・戻る/進む・F5・タブを開いたままの操作と遷移は、実際にサーバーを差し替えて試して全部壊れなかった**——`_next/static/*`が`immutable`なのでHTMLとチャンクが揃って古く、辻褄が合うため。**つまり原因はエッジがデプロイ前のHTMLを配ったとき**だが、**エッジはデプロイをまたがないことを対照実験で確認した**（汚したエントリが13分後のデプロイで消え、同時刻の本番では残っていた）ので、この経路はいま確認できる範囲では塞がっている。**`s-maxage`を下げてもデプロイの行き渡りは早くならない**（デプロイで空になるため）。ADR-0004「エッジはデプロイをまたがない」に確認手順あり。**ビルドID不一致ガードはクライアント遷移しか守らない**ので`deploymentId`を足しても直らない
-- **ブラウザ向けの`max-age`は3600のまま据え置いた。** 全画面エラーの対処として0にすることを検討したが、上のとおり対処にならないため。**代償として再訪した読者は最大1時間ぶん古い数字を見る**（推定式を変えた直後は`/about`の説明と食い違いうる）。実害が出たら下げる
-- **`RSC`ヘッダ付きで`_rsc`の無いリクエストにはキャッシュ可能なヘッダを返さない。** Cloudflareは`Vary`を見ないため、Next.jsが返す`307 → /?_rsc`が素の`/`のキャッシュを上書きし、ふつうの読者が`/?_rsc`へ飛ばされる（本番で再現）。**この規則は配列の末尾に置く。`headers()`は後勝ちで、先頭だと後続の`{ source: "/" }`に上書きされる**（`routes-manifest.json`上は正しく見えるので気づけない）
-- **`headers()`の`has`/`missing`はdevサーバーと本番で評価する実装が違う。** 本番はOpenNextのマッチャで、`type: "query"`のときだけキーの存在を確かめない（`value`未指定だと`new RegExp("").test("")`で常に`true`。`header`の分岐には存在チェックがある）。そのため`missing: [{ type: "query", key: "_rsc" }]`は**`next start`では動くのにWorker上では規則が永久に不成立**になる。`value: ".+"`を必ず付ける。**プレビューへデプロイして初めて発覚した**
-- **だから`headers()`を触ったらE2EをWorkerに向けて回す。** `playwright.config.ts`が`E2E_BASE_URL`を見る（渡すとdevサーバーを起動しない）。`npx opennextjs-cloudflare build` → `npx wrangler dev --port 3801 --local` → `E2E_BASE_URL=http://localhost:3801 npx playwright test e2e/cache-headers.spec.ts`。**宛先はローカルの `wrangler dev` にすること——デプロイ済みのプレビューURLに向けると必ず落ちる**（`Cloudflare-CDN-Cache-Control` はエッジで消費されて外からは見えない。本番の `/about` を叩いても `cache-control` しか返らない）
-- **`Cache-Control`はdev相手のE2Eでは検証できない**——devサーバーが`no-cache, must-revalidate`で上書きするため。E2Eは`Cloudflare-CDN-Cache-Control`を見る（`e2e/cache-headers.spec.ts`）。ブラウザ向けの値は`lib/cache/headers.test.ts`で担保する
+- **`/_astro/*`（指紋つき）は `@astrojs/cloudflare` が `_headers` に自分で足す。二重に書かない**
+- **ブラウザ向けの `max-age` は3600のまま据え置いた。** デプロイ直後の全画面エラー（"This page couldn't load"）の対処として0にすることを検討したが、対処にならないため。**代償として再訪した読者は最大1時間ぶん古い数字を見る**（推定式を変えた直後は `/about` の説明と食い違いうる）。実害が出たら下げる
+  - **その全画面エラーは Next.js の `ChunkLoadError` の話で、いまは経路ごと無い。** クライアント遷移が無くなったので、届いた HTML とそれが指すチャンクは常に同じビルドのものになる。ADR-0004 に当時の確認手順が残っている
+- **`RSC` まわりの規則も消えた**（`RSC_BYPASS_RULE`・`headers()` の `has`/`missing`）。守っていた事故——`RSC: 1` 付きで `_rsc` の無いリクエストに Next.js が返す `307 → /?_rsc` が素の `/` のキャッシュを上書きし、ふつうの読者が `/?_rsc` へ飛ばされる（2026-08-21 に本番で再現）——が RSC ごと無くなったため
+- **キャッシュを触ったら E2E を Worker に向けて回す。** `playwright.config.ts` が `E2E_BASE_URL` を見る（渡すと dev サーバーを起動しない）。`npx astro build` → `npx wrangler dev --port 3801 --local` → `E2E_BASE_URL=http://localhost:3801 npx playwright test e2e/cache-headers.spec.ts e2e/asset-routing.spec.ts`。**宛先はローカルの `wrangler dev` にすること——デプロイ済みのプレビューURLに向けると必ず落ちる**（`Cloudflare-CDN-Cache-Control` はエッジで消費されて外からは見えない）
+- **`Cache-Control` は dev 相手の E2E では検証できない**——dev サーバーが `no-cache, must-revalidate` で上書きするため。E2E は `Cloudflare-CDN-Cache-Control` を見る（`e2e/cache-headers.spec.ts`）。**`public/_headers` は Cloudflare の静的アセットの仕組みなので dev サーバーは読まない**——事前生成したページのぶんは Worker に向けたときだけ走る（dev では skip する）。ブラウザ向けの値は `lib/cache/headers.test.ts` で担保する
 
-**アクセス解析は Microsoft Clarity**（Issue #44）。`web/lib/analytics/clarity.ts` にタグを置き、`app/layout.tsx` から `next/script` の `strategy="afterInteractive"` で読む。npmパッケージは使わない（同じタグを注入するだけでJSバンドルが増えるため）。**本番ビルドでのみ有効**（`isClarityEnabled`）——開発サーバーとE2Eの実行ぶんが実セッションとして計測に混ざるのを防ぐため、またE2Eの「操作中にネットワークリクエストが発生しない」テスト（リクエスト数を0で固定）を壊さないため。
+**アクセス解析は Microsoft Clarity**（Issue #44）。`web/lib/analytics/clarity.ts` にタグを置き、`src/layouts/Base.astro` の body 末尾から素のインライン `<script>`（`is:inline`）で読む。npmパッケージは使わない（同じタグを注入するだけでJSバンドルが増えるため）。**本番ビルドでのみ有効**（`isClarityEnabled`）——開発サーバーとE2Eの実行ぶんが実セッションとして計測に混ざるのを防ぐため、またE2Eの「操作中にネットワークリクエストが発生しない」テスト（リクエスト数を0で固定）を壊さないため。
 
 年齢・4フィルタ・検索語・ページ番号は`?age=&ind=&emp=&ten=&aage=&q=&page=`としてURLに同期済み（`page`は1始まり、既定値は省略）。
 
@@ -168,7 +167,7 @@ Unit の実装を終えたら、次の順で進める。
 
 - **図形の定義は `pipeline/brand/symbol.ts` の1か所。** ファビコン（SVG）・PNGのフォールバック・アプリアイコン・`favicon.ico` は全部そこから焼く（`cd pipeline && npm run build:brand`）。**`web/` に `sharp` を足さない**——optionalDependencies の解決差で Cloudflare の `npm ci` だけが落ちる事故が2回起きている
 - **hex を書いてよいのは `web/lib/brand/colors.ts` だけ**（`eslint.config.mjs` の例外もここ1つ）。デザイン案の `#007595` / `#00b8db` は `tokens.css` の `--primary`（`:root` / `.dark`）と一致する。`colors.test.ts` がその一致を固定しているので、**トークンを差し替えたらここが落ちる**。要るのは CSS 変数が届かない成果物のため——ファビコンはページのCSSを読まず、`theme_color` はCSS変数を受け付けない
-- **パスと寸法の正は `web/lib/brand/assets.ts`。** 生成スクリプト・`app/layout.tsx`・生成物のテスト・`e2e/network.ts` の4か所が同じ表を見る
+- **パスと寸法の正は `web/lib/brand/assets.ts`。** 生成スクリプト・`src/layouts/Base.astro`・生成物のテスト・`e2e/network.ts` の4か所が同じ表を見る
 - **成果物は `public/` の静的アセットにする。`app/icon.svg` のような規約ファイルにしない**——ルートハンドラになり、アイコン1枚ごとに Worker が起きる（Workers Free の CPU 10ms/リクエスト制約・Issue #118）
 - **濃色サーフェスの切り替えは SVG の中のメディアクエリで行う。** `<link rel="icon" media="...">` はブラウザの対応が揃っていない。**`sharp`（librsvg）はメディアクエリを評価しない**ので、PNG に焼くのは分岐を持たないほうの SVG
 - **ホーム画面のアイコンは `flatten` でアルファチャンネルごと落とす。** 透過で渡すと iOS が黒で埋める。落としてあれば PNG のカラータイプ1バイトで検証できる（透過は 6・不透明は 2）
@@ -186,12 +185,12 @@ Unit の実装を終えたら、次の順で進める。
 - 決算期は全社が同じではない（3月期1,865社・4月期2社）。**「3月期が中心」と断るのは `/about` の「対象範囲」だけ**
 - 代表の決算期が過半に届かなければ `build-data.ts` が落ちる。1つで代表できないデータを黙って公開しない
 
-**OGPと構造化データは S2（`docs/site-chrome/social-preview/`、Issue #116）で実装済み。** `og:` の入口は `toMetadata()`（`web/lib/seo/pageMeta.ts`）の1か所だけ。
+**OGPと構造化データは S2（`docs/site-chrome/social-preview/`、Issue #116）で実装済み。** `og:` の入口は `src/components/PageHead.astro` の1か所だけ（F1 までは `toMetadata()`）。
 
 - **`og:title`・`og:description`・`og:url` は `<title>`・description・canonical と**同じ値から出す**（AC-11・AC-12）。だから新しい文言は1つも増えていない。**`og:url` を別の場所で組み立てない**——`/?age=35&ind=銀行業` のような非正規URLで canonical だけが寄せ先を指し `og:url` が自分自身を指す食い違いが起きる
-- **`/about` の文言は `lib/seo/about.ts` に移した。** そこだけ `app/about/page.tsx` が素の `Metadata` を直書きしていて `toMetadata()` を通っていなかった（文言は1文字も変えていない）
-- **`app/layout.tsx` の `openGraph` が出るのは `/_not-found` だけ。** Next.js のメタデータは浅くマージされるので、ページが `openGraph` を返した時点でレイアウトのものは1つも残らない。**レイアウトには `og:url` を入れない**（404 に正規URLは無い）
-- **宣言するのは `twitter:card` だけ。** HTML には `twitter:title` 等も並ぶが、それは Next.js が `title`・`description`・`openGraph.images` から埋めたもので、同じ文言を2か所に書いてはいない
+- **`/about` の文言は `lib/seo/about.ts` にある。** S2 の時点でそこだけページが素の `Metadata` を直書きしていて共通の出口を通っていなかったので移した（文言は1文字も変えていない）
+- **404 の canonical は `/` を指す。** 404 に正規URLは無いので、`Astro.url` を書くと存在しないURLを自分で申告することになる（`src/pages/404.astro`）。Next.js の頃は「レイアウトの `openGraph` が出るのは `/_not-found` だけ」という形で同じ問題があった
+- **出すのは `twitter:card` だけ。** Next.js は `twitter:title` 等も自動で埋めていたが、X は `og:` も読むので同じ文言を2組持つ理由が無い（F1 で並ばなくなった。`e2e/social.spec.ts` が見ているのも `twitter:card` だけ）
 - **クライアント（`usePageMeta`）も `og:title`・`og:description`・`og:url` を書き換える。** SNS のクローラは JS を実行しないのでカードの見え方は変わらないが、DOM の上で canonical と `og:url` が食い違う状態を作らないため
 - **OG画像は全ページ共通の静的1枚**（`web/public/og.png`・1200×630）。中身はシンボル＋ワードマーク、見出し2行、横罫、数値の帯（対象社数・全体平均・対象期間と出典）。**公開ホスト（`openreport.net`）は載せない**——貼られたカードにはURLが別枠で出るので、絵の中の1行は情報を足さないまま広告の体裁だけを持ち込む（初版には入れていて、運営者の指摘で外した）。**文字はアウトラインで持つ**（`pipeline/brand/lettering.ts`。吐く道具は `pipeline/brand/outline.py` で、ふだんは回さない）——`sharp`（librsvg）の `<text>` は実行環境の fontconfig を引くので、日本語フォントの無い機械で焼くと**豆腐が並ぶのに寸法もバイト数もカラータイプも正しいまま**テストを通る。シンボルは `pipeline/brand/symbol.ts` の `symbolMark()` から取る（図形の定義は1か所のまま）
   - **数字を載せる**（2026-08-26・運営者の指示で版面を差し替えた）。初版は「載せると年1回のデータ更新のたびに焼き直しが要り、更新を忘れた1枚が各SNSのキャッシュに残る」として1つも載せていなかった。**載せると決めた以上、焼き直しを忘れないことが版面の条件になる**ので、①数字は `web/public/data/` から引く（`build-brand.ts` の `readOgFacts()`。`og.ts` にも `outline.py` にも直書きしない）、②焼いた値を `web/lib/brand/ogFacts.ts` に残し `ogFacts.test.ts` がいまのデータと突き合わせる（**`build:data` だけ回して `build:brand` を忘れるとテストが落ちる**）、の2つを対にしてある。**`OG_IMAGE.alt` も `ogFacts.ts` から組む**——書き写すと焼き直したときに代替テキストだけ古い数字で残る
@@ -201,8 +200,8 @@ Unit の実装を終えたら、次の順で進める。
 - **`agePath()`・`industryPath()` は `lib/seo/paths.ts` に分けた**（`ranking.ts` から再輸出）。`ranking.ts` は `parseSearchParams` まで抱えていて、パスを1本作りたいだけのクライアントコンポーネントには大きいため
 - **HTML は `/` が raw 378,474 → 382,992 B（gzip 63,727 → 64,444 B。AC-16 の予算 75,000 B）、`/company/6861` が 135,790 → 140,957 B、`/about` が 86,065 → 90,260 B。** **`<meta>` の見た目より増分が大きいのは、Next.js が同じ文言を RSC ペイロードにも流すため**（同じ description が2回出る）
 
-- **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** SSRの出力はエッジで24時間キャッシュされる（`next.config.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
-- **FOUC は `<body>` 先頭の素の `<script>` で殺している。`next/script` は使わない**——strategy はどれも「描画をブロックしない」ことが目的で、ここで欲しい「ブロックしてでも先に走る」と逆になる。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
+- **表示モードは `<html>` のクラスが正で、サーバーには一切送らない。** `/` の出力はエッジで24時間キャッシュされる（`lib/cache/headers.ts` の `s-maxage=86400`）ため、HTMLに焼くとある読者の選択が他の読者に配られる
+- **FOUC は `<body>` 先頭の素の `<script>` で殺している**（`src/layouts/Base.astro` の `is:inline`）。**バンドルさせない**——Astro の既定は `type="module"`（＝defer）で、ここで欲しい「ブロックしてでも先に走る」と逆になる（Next.js の `next/script` の strategy も同じ理由で使えなかった）。E2E は `waitUntil: "domcontentloaded"` の時点で class を見ることで、ハイドレーション後に付いた場合を弾いている
 - **モードによる描き分けは JS でやらない。** アイコンも読み上げ名も両方をHTMLに出し、`dark:` バリアントで見せ分ける。以前はモードをJSで読んでサーバー側ではアイコンを出さない実装にしており、**ボタンが約86ms 空のまま残ってからアイコンが現れる**ちらつきになっていた（実測）。`e2e/theme.spec.ts` が生のHTTPレスポンスに両アイコンが入っていることで固定している
 - **`--primary` はライトとダークで別の値。** ライトをそのままダーク背景に置くと 2.72:1 で AA を割る（実際に割っていた）。`tokens.test.ts` のコントラストテストは**両モードで回す**（`:root` だけ見ていたのがこの見逃しの原因）
 
@@ -216,10 +215,10 @@ Unit の実装を終えたら、次の順で進める。
 - `rankAll` / `rankIndustry` は `companies.rows` **と同じ並びの配列**。IDをキーにした辞書にしていない。**行がずれると別の会社の順位を出すので、`companies` と同じループで作ること**
 - **年齢別チャートは依存を足さずインラインSVG**（`features/company/components/SalaryCurveChart.tsx`）。rechartsは使わない。縦軸は0起点にせず、代わりに各点の金額を数値で併記している
 - **`AgeSwitch` は `design-system/` に昇格させず `features/ranking/` から import している。** `TargetAge`/`TARGET_AGES` というドメイン語彙に依存しており、design-systemに持ち込むと語彙か型が二重になるため。`TargetAge`・`estimateSalary`・`format` が本来「年収ドメイン」の共有物である点は既知の負債（`docs/company/company-page/design.md`）
-- ランキングの会社名は `<Link href="/company/{id}">`。ページ間遷移なので `<Link>` でよい（上の規約どおり）。**ただし `prefetch={false}` を必ず付ける**——既定だとビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんだった頃は**本番のトップページ表示だけで34件のリクエストが飛んだ**（実測。修正後は0件で、1ページ30件にしても0件のまま）。全ルートが動的レンダリングなので、そのぶんWorkerが起動する
-- **プリフェッチは本番ビルドでしか動かないので、devサーバーに対して走るE2Eでは検出できない。** `npm run measure:prefetch`（`web/scripts/measure-prefetch.mjs`）で `npm run build && npx next start -p 3211` に対して測る。動的ルートへの `<Link>` を増やしたときはこれを回すこと
-- **ページ間の遷移は `next/link` を直接使わず `features/navigation/components/NavLink` を使う。** プリフェッチを切った代償で、クリックからRSCペイロードが届くまでの待ちが体感に出る（「一瞬もたつく」）。Next.js公式の `useLinkStatus()` で待ちを拾い、画面上端に細いプログレスバーを出している（`features/navigation/`、`app/layout.tsx` の `<NavProgressBar />`）。`next/link` の直接importは `eslint.config.mjs` の `no-restricted-imports` で止めている（例外は `NavLink.tsx` 自身だけ）——`<Link>` のままでも型もテストも通り、そのリンクだけバーが出ないことに気づけないため。**`nextjs-toploader` 系のライブラリは使わない**——この用途のライブラリは軒並み更新が止まっており（2026-08時点で最新の `holy-loader` でも9か月前）、いずれも `history.pushState` を差し替えるので、`pushState` を直接呼んでURL同期している当サイトとは相性が悪い
-- **`loading.tsx` は置かない。効かないため。** `loading.js` のフォールバックはプリフェッチで先に配られて初めて効く仕組みで、`prefetch={false}` では配達自体が起きない。RSCの到着を2.5秒遅らせて実測してもスケルトンは一度も出なかった（`docs/company/company-page/design.md`）
+- ランキングの会社名は `<NavLink href="/company/{id}">`。ページ間遷移なので実ナビゲーションでよい（上の規約どおり）。**プリフェッチという概念はもう無い**——`next/link` の頃は既定でビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんだった頃は本番のトップページ表示だけで34件のリクエストが飛んでいた（`prefetch={false}` で0件にしていた）
+- **ページ間の遷移は `features/navigation/components/NavLink`（素の `a` 要素）を使う。** ただし**素の `a` を書いても壊れない**——`NavProgressBar` が `document` で拾うので、どう書かれたリンクでも同じ扱いになる（業種チップと `/about` の本文には素の `a` が正しく置かれている）。`NavLink` を残しているのは呼び出し側の綴りを1か所に保つため
+- **`astro:transitions`（ClientRouter）は入れない**（`eslint.config.mjs` の `no-restricted-imports` で止めている）。**素の HTML 取得であることが、事前生成したページを静的アセットで返せる前提**になっている（ADR-0014）
+- **遷移中のバーは `NavProgressBar` が `document` で1本の委譲リスナーとして拾う**（`src/layouts/Base.astro`）。リンク側に `onClick` を置くと、**島の外で描かれたリンク**（`/about` の本文など、JS を1バイトも持たない部分）では拾えない。どれを遷移と見なすかの規則は `features/navigation/lib/navIntent.ts` の純粋関数。**要るかどうかは F2（#210）が測って決める。** **`nextjs-toploader` 系のライブラリは使わない**——この用途のライブラリは軒並み更新が止まっており（2026-08時点で最新の `holy-loader` でも9か月前）、いずれも `history.pushState` を差し替えるので、`pushState` を直接呼んでURL同期している当サイトとは相性が悪い
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
@@ -227,38 +226,40 @@ Unit の実装を終えたら、次の順で進める。
 
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
-- **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・OGP（S2）が全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——Next.js が `alternates.canonical: "/"` を `https://openreport.net` と正規化するため、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる
+- **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・OGP（S2）が全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——`/` の canonical を `https://openreport.net` と出しているので、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる（Next.js の `metadataBase` がやっていた正規化を引き継いだ形）
 - **canonical の判断は `lib/seo/ranking.ts` の `rankingCanonical()` 1か所。** インデックスさせるのは `/`・`/about`・`/?age=N` 8件・`/?ind=X` 33件・`/company/[id]` 1,867件の計1,910 URL だけ。**`?age=N&ind=X` は業種側（`/?ind=X`）へ寄せる**——同じ会社が同じ順で並ぶ near-duplicate は業種側で、`/?age=N` は1,867行の別ページだから（ADR-0006 の追記で年齢側から変更）。`/company/[id]?age=N` は素の `/company/[id]` へ
 - **`?page=N` は `/` へ寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく別の30社が並ぶ。**どのページからも `<a href>` で辿れる企業ページは30件だけで、残り1,837社への内部リンクはページ2〜63の中にしか無い**——先頭へ寄せるとその経路を細める。Google のページネーション指針も先頭ページへ寄せるなと明記している。sitemap には1ページ目しか載せないので、インデックスを勧めているわけではない
 - **ページ送りは範囲外のページへ `href` を出さない。** `RankingPagination` は `state.page` を総ページ数に丸める。丸める前は `?page=999` が200で最終ページを返しつつ `?page=1000` へリンクしており、クローラが際限なく歩けた（実測）。**`aria-disabled` と `pointer-events-none` はクローラに効かない**
 - **sitemap と canonical は `agePath()`・`industryPath()` を共有する。** 別々に組み立てると載せるURLと canonical が1文字ずれても気づかない
 - **robots.txt でクロールを止めない。** `?emp=` などを `Disallow` にすると Google が canonical を読めなくなり、正規URLへ評価が渡らないまま宙に浮く。寄せるのは canonical だけでやる
 - **「有価証券報告書」は全ページの description に入れ、タイトルは `/` だけに入れる。** 競合6社（Zaimiru・OpenMoney・OpenWork・Yahoo!しごとカタログ・Ullet・J-LiC）のタイトルを実測すると、競っているのは鮮度と規模で、有報を置いているものは1つも無かった。うち3社はデータ元が同じ有報である——**「有報ベース」はデータ源として独自なのではなく、それを明示していることが差別化になる**（口コミベースの数字と並んだときに読者が見分けられる）。`?age=N`・`?ind=X` に入れないのは「◯歳」「業種名」のほうが情報量が高いため
-- **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを `app/layout.tsx` ではなく `app/page.tsx` の `generateMetadata` が組み立てているのはそのため
-- **メタデータの文言は `PageMeta`（`lib/seo/pageMeta.ts`）を返す純粋関数1つから出す**（U16・Issue #135・親 #130）。サーバーは `toMetadata()` で `Metadata` に包み、**クライアントは `usePageMeta()` で DOM に書く**。ランキングは `rankingPageMeta`、企業詳細は `companyPageMeta`（C1 以来 `generateMetadata` に直書きしていたものを切り出した）。**操作はすべて `pushState` なので、これが無いとメタデータだけが最初のURLに取り残される**——`/` で年齢そろえに切り替えると URL は `?age=35` なのにタイトルは実測値のまま（親 Issue #130 が報告したのはこの状態の DOM で、**サーバーが返すHTMLは最初から正しかった**）。**企業詳細では `?age=` を無くしたのでこの食い違いは起きない**（R1・ADR-0012）が、`usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**ため
-- **`<title>` は書いて終わりにできない。React が書き戻す。** Next.js はメタデータを本文の後ろに流し、React が届いた時点で head へ移す。**読み込み直後（実測で1秒以内）に切り替えると、こちらの書き込みの直後に React のハイドレーションが `<title>` の中の文字だけを元に戻す**（`description`・`canonical` は属性なので戻らない＝**タイトルだけ古いまま**という、直そうとしている症状そのものになる）。`usePageMeta` が `MutationObserver` で head を見張って書き直している。**E2E は `goto` の直後に押さないと再現しない**——1.5秒待つと通ってしまう
+- **社数はタイトルにも description にも直書きしない。** `companies.meta.count` から引く。`/` のタイトルを共通の外装ではなく `src/pages/index.astro` が組み立てているのはそのため
+- **メタデータの文言は `PageMeta`（`lib/seo/pageMeta.ts`）を返す純粋関数1つから出す**（U16・Issue #135・親 #130）。サーバーは `src/components/PageHead.astro` が head に描き、**クライアントは `usePageMeta()` で DOM に書く**。ランキングは `rankingPageMeta`、企業詳細は `companyPageMeta`（C1 以来 `generateMetadata` に直書きしていたものを切り出した）。**操作はすべて `pushState` なので、これが無いとメタデータだけが最初のURLに取り残される**——`/` で年齢そろえに切り替えると URL は `?age=35` なのにタイトルは実測値のまま（親 Issue #130 が報告したのはこの状態の DOM で、**サーバーが返すHTMLは最初から正しかった**）。**企業詳細では `?age=` を無くしたのでこの食い違いは起きない**（R1・ADR-0012）が、`usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**ため
+- **`<title>` の書き戻しは F1 で無くなった。** Next.js はメタデータを本文の後ろに流し、React が届いた時点で head へ移していたので、読み込み直後（実測で1秒以内）に切り替えると**こちらの書き込みの直後に React が `<title>` の中の文字だけを元に戻していた**（`description`・`canonical` は属性なので戻らない＝タイトルだけ古いまま）。`usePageMeta` は `MutationObserver` で head を見張って書き直していた。**Astro では head を React が触らない**（`<title>` を描くのは `PageHead.astro` で、島は body の中の div にしか取り付かない）ので見張りを落とした
 - **メタデータの E2E は文言を書き写さない。** `e2e/metadata.spec.ts` は「操作後の DOM」と「同じURLを直接開いたときのHTML」を比べる。文言を書き写すと、文言を直すたびにテストも直すことになり、そのとき何も守らない
 - **`wrangler.jsonc` の `"workers_dev": false` を消さない。** wrangler はルート指定の無い Worker に対して既定で workers.dev を有効にするので、消すとデプロイのたびに `nenshu.<subdomain>.workers.dev` が本番と同じHTMLを200で返す状態に戻る（2026-08-21 に実際にそうなっていた）。公開ホストは `openreport.net` の1本で、`www` は Cloudflare の Redirect Rule で apex へ 301 する
 - **`workers_dev` と `preview_urls` は対で書く。** `preview_urls` の既定値は `preview_urls = workers_dev`（wrangler 4.44.0 以降）なので、`workers_dev: false` だけを書くと**ブランチのプレビューURLまで無効になる**。しかもこの既定は**デプロイのたびに適用される**ため、ダッシュボードで有効にしても次のデプロイで落ちる。**Cloudflare の設定をダッシュボードだけで直さない。`wrangler.jsonc` に書かない設定は次のデプロイで wrangler の既定値に戻される**
+- **ダッシュボードのビルド構成も main に入るまで効かない**（2026-08-26・F1・#209）。ビルドコマンドを変えて保存しても、**ブランチのビルドは旧いコマンドで走る**（4回とも同じ。ビルドの詳細画面の「ビルドの設定」欄で確かめられる）。**「ビルドを再試行」はさらに効かない**——元のビルド構成をそのまま再生する。**ブランチのビルドが使うのはバージョンコマンド（`npx wrangler versions upload`）**で、デプロイコマンドではない
 - **Worker の設定は main に入れるまで効かない。** `preview_urls: true` をブランチに入れて3回デプロイしてもプレビューURLは出ず、**main にマージした直後のビルドで出た**（2026-08-21・Issue #119）。`wrangler.jsonc` を触ったときは、ブランチでの結果で「効かない」と判断しないこと（実際に判断して、原因を設定ファイルの外に探しに行った）
 
-**Workers 無料枠の CPU は 10ms/リクエストで、実際に超えていた**（`runtime` 施策・`docs/runtime/`・親 Issue #118・R1 は Issue #180 で実装済み・ADR-0012）。踏んでいたのはクローラで、1,867社ぶんの異なるURLを世界中のコロから叩くのでエッジキャッシュは全部ミスし、isolate は毎回冷えている。
+**Workers 無料枠の CPU は 10ms/リクエストで、実際に超えていた**（`runtime` 施策・`docs/runtime/`・親 Issue #118・R1 は Issue #180 で実装済み・ADR-0012。**F1・#209 で Worker 経由をやめて決着した**——ADR-0014・`docs/framework/`）。踏んでいたのはクローラで、社数ぶんの異なるURLを世界中のコロから叩くのでエッジキャッシュは全部ミスし、isolate は毎回冷えている。
 
-- **`/company/[id]` は全1,867社をビルド時に生成する**（`generateStaticParams` ＋ `force-static` ＋ `dynamicParams = false`）。リクエスト時に走るのは「キャッシュを引いて返す」だけ。**この画面に項目を足す Unit は `searchParams` を読めない**（C5〜C7・#159〜#161）
-- **`incrementalCache` を明示しないと既定は `"dummy"` で、事前生成した結果が1枚も使われない。** `next build` が `○ (Static)` と出しても Worker はリクエストのたびに描き直す。**`/about` が企業詳細より重かった（47.7〜59.6ms / 25.5〜28.7ms）のはこれが理由**。読み取り専用の `staticAssetsIncrementalCache` を挿してある（KV・R2・D1 を増やさずに済む）
-- **事前生成した結果をアセットへ写すのは `wrangler.jsonc` の `build.command`。** 写すのは本来 `opennextjs-cloudflare deploy` の仕事だが、**このプロジェクトのデプロイコマンドは `npx wrangler deploy`** なのでその工程が走らない。**写さないままでもビルドは通り、デプロイは "successful" と表示され、全1,867ページが 404 になる**（#181 のプレビューで実際に起きた。`x-nextjs-prerender: 1` ＋ `x-nextjs-cache: MISS` が手がかり）。`scripts/assert-prerendered-assets.mjs` が枚数を数えてビルドを落とす
-- **企業詳細ページの表示基準は URL に出さない。`?age=` は無い**（ADR-0012。`force-static` は `searchParams` を読めないのと、年齢そろえで変わるのは推定年収まわりだけのため）。**ランキング（`/`）の `?age=N` は変えていない**——あちらは1,867行の並び順を変え8件をインデックスさせている。配ってしまった `/company/[id]?age=N` は**読まずに `replaceState` で落とす**（落とさないと「URLは30歳・画面は実測値」が残る）
-- **企業詳細のメタデータは1組に固定された。** それでも `usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**（`usePageMeta` は DOM を直接書き換えるので React の管理外。`<title>` だけは React が書き戻す）。`e2e/metadata.spec.ts` の進む/戻るが実際に捕まえた
+- **`/company/[id]` は全2,961社をビルド時に生成し、静的アセットとして返す**（Astro の `getStaticPaths`。R1 の頃は `generateStaticParams` ＋ `force-static` で、**事前生成までは同じだが Worker が読んで返していた**）。**この画面に項目を足す Unit はクエリを読めない**（C5〜C7・#159〜#161）
+- **企業詳細ページの表示基準は URL に出さない。`?age=` は無い**（ADR-0012）。**ランキング（`/`）の `?age=N` は変えていない**——あちらは2,961行の並び順を変え8件をインデックスさせている。配ってしまった `/company/[id]?age=N` は**読まずに `replaceState` で落とす**（落とさないと「URLは30歳・画面は実測値」が残る）
+- **企業詳細のメタデータは1組に固定された。** それでも `usePageMeta` は呼び続ける——**ランキングから遷移すると前のページの canonical と description が `<head>` に残る**（`usePageMeta` は DOM を直接書き換える）。`e2e/metadata.spec.ts` の進む/戻るが実際に捕まえた
 - **戻る/進むで企業詳細の表示基準は復元されない。** URL に無いものは復元できない。ランキング側の絞り込み・ページ番号は URL が正のまま（U14・#108）
-- **効果は `wrangler dev --local` の CPU で前後を並べて見る。** `/proc/<workerd>/schedstat` の第1フィールド（ns）を N リクエストで割り、**静的アセット（`/favicon.ico`）を床として一緒に測る**。実測で `/company/8282` 29.6〜29.7ms → 14.0〜14.1ms、`/about` 47.7〜59.6ms → 12.4〜13.5ms、`/` は動的のまま変わらず。**「前」は同じコードの `force-static` を `force-dynamic` に入れ替えただけのビルドで測る**——`/about` がどちらでも事前生成されて動かないことが対照になる。**cold は測れない**——起動直後の1本目は 508〜1,776ms で揺れが1,000msを超える（4.7MB の `handler.mjs` を毎回一から評価するため。本番はコンパイル済みを持つ）
-- **デプロイのアセットが 15MB → 344MB・1,655 → 3,528ファイルになる**（1ページ約180KB）。無料枠の上限は**ファイル数 20,000・1ファイル 25MiB**。**E2 で母集団を 2,961社に広げた後は 634MB・4,629ファイル**（1枚平均214KB。1ファイルの最大は0.48MiB）。ファイル数と1ファイルの大きさには余裕があり、Worker バンドルは gzip 1.85MB（無料枠の上限3MiB）
-- **Turbopack の永続キャッシュは `next build` では使わない**（`next.config.ts` の `experimental.turbopackFileSystemCacheForBuild: false`）。Next.js 16.3.0 から既定で有効になったが、**Cloudflare の build cache は復元に失敗しても書きかけのファイルを残す**——2026-08-25 の本番ビルドが `.meta` だけあって参照先の `.sst` が無い状態で Turbopack ごと panic した（`Failed to restore build output from build cache. Skipping.` と出た直後に落ちる）。**コードは直前に成功したビルドと1バイトも違わなかった**ので、再実行しても同じキャッシュを復元し直して落ちる。代償は**ビルド1回あたり約6秒**（22〜24秒 → 29〜30秒）で、`.next/cache` は 100MB → 428KB になる。**`next dev` 側（`turbopackFileSystemCacheForDev`）は既定のまま**——あちらは復元を挟まない
-- **`enableCacheInterception` は使わない**（Issue 183）。CPU は 19.7ms → 15.6ms になるが、**プリフェッチのリクエスト（`Next-Router-Prefetch: 1`）にもフルの RSC ペイロードを返してしまい、クライアントのルーターが取り直しを繰り返す**。本番で `/about?_rsc=…` が**毎秒およそ128回・15秒で1,918回**飛び、Workers 無料枠の10万リクエスト/日を読者1人が13分で使い切る状態になった（同じビルドでこの設定だけを入れ替えると 1,918回 → 2回）
-- **Worker 相手の E2E で通るのは ヘッダ・SEO・404・`prefetch-loop` だけ。** 「操作でネットワークが発生しない」系は**本番ビルドのプリフェッチ（`/about?_rsc=…`）を拾って落ちる**——R1 の前からで、`npm run measure:prefetch` が別に見ている領域。**キャッシュ経由に変わったのでヘッダは必ず Worker で確かめること**
-- **存在しないパスでは Worker を起動しない**（`wrangler.jsonc` の `not_found_handling: "404-page"`）。ボットのスキャン（`/wp-admin/install.php` 等）が Worker を起こして 122ms 使っていた。**`not_found_handling` だけを書くとサイトが全部404になる**——既定で有効な `assets_navigation_prefers_asset_serving` により、ナビゲーションリクエストはアセットに一致しなくても Worker より先に `404.html` が返るため（ローカルで全滅を確認）。**だから `run_worker_first` で Worker が処理するパスを明示してある。ページ（ルート）を足したらここにも足すこと**——忘れると本番でそのページだけが404になり、**dev サーバーには `run_worker_first` が効かないので E2E では気づけない**。`e2e/asset-routing.spec.ts` を Worker に向けて回すと落ちる
-- **`open-next.config.ts`・`wrangler.jsonc` を触ったら `e2e/prefetch-loop.spec.ts` と `e2e/asset-routing.spec.ts` を Worker に向けて回す。** ページを開いて8秒放置し、同じURL（`_rsc` の値は畳む）が15回を超えたら落ちる。**dev サーバーではプリフェッチが動かないので `E2E_BASE_URL` が無いと skip する**——dev で走らせると「暴走していない」が自明に通り、守っているつもりで守っていない状態になる（Issue 183 で起きたのがそれで、そのとき E2E は311件すべて通っていた）
-- **Worker の起動そのものはこの構成では消せない。** 事前生成で描画の CPU は消えたが `handler.mjs`（7.3MB）の評価は残る。本番の実測で `/company/[id]` は cold 107〜137ms・warm 24ms、`/about` は cold 208〜213ms・warm 22ms（Cloudflare の目安は「平均2.2ms・重い処理でも10〜20ms」）。**事前生成した HTML を静的アセットに置けば Worker は起動しない**ことは実証したが、**クライアント遷移（RSC）と両立しない**——アセットは `RSC: 1` 付きにも `text/html` を返す。フレームワークごと見直す線は **Issue #200**——**調査を終え、Astro へ移すと決めた**（ADR-0014・`docs/framework/`。実装は F0〜F2 で未着手）。踏みやすい点が3つある。**①「cold の 100〜600ms が 10ms 枠を超えている」は成り立たない**——起動時間は1秒の別枠で per-request CPU に算入されない。直すべきは**事前生成済みのページを返すだけで warm 20〜24ms 使っていること**のほう。**②アセットと RSC が両立しない問題は、Astro では起きない**——あちらの遷移は素の HTML を取りに行く。実測で `/about` も `/company/[id]` も Worker を起こさずに返り（CPU が床のまま）、バンドルは gzip 1,876KiB → 522KiB になった。**③`/` の重さはフレームワークのせいではない**——40ms のうち16msが全社ぶんの props 直列化で、これは ADR-0013（E0）の領分。**`/` だけはどの案でもサーバーで描く**（`?age=N` 8件・`?ind=X` 33件・ADR-0006）。**SvelteKit も測った**（バンドルは gzip 259KiB で最小）が、**React が動かないのでコンポーネント 4,778 行が書き直しになる**——買えるものは Astro と同じ「Worker を起こす URL を 3,004 → 42 件にする」ことなので割に合わず、却下した（ADR-0014 の却下案 E）。**`@sveltejs/adapter-cloudflare` は `wrangler.jsonc` が無いと Pages モードで `_routes.json` を吐き、上限を超えた exclude を黙って捨てて全ページで Worker を起こす**（ビルドは成功する）
-- **一度は「ページが読むデータを減らす」方向で当てて、戻した**（#165 → #179）。cold で 1.7〜2.0ms しか稼げず、生成物と lint の規則が増えた。**残るのは `/` だけ**（事前生成できないため）で、必要になったら測り直してから入れる
+- **効果は `wrangler dev --local` の CPU で前後を並べて見る。** `/proc/<workerd>/schedstat` の第1フィールド（ns）を N リクエストで割り、**静的アセット（`/favicon.ico`）を床として一緒に測る**。**workerd は2プロセス起きるので合計する。** F1 の実測（床 3.6〜3.9ms）: `/about` 14.3ms → **3.9〜4.2ms（床）**、`/company/6861` 20.6ms → **4.0〜4.5ms（床）**、`/` 39.5〜44.6ms → **21.1〜22.4ms**。**床と区別が付かない＝ Worker が起きていない**
+- **`/` が半分になったのは事前生成とは無関係**で、Worker のバンドルが小さくなったぶん（評価するコードが減った）。**残る 21ms の大半は全社ぶんの props 直列化**で、これは ADR-0013（E0）の領分
+- **どのURLが Worker を起こすかは応答から確かめられる。** `/` にだけ `x-openreport-rendered: worker` が付く（`lib/runtime/renderedBy.ts`）。**OpenNext の頃は `x-nextjs-*` が偶然その役をしていた**——フレームワークの副産物に頼るのをやめ、自分で1つ置いた。`e2e/asset-routing.spec.ts` がこれで固定している
+- **デプロイのアセットは 419MB・5,506ファイル**（`/company/[id]` が1枚平均214KB）。無料枠の上限は**ファイル数 20,000・1ファイル 25MiB**で、どちらも余裕がある。**Worker バンドルは gzip 627.9 KiB**（上限3MiB の20.4%。OpenNext の頃は 2,089 KiB ＝66.4%）
+- **存在しないパスでは Worker を起動しない**（`wrangler.jsonc` の `not_found_handling: "404-page"`）。ボットのスキャン（`/wp-admin/install.php` 等）が Worker を起こして 122ms 使っていた。**`not_found_handling` だけを書くとサイトが全部404になる**——既定で有効な `assets_navigation_prefers_asset_serving` により、ナビゲーションリクエストはアセットに一致しなくても Worker より先に `404.html` が返るため（ローカルで全滅を確認）。**だから `run_worker_first` で Worker が処理するパスを明示してある。いまは `/` の1件だけ**——ページを足すときに載せるかどうかは「サーバーで描く必要があるか」で決める（載せると Worker が起きる）
+- **404 の中身は `src/pages/404.astro`。** 置かないと Astro の既定（`lang="en"` の `404: Not Found`、共通ヘッダ無し）が出る。**ステータスは同じ 404 なので、それだけ見ていると気づけない**（`e2e/asset-routing.spec.ts` が日本語・共通ヘッダ・1種類しかないことを固定している）
+- **`astro.config.mjs`・`wrangler.jsonc` を触ったら `e2e/asset-routing.spec.ts` と `e2e/cache-headers.spec.ts` を Worker に向けて回す。** **dev サーバーには `run_worker_first` も `_headers` も効かない**ので、`E2E_BASE_URL` が無いと skip する——dev で走らせると自明に通り、守っているつもりで守っていない状態になる（Issue 183 で起きたのがそれで、そのとき E2E は311件すべて通っていた）
+- **Worker 相手の E2E で通るのは ヘッダ・SEO・404・アセットのルーティングだけ**（31件）。画面を操作する系は dev サーバーに向けて回す
+- **`enableCacheInterception`・`prefetch-loop`・Turbopack の永続キャッシュ・`measure:prefetch` は、相手ごと無くなった**（どれも Next.js/OpenNext の設定と RSC のプリフェッチにまつわるもの。#183 の暴走は本番で `/about?_rsc=…` が毎秒128回飛んだ事故だった）
+- **一度は「ページが読むデータを減らす」方向で当てて、戻した**（#165 → #179）。cold で 1.7〜2.0ms しか稼げず、生成物と lint の規則が増えた。**残るのは `/` だけ**で、必要になったら測り直してから入れる
+- **SvelteKit も測った**（バンドルは gzip 259KiB で最小）が、**React が動かないのでコンポーネント 4,778 行が書き直しになる**——買えるものは Astro と同じ「Worker を起こす URL を 3,004 → 42 件にする」ことなので割に合わず、却下した（ADR-0014 の却下案 E）。**`@sveltejs/adapter-cloudflare` は `wrangler.jsonc` が無いと Pages モードで `_routes.json` を吐き、上限を超えた exclude を黙って捨てて全ページで Worker を起こす**（ビルドは成功する）
+- **「cold の 100〜600ms が 10ms 枠を超えている」は成り立たない**——起動時間は1秒の別枠で per-request CPU に算入されない（Issue #200 の前提を調査で正した）。直したのは**事前生成済みのページを返すだけで warm 20〜24ms 使っていたこと**のほう
 
 **働きやすさ指標は `worklife` 施策**（`docs/worklife/`）。厚生労働省「女性の活躍推進企業データベース」から**平均残業時間・年次有給休暇の取得率・男女の賃金の差異**を取り込み、企業詳細ページに出す。**W0（取り込み・Issue #149）・W1（表示・Issue #150）・W2（異常値の除去・Issue #215）とも実装済み**（`docs/worklife/data-ingest/`・`company-section/`・`outlier-handling/`）。親 Issue #148。**E5（#177）で母集団の拡大に追随させた**（1,548社 → 2,369社 = 80.0%。**W2 で 2,367社 = 79.9%**）。
 
@@ -273,8 +274,8 @@ Unit の実装を終えたら、次の順で進める。
 - **左カラムの `justify-between` を PC まで効かせない。** 縦積みで左カラムが区分5件ぶんの高さになると、**単位が5行下の行末に落ちる**（実測。`sm:justify-start` で止めている）
 - **`web/lib/data/worklife.ts` は `pipeline/worklife/json.ts` の写し。** `pipeline/` は web から import できないので同じ規則が2か所にある。**変えるときは両側を直す。** 写し違いは合成データでは見つからない（両側が同じ勘違いをすれば通る）ので、`lib/data/worklife.test.ts` は**実物の `worklife.json`** に対して spec が名指しする7社の値を固定している
 - **時点は `lib/data/period.ts` に相乗りさせない。** 決算期（`2026年3月期`）は有報の時点で、データ集計時点（`2026年3月時点`）とは別物。会社ごとに違う（三菱商事は `2026年4月時点`、みずほ銀行は `2025年3月時点`）
-- **トップページの HTML は raw 373,821 B のまま±0**（`app/page.tsx` から読まない）。`/company/6861` は 97,889 B → 103,281 B、区分4件＋注釈のある `/company/8058` は 110,254 B。**Issue #191 のバーの組み替えで、区分の多い会社ほど軽くなった**（1本あたり 10 `<span>` → 3 `<span>`。`/company/8058` は 133,477 → 131,266 B）
-- **`E2E_BASE_URL` に `127.0.0.1` を渡すと Next.js の dev origin チェックが一部チャンクを 403 で弾き、ハイドレーションだけが起きない。** 「値は出ているのにクリックが効かない」という形で出るのでテストの書き方を疑ってしまう。**`http://localhost:<port>` を渡す**
+- **トップページの HTML は raw 373,821 B のまま±0**（`src/pages/index.astro` から読まない）。`/company/6861` は 97,889 B → 103,281 B、区分4件＋注釈のある `/company/8058` は 110,254 B。**Issue #191 のバーの組み替えで、区分の多い会社ほど軽くなった**（1本あたり 10 `<span>` → 3 `<span>`。`/company/8058` は 133,477 → 131,266 B）
+- **`E2E_BASE_URL` には `http://localhost:<port>` を渡す。`127.0.0.1` にしない。** Next.js の頃は dev origin チェックが一部チャンクを 403 で弾き、**「値は出ているのにクリックが効かない」**（＝ハイドレーションだけ起きない）という形で出た。Astro で同じことが起きるかは確かめていないが、揃えておく理由が無くなったわけではない
 
 - **入力ミスとみられる値は取り込み時に落とす**（W2・#215・親 #185。#207 は重複）。**残業時間と有給取得率の 0**（全体値10社・区分別129セル）——「1か月あたりの平均」が 0 になるのは対象者が1年間まったく残業していないときだけで、**未記入を 0 で埋めたのか本当に 0 なのかを区別できない**。自社の中で矛盾している会社が実在する（花王は全体15.4hなのに区分5件すべて0.0、東洋エンジニアリングは全体0.0なのに総合職8.0h）。残業の軸は小さいほど上位なので、残すとその会社が図の最上位に出る。**代償としてパート・嘱託の本物の 0.0 も消える**。もう1つは**有給の全体値が 100 ちょうどで区分別がすべてそれ未満**のとき（4社。ソニーグループ 100 / 全体 63.7 ほか）——列の見出しが `8.(1)年次有給休暇の取得率-対象労働者(%)` で「対象労働者の割合」とも読めるため、100 は「対象は全労働者」の意味で書かれたとみられる。**100 ちょうど以外は判定しない**（98.8 / 34.5 のような怪しい組み合わせはあるが根拠が無い）。**全体値が区分の範囲外にあることを判定に使わない**——区分は全労働者を覆っているとは限らない（実測で残業50社・有給33社が範囲外だが大半は部分的な登録）。**区分の行そのものは残す**（値だけ空にする）
 - **落とした10社では「この会社は残業時間をデータベースに登録していません。」が事実と違う**（登録はしていて、その値を我々が採らなかった）。**直していない**——文言と字数（29文字）は #192 で決めたもので、正しく書き分けるにはデータが「登録が無い」と「採らなかった」を区別する必要がある（`docs/worklife/outlier-handling/design.md`）
@@ -284,7 +285,7 @@ Unit の実装を終えたら、次の順で進める。
 - **証券コード＋社名で突合すると29社が別の会社に紐づく**（1.7%）。うち28社が持株会社→子会社（ニトリHD→ニトリ、ハウス食品グループ本社→ハウス食品 等）、1社が証券コードの誤登録。**法人番号のほうが突合率も高い**ので、精度と網羅のトレードオフですらない
 - **残業と有給は「全体」と「雇用管理区分ごと」の2箇所に分かれている。両方を見ないと4割落とす**（全体だけだと残業56.2%・有給23.2%）
 - **雇用管理区分は会社が登録した名前のまま出す。統一しない**（spec 2.2b・glossary）。区分名は1,548社で**1,009種類**あり、切り口も 雇用形態（総合職/派遣社員）・職能（営業・管理系/技術系）・組織（カンパニー/ユニット/グループ）の3通りが混在する。**1社の中でも混ざる**（みずほ銀行）。平均しない・正規化しない・分類を発明しない・代表を選ばない・並び替えない。**その会社が自社をどう切っているかがそれ自体の情報になる**
-- **`worklife.json` は `/company/[id]` だけが import する。** `app/page.tsx` からは読まない（Issue #22）。**表現は `companies.json` と同じ文字列プール＋フラットな配列**——入れ子だと起動コストが倍以上になる（Node 22 実測の中央値で入れ子30.8ms → フラット12.5ms。`companies.json` は6.2ms）。**DuckDB・D1 は使わない**（1,679行の読み取り専用データにDBを持ち込まない）
+- **`worklife.json` は `/company/[id]` だけが import する。** `src/pages/index.astro` からは読まない（Issue #22）。**表現は `companies.json` と同じ文字列プール＋フラットな配列**——入れ子だと起動コストが倍以上になる（Node 22 実測の中央値で入れ子30.8ms → フラット12.5ms。`companies.json` は6.2ms）。**DuckDB・D1 は使わない**（1,679行の読み取り専用データにDBを持ち込まない）
 - **「実測値」とも「推定」とも呼ばない。「自己申告値」**（glossary）——「実測値」は有報の平均年間給与を指す語で衝突する
 - **`worklife_2026.csv` は2,367行**（突合2,641社のうち、3指標を1つも持たない274社は行を作らない。W2 の前は2,369行・272社）。`worklife.json` は gzip **186.3KB** で上限220KB。**上限を超えたとき注釈を切り出すかは、Worker バンドルが 3MiB に近づいたかで決める**（`docs/worklife/overview.md`）——E5 の実測でバンドルは gzip 2.089MB（66.4%）なので同梱のまま
 - **ZIP は厚労省のオープンデータページから落とす**（`download_b.html?w=99` が全件版）。**curl の既定 User-Agent では 403**（AWS ELB が弾く）。日々更新されるので、**どの版で作ったかは `manifest.json` の sha256 が示す**
@@ -334,7 +335,7 @@ Unit の実装を終えたら、次の順で進める。
 - **P0 のデータの誤りが2つ出た。** ①経常利益の要素名は**名前空間で決め打ちできない**（東京製鐵は独自拡張の `OrdinaryProfitSummaryOfBusinessResults`）。②**`OrdinaryIncome`（`Loss` が付かない綴り）は「経常収益」で別物**——三菱UFJは経常収益14.6兆円・経常利益3.4兆円の両方を持ち、取り違えると**保険業の業種中央値が 889万円 → 10,995万円 になる**。ラベルに「経常収益」を含む行は二重に弾く
 - **最後の開示が8年前の会社は落とす**（2社）。「直近5期」は最新年から遡るので、放っておくと2014〜2018年の中央値が「稼ぐ力」として出る
 - **10年ぶんを取り直したことで P0 の値が54社で変わった**（電気機器の業種中央値 181万円 → 191万円）。「遡りの少ないほう＝その年の書類の当期を優先する」が効くようになったためで、精度が上がった変更になる
-- **`/company/[id]` の HTML は raw 110,218 B → 125,462 B（+15,244 B）。増分は4社ともほぼ同じ**（棒10本・表10行×4列で、会社によって変わるのは数字の桁だけ）。**`/` は 373,821 B のまま±0**（`profit-history.json` を `app/page.tsx` から読まない）。`profit-history.json` は gzip 187.0KB（上限256KB）
+- **`/company/[id]` の HTML は raw 110,218 B → 125,462 B（+15,244 B）。増分は4社ともほぼ同じ**（棒10本・表10行×4列で、会社によって変わるのは数字の桁だけ）。**`/` は 373,821 B のまま±0**（`profit-history.json` を `src/pages/index.astro` から読まない）。`profit-history.json` は gzip 187.0KB（上限256KB）
 
 **Issue #21（UI改善・Claude Design の `改善案.dc.html`）に着手中。** アートボード 5a/5b/5c（実測値モード）は U11、4a/2a/5c（レイアウト刷新）は **U12（Issue #80）で実装済み**。残りは、**C2（Issue #83）も実装済みで、Issue #21 のアートボードは全て実装した**（T0・T1 も込み）。計画は `~/.claude/plans/tingly-sleeping-puppy.md`。
 
@@ -402,7 +403,7 @@ Unit の実装を終えたら、次の順で進める。
 - **「水準が近い会社」だけはリクエスト時に算出する**（`findNeighbors`）。ビルド時に持つと 1,867×9×10 の表になる。1業種は最大173社で実測 0.05ms/基準。**9基準ぶんをサーバーでまとめて出して渡す**——クライアントで出すには `companies.json` 全件が要る。**出す社数は10社**（Issue #195 で5社から増やした。回遊のため）。**満たない業種が5つある**（鉱業2・空運業5・石油石炭製品6・水産農林業6・海運業7＝26社）ので、`toHaveLength` で件数を固定するテストはキーエンス（電気機器150社）のような大きい業種で書く。**5→10で `/company/[id]` の HTML は raw 126,241 B → 135,913 B（+9,672 B・gzip +822 B）**。**リクエスト時の CPU は増えない**（R1 以降ビルド時に生成するため）し、`/` も変わらない
 - **要点の箇条書きは数値から機械的に導ける事実だけ。** 「若い／長い／大きい」の判定は**ランキングのフィルタと同じ三分位**を使う（別の線で書くと読者が混乱する）。該当しない項目は出さない
 - **推定範囲 ±20% は「統計的な信頼区間ではない」と2か所に書く**（チャートの figcaption・`/about`）。**帯だけを見ると信頼区間に見える**ので図の側の断りを省けない。**表の caption には重ねて置かない**（Issue #95）——表・説明文・チャートは1つの節に縦に続くので、両方に置くと一度の視界に同じ断りが2つ並ぶ
-- `/company/[id]` の HTML は gzip 8,250 B → 12,873 B（C2）→ 14,223 B（C3）→ 13,993 B（公開後の2巡目）→ **13,824 B**（Issue #95 で表の caption と説明文の3文目を落としたぶん）。**C4（#146）の説明文3か所は raw 97,511 B → 97,889 B（+378 B）**——同一ビルド・同一手順で `next start` に対して前後を測った値（gzip は 14,530 → 14,633 B。起動ごとに揺れるので前後は raw で見る）。`/` は変わっていない（`history.json` を `app/page.tsx` から import しないため）
+- `/company/[id]` の HTML は gzip 8,250 B → 12,873 B（C2）→ 14,223 B（C3）→ 13,993 B（公開後の2巡目）→ **13,824 B**（Issue #95 で表の caption と説明文の3文目を落としたぶん）。**C4（#146）の説明文3か所は raw 97,511 B → 97,889 B（+378 B）**——同一ビルド・同一手順で `next start` に対して前後を測った値（gzip は 14,530 → 14,633 B。起動ごとに揺れるので前後は raw で見る）。`/` は変わっていない（`history.json` を `src/pages/index.astro` から import しないため）
 
 **説明文は C4（`docs/company/summary-text/`、Issue #146・親 #145）で3か所に足した。数値は1つも増やしていない。**
 
@@ -448,14 +449,14 @@ Unit の実装を終えたら、次の順で進める。
 - **`/` に `logos.json` を丸ごと渡さない**（gzip 41.5KB）。渡すのは**ロゴの有無だけ**——`companies.rows` と同じ並びの1,867文字の文字列（gzip 約250B）。**縦横比は渡さない**——器の寸法が固定で中身は `object-contain` なので、画像が届いてもレイアウトは動かない。企業詳細ページはマスクではなくその画面に出る46社ぶんのIDだけを渡す
 - **器は横長。** 表 88×50／近傍の会社 48×38／モバイルのランキング行 68×48（`size="row"`）／企業詳細 136×62。**高さはモック由来で、幅だけ広げてある**（`features/logo/components/CompanyLogo.tsx`）。**表（PC）だけは高さもモックの40pxから50pxに上げた**（運営者の指示・Issue #128。この行は器が行の高さを決めているので隣の列を削らない）。**モバイルは 48×38 に留めていた**——56px以上にすると meta 行の従業員数が丸ごと消えたため（実測）。**Issue #119 で行を4カラムにして meta から従業員数を落としたので、この制約は外れた**（削られる相手が無くなった）
 - **ダークで濃いロゴが沈むので、器に `--logo-surface` の明るい面を敷く。** 色を反転させる加工はしない（商標をそのままの形で出す）。**ダークだけ少し落としてある**——白のままだと1ページに30枚並んで眩しい。E2E は `getComputedStyle` が `lab()` を返すので、**キャンバスに描いて sRGB に開いてから**明るさを測っている
-- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。8ファイル11箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作でHTML・RSCを取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
+- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。8ファイル11箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作で HTML を取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
 - **`/about` の帰属表示は `attr: true` の44社だけ。** パブリックドメインの397社は並べない（本当に帰属が要るものが埋もれる）
 
 **戻る/進むは `web/lib/history/useLocationSyncedState.ts` の3規則が正**（U14・`docs/ranking/back-navigation/`、親 Issue #108・Issue #121）。ページを跨いで戻ると絞り込み・ページ番号・表示基準が消えていたのを直した。
 
-- **マウント時は URL が正。** 戻ると Next.js はルーターキャッシュの RSC ツリーをそのまま返すので、サーバーが渡す `initialState` は**そのツリーを作ったときのURL**の値（＝古い）になる。これで URL を上書きすると `?page=2` が `/` に戻り、**進む先の履歴まで消える**
+- **マウント時は URL が正。** 戻ったときにサーバーが渡した `initialState` で URL を上書きすると `?page=2` が `/` に戻り、**進む先の履歴まで消える**。Next.js の頃はルーターキャッシュの RSC ツリーがそのまま返って `initialState` が「そのツリーを作ったときのURL」の値になっていた。**Astro でも規則は変えない**——ブラウザのキャッシュから返った HTML も、それが作られたときのURLのものになる
 - **URL へ書くのは、アプリ側の操作で値が変わったときだけ**（setter を包んで印を付けている）。**「マウント後の1回目だけ飛ばす」という数え方にしない**——開発サーバーの StrictMode は effect を2回走らせるので2回目が漏れる（実際に漏れていた）
-- **自分のパスを離れたら書かない・読まない。** **Next.js は `pushState` を浅い遷移として扱う**ので、抜けていくページが行き先のURLを書くと**URLだけ次のページ・画面は前のページ**の行き止まりになる（企業詳細 → ランキングの戻るで実際に起きていた）
+- **自分のパスを離れたら書かない・読まない。** Next.js は `pushState` を浅い遷移として扱うので、抜けていくページが行き先のURLを書くと**URLだけ次のページ・画面は前のページ**の行き止まりになっていた（企業詳細 → ランキングの戻るで実際に起きた）。**Astro では文書ごと入れ替わるのでこの経路は無い**が、規則は残してある——コストがほぼ無く、外すと「なぜ外したか」を次に読む人が確かめ直すことになる
 - **検索語だけはフックを通さない。** `q` が付く／外れる境目だけ `push`、打ち替えは `replace`（`queryBroadcast.ts` の `buildQueryLocation`）。以前は1文字ごとに `pushState` していて「トヨタ自動車」で履歴が6件増えていた
 - **スクロール位置は自前で復元しない。** ブラウザが正しく戻している。E2E で戻らないように見えたのは、**Playwright の `click()` がクリック前に対象をビューポートへスクロールする**ため——戻る/進むの位置を測るときは画面内にある要素を押すこと
 
@@ -484,11 +485,18 @@ Unit の実装を終えたら、次の順で進める。
 **未解決の課題:**
 
 - **Issue #22: 掲載企業数を増やす（E0〜E6 すべて実装済み）。** 拡大そのもの（E2・#173）・初回ロードのペイロード方式（E0・#174）・ロゴ（E3・#175）・10年推移（E4・#176）・働きやすさ（E5・#177）・稼ぐ力（E6・#182）。
-  - **E0 が F1（Astro へのカットオーバー・#209）より先に入っているのは意図した順序。** Astro は島の props を HTML の属性に直列化するので `__next_f` より重く、実測で `/` の HTML が gzip +4,024 B（1,867社ぶん）になる。2,961社では E0 前の余白 7.2KB をほぼ食い潰していた（`docs/framework/overview.md`「実施順序」）。**E0 で `/` は gzip 19,860 B になったので、この制約は解けている**——サーバーが渡すのは30行ぶんで、直列化の形式の差は予算に効かない
+  - **E0 が F1（Astro へのカットオーバー・#209）より先に入っているのは意図した順序。** Astro は島の props を HTML の属性に直列化するので `__next_f` より重く、実測で `/` の HTML が gzip +4,024 B（1,867社ぶん）になる。2,961社では E0 前の余白 7.2KB をほぼ食い潰していた（`docs/framework/overview.md`「実施順序」）。**E0 で `/` は gzip 19,860 B になったので、この制約は解けている**——サーバーが渡すのは30行ぶんで、直列化の形式の差は予算に効かない。**F1 を当てた後の実測は gzip 19,420 B**（raw 246,408 B）で、心配していた増加は現れなかった
   - **派生データは全部追随した。** ロゴは E3（#175）で 54.9% → **84.7%**、10年推移は E4（#176）で 63.1% → **100%**、働きやすさは E5（#177）で 52.3% → **80.0%**（W2・#215 の異常値の除去で 79.9%）、稼ぐ力は E6（#182）で 63.0% → **99.9%**
   - **E6 は書類を取り直さなくてよかった。** E4 が10年ぶん26,865件をキャッシュ済みで、`pipeline/performance/extract.py` はそこから読む（`python3 extract.py` を1回回すだけで済んだ）
   - **外資系日本法人（Google・Meta・Microsoft）の平均年収は、公式情報から出す手段が無い。** EDINETコードリストに載るのは外国の親会社だけで、いずれも有報の提出義務者ではない。決算公告は貸借対照表で給与を含まず、女性活躍DBは賃金の差異（％）しか持たない（`docs/expansion/intent.md` に実測）
 - **ロゴの無い452社**（E3 の後）。過半が「公式サイトURLが無い」で、Wikidata にも gBizINFO にもURLが無い会社。**届く手段は現状無い。**
 - **Issue #55: 株価・信用格付け。** J-Quants・edinetdb.jp からの調達可否を確認するところから。**再配布可否の判断は運営者が行う**（product.mdの制約に明記）。
 
-`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
+`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み（388件）。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
+
+**画面を操作する spec は `e2e/appTest.ts` の `test` を使う。素の `@playwright/test` を使わない**（F1・#209）。`goto`／`reload` の直後に**ハイドレーションの完了**（`astro-island[ssr]` が消えるまで）と、`/` なら**全件データの到着**（E0）を待つ。
+
+- **島に React が取り付く前のクリックはどこにも届かない。** SSR したボタンは最初から DOM にあるので Playwright の自動待機は素通りし、`click()` は成功したように見えて何も起きない。**F1 の1巡目はこれで27件落ちた**
+- **`waitUntil` を明示した `goto`／`reload` では待たない**——ハイドレーション前の HTML を見るテスト（`e2e/theme.spec.ts` のちらつき防止）は、待った時点でその瞬間を過ぎる。そこから続けて操作するなら `waitForHydration(page)` を明示的に呼ぶ
+- **ページ間の遷移を見るときは `click()` が返るのを待てない。** 素の HTML 取得になったので `click()` も `expect(locator)` も**新しい文書が届くまで返らず**、戻ってきた時点では次のページに入れ替わっている。前のページで起きたことを見たいときは、**クリックの前にページ内で記録を始めて `exposeFunction` で受け取る**（`e2e/navigation-progress.spec.ts`）
+- **`astro dev` の開発ツールバーは切ってある**（`astro.config.mjs` の `devToolbar`）。オーバーレイが `h1` を3つ持ち込むので `locator("h1")` が strict mode で落ちる

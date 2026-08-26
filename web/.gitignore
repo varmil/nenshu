@@ -16,9 +16,10 @@
 /playwright-report
 /blob-report
 
-# next.js
-/.next/
-/out/
+# astro（F1・#209）。`dist/` はビルド成果物（クライアント側は 5,500 ファイル・
+# 630MB になる）、`.astro/` は型と dev の作業ファイル。
+/dist/
+/.astro/
 
 # production
 /build
@@ -43,12 +44,8 @@ yarn-error.log*
 # wrangler
 .wrangler
 
-# opennext
-.open-next
-
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # design-sync (see .design-sync/build-design-system-package.mjs / NOTES.md)
 /.ds-sync/

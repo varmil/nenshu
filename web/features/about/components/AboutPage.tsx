@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { NavLink } from "@/features/navigation/components/NavLink";
 import {
   Table,
@@ -20,12 +19,9 @@ import {
 } from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/period";
-import { aboutMetadata } from "@/lib/seo/about";
-import { JsonLd } from "@/lib/seo/JsonLd";
-import { webSiteJsonLd } from "@/lib/seo/jsonLd";
-import companiesData from "../../public/data/companies.json";
-import curvesData from "../../public/data/curves.json";
-import logosData from "../../public/data/logos.json";
+import companiesData from "@/public/data/companies.json";
+import curvesData from "@/public/data/curves.json";
+import logosData from "@/public/data/logos.json";
 
 const companies = companiesData as CompaniesData;
 const logoEntries = logosData.byId as Record<string, LogoEntry>;
@@ -36,12 +32,6 @@ const logoEntries = logosData.byId as Record<string, LogoEntry>;
 const logoCredits = attributionCredits(companies.rows, logoEntries);
 const logoCounts = creditCounts(logoEntries);
 
-/**
- * 文言は `lib/seo/about.ts` が持つ（S2 でここから出した）。`og:` を
- * title・description・canonical と同じ文字列にするのは `toMetadata()` の
- * 仕事で、素の `Metadata` を返すページだけ `og:` が付かない状態にしないため。
- */
-export const metadata: Metadata = aboutMetadata(companies.meta);
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -80,15 +70,13 @@ function Formula({ label, children }: { label: string; children: string }) {
   );
 }
 
-export default function AboutPage() {
+export function AboutPage() {
   const facts = buildAboutFacts(companies, curvesData as CurvesData);
   const { formulaExample: ex, holdingExample, operatingExample, modelBias: bias } = facts;
   const extrapolation = new Map(bias.meanExtrapolationByAge.map((x) => [x.age, x.distance]));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 leading-relaxed">
-      {/* サイト名と `/` のURLだけ（S2・spec 4.4）。`/` と同じものを出す。 */}
-      <JsonLd data={webSiteJsonLd()} />
       <header className="flex flex-col gap-3">
         <NavLink href="/" className="text-primary text-sm underline">
           ← ランキングに戻る

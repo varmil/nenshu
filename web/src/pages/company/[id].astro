@@ -1,0 +1,34 @@
+---
+/**
+ * 企業詳細（C1〜C4・R1）。**全社をビルド時に生成して静的アセットで返す**
+ * ——Worker を起こさない（F1・AC-1）。ADR-0012 の決定1（全社を事前生成）と
+ * 決定3（表示基準を URL に出さない）はそのまま。
+ */
+import Base from "@/src/layouts/Base.astro";
+import { CompanyDetailIsland } from "@/features/company/components/CompanyDetailIsland";
+import { companyIds, companyPageData } from "@/features/company/lib/pageData";
+import { companyPageMeta } from "@/lib/seo/company";
+import { breadcrumbJsonLd } from "@/lib/seo/jsonLd";
+import { companyBreadcrumb } from "@/features/company/lib/breadcrumb";
+
+export function getStaticPaths() {
+  return companyIds().map((id) => ({ params: { id } }));
+}
+
+const data = companyPageData(Astro.params.id!);
+const meta = companyPageMeta(data.view, data.fiscalPeriod);
+---
+
+<Base meta={meta}>
+  {/*
+    画面のパンくずと同じ階層を機械可読にする（S2・AC-14）。**同じ配列から出す**
+    ので、段を足したり行き先を変えたりしても片方だけ古くならない。
+  */}
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(breadcrumbJsonLd(companyBreadcrumb(data.view)))}
+  />
+  <CompanyDetailIsland data={data} client:load />
+</Base>

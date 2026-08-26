@@ -1,0 +1,44 @@
+---
+/**
+ * 存在しないパスの 404（F1・Issue #209）。
+ *
+ * **`wrangler.jsonc` の `not_found_handling: "404-page"` が返すのがこのページ。**
+ * アセットに一致しないリクエスト——ボットのスキャン（`/wp-admin/install.php` 等）や
+ * `companies.json` に無いIDの `/company/…`——は Worker を起こさずにここへ落ちる
+ * （Issue #200 の一部・親 #118。本番の実測でスキャン1回あたり 122ms を使っていた）。
+ *
+ * **置かないと Astro の既定の 404 が出る。** あちらは `lang="en"` の
+ * `404: Not Found` で、共通ヘッダもブランドも持たない。Next.js の頃は
+ * `scripts/write-404-asset.mjs` が `/_not-found` の HTML をアセットに写しており、
+ * **レイアウト（共通ヘッダ）は出ていた**——本文が英語の既定文だった点だけが違う。
+ *
+ * **出どころは1つ。** `/company/<無いID>` も `/wp-admin/…` も同じこの HTML になる。
+ */
+import Base from "@/src/layouts/Base.astro";
+import { NavLink } from "@/features/navigation/components/NavLink";
+import { SITE_NAME } from "@/lib/seo/site";
+---
+
+<Base
+  meta={{
+    title: `ページが見つかりません | ${SITE_NAME}`,
+    description: "お探しのページは見つかりませんでした。",
+    /*
+      **canonical は `/` を指す。** 404 に正規URLは無く、`Astro.url` を書くと
+      存在しないURLを自分で申告することになる（`app/layout.tsx` に
+      `og:url` を入れなかったのと同じ線。S2）。
+    */
+    canonical: "/",
+  }}
+>
+  <main class="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
+    <p class="text-muted-foreground text-sm font-medium">404</p>
+    <h1 class="text-2xl font-bold">ページが見つかりません</h1>
+    <p class="text-muted-foreground text-sm">
+      お探しのページは、移動したか削除された可能性があります。
+    </p>
+    <NavLink href="/" class="text-primary text-sm font-medium underline underline-offset-4">
+      年収ランキングへ戻る
+    </NavLink>
+  </main>
+</Base>

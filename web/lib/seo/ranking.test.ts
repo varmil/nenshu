@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { CompaniesData } from "@/features/ranking/types";
 import { INITIAL_STATE, buildSearchParams } from "@/features/ranking/lib/urlState";
-import { agePath, industryPath, rankingCanonical, rankingMetadata, rankingPageMeta } from "./ranking";
-import { toMetadata } from "./pageMeta";
+import { agePath, industryPath, rankingCanonical, rankingPageMeta } from "./ranking";
 
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
@@ -133,10 +132,10 @@ describe("agePath / industryPath", () => {
   });
 });
 
-describe("rankingMetadata", () => {
+describe("rankingPageMeta", () => {
   it("`/` はブランド先頭で、社数はデータから引く", () => {
-    const meta = rankingMetadata(new URLSearchParams(""), companies, count);
-    expect(meta.alternates?.canonical).toBe("/");
+    const meta = rankingPageMeta(new URLSearchParams(""), companies, count);
+    expect(meta.canonical).toBe("/");
     // 社数を直書きしない。年1回のデータ更新でタイトルだけ古い数字になるのを防ぐ。
     expect(meta.title).toBe(
       "OpenReport | 有価証券報告書ベースの平均年収ランキング 1,867社【2026年3月期〜4月期】"
@@ -148,7 +147,7 @@ describe("rankingMetadata", () => {
 
   it("有価証券報告書は全ページの description に入る", () => {
     for (const query of ["", "age=35", "ind=銀行業", "emp=1000-", "q=キーエンス"]) {
-      const meta = rankingMetadata(new URLSearchParams(query), companies, count);
+      const meta = rankingPageMeta(new URLSearchParams(query), companies, count);
       // `/` へ寄るURLは `/` の description を返すので、どの入力でも必ず入っている。
       expect(meta.description, query).toContain("有価証券報告書");
     }
@@ -156,37 +155,37 @@ describe("rankingMetadata", () => {
 
   it("タイトルに有価証券報告書を入れるのは `/` だけ", () => {
     // 8件・33件のファセットページは「◯歳」「業種名」に文字数を使う。
-    expect(rankingMetadata(new URLSearchParams("age=35"), companies, count).title).not.toContain(
+    expect(rankingPageMeta(new URLSearchParams("age=35"), companies, count).title).not.toContain(
       "有価証券報告書"
     );
-    expect(rankingMetadata(new URLSearchParams("ind=銀行業"), companies, count).title).not.toContain(
+    expect(rankingPageMeta(new URLSearchParams("ind=銀行業"), companies, count).title).not.toContain(
       "有価証券報告書"
     );
   });
 
   it("年齢そろえの description には推定であることを書く（AC-9）", () => {
-    const meta = rankingMetadata(new URLSearchParams("age=35"), companies, count);
+    const meta = rankingPageMeta(new URLSearchParams("age=35"), companies, count);
     expect(meta.title).toBe("35歳年収ランキング | OpenReport");
     expect(meta.description).toContain("推定");
   });
 
   // S3（Issue #134、`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。
   it("決算期は `/` の title と全ページの description に入る", () => {
-    const root = rankingMetadata(new URLSearchParams(""), companies, count);
+    const root = rankingPageMeta(new URLSearchParams(""), companies, count);
     expect(root.title).toContain("2026年3月期〜4月期");
 
     for (const query of ["", "age=35", "ind=銀行業", "page=2", "emp=1000-"]) {
-      const meta = rankingMetadata(new URLSearchParams(query), companies, count);
+      const meta = rankingPageMeta(new URLSearchParams(query), companies, count);
       expect(meta.description, query).toContain("2026年3月期〜4月期");
     }
   });
 
   it("ファセットの title には決算期を入れない（`◯歳`・業種名に文字数を使う）", () => {
     expect(
-      rankingMetadata(new URLSearchParams("age=35"), companies, count).title
+      rankingPageMeta(new URLSearchParams("age=35"), companies, count).title
     ).not.toContain("2026年3月期〜4月期");
     expect(
-      rankingMetadata(new URLSearchParams("ind=銀行業"), companies, count).title
+      rankingPageMeta(new URLSearchParams("ind=銀行業"), companies, count).title
     ).not.toContain("2026年3月期〜4月期");
   });
 
@@ -197,14 +196,14 @@ describe("rankingMetadata", () => {
       ...companies,
       meta: { ...companies.meta, fiscalPeriodRange: { from: "2027-03", to: "2027-04" } },
     } as typeof companies;
-    const meta = rankingMetadata(new URLSearchParams(""), next, count);
+    const meta = rankingPageMeta(new URLSearchParams(""), next, count);
     expect(meta.title).toContain("2027年3月期〜4月期");
     expect(meta.description).toContain("2027年3月期〜4月期");
     expect(meta.title).not.toContain("2026年");
   });
 
   it("業種ページは実測値なので推定の語を出さない（AC-9）", () => {
-    const meta = rankingMetadata(new URLSearchParams("ind=銀行業"), companies, count);
+    const meta = rankingPageMeta(new URLSearchParams("ind=銀行業"), companies, count);
     expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
     expect(meta.description).toContain("82社");
     expect(meta.description).not.toContain("推定");
@@ -212,20 +211,20 @@ describe("rankingMetadata", () => {
 
   it("ページ2以降は title にページ番号を足す", () => {
     // 63枚が同一タイトルだと Search Console の重複タイトル警告に埋もれる。
-    expect(rankingMetadata(new URLSearchParams("page=3"), companies, count).title).toBe(
+    expect(rankingPageMeta(new URLSearchParams("page=3"), companies, count).title).toBe(
       "OpenReport | 有価証券報告書ベースの平均年収ランキング【2026年3月期〜4月期】（3ページ目）"
     );
-    expect(rankingMetadata(new URLSearchParams("age=35&page=2"), companies, count).title).toBe(
+    expect(rankingPageMeta(new URLSearchParams("age=35&page=2"), companies, count).title).toBe(
       "35歳年収ランキング（2ページ目） | OpenReport"
     );
-    expect(rankingMetadata(new URLSearchParams("ind=銀行業&page=2"), companies, count).title).toBe(
+    expect(rankingPageMeta(new URLSearchParams("ind=銀行業&page=2"), companies, count).title).toBe(
       "銀行業の平均年収ランキング（2ページ目） | OpenReport"
     );
   });
 
   it("寄せ先の title を返す。非正規URLに固有の title を作らない", () => {
-    const meta = rankingMetadata(new URLSearchParams("age=35&ind=銀行業"), companies, count);
-    expect(meta.alternates?.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
+    const meta = rankingPageMeta(new URLSearchParams("age=35&ind=銀行業"), companies, count);
+    expect(meta.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
     expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
   });
 });
@@ -256,14 +255,4 @@ describe("rankingPageMeta — 状態から引いても同じものが出る（U1
     expect(metaOf(INITIAL_STATE).title).toContain("1,867社");
   });
 
-  it("`rankingMetadata` は `rankingPageMeta` を包むだけ", () => {
-    // 文言が2か所に分かれていないことをここで固定する。サーバーとクライアントで
-    // 別々に組み立てると、片方だけ直した状態に必ずなる。
-    for (const query of ["", "age=35", "ind=銀行業", "emp=1000-", "page=2"]) {
-      const params = new URLSearchParams(query);
-      expect(rankingMetadata(params, companies, count), query).toEqual(
-        toMetadata(rankingPageMeta(params, companies, count))
-      );
-    }
-  });
 });

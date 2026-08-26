@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import { INITIAL_STATE, parseSearchParams } from "@/features/ranking/lib/urlState";
 import { PAGE_SIZE } from "@/features/ranking/types";
 import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
@@ -11,7 +10,7 @@ import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/
  */
 type CompaniesFacts = Pick<CompaniesData, "meta" | "industries">;
 import { fiscalPeriodLabel } from "@/lib/data/period";
-import { toMetadata, type PageMeta } from "./pageMeta";
+import type { PageMeta } from "./pageMeta";
 import { agePath, industryPath } from "./paths";
 import { SITE_NAME } from "./site";
 
@@ -191,14 +190,3 @@ export function rankingPageMeta(
   };
 }
 
-/**
- * `app/page.tsx` の `generateMetadata` が返す形。**文言は `rankingPageMeta` が持ち、
- * ここは包むだけ**——同じ文言をクライアント（`RankingApp`）も引くため（U16）。
- */
-export function rankingMetadata(
-  params: URLSearchParams,
-  companies: CompaniesFacts,
-  industryCount: (industry: string) => number
-): Metadata {
-  return toMetadata(rankingPageMeta(params, companies, industryCount));
-}

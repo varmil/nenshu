@@ -1,0 +1,26 @@
+---
+/**
+ * 計算方法（U7）。**ビルド時に生成して静的アセットとして返す**——Worker を
+ * 起こさない（F1・AC-1）。
+ */
+import Base from "@/src/layouts/Base.astro";
+import { AboutPage } from "@/features/about/components/AboutPage";
+import { aboutPageMeta } from "@/lib/seo/about";
+import { webSiteJsonLd } from "@/lib/seo/jsonLd";
+import companiesData from "@/public/data/companies.json";
+import type { CompaniesData } from "@/features/ranking/types";
+
+const companies = companiesData as unknown as CompaniesData;
+const meta = aboutPageMeta(companies.meta);
+---
+
+<Base meta={meta}>
+  {/* サイト名と `/` のURLだけ（S2・spec 4.4）。画面に無い主張は入れない。 */}
+  <script
+    slot="head"
+    type="application/ld+json"
+    is:inline
+    set:html={JSON.stringify(webSiteJsonLd())}
+  />
+  <AboutPage />
+</Base>

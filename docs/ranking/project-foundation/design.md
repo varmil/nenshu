@@ -83,6 +83,37 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 詳細は`docs/ranking/ssr-migration/design.md`参照。
 
+## 2026-08-26追記（Astro へのカットオーバー、ADR-0014・F1・[#209](https://github.com/varmil/nenshu/issues/209)）
+
+`docs/framework/astro-cutover/` で、Next.js ＋ `@opennextjs/cloudflare` から Astro（`@astrojs/cloudflare`）へ移した。**`next` も `@opennextjs/cloudflare` も依存から消えたので、いまのビルドコマンドはそのまま失敗する。**
+
+**ダッシュボードの更新はユーザーが実施する（アカウントアクセスが無いため）。**
+
+- ビルドコマンド: `npx opennextjs-cloudflare build` → **`npm run build`**（＝ `astro build`）
+- デプロイコマンド: `npx wrangler deploy`（変更なし）
+- バージョンコマンド: `npx wrangler versions upload`（変更なし）
+- ルートディレクトリ: `web`（変更なし）
+
+**`wrangler.jsonc` の `build.command` は消えた。** OpenNext が事前生成した結果をアセットへ写す工程で、`opennextjs-cloudflare deploy` を使っていないぶんを補うものだった。Astro は `astro build` の時点で `dist/client/` に HTML を並べるので、写す工程そのものが無い。
+
+**`main` と `assets.directory` も書かなくなった。** `@astrojs/cloudflare` が `@astrojs/cloudflare/entrypoints/server` を差し込み、出力先は `@cloudflare/vite-plugin` が知っている。**書くとビルド前に「そのファイルが無い」で落ちる**（成果物を指すので鶏と卵になる）。
+
+**Node は固定しない。** Astro 7 の要求は `>=22.12.0` で、**Next.js 16 の `>=20.9.0` より上がっている**——このカットオーバーで初めて 20 系では動かなくなった。ただし**ビルド環境が選ぶのは 24.18.0** で（ビルドログの `Detected the following tools from environment: npm@10.9.2, nodejs@24.18.0`）、最初から満たしている。**`web/package.json` の `engines.node` に下限だけ書いてある**——満たさない環境では `npm ci` の時点で警告が出る。
+
+**一度 `.node-version` に `22.16.0` を置いて、外した**（2026-08-26）。ビルドが速く落ちる原因の見当が付かず、版を固定していないこと自体は穴だと考えて入れたが、**ログを見たら環境の Node は最初から 24 系だった。** 固定すると**ダウングレードになるうえ、その版がイメージに無ければそれ自体が失敗要因になる**。
+
+**「Detected the following tools」の行は npm のバージョンを確かめる場所でもある**（CLAUDE.md「開発上の約束」の `npx npm@10.9.2 ci`）。2026-08-26 時点で `npm@10.9.2` のまま。
+
+**ダッシュボードでビルドコマンドを変えても、ブランチのビルドには反映されない**（2026-08-26 に実測）。**`wrangler.jsonc` と同じ**で（CLAUDE.md「Worker の設定は main に入れるまで効かない」・2026-08-21・Issue #119）、設定を保存したあとにブランチへプッシュしても、ビルドの「ビルドの設定」欄は旧いコマンドを表示したまま走る。**4回とも旧コマンドで落ちた**（20〜37秒。`npm ci` の直後に `npm error could not determine executable to run`）。
+
+- **「ビルドを再試行」はさらに効かない。** 元のビルド構成をそのまま再生する
+- **落ちているコマンドはビルドの詳細画面の「ビルドの設定」で確かめられる。** ログの `Executing user build command:` の行と同じ
+- **ブランチのビルドはデプロイコマンドではなくバージョンコマンド（`npx wrangler versions upload`）を使う。** 本番デプロイが走るのは production ブランチだけ
+
+**マージ順序**: 2026-08-17 と同じで、**コード（`main`）を先にマージし、そのあとダッシュボードのコマンドを更新する。** 逆順だと、まだ Next.js のコードに対して `astro build` が走って失敗する。コードを先にマージした場合、ダッシュボードが旧コマンドのままだと `npx opennextjs-cloudflare build` が「そんなコマンドは無い」で失敗する。**どちらの向きでも、Cloudflare はビルド失敗時に直前の成功バージョンを配信し続けるので本番は落ちない**（更新が止まるだけ）。
+
+詳細は `docs/framework/astro-cutover/design.md` 参照。
+
 ## データの再生成
 
 `pipeline/scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す（`pipeline/` から実行する場合は `--out ../web/public/data`）。リポジトリ直下の暫定 `public/` は削除する。

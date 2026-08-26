@@ -21,18 +21,19 @@ import { BRAND_ASSET_PATHS } from "../lib/brand/assets";
  * リクエストは `resourceType()` が `image` にならないことがあるため、上の
  * 画像の除外にも掛からない。対象は `lib/brand/assets.ts` の表から引く。
  *
- * **devサーバーのオーバーレイが読むフォントも数えない。** Next.js の開発時の
- * オーバーレイは自前の Geist を `/__nextjs_font/` から読む。**アプリは webfont を
+ * **開発ツールが読むものも数えない。** Next.js のオーバーレイは `/__nextjs_font/`
+ * からフォントを読んでいた。**F1 で Astro に移り、こんどは `/_astro/` 以下の
+ * 開発用モジュールと HMR の口（`/@vite/`・`/@id/`）になる。** **アプリは webfont を
  * 1つも持たない**（Issue #64 で next/font をやめ、`e2e/theme.spec.ts` が
  * 「フォントを1件もダウンロードしない」ことを固定している）ので、ここに現れる
- * フォントは必ず開発ツール側のものになる。取りに来る時刻が一定でないため、
- * 操作の計測窓にたまたま入ると `Received length: 1` で落ちる（実際に落ちた）。
- * 本番のビルドには存在しない経路なので、AC-7 の担保は落ちない。
+ * ものは必ず開発ツール側になる。取りに来る時刻が一定でないため、操作の計測窓に
+ * たまたま入ると `Received length: 1` で落ちる（実際に落ちた）。本番のビルドには
+ * 存在しない経路なので、AC-7 の担保は落ちない。
  */
 const BRAND_ASSETS = new Set<string>(BRAND_ASSET_PATHS);
 
-/** Next.js の開発オーバーレイが自分のフォントを置いている場所。 */
-const DEV_OVERLAY_FONT_PREFIX = "/__nextjs_font/";
+/** 開発サーバー（Vite / Astro）だけに存在する経路。本番のビルドには無い。 */
+const DEV_ONLY_PREFIXES = ["/@vite/", "/@id/", "/@fs/", "/node_modules/", "/.astro/"];
 
 /**
  * ランキングが全件を手にするまで待つ（E0・ADR-0013）。
@@ -52,7 +53,7 @@ export function collectPageRequests(page: Page): string[] {
     if (req.resourceType() === "image") return;
     const { pathname } = new URL(req.url());
     if (BRAND_ASSETS.has(pathname)) return;
-    if (pathname.startsWith(DEV_OVERLAY_FONT_PREFIX)) return;
+    if (DEV_ONLY_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return;
     requests.push(req.url());
   });
   return requests;

@@ -22,25 +22,21 @@
   // 出ず、マージ直後のビルドで出た。ここを触るときはブランチでの結果で判断しないこと。
   "preview_urls": true,
   "compatibility_date": "2026-08-17",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "main": ".open-next/worker.js",
-  // **事前生成した結果をアセットへ写す工程**（R1・ADR-0012・Issue #180）。
-  //
-  // `staticAssetsIncrementalCache` は `.open-next/assets/cdn-cgi/_next_cache/` から
-  // ページを引く。そこへ写すのは `opennextjs-cloudflare deploy` の仕事だが、
-  // **このプロジェクトのデプロイコマンドは `npx wrangler deploy`**（Cloudflare
-  // ダッシュボード。`docs/ranking/project-foundation/design.md`）なので、その工程が
-  // 走らない。**写さないままでもビルドは通り、デプロイは "successful" になり、
-  // 全1,867ページが 404 を返す**——実際にプレビューでそうなった（#181）。
-  //
-  // `wrangler.jsonc` の `build.command` は `wrangler deploy`・`wrangler dev` の
-  // どちらでも走るので、ダッシュボードを触らずに両方を直せる。**静かに壊れる経路
-  // なので、写した結果を数える検証まで含めてビルドを落とす形にしてある。**
-  "build": {
-    "command": "npx opennextjs-cloudflare populateCache local && node scripts/write-404-asset.mjs && node scripts/assert-prerendered-assets.mjs",
-  },
+  // **`global_fetch_strictly_public` は外した**（F1・#209）。OpenNext が
+  // `WORKER_SELF_REFERENCE` で自分自身を `fetch` していたときに要ったもので、
+  // **付けたままだと `astro dev` が起動しない**——Vite のモジュールランナーは
+  // workerd の中から dev サーバーへ HTTP でモジュールを取りに行くので、その
+  // fetch まで「公開インターネットへ出る」扱いになり、届かなくなる（実測で
+  // `deps_ssr/*.js does not exist` として現れた）。Astro の Worker は自分自身を
+  // fetch しない。
+  "compatibility_flags": ["nodejs_compat"],
+  // **`main` は書かない。** `@astrojs/cloudflare` が
+  // `@astrojs/cloudflare/entrypoints/server` を差し込む（`dist/wrangler.js`）。
+  // 書くとビルド前に「そのファイルが無い」で落ちる——成果物を指しているので
+  // 鶏と卵になる。
   "assets": {
-    "directory": ".open-next/assets",
+    // **`directory` も書かない。** ビルドの出力先は `@cloudflare/vite-plugin` が
+    // 知っている。
     "binding": "ASSETS",
     // **存在しないパスで Worker を起動しない**（Issue #200 の一部・親 #118）。
     // ボットのスキャン（`/wp-admin/install.php`・`/.env` 等）が Worker を起こして
@@ -60,12 +56,18 @@
     // 404 になり、**dev サーバーには `run_worker_first` が効かないので E2E では
     // 気づけない**（#183 と同じ穴）。`e2e/asset-routing.spec.ts` を Worker に
     // 向けて回すと落ちる。
-    "run_worker_first": ["/", "/about", "/company/*", "/sitemap.xml", "/robots.txt"],
+    //
+    // **F1（#209・ADR-0014）で `/` だけになった。** `/about`・`/company/[id]`・
+    // `/sitemap.xml`・`/robots.txt` はビルド時に生成した HTML がそのままアセットに
+    // 並ぶので、**Worker を通す理由が無い**——通すとこの施策が消そうとしている
+    // CPU がそのまま残る（`docs/framework/spec.md` AC-1）。
+    "run_worker_first": ["/"],
   },
-  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "nenshu" }],
-  "cache": {
-    "enabled": true,
-  },
+  // **`WORKER_SELF_REFERENCE` は消した**（F1・ADR-0014）。OpenNext が自分自身を
+  // `fetch` してキャッシュを引くために要ったもので、Astro には無い仕組みになる。
+  // **Worker のキャッシュ層も消した**（F1）。OpenNext の `incrementalCache` が
+  // 使っていたもので、事前生成したページが静的アセットになったいまは
+  // Cloudflare のエッジキャッシュ（`Cloudflare-CDN-Cache-Control`）だけで足りる。
   "observability": {
     "enabled": false,
     "head_sampling_rate": 1,
