@@ -27,6 +27,11 @@ const PINNED: Record<string, Candidate> = {
   // 英語版ヘッダの `TOYOTA TSUSHO CORPORATION` は 3828×192＝19.9:1 で、
   // 88×50 の器に入れると読めない。**日本語版ヘッダの 680×107 を指す。**
   "8015": { source: "header", url: "https://www.toyota-tsusho.com/app-files/img/cmn_logo01.svg" },
+  // 日本コークス工業（3315）。ヘッダは `logo_w.png`（白）で、明るい器では社章しか見えない
+  // （Issue #221）。**同じディレクトリに `logo_b.png`（濃色版）が並んでいる**——サイトが
+  // 濃淡2つを持っているのに構造だけを見ると白いほうが1位に来る。判定で白いほうを落とすと
+  // 次の候補は 32×32 の favicon で、社名が読めないところまで落ちる。
+  "3315": { source: "header", url: "https://www.n-coke.com/common/img/logo_b.png" },
 };
 
 /** 指定がある会社では、その候補を先頭に置く（同じURLが候補にあれば1つに畳む）。 */

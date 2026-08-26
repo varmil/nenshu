@@ -401,24 +401,106 @@ describe("明るい器で見えないロゴの判定（Issue #156）", () => {
   });
 });
 
+describe("図の一部しか見えないロゴの判定（Issue #221）", () => {
+  /**
+   * 「濃いシンボル＋白いワードマーク」の図。透明の地の左端に色付きの四角を置き、
+   * その右へ長い帯を1本伸ばす——帯の色を変えると症状の有無が入れ替わる。
+   */
+  const symbolAndWordmark = async (word: [number, number, number, number]) => {
+    const sharp = (await import("sharp")).default;
+    return sharp({
+      create: { width: 300, height: 40, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([
+        {
+          input: {
+            create: { width: 30, height: 30, channels: 4 as const, background: { r: 10, g: 40, b: 120, alpha: 1 } },
+          },
+          left: 5,
+          top: 5,
+        },
+        {
+          input: {
+            create: {
+              width: 250,
+              height: 16,
+              channels: 4 as const,
+              background: { r: word[0], g: word[1], b: word[2], alpha: word[3] / 255 },
+            },
+          },
+          left: 45,
+          top: 12,
+        },
+      ])
+      .png()
+      .toBuffer();
+  };
+
+  it("白いワードマークが沈んでシンボルだけ見えているものを落とす", async () => {
+    const { mostlyHiddenOnLight } = await import("./lib/logo/image");
+    expect(await mostlyHiddenOnLight(await symbolAndWordmark([255, 255, 255, 255]))).toBe(true);
+  });
+
+  it("ワードマークが濃ければ残す（同じ寸法・同じ配置）", async () => {
+    const { mostlyHiddenOnLight } = await import("./lib/logo/image");
+    expect(await mostlyHiddenOnLight(await symbolAndWordmark([20, 20, 20, 255]))).toBe(false);
+  });
+
+  it("まるごと白いものはここでは判定しない（`blankOnLight` の担当）", async () => {
+    // インクが1画素も無い＝外接矩形が取れない。2つの判定の境目をここで固定する
+    const sharp = (await import("sharp")).default;
+    const { mostlyHiddenOnLight, blankOnLight } = await import("./lib/logo/image");
+    const allWhite = await sharp({
+      create: { width: 200, height: 40, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+    })
+      .png()
+      .toBuffer();
+    expect(await mostlyHiddenOnLight(allWhite)).toBe(false);
+    expect(await blankOnLight(allWhite)).toBe(true);
+  });
+
+  it("白い地に載ったロゴは残す（外側が透明でない）", async () => {
+    // 丸い白のカードに載ったアイコン（151A・138A）や、白い矩形の左端に置かれた
+    // ワードマーク（8217）がこれ。白は地であって、沈んだ図ではない
+    const sharp = (await import("sharp")).default;
+    const { mostlyHiddenOnLight } = await import("./lib/logo/image");
+    const onWhiteCard = await sharp({
+      create: { width: 300, height: 40, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+    })
+      .composite([
+        {
+          input: {
+            create: { width: 30, height: 30, channels: 4 as const, background: { r: 10, g: 40, b: 120, alpha: 1 } },
+          },
+          left: 5,
+          top: 5,
+        },
+      ])
+      .png()
+      .toBuffer();
+    expect(await mostlyHiddenOnLight(onWhiteCard)).toBe(false);
+  });
+});
+
 describe("配っている画像（web/public/logos/）", () => {
-  it("明るい器の上で空白に見える画像を1枚も配らない", async () => {
+  it("明るい器の上で読めない画像を1枚も配らない", async () => {
     const { readdirSync, readFileSync } = await import("node:fs");
     const { resolve } = await import("node:path");
-    const { blankOnLight } = await import("./lib/logo/image");
+    const { unusableOnLight } = await import("./lib/logo/image");
     const { mapLimit } = await import("./lib/logo/fetcher");
 
     // 判定を足すのは安いが、**足す前に配ってしまったものは残る**。
-    // 実際に Issue #156 の時点で50枚（1,636枚中3.1%）が空白のマス目として出ていた。
+    // 実際に Issue #156 の時点で50枚（1,636枚中3.1%）が空白のマス目として出ており、
+    // Issue #221 ではシンボルだけが見える31枚（2,509枚中1.2%）が残っていた。
     // パイプラインを回すのは年1回なので、見張りはリポジトリ側に置く
     const dir = resolve(__dirname, "../../web/public/logos");
     const files = readdirSync(dir).filter((f) => f.endsWith(".webp"));
     expect(files.length).toBeGreaterThan(1400);
-    const blank: string[] = [];
+    const unreadable: string[] = [];
     await mapLimit(files, 8, async (file) => {
-      if (await blankOnLight(readFileSync(resolve(dir, file)))) blank.push(file);
+      if (await unusableOnLight(readFileSync(resolve(dir, file)))) unreadable.push(file);
     });
-    expect(blank.sort()).toEqual([]);
+    expect(unreadable.sort()).toEqual([]);
   }, 60_000);
 });
 

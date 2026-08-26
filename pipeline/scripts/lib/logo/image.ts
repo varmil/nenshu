@@ -217,3 +217,95 @@ export async function normalize(buf: Buffer, isSvg: boolean, quality = 78): Prom
     .webp({ quality, effort: 5 })
     .toBuffer();
 }
+
+/**
+ * `blankOnLight` が落とすのは「インクが1画素も乗らない」画像で、**シンボルが1%を超えていれば、
+ * 残りが全部見えなくても通る**（Issue #221）。典型は「濃いシンボル＋白いワードマーク」で、
+ * シンボルだけが左端に見え、横に長い空白が続く（3329・6677・8084 など）。
+ *
+ * 見るのは2つ。**描かれている図に対して、見えている図がどれだけか**（`VISIBLE_MIN`）と、
+ * **その外側が透明か**（`OUTSIDE_TRANSPARENT_MIN`）である。
+ *
+ * 2つめが要る。**白い地を持つ画像は正しく見えているのに、1つめだけでは落ちる**——
+ * 丸い白のカードに載ったアイコン（151A・138A）や、白い矩形の左端にワードマークを置いた
+ * GIF（8217）がそれで、白は地であって沈んだ図ではない。外側が透明なら、そこにある
+ * 不透明な画素は**地ではなく描かれたもの**である。
+ *
+ * **「白い縁取り」「色の中の白抜き」は残る。** インクが図の全体に及ぶので1つめを通らない
+ * （亀田製菓・Aiming・東和薬品・山形銀行など、実測で22枚）。
+ */
+const VISIBLE_MIN = 0.5;
+const OUTSIDE_TRANSPARENT_MIN = 0.4;
+const DRAWN_ALPHA = 200;
+const TRANSPARENT_ALPHA = 16;
+
+/**
+ * **`blankOnLight` と同じく `normalize` を通した後＝配るものそのものを見る。**
+ * 判定と配るものの間に加工を挟まない。
+ */
+export async function mostlyHiddenOnLight(normalized: Buffer): Promise<boolean> {
+  const { data, info } = await sharp(normalized, { animated: false })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width: w, height: h, channels } = info;
+
+  let inkX0 = w, inkY0 = h, inkX1 = -1, inkY1 = -1;
+  let figX0 = w, figY0 = h, figX1 = -1, figY1 = -1;
+  const alpha = new Uint8Array(w * h);
+  const isInk = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const p = y * w + x;
+      const i = p * channels;
+      const a = data[i + 3];
+      alpha[p] = a;
+      let min = 255;
+      for (let k = 0; k < 3; k++) {
+        const over = (data[i + k] * a + 255 * (255 - a)) / 255;
+        if (over < min) min = over;
+      }
+      const ink = min <= INK_MAX;
+      if (ink) {
+        isInk[p] = 1;
+        if (x < inkX0) inkX0 = x;
+        if (x > inkX1) inkX1 = x;
+        if (y < inkY0) inkY0 = y;
+        if (y > inkY1) inkY1 = y;
+      }
+      if (ink || a >= DRAWN_ALPHA) {
+        if (x < figX0) figX0 = x;
+        if (x > figX1) figX1 = x;
+        if (y < figY0) figY0 = y;
+        if (y > figY1) figY1 = y;
+      }
+    }
+  }
+  // インクが1画素も無いものは `blankOnLight` の担当。ここでは判定しない
+  if (inkX1 < 0 || figX1 < 0) return false;
+
+  const inkArea = (inkX1 - inkX0 + 1) * (inkY1 - inkY0 + 1);
+  const figArea = (figX1 - figX0 + 1) * (figY1 - figY0 + 1);
+  if (inkArea / figArea >= VISIBLE_MIN) return false;
+
+  let outside = 0;
+  let transparent = 0;
+  for (let y = figY0; y <= figY1; y++) {
+    for (let x = figX0; x <= figX1; x++) {
+      if (x >= inkX0 && x <= inkX1 && y >= inkY0 && y <= inkY1) continue;
+      outside++;
+      if (alpha[y * w + x] < TRANSPARENT_ALPHA) transparent++;
+    }
+  }
+  return outside > 0 && transparent / outside >= OUTSIDE_TRANSPARENT_MIN;
+}
+
+/**
+ * **明るい器に置けない画像の判定はこの1つから引く。** 落とす理由は2つあり
+ * （まるごと沈む・図の一部しか見えない）、**`pick` と、配っている画像を毎コミット走査する
+ * `build-logos.test.ts` と、`--only` が前回の記録を残してよいかの判断が同じものを見る**必要がある。
+ * 片方だけに足すと、次の全周で落とすはずの画像を配り続けることになる。
+ */
+export async function unusableOnLight(normalized: Buffer): Promise<boolean> {
+  return (await blankOnLight(normalized)) || (await mostlyHiddenOnLight(normalized));
+}

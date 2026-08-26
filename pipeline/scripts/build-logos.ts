@@ -21,6 +21,8 @@ import {
   looksLikeSvg,
   icoToImage,
   blankOnLight,
+  mostlyHiddenOnLight,
+  unusableOnLight,
   ImageProbe,
 } from "./lib/logo/image";
 
@@ -185,7 +187,7 @@ async function main() {
     // **ただし残すのは、いま配っている画像がいまの判定を通るときだけ。** 通らないものを残すと、
     // 直しに来た当の対象をそのまま置いて帰ることになる（Issue #156 の白いロゴがこれ）
     const file = resolve(logosDir, `${company.id}.webp`);
-    if (existsSync(file) && (await blankOnLight(readFileSync(file)))) {
+    if (existsSync(file) && (await unusableOnLight(readFileSync(file)))) {
       console.warn(`  ${company.id}（${company.name}）は代わりが無いので記録を消します（頭文字に戻る）`);
       dropped.add(company.id);
       rmSync(file);
@@ -330,6 +332,12 @@ async function pick(fetcher: Fetcher, candidates: readonly Candidate[]): Promise
       // 白いことは画質と関わりが無いので、落として入れ直しても結論は変わらない
       if (await blankOnLight(webp)) {
         reasons.push("blankOnLight");
+        continue;
+      }
+      // シンボルだけが見えてワードマークが白く沈んでいるもの（Issue #221）。
+      // `blankOnLight` はインクが1%あれば通すので、ここで別に見る
+      if (await mostlyHiddenOnLight(webp)) {
+        reasons.push("mostlyHiddenOnLight");
         continue;
       }
       for (const quality of [58, 40]) {
