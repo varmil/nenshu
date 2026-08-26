@@ -1,4 +1,3 @@
-import { NavLink } from "@/features/navigation/components/NavLink";
 import {
   Table,
   TableBody,
@@ -78,9 +77,9 @@ export function AboutPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-4 leading-relaxed">
       <header className="flex flex-col gap-3">
-        <NavLink href="/" className="text-primary text-sm underline">
+        <a href="/" className="text-primary text-sm underline">
           ← ランキングに戻る
-        </NavLink>
+        </a>
         <h1 className="text-2xl font-bold">計算方法</h1>
         <p>
           このサイトは、有価証券報告書に載っている「平均年間給与」をそのまま並べることを
@@ -484,9 +483,9 @@ export function AboutPage() {
       </Section>
 
       <footer>
-        <NavLink href="/" className="text-primary text-sm underline">
+        <a href="/" className="text-primary text-sm underline">
           ← ランキングに戻る
-        </NavLink>
+        </a>
       </footer>
     </div>
   );

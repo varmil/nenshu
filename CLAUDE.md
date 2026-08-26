@@ -55,9 +55,9 @@ Astro、React、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
 - **`/` だけが `export const prerender = false`。** 他はビルド時に生成する。**ページ（ルート）を足したら `wrangler.jsonc` の `run_worker_first` も見ること**——載せると Worker が起きるので、載せる理由が無いなら載せない（載せ忘れではなく、載せすぎのほうが事故になる）
 - **島（`client:load`）は画面ごとに1つに収める。** Astro は島ごとに props を HTML の属性へ直列化するので、分けると同じデータが2回入る（実測で `/` が 481,312 → 733,979 B）。境界は `RankingIsland`・`CompanyDetailIsland` にある
 - **パスは `lib/history/` から取る。`window.location.pathname` を直接書かない。** `isRankingPath()`（即時読み）と `useIsRankingPath()`（レンダー用）。**購読はしない**——ページを移ると文書ごと入れ替わるので、文書が生きている間にパスは変わらない（F0 で入れた `history` の包みは F1 で外した）
-- **ページ間の遷移は `features/navigation/components/NavLink`（素の `a` 要素）。** `eslint.config.mjs` が素の `a` を直接書かせない——遷移中のバー（`NavProgressBar` の委譲リスナー）が拾う対象から外れるため
+- **ページ間の遷移は素の `a` 要素で書く。** 包みも lint の縛りも無い（F2・#210 で `NavLink` ごと消した）
 
-**クエリ文字列を読みたいときは `src/pages/index.astro` の `Astro.url.searchParams` で読む。** 状態⇄URL の同期は `window.history.pushState`/`replaceState` を直接呼ぶ。**規則は `web/lib/history/useLocationSyncedState.ts` の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移は `NavLink`（実ナビゲーション）でよい**（`/` ⇄ `/about` がそう）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ためリンクにする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
+**クエリ文字列を読みたいときは `src/pages/index.astro` の `Astro.url.searchParams` で読む。** 状態⇄URL の同期は `window.history.pushState`/`replaceState` を直接呼ぶ。**規則は `web/lib/history/useLocationSyncedState.ts` の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移は素の `a`（実ナビゲーション）でよい**（`/` ⇄ `/about` がそう）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ためリンクにする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
 
 ## エージェントが従う優先順位
 
@@ -215,10 +215,9 @@ Unit の実装を終えたら、次の順で進める。
 - `rankAll` / `rankIndustry` は `companies.rows` **と同じ並びの配列**。IDをキーにした辞書にしていない。**行がずれると別の会社の順位を出すので、`companies` と同じループで作ること**
 - **年齢別チャートは依存を足さずインラインSVG**（`features/company/components/SalaryCurveChart.tsx`）。rechartsは使わない。縦軸は0起点にせず、代わりに各点の金額を数値で併記している
 - **`AgeSwitch` は `design-system/` に昇格させず `features/ranking/` から import している。** `TargetAge`/`TARGET_AGES` というドメイン語彙に依存しており、design-systemに持ち込むと語彙か型が二重になるため。`TargetAge`・`estimateSalary`・`format` が本来「年収ドメイン」の共有物である点は既知の負債（`docs/company/company-page/design.md`）
-- ランキングの会社名は `<NavLink href="/company/{id}">`。ページ間遷移なので実ナビゲーションでよい（上の規約どおり）。**プリフェッチという概念はもう無い**——`next/link` の頃は既定でビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんだった頃は本番のトップページ表示だけで34件のリクエストが飛んでいた（`prefetch={false}` で0件にしていた）
-- **ページ間の遷移は `features/navigation/components/NavLink`（素の `a` 要素）を使う。** ただし**素の `a` を書いても壊れない**——`NavProgressBar` が `document` で拾うので、どう書かれたリンクでも同じ扱いになる（業種チップと `/about` の本文には素の `a` が正しく置かれている）。`NavLink` を残しているのは呼び出し側の綴りを1か所に保つため
+- ランキングの会社名は `<a href="/company/{id}">`。ページ間遷移なので実ナビゲーションでよい（上の規約どおり）。**プリフェッチという概念はもう無い**——`next/link` の頃は既定でビューポートに入った時点でRSCペイロードを取りに行き、1ページ100社ぶんだった頃は本番のトップページ表示だけで34件のリクエストが飛んでいた（`prefetch={false}` で0件にしていた）
 - **`astro:transitions`（ClientRouter）は入れない**（`eslint.config.mjs` の `no-restricted-imports` で止めている）。**素の HTML 取得であることが、事前生成したページを静的アセットで返せる前提**になっている（ADR-0014）
-- **遷移中のバーは `NavProgressBar` が `document` で1本の委譲リスナーとして拾う**（`src/layouts/Base.astro`）。リンク側に `onClick` を置くと、**島の外で描かれたリンク**（`/about` の本文など、JS を1バイトも持たない部分）では拾えない。どれを遷移と見なすかの規則は `features/navigation/lib/navIntent.ts` の純粋関数。**要るかどうかは F2（#210）が測って決める。** **`nextjs-toploader` 系のライブラリは使わない**——この用途のライブラリは軒並み更新が止まっており（2026-08時点で最新の `holy-loader` でも9か月前）、いずれも `history.pushState` を差し替えるので、`pushState` を直接呼んでURL同期している当サイトとは相性が悪い
+- **ページ間の遷移中に自前の指示器を出さない。ブラウザ標準に任せる**（F2・#210・`docs/framework/nav-progress/design.md`）。`NavProgressBar` は `prefetch={false}` の代償として RSC ペイロードの待ちを埋めるために入れたもので、**その待ちごと F1 で消えた。** サーバー側の取り分は `/about` 4.3ms・`/company/[id]` 5.1ms（本番では床と区別が付かない）で、読者が待っているのはネットワークそのもの——**ブラウザがすでに、しかも正確に指示器を出す**（モバイルでは標準のプログレスバーが出る）。**`nextjs-toploader` 系のライブラリも引き続き使わない**
 
 **年収偏差値は100を超える。** 35歳時点のキーエンスで150.0（全体平均629万・標準偏差155万に対して2,178万）。年収分布が右に強く裾を引くためで、対数変換しても107.4。**画面には数字だけを出し、水準は順位で読ませる**——「上位◯%」の併記は2026-08-20に運営者の判断で外した（モックに無いものを足さないため）。100を超えうる理由の注記は**ランキングの表・カードの脚注と `/about`** に残す（企業詳細ページの注記は2026-08-20に外した）。**偏差値だけが単独で置かれた画面を作らない**線は変わっていない（glossary参照）。
 
@@ -492,7 +491,7 @@ Unit の実装を終えたら、次の順で進める。
 - **ロゴの無い452社**（E3 の後）。過半が「公式サイトURLが無い」で、Wikidata にも gBizINFO にもURLが無い会社。**届く手段は現状無い。**
 - **Issue #55: 株価・信用格付け。** J-Quants・edinetdb.jp からの調達可否を確認するところから。**再配布可否の判断は運営者が行う**（product.mdの制約に明記）。
 
-`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み（388件）。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
+`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み（382件）。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
 
 **画面を操作する spec は `e2e/appTest.ts` の `test` を使う。素の `@playwright/test` を使わない**（F1・#209）。`goto`／`reload` の直後に**ハイドレーションの完了**（`astro-island[ssr]` が消えるまで）と、`/` なら**全件データの到着**（E0）を待つ。
 

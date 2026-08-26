@@ -1,4 +1,3 @@
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import type { NeighborCompany } from "../lib/neighbors";
@@ -43,14 +42,12 @@ export function NeighborCompanies({
                 **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと
                 社名がそのぶん切れる。バッジの意味はその会社のページで説明している。
               */}
-              {/* prefetch={false} の理由は RankingTable.tsx。 */}
-              <NavLink
+              <a
                 href={`/company/${company.id}`}
-                prefetch={false}
                 className="text-primary block truncate text-sm hover:underline"
               >
                 {company.name}
-              </NavLink>
+              </a>
               <p className="text-muted-foreground text-[0.7rem]">
                 業界{formatInt(company.industryRank)}位・平均{formatDecimal1(company.avgAge)}歳
               </p>
@@ -61,14 +58,13 @@ export function NeighborCompanies({
           </li>
         ))}
       </ul>
-      <NavLink
+      <a
         href={`/?ind=${encodeURIComponent(industry)}`}
-        prefetch={false}
         className="text-primary text-xs underline"
       >
         {industry}
         {formatInt(industryCount)}社をすべて見る
-      </NavLink>
+      </a>
     </section>
   );
 }

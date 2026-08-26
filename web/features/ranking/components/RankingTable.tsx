@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/design-system/ui/table";
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { Badge } from "@/design-system/ui/badge";
 import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
@@ -86,23 +85,12 @@ export function RankingTable({
                     </span>
                     <span className="flex min-w-0 flex-col">
                       <span className="flex min-w-0 items-center gap-1.5">
-                        {/*
-                          prefetch={false}。既定の "auto" だと <Link> がビューポートに
-                          入った時点で RSC ペイロードを取りに行き、**本番ビルドでは1
-                          ページ表示するだけで数十件のリクエストが飛ぶ**（1ページ100件
-                          だった頃の実測で34件）。1ページに PAGE_SIZE 社ぶん並ぶうえ
-                          `/company/[id]` は動的レンダリングなので、そのぶんWorkerが
-                          起動する（無料枠は10万リクエスト/日）。
-                          **プリフェッチは本番でしか動かないため、devサーバーで走る
-                          E2Eでは検出できない。** `npm run measure:prefetch` で測る。
-                        */}
-                        <NavLink
+                        <a
                           href={`/company/${company.id}`}
-                          prefetch={false}
                           className="text-primary truncate font-bold hover:underline"
                         >
                           {company.name}
-                        </NavLink>
+                        </a>
                         {company.hasBadge && (
                           <Badge variant="outline" className="shrink-0">
                             本社のみ

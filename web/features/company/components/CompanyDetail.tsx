@@ -1,7 +1,6 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { Badge } from "@/design-system/ui/badge";
@@ -184,14 +183,9 @@ export function CompanyDetail({
             </span>
           ) : (
             <Fragment key={item.path}>
-              {/*
-                prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
-                ページ（gzip 72KB）。読むとは限らない導線を先読みさせる価値はない。
-                理由の詳細は RankingTable.tsx。
-              */}
-              <NavLink href={item.path} prefetch={false} className="text-primary underline">
+              <a href={item.path} className="text-primary underline">
                 {item.name}
-              </NavLink>
+              </a>
               <span aria-hidden="true">/</span>
             </Fragment>
           )
@@ -538,9 +532,9 @@ export function CompanyDetail({
           {isRaw
             ? "実測値モードでは補正を行っていません。年齢別の推定年収だけが推定値です。"
             : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}
-          <NavLink href="/about" className="text-primary ml-1 underline">
+          <a href="/about" className="text-primary ml-1 underline">
             計算方法と限界
-          </NavLink>
+          </a>
         </p>
         {view.hasBadge && (
           <p>

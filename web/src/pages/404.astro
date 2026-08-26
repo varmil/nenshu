@@ -15,7 +15,6 @@
  * **出どころは1つ。** `/company/<無いID>` も `/wp-admin/…` も同じこの HTML になる。
  */
 import Base from "@/src/layouts/Base.astro";
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { SITE_NAME } from "@/lib/seo/site";
 ---
 
@@ -37,8 +36,8 @@ import { SITE_NAME } from "@/lib/seo/site";
     <p class="text-muted-foreground text-sm">
       お探しのページは、移動したか削除された可能性があります。
     </p>
-    <NavLink href="/" class="text-primary text-sm font-medium underline underline-offset-4">
+    <a href="/" class="text-primary text-sm font-medium underline underline-offset-4">
       年収ランキングへ戻る
-    </NavLink>
+    </a>
   </main>
 </Base>

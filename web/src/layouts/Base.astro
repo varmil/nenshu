@@ -9,7 +9,6 @@
 import type { PageMeta } from "@/lib/seo/pageMeta";
 import PageHead from "@/src/components/PageHead.astro";
 import { SiteHeader } from "@/features/navigation/components/SiteHeader";
-import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
 import { buildThemeScript } from "@/features/theme/lib/themeScript";
 import {
   CLARITY_PROJECT_ID,
@@ -76,8 +75,6 @@ const clarityScript = isClarityEnabled(import.meta.env.MODE)
       詳細は `features/theme/lib/themeScript.ts`。
     */}
     <script is:inline set:html={themeScript} />
-    {/* ページ間の遷移中に上端へ細いバーを出す（`features/navigation`）。 */}
-    <NavProgressBar client:load />
     <SiteHeader client:load />
     <slot />
     {

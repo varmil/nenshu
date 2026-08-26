@@ -1,4 +1,3 @@
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { Card, CardContent } from "@/design-system/ui/card";
 
 const STEPS = [
@@ -51,9 +50,9 @@ export function HowItWorks() {
       </ol>
       <p className="text-muted-foreground text-xs">
         式・対象範囲・限界は
-        <NavLink href="/about" className="text-primary mx-1 underline">
+        <a href="/about" className="text-primary mx-1 underline">
           計算方法
-        </NavLink>
+        </a>
         にすべて書いています。
       </p>
     </section>
