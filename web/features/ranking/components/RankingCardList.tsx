@@ -1,4 +1,3 @@
-import { NavLink } from "@/features/navigation/components/NavLink";
 import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
@@ -68,14 +67,12 @@ export function RankingCardList({
                 アイテムの最小幅が中身の幅になり、`truncate` が効かない。`block` に
                 しないとインラインのままはみ出す（360px で横スクロールが出た）。
               */}
-              {/* prefetch={false} の理由は RankingTable.tsx を参照。 */}
-              <NavLink
+              <a
                 href={`/company/${company.id}`}
-                prefetch={false}
                 className="text-primary block truncate text-sm font-bold hover:underline"
               >
                 {company.name}
-              </NavLink>
+              </a>
 
               {/*
                 meta 行は**平均年齢と偏差値だけ**。「本社のみ」バッジはここから外した

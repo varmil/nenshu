@@ -91,22 +91,6 @@ test.describe("配色トークン", () => {
     expect(selectedBg).not.toBe(unselectedBg);
   });
 
-  test("遷移中のプログレスバーは 4px ある", async ({ page }) => {
-    await page.goto("/");
-
-    // .nav-progress は遷移中しか描画されないので、同じ宣言を持つ要素を作って測る。
-    const height = await page.evaluate(() => {
-      const probe = document.createElement("div");
-      probe.className = "nav-progress";
-      document.body.append(probe);
-      const value = getComputedStyle(probe).height;
-      probe.remove();
-      return value;
-    });
-
-    expect(height).toBe("4px");
-  });
-
   test("--radius から rounded-* が導出されている", async ({ page }) => {
     await page.goto("/");
 

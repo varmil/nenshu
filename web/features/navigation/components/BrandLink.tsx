@@ -2,7 +2,6 @@
 
 import type { MouseEvent } from "react";
 import { isRankingPath } from "@/lib/history/pathname";
-import { NavLink } from "./NavLink";
 import { pushRankingReset } from "@/features/ranking/lib/queryBroadcast";
 
 /**
@@ -33,13 +32,8 @@ export function BrandLink() {
   };
 
   return (
-    /*
-      prefetch={false}。`/` は動的レンダリングで、返るのは1,867社ぶんを含む
-      ページ（gzip 72KB）。全ページのヘッダから先読みさせる価値はない。
-      理由の詳細は RankingTable.tsx。
-    */
-    <NavLink href="/" prefetch={false} onClick={handleClick} className="text-primary text-base font-bold sm:text-lg">
+    <a href="/" onClick={handleClick} className="text-primary text-base font-bold sm:text-lg">
       OpenReport
-    </NavLink>
+    </a>
   );
 }

@@ -1,5 +1,4 @@
 import { BrandLink } from "./BrandLink";
-import { NavLink } from "./NavLink";
 import { HeaderSearch } from "./HeaderSearch";
 import { ThemeToggle } from "@/features/theme/components/ThemeToggle";
 
@@ -30,9 +29,9 @@ export function SiteHeader() {
         <HeaderSearch />
         <div className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />
-          <NavLink href="/about" className="text-primary text-sm whitespace-nowrap underline">
+          <a href="/about" className="text-primary text-sm whitespace-nowrap underline">
             計算方法
-          </NavLink>
+          </a>
         </div>
       </div>
     </header>

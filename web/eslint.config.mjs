@@ -30,7 +30,7 @@ const eslintConfig = defineConfig([
         "error",
         { skipStrings: true, skipComments: true, skipTemplates: true, skipJSXText: true },
       ],
-      /* `_` 始まりは「受け取るが使わない」の合図（`NavLink` の `prefetch`）。 */
+      /* `_` 始まりは「受け取るが使わない」の合図。 */
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
@@ -65,23 +65,19 @@ const eslintConfig = defineConfig([
     "ds-bundle/**",
   ]),
   {
-    // ページ間の遷移は features/navigation の NavLink を使う。素の a 要素を直接書くと、
-    // そのリンクだけ遷移中のプログレスバーが出ない状態になり、しかも見た目が同じなので
-    // 気づけない。忘れられる類の約束なので lint で止める（`docs/company/company-page/design.md`）。
     files: ["**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
           /*
-            **`next/*` を止める規則は消えた**（F1・ADR-0014）。`next` がもう依存に
-            無いので、名前で止める意味が無い。
+            **リンクの書き方を縛る規則はもう無い**（F2・#210）。
 
-            **「素の a 要素を直接書かない」も止めていない。** Next.js の頃は
-            `next/link` を通さないと遷移中のバーが出なかったが、いまは
-            `NavProgressBar` が `document` で1本の委譲リスナーとして拾うので
-            **どう書かれたリンクでも同じように拾える**（`features/navigation/lib/navIntent.ts`）。
-            そもそも業種チップや `/about` の本文には素の `a` が正しく置かれている。
+            `next/link` を止めていたのは F1 まで、`NavLink` を通させていたのは
+            F2 まで。どちらも**遷移中のプログレスバーを出すため**の縛りで、
+            **バーごと消えた**（ブラウザ標準の指示器で足りると測って決めた。
+            `docs/framework/nav-progress/design.md`）。いまページ間の遷移は
+            素の a 要素で書く。
 
             残すのは1つだけ。
           */
@@ -89,7 +85,7 @@ const eslintConfig = defineConfig([
             {
               name: "astro:transitions",
               message:
-                "クライアント遷移（ClientRouter）は入れない。素の HTML 取得であることが、事前生成したページを静的アセットで返せる前提になっている（ADR-0014・F2 で改めて測る）。",
+                "クライアント遷移（ClientRouter）は入れない。素の HTML 取得であることが、事前生成したページを静的アセットで返せる前提になっている（ADR-0014）。",
             },
           ],
         },

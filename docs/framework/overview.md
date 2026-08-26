@@ -10,7 +10,7 @@
 | --- | --- | --- | --- | --- |
 | F0 | [`next/*` への依存を剥がす](https://github.com/varmil/nenshu/issues/208) | なし | AC-5, AC-6 | **Next.js のまま行う。** `notFound`・`usePathname`・`Script` の4か所を自前の薄い層へ寄せる。**`next/link` は F1 へ回した**（下記）。※共有: `features/navigation/` |
 | F1 | [Astro へ移す（カットオーバー）](https://github.com/varmil/nenshu/issues/209) | F0（#208）・**E0（#174）** | AC-1〜AC-3, AC-5〜AC-15 | **1つの PR で切り替える。** 足場・ルーティング・事前生成・メタデータ・キャッシュ・`run_worker_first`・sitemap・robots・E2E の付け替え、**`next/link` と型（`Metadata` など）の始末**を含む。※共有: 全体 |
-| F2 | [遷移の待ち表示を作り直す](https://github.com/varmil/nenshu/issues/210) | F1（#209） | AC-5 | **まず「要るのか」を測ってから作る。** 素の HTML 取得が十分速ければ作らない。※共有: `features/navigation/` |
+| F2 | [遷移の待ち表示を作り直す](https://github.com/varmil/nenshu/issues/210) | F1（#209） | AC-5 | **2026-08-26 実装済み（作らずに消した）。** 測った結果ブラウザ標準で足りたので、`NavProgressBar` と `NavLink` を落とした（`docs/framework/nav-progress/`）。※共有: `features/navigation/` |
 
 ## 実施順序
 
@@ -86,7 +86,9 @@ spec.md の 2.（AC-5）。
 
 **作ると決めていない Unit。** `NavProgressBar`（`useLinkStatus`）は `prefetch={false}` の代償として入れたもので、**RSC ペイロードの到着を待つ時間を埋めるためだった**（`docs/company/company-page/design.md`）。移行後は静的アセットの取得になるので、その待ち自体が変わる。
 
-**F1 の時点では「壊れていない状態」にしてある。** `next/link` の `useLinkStatus()` が無くなったので、遷移の始まりは `document` で1本の委譲リスナーが拾う（規則は `features/navigation/lib/navIntent.ts` の純粋関数）。**終わりは拾わない**——次のページが来た時点でページごと消える。
+**F1 の時点では「壊れていない状態」にしてあった。** `next/link` の `useLinkStatus()` が無くなったので、遷移の始まりは `document` で1本の委譲リスナーが拾う形にしていた。**終わりは拾えていなかった**——次のページが来た時点でページごと消えるため。
+
+**測った結果、作らずに消した**（2026-08-26。`docs/framework/nav-progress/design.md`）。サーバー側の取り分は `/about` 4.3ms・`/company/6861` 5.1ms で、本番では**床（小さな静的アセット）と区別が付かない**。読者が待っているのはネットワークそのもので、**ブラウザ標準がすでに正確に扱っている**（運営者が実機で確認。モバイルではプログレスバーが出る）。**`navProgress.end()` を呼ぶ主体は F1 以降1つも無く、完了の見せ方は消す時点ですでに到達不能だった。** `NavLink` も同時に落とし（バーのためだけの包みになるため）、全ページの HTML が 286 B・クライアントの JS が 2,243 B 減った。
 
 **まず測る。** 実測して体感に出ないなら作らない。**作るなら Astro の遷移イベント（`astro:before-preparation` など）で組む**——`nextjs-toploader` 系のライブラリを使わない判断（CLAUDE.md）はそのまま生きている。
 
