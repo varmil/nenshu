@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { extractCandidates, manifestIcons, manifestUrl, absolute } from "./lib/logo/site";
-import { sortCandidates, parseSizes, toOrigin, Candidate } from "./lib/logo/candidates";
+import {
+  sortCandidates,
+  prioritize,
+  pinnedCandidates,
+  parseSizes,
+  toOrigin,
+  Candidate,
+} from "./lib/logo/candidates";
 import { icoMaxSize, looksLikeSvg } from "./lib/logo/image";
 import { titleFromP154 } from "./lib/logo/commons";
 
@@ -162,6 +169,41 @@ describe("候補の優先順", () => {
       { source: "icon", url: "x" },
     ];
     expect(sortCandidates(dup)).toHaveLength(1);
+  });
+});
+
+describe("会社ごとに決めた候補の指定", () => {
+  const pin = pinnedCandidates["8015"];
+
+  it("指定した候補を優先順より先に置く", () => {
+    const cands = sortCandidates([
+      { source: "jsonld", url: "https://www.toyota-tsusho.com/english/app-files/img/symbol/logo.png" },
+      pin,
+    ]);
+    // 出典の順では jsonld が header より先だが、指定はその上を行く
+    expect(cands[0].source).toBe("jsonld");
+    expect(prioritize("8015", cands)[0]).toEqual(pin);
+  });
+
+  it("同じURLが候補にもあれば1つに畳む", () => {
+    const got = prioritize("8015", [pin, { source: "icon", url: "https://example.co.jp/favicon.ico" }]);
+    expect(got.filter((c) => c.url === pin.url)).toHaveLength(1);
+  });
+
+  it("指定の無い会社では並びを変えない", () => {
+    const cands: Candidate[] = [{ source: "jsonld", url: "a" }, { source: "header", url: "b" }];
+    expect(prioritize("6861", cands)).toEqual(cands);
+  });
+
+  it("候補が1件も集まらなくても指定は試す", () => {
+    // 公式サイトが読めない年でも、指定した1件だけは取りに行く
+    expect(prioritize("8015", [])).toEqual([pin]);
+  });
+
+  it("指定のURLは絶対URLで書く", () => {
+    // 候補は `absolute()` を通った絶対URLで届く。相対で書くと1つも一致しないまま
+    // 「効いている」ように見える
+    for (const c of Object.values(pinnedCandidates)) expect(c.url).toMatch(/^https?:\/\//);
   });
 });
 

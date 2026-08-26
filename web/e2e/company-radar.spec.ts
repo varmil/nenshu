@@ -83,6 +83,23 @@ test.describe("AC-7 欠測軸", () => {
   });
 
   /*
+   * E6（Issue #182）。母集団を広げた E2（#173）の直後、新しく入った1,094社は
+   * **稼ぐ力の軸だけが欠けていた**——`buildPerformance` が取れない会社を `null` に
+   * するので画面は壊れず、**壊れないので気づけない**のが問題だった。ＩＮＰＥＸは
+   * その1,094社の1つで、いまは稼ぐ力が全体1位（2,959社中1位）に出る。
+   */
+  test("E6 で入った会社でも稼ぐ力の軸が出る（ＩＮＰＥＸ）", async ({ page }) => {
+    await page.goto("/company/1605");
+    const svg = chart(page);
+    // 4軸とも値があるので、平均年収と合わせて5つの頂点が出る。
+    await expect(svg.locator("circle")).toHaveCount(5);
+    await expect(svg).toContainText("稼ぐ力");
+    await expect(section(page)).toContainText("2,959社中1位");
+    // 業種中央値の併記も新規社で出る（spec 1.3）。
+    await expect(section(page)).toContainText("鉱業の中央値");
+  });
+
+  /*
    * W2（Issue 185・Issue 207 例1）。**「公表していない」と「区分ごとに公表して
    * いる」を図の上で分ける。** 規則（1点に代表を選ばない）は変えていないので
    * 頂点は打たないが、「掲載なし」のままだと**節に値が出ているのに図だけ

@@ -2,7 +2,7 @@
 
 `docs/expansion/spec.md` を Unit に割る。親 Issue: [#22](https://github.com/varmil/nenshu/issues/22)
 
-**Unit の ID は `E`**（expansion）。Issue は E0 #174・E1 #172・E2 #173・E3 #175・E4 #176・E5 #177・E6 #182。**E1・E2・E3・E5 は実装済み**（`period-range/`・`universe/`・`logo-catchup/`・`worklife-rematch/`）。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
+**Unit の ID は `E`**（expansion）。Issue は E0 #174・E1 #172・E2 #173・E3 #175・E4 #176・E5 #177・E6 #182。**E0〜E6 すべて実装済み**（`initial-payload/`・`period-range/`・`universe/`。E3・E4・E5・E6 は既存 Unit のデータを作り直しただけなので docs は元の Unit の側にある）。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`）。
 
 ## Unit 一覧
 
@@ -97,5 +97,7 @@ site-chrome の S3（Issue #134）が置いた「決算期を1つ選んで全ペ
 - E6 — `pipeline/performance/extract.py`（`docs/performance/`）。**要る書類が2つに割れる。** 稼ぐ力（P0・レーダーの軸）は**最新年の書類1件で足りる**（5期ぶんの経常利益が1書類に入っている）が、**稼ぐ力の推移（P2・`profit-history.json`）は10年ぶんの書類が要る**——各年の従業員数はその年の書類の当期からしか取れない（`docs/performance/profit-trend/design.md`）。**後者のぶんだけ E4 に依存する**
 
 **`worklife.json` と `profit-history.json` は gzip の上限を超える見込み**（spec 1.6a）。**上限は気づくための線**なので、超えたら実測に合わせて引き上げる——ただし `worklife.json` は「増分の6割が注釈なので、超えたらそこを別ファイルにする」と `docs/worklife/overview.md` が決めているので、そちらの判断を先に通す。
+
+**結果: 超えたのは `profit-history.json` だけだった**（E6・#182。187.0 → 289.5KB で上限256KBを超え、**384KBに引き上げた**）。`worklife.json` は 186.3KB で上限220KBに収まったので、注釈の切り出しは要らなかった（E5・#177）。**引き上げてよいと判断した根拠は Worker バンドル**——`/company/[id]` がこの2つを import するので、効く先はページのペイロードではなくバンドルの 3MiB 制限になる。E6 の実測で gzip **2.17MB（68.9%）**。
 
 **ロゴと10年推移は外部への大量アクセスを伴う。** どちらも既存のパイプラインが流量制限を織り込んである（EDINET は並列3・ロゴは失敗をキャッシュしない）。手順を変えない。

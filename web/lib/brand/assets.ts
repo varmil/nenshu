@@ -1,3 +1,5 @@
+import { OG_FACTS } from "./ogFacts";
+
 /**
  * ブランドの成果物の置き場所（S4・Issue #163・`docs/site-chrome/spec.md` 6.）。
  *
@@ -63,18 +65,22 @@ export const WEB_MANIFEST = "/site.webmanifest";
 /**
  * SNS に貼られたときの1枚（S2・Issue #116・`docs/site-chrome/spec.md` 4.3・AC-13）。
  *
- * **全ページで同じ1枚を使う。** 会社ごとに数字を焼き込む案は1,867社ぶんの動的生成に
+ * **全ページで同じ1枚を使う。** 会社ごとに数字を焼き込む案は2,961社ぶんの動的生成に
  * なり、Workers の CPU 予算（Issue #118）に踏み込む——効果を見てから判断する。
  *
  * 寸法は SNS が要求する 1200×630。`og:image:width` / `og:image:height` として
  * そのまま出す——先に寸法が分かると、画像が届く前にカードの枠を確保できる。
+ *
+ * **代替テキストは書き写さない。** 絵には母集団の社数・全体平均・対象期間が焼いて
+ * あり（`pipeline/brand/og.ts`）、それはデータで変わる。焼いた値は
+ * `ogFacts.ts` に残るので、そこから組んだ1文をそのまま使う。
  */
 export const OG_IMAGE = {
   path: "/og.png",
   width: 1200,
   height: 630,
   /** 絵の中に書いてあることをそのまま。読み上げと、画像が出ないときの代替。 */
-  alt: "OpenReport — 有価証券報告書ベースの平均年収ランキング",
+  alt: OG_FACTS.alt,
 } as const;
 
 /** 地の色を敷く（＝不透明にする）成果物。 */
