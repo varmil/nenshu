@@ -104,6 +104,12 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 **「Detected the following tools」の行は npm のバージョンを確かめる場所でもある**（CLAUDE.md「開発上の約束」の `npx npm@10.9.2 ci`）。2026-08-26 時点で `npm@10.9.2` のまま。
 
+**ダッシュボードでビルドコマンドを変えても、ブランチのビルドには反映されない**（2026-08-26 に実測）。**`wrangler.jsonc` と同じ**で（CLAUDE.md「Worker の設定は main に入れるまで効かない」・2026-08-21・Issue #119）、設定を保存したあとにブランチへプッシュしても、ビルドの「ビルドの設定」欄は旧いコマンドを表示したまま走る。**4回とも旧コマンドで落ちた**（20〜37秒。`npm ci` の直後に `npm error could not determine executable to run`）。
+
+- **「ビルドを再試行」はさらに効かない。** 元のビルド構成をそのまま再生する
+- **落ちているコマンドはビルドの詳細画面の「ビルドの設定」で確かめられる。** ログの `Executing user build command:` の行と同じ
+- **ブランチのビルドはデプロイコマンドではなくバージョンコマンド（`npx wrangler versions upload`）を使う。** 本番デプロイが走るのは production ブランチだけ
+
 **マージ順序**: 2026-08-17 と同じで、**コード（`main`）を先にマージし、そのあとダッシュボードのコマンドを更新する。** 逆順だと、まだ Next.js のコードに対して `astro build` が走って失敗する。コードを先にマージした場合、ダッシュボードが旧コマンドのままだと `npx opennextjs-cloudflare build` が「そんなコマンドは無い」で失敗する。**どちらの向きでも、Cloudflare はビルド失敗時に直前の成功バージョンを配信し続けるので本番は落ちない**（更新が止まるだけ）。
 
 詳細は `docs/framework/astro-cutover/design.md` 参照。
