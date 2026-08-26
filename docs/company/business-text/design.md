@@ -159,6 +159,8 @@ ranking_unified_2026.csv（doc_id 2,961件）
 **CSV は 15.2MB で、`pipeline/data/` の中では最大になる**（次が `performance_history.csv` の
 1.9MB）。**それでも置くのは、キャッシュが `.gitignore` 済みで、作り直すのに APIキーと26分が
 要るため**（`performance_history.csv` を置いているのと同じ理由）。gzip では 4.5MB。
+**gzip して置く案と、置かずに毎回作り直す案を運営者に出して、平文のまま置くことに決めた**
+（2026-08-26）——他の派生CSVと同じ扱いにしておくほうが、`grep` も `diff` も効く。
 
 ## この Unit で決めなかったこと
 
