@@ -137,9 +137,19 @@ def cmd_plan(args):
 
 
 def cmd_gate(args):
-    """生成された説明文に機械ゲートを当て、**通ったものだけ**を検証に回す。"""
+    """生成された説明文に機械ゲートを当て、**通ったものだけ**を検証に回す。
+
+    **検証に渡すファイルは `--chunk` 社ずつに割る。** `Read` は256KBまでしか読めず、
+    超えるとエージェントが分割して読むために手数が増える（実測で30手かかった回がある）。
+    1ターンの費用は「固定費＋そこまでに積んだ文脈」なので、**手数が増えることが
+    そのまま高くつく。**
+
+    **渡す原文は打ち切らない。** 生成には2,000字までしか見せていないが、検証は
+    配っている原文そのものに対して行う（切った先のことを述べていたら支持されていない）。
+    """
     src = sources()
     total = passed = 0
+    chunks = []
     for path in sorted(WORK.glob("gen_*.json*")):
         n = int(path.stem.split("_")[1])
         out = []
@@ -157,10 +167,15 @@ def cmd_gate(args):
             (WORK / "gate_reasons.jsonl").open("a", encoding="utf-8").write(
                 json.dumps({"edinet_code": code, "passed": bool(text),
                             "reasons": reasons}, ensure_ascii=False) + "\n")
-        _batch_path("gated", n).write_text(
-            json.dumps({"batch": n, "companies": out}, ensure_ascii=False, indent=1),
+        for i in range(0, len(out), args.chunk):
+            chunks.append(out[i : i + args.chunk])
+
+    for i, companies in enumerate(chunks, 1):
+        _batch_path("gated", i).write_text(
+            json.dumps({"batch": i, "companies": companies}, ensure_ascii=False, indent=1),
             encoding="utf-8")
-    print(f"機械ゲート: {passed}/{total}社 通過", flush=True)
+    print(f"機械ゲート: {passed}/{total}社 通過 → 検証は {len(chunks)}本"
+          f"（1本 {args.chunk}社まで）", flush=True)
 
 
 def cmd_merge(args):
@@ -267,6 +282,9 @@ def main():
     a.set_defaults(func=cmd_plan)
 
     b = sub.add_parser("gate")
+    # 25社で 100〜200KB。`Read` の 256KB に収まる大きさにしてある。**30社にすると
+    # 原文の長い会社が集まった1本が 256KB ちょうどに達した**ので、余裕を持たせてある。
+    b.add_argument("--chunk", type=int, default=25)
     b.set_defaults(func=cmd_gate)
 
     c = sub.add_parser("merge")
