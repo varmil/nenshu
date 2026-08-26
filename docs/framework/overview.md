@@ -60,7 +60,7 @@ spec.md の 2.（AC-5・AC-6）。
 
 ## F1 Astro へ移す（カットオーバー・[#209](https://github.com/varmil/nenshu/issues/209)）
 
-spec.md の 1.・3.・4. と 2. の全部。**2026-08-26 実装済み**（`docs/framework/astro-cutover/`）。
+spec.md の 1.・3.・4. と 2. の全部。**2026-08-26 実装済み・本番稼働中**（`docs/framework/astro-cutover/`）。
 
 **分けられない。** `app/` を消してルーティングを移した時点で、メタデータもキャッシュも `run_worker_first` も同時に移さないとデプロイが通らない。**そのぶん検証を厚くする。**
 
