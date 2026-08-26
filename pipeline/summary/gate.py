@@ -73,20 +73,31 @@ def name_tokens(name):
     return {t for t in out if len(t) >= 2}
 
 
+def _fold(text):
+    """突き合わせ用に字形をそろえる。**全角と半角、大文字と小文字を区別しない。**
+
+    有報は略語を全角で書くことが多く（`ＩＴ`・`ＤＸ`・`ＰＦＩ`）、説明文は半角で書く。
+    **素で比べると「原文に無い固有名詞」になる**——実測で60社中8社がこれで落ちた
+    （野村総合研究所・大林組・ディー・エヌ・エー・リクルートホールディングスほか）。
+    どれも原文にある語で、違うのは字形だけだった。
+    """
+    return unicodedata.normalize("NFKC", text or "").lower()
+
+
 def unsupported_terms(sentence, source):
     """その文にあって原文に無い固有名詞。**空なら原文の中で説明が付く。**
 
     カタカナ4文字以上・ラテン文字2文字以上・`◯◯株式会社` の形を見る（AC-3）。
     **一般名詞まで見ない**——「製薬会社」のような言い換えは原文に無くても正しい。
     """
-    src = source or ""
+    src = _fold(source)
     found = []
     for pattern in (_KATAKANA, _LATIN, _ORG):
         for m in pattern.finditer(sentence):
-            term = m.group(0).rstrip(".-")
+            term = m.group(0).rstrip(".-－・")
             if len(term) < 2:
                 continue
-            if term not in src and term not in found:
+            if _fold(term) not in src and term not in found:
                 found.append(term)
     return found
 

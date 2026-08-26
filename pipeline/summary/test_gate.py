@@ -69,6 +69,23 @@ class UnsupportedTerms(unittest.TestCase):
     def test_原文に無い欧文の略語を挙げる(self):
         self.assertEqual(gate.unsupported_terms("CRO事業を営む。", KEYENCE), ["CRO"])
 
+    def test_全角と半角の食い違いで落とさない(self):
+        # 有報は略語を全角で書くことが多く、説明文は半角で書く。**素で比べると
+        # 「原文に無い固有名詞」になる**——実測で60社中8社がこれで落ちた。
+        self.assertEqual(gate.unsupported_terms("ＤＸを支援する。", "DXの推進を支援する。"), [])
+        self.assertEqual(gate.unsupported_terms("ITを支援する。", "ＩＴの活用を支援する。"), [])
+
+    def test_大文字と小文字も区別しない(self):
+        self.assertEqual(gate.unsupported_terms("SaaSを提供する。", "各種saasを提供する。"), [])
+
+    def test_略語を展開した語は挙げる(self):
+        # 原文の「ＦＡ」を「ファクトリーオートメーション」と書くのは、標準的な展開でも
+        # **原文に無い語**になる。ファナックが実際にこれで落ちた。
+        self.assertEqual(
+            gate.unsupported_terms("ファクトリーオートメーションを手がける。", "ＦＡを手がける。"),
+            ["ファクトリーオートメーション"],
+        )
+
 
 class ApplyGate(unittest.TestCase):
     def test_規格を満たす説明文は通る(self):
