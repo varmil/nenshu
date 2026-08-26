@@ -17,6 +17,10 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
 **1回では全社ぶんが回らない**（原文は2,960社で535万字）。`plan` は
 `company_summary_2026.csv` に載っていない会社と、**原文の SHA-1 が変わった会社**
 だけを選ぶので、回すたびに進む（AC-8）。
+
+**生成に渡す原文は2,000字で切るが、検証パスに渡すのは原文の全部。** 切った先に
+書いてあることを説明文が述べていたら、それは原文が支えていない——**検証は配って
+いる原文そのものに対して行う**（`gate` が `business_text_2026.csv` の全文を渡す）。
 """
 
 import argparse
@@ -253,7 +257,10 @@ def main():
     a = sub.add_parser("plan")
     a.add_argument("--size", type=int, default=20)
     a.add_argument("--batches", type=int, default=1)
-    a.add_argument("--max-chars", type=int, default=0, help="0で打ち切らない")
+    # **既定で2,000字に切る**（C6 のパイロットで決めた。design.md 参照）。原文の
+    # 26%が切られるが、実測した8社すべてで説明文の質は落ちず、機械ゲートも
+    # **打ち切り前の原文に対して**全通過した。`--max-chars 0` で切らない。
+    a.add_argument("--max-chars", type=int, default=2000, help="0で打ち切らない")
     a.add_argument("--pilot", action="store_true", help="回帰ケース＋無作為で選ぶ")
     a.add_argument("--seed", type=int, default=20260826)
     a.add_argument("--force", action="store_true")
