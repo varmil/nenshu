@@ -1,0 +1,45 @@
+---
+/**
+ * 1ページぶんの head（S2・U16 の性質をそのまま持ち越す）。
+ *
+ * **`og:title`・`og:description`・`og:url` は `<title>`・description・canonical と
+ * 同じ文字列から出す**（AC-10・spec 3.）。だから受け取るのは `PageMeta` 1つだけで、
+ * ここは包み直すだけにしてある——別々に組み立てると、非正規URL
+ * （`/?age=35&ind=銀行業`）で canonical だけが寄せ先を指し `og:url` が自分自身を
+ * 指す食い違いが起きる。
+ *
+ * **絶対URLにするのは `absoluteUrl()`。** Next.js の `metadataBase` がやっていた
+ * ことをここが引き取る。オリジンの定義は `lib/seo/site.ts` の1か所のまま（ADR-0006）。
+ *
+ * **`twitter:` は `card` だけ出す。** Next.js は `title` などを自動で埋めていたが、
+ * X は `og:` も読むので同じ文言を2組持つ理由が無い（`lib/seo/openGraph.ts`）。
+ * `e2e/social.spec.ts` が見ているのも `twitter:card` だけ。
+ */
+import type { PageMeta } from "@/lib/seo/pageMeta";
+import { OPEN_GRAPH_DEFAULTS, TWITTER_DEFAULTS } from "@/lib/seo/openGraph";
+import { absoluteUrl } from "@/lib/seo/site";
+
+interface Props {
+  meta: PageMeta;
+}
+
+const { meta } = Astro.props;
+const url = absoluteUrl(meta.canonical);
+const image = OPEN_GRAPH_DEFAULTS.images[0];
+---
+
+<title>{meta.title}</title>
+<meta name="description" content={meta.description} />
+<link rel="canonical" href={url} />
+
+<meta property="og:site_name" content={OPEN_GRAPH_DEFAULTS.siteName} />
+<meta property="og:type" content={OPEN_GRAPH_DEFAULTS.type} />
+<meta property="og:locale" content={OPEN_GRAPH_DEFAULTS.locale} />
+<meta property="og:title" content={meta.title} />
+<meta property="og:description" content={meta.description} />
+<meta property="og:url" content={url} />
+<meta property="og:image" content={absoluteUrl(image.url)} />
+<meta property="og:image:width" content={String(image.width)} />
+<meta property="og:image:height" content={String(image.height)} />
+<meta property="og:image:alt" content={image.alt} />
+<meta name="twitter:card" content={TWITTER_DEFAULTS.card} />

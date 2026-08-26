@@ -1,5 +1,3 @@
-import type { Metadata } from "next";
-import { CompanyDetail } from "@/features/company/components/CompanyDetail";
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView } from "@/features/company/lib/worklife";
 import {
@@ -15,10 +13,6 @@ import type {
   RadarAxisInput,
   RadarData,
 } from "@/features/company/lib/radar";
-import { companyMetadata } from "@/lib/seo/company";
-import { JsonLd } from "@/lib/seo/JsonLd";
-import { breadcrumbJsonLd } from "@/lib/seo/jsonLd";
-import { companyBreadcrumb } from "@/features/company/lib/breadcrumb";
 import type {
   CompanyStatsData,
   CompanyView,
@@ -27,16 +21,15 @@ import type {
 } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { companyFiscalPeriodLabel } from "@/lib/data/period";
-import companiesData from "../../../public/data/companies.json";
-import curvesData from "../../../public/data/curves.json";
-import statsData from "../../../public/data/stats.json";
-import historyData from "../../../public/data/history.json";
-import worklifeData from "../../../public/data/worklife.json";
-import radarData from "../../../public/data/radar.json";
-import performanceData from "../../../public/data/performance.json";
-import profitHistoryData from "../../../public/data/profit-history.json";
-import logosData from "../../../public/data/logos.json";
-import { LogoIdsProvider } from "@/features/logo/components/LogoIdsProvider";
+import companiesData from "@/public/data/companies.json";
+import curvesData from "@/public/data/curves.json";
+import statsData from "@/public/data/stats.json";
+import historyData from "@/public/data/history.json";
+import worklifeData from "@/public/data/worklife.json";
+import radarData from "@/public/data/radar.json";
+import performanceData from "@/public/data/performance.json";
+import profitHistoryData from "@/public/data/profit-history.json";
+import logosData from "@/public/data/logos.json";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -157,30 +150,6 @@ function worklifeRecordFor(id: string): WorklifeRecord | null {
   return index === -1 ? null : decodeWorklife(worklife, index);
 }
 
-type Props = {
-  params: Promise<{ id: string }>;
-};
-
-/**
- * 1,867社ぶんを**ビルド時に生成する**（R1・ADR-0012）。
- *
- * リクエスト時に Worker がやるのは、事前生成した結果をアセットから引いて返すこと
- * だけになる。実測（`wrangler dev --local`・40リクエストの平均）で
- * `/company/8282` の CPU が 25.5〜28.7ms → 15.6〜15.8ms。**Workers 無料枠の
- * 10ms/リクエストを超えて `exceededCpu` で落ちていたのはこのページ**（Issue #118）。
- *
- * **`dynamicParams = false`。** 一覧に無いIDは 404 になる。`companies.json` に
- * 無い会社のページを描く理由が無く、開けてしまうとクローラが無限に歩ける。
- *
- * **`force-static` なので `searchParams` は読めない。** 表示基準（年齢そろえ）は
- * URL に出さず、クライアントの状態としてだけ持つことにした（ADR-0012）。
- */
-export const dynamic = "force-static";
-export const dynamicParams = false;
-
-export function generateStaticParams() {
-  return companies.rows.map((row) => ({ id: row[0] }));
-}
 
 /**
  * 企業IDからその会社の決算期を引く（E1・`docs/expansion/spec.md` 1.4）。
@@ -222,42 +191,39 @@ function requireCompanyView(id: string): CompanyView {
   return view;
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const view = requireCompanyView((await params).id);
-
-  // 文言は `lib/seo/company.ts` が持つ。**ビルド時に1度決まればそれきりで、
-  // クライアントは書き換えない**——表示基準が URL に出ないので、URL とメタデータが
-  // 食い違いようが無い（ADR-0012。U16 が企業詳細で直していたのはこの食い違いだった）。
-  return companyMetadata(view, fiscalPeriodFor(view.id));
+export interface CompanyPageData {
+  view: CompanyView;
+  radar: CompanyRadarInput;
+  worklife: ReturnType<typeof buildWorklifeView>;
+  history: SalaryHistory | null;
+  profitHistory: ProfitHistory | null;
+  fiscalPeriod: string;
+  logoIds: string[];
 }
 
 /**
- * 企業詳細ページ。**全社をビルド時に生成する**（R1・ADR-0012）。
+ * 企業詳細ページが要る1社ぶんを全部そろえる（F1・Issue #209）。
  *
- * 順位と母集団統計は `stats.json` にビルド時に確定させてある。ここで走る計算は
- * この1社ぶんの8年齢＝16回の補間だけで、それもビルド時に済む。
+ * **`app/company/[id]/page.tsx` から中身をそのまま移した。** ルーティングが
+ * Next.js から Astro に変わっても、**どのデータをどう組むかは1文字も変えない**
+ * （spec 2.「画面に出るものを1つも変えない」）。
  */
-export default async function CompanyPage({ params }: Props) {
-  const view = requireCompanyView((await params).id);
-
+export function companyPageData(id: string): CompanyPageData {
+  const view = requireCompanyView(id);
   // **1社ぶんを1度だけ読み戻す。** レーダーの2軸と働きやすさの節が同じ行を使う。
   const worklifeRecord = worklifeRecordFor(view.id);
+  return {
+    view,
+    radar: radarFor(view.id, worklifeRecord),
+    worklife: buildWorklifeView(worklifeRecord),
+    history: historyFor(view.id),
+    profitHistory: profitHistoryFor(view.id),
+    fiscalPeriod: fiscalPeriodFor(view.id),
+    logoIds: logoIdsOnPage(view),
+  };
+}
 
-  return (
-    <LogoIdsProvider ids={logoIdsOnPage(view)}>
-      {/*
-        画面のパンくずと同じ階層を機械可読にする（S2・AC-14）。**同じ配列から
-        出す**ので、段を足したり行き先を変えたりしても片方だけ古くならない。
-      */}
-      <JsonLd data={breadcrumbJsonLd(companyBreadcrumb(view))} />
-      <CompanyDetail
-        view={view}
-        radar={radarFor(view.id, worklifeRecord)}
-        worklife={buildWorklifeView(worklifeRecord)}
-        history={historyFor(view.id)}
-        profitHistory={profitHistoryFor(view.id)}
-        fiscalPeriod={fiscalPeriodFor(view.id)}
-      />
-    </LogoIdsProvider>
-  );
+/** 事前生成する全社のID（Astro の `getStaticPaths`）。 */
+export function companyIds(): string[] {
+  return companies.rows.map((row) => row[0]);
 }

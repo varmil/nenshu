@@ -1,22 +1,23 @@
 import { defineConfig } from "@playwright/test";
 
-// Next.js の dev サーバーはプロジェクトディレクトリ単位で単一インスタンスしか
-// 許可しない（ポートを変えても2つ目は起動を拒否される）ため、既定の3000番を使い、
-// 既存のdevサーバーがあればそれを再利用する。
-const PORT = 3000;
+// dev サーバーのポート。**`astro dev` の既定は 4321 なので、明示的に渡す**
+// （F1・Issue #209。Next.js の頃は 3000 が既定だった）。既存の dev サーバーが
+// あればそれを再利用する。
+const PORT = 4321;
 
-// **キャッシュヘッダの検証だけは dev サーバーでは足りない。** `headers()` の
-// `has`/`missing` を評価するのは、本番では Next.js 本体ではなく OpenNext の
-// マッチャで、両者の挙動が食い違う（ADR-0004「RSC応答を…」参照。`next start`
-// では通るのに Worker 上でだけ規則が不成立になる不具合を実際に踏んだ）。
+// **Worker に固有のものは dev サーバーでは確かめられない**（F1・ADR-0014）。
+// `public/_headers`・`run_worker_first`・`not_found_handling` はどれも Cloudflare の
+// 静的アセットの仕組みで、Astro の dev サーバーは読まない。**dev では skip し、
+// Worker に向けたときだけ走るテストがある**（`e2e/asset-routing.spec.ts`・
+// `e2e/cache-headers.spec.ts` の後半）。
 //
-// `E2E_BASE_URL` を渡すと、その宛先に対してそのまま流す。dev サーバーは起動
-// しない。Worker に向けるなら:
+// `E2E_BASE_URL` を渡すと、その宛先に対してそのまま流す。dev サーバーは起動しない。
+// Worker に向けるなら:
 //
-//   npx opennextjs-cloudflare build && npx wrangler dev --port 3801 --local
-//   E2E_BASE_URL=http://127.0.0.1:3801 npx playwright test e2e/cache-headers.spec.ts
+//   npx astro build && npx wrangler dev --port 3801 --local
+//   E2E_BASE_URL=http://localhost:3801 npx playwright test
 //
-// デプロイ済みのプレビューURLを渡してもよい。
+// **`127.0.0.1` ではなく `localhost` を渡すこと**（CLAUDE.md）。
 const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -24,10 +25,17 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "npm run dev",
+        /*
+          **`ASTRO_DEV_BACKGROUND=false` を渡す**（F1・Issue #209）。Astro 7 の
+          `astro dev` は既定でデーモン化して即座に終了するので、Playwright が
+          「サーバーのプロセスが早期に終了した」と判断して落ちる。前面で走らせる。
+        */
+        command: `ASTRO_DEV_BACKGROUND=false npm run dev -- --port ${PORT}`,
         url: `http://localhost:${PORT}`,
         reuseExistingServer: true,
-        timeout: 30_000,
+        // Astro の初回起動は依存の事前バンドルを挟むので 30 秒では足りない
+        // （実測で 4〜12 秒＋バンドル。コンテナでは遅い）。
+        timeout: 120_000,
       },
   use: {
     baseURL: BASE_URL,

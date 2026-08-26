@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
 import { statsForBasis } from "@/features/company/lib/stats";
 import type { CompanyView } from "@/features/company/types";
 import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
-import { toMetadata, type PageMeta } from "./pageMeta";
+import type { PageMeta } from "./pageMeta";
 
 /**
  * 企業詳細ページの title・description・canonical（C1 で `generateMetadata` に
@@ -45,7 +44,3 @@ export function companyPageMeta(view: CompanyView, fiscalPeriod: string): PageMe
   };
 }
 
-/** `app/company/[id]/page.tsx` の `generateMetadata` が返す形。包むだけ。 */
-export function companyMetadata(view: CompanyView, fiscalPeriod: string): Metadata {
-  return toMetadata(companyPageMeta(view, fiscalPeriod));
-}

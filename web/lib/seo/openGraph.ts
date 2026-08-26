@@ -1,6 +1,5 @@
-import type { Metadata } from "next";
 import { OG_IMAGE } from "@/lib/brand/assets";
-import type { PageMeta } from "./pageMeta";
+
 import { SITE_NAME } from "./site";
 
 /**
@@ -13,16 +12,13 @@ import { SITE_NAME } from "./site";
  * ——貼られた先で正規URLへ評価が渡らなくなる。
  *
  * **こちらが宣言するのは `twitter:card` だけ。** X は `og:` も読むので文言を
- * もう1組書く必要は無い——実際に返るHTMLには `twitter:title` などが並ぶが、
- * それは Next.js が `title`・`description`・`openGraph.images` から自動で
- * 埋めたものである（同じ値を2か所に書いてはいない）。
+ * もう1組書く必要は無い。**Next.js は `twitter:title` などを自動で埋めていたが、
+ * F1 でそれも無くなった**——`e2e/social.spec.ts` が見ているのも `twitter:card` だけ。
  */
 
 /**
- * ページによらない部分。**`app/layout.tsx` もこれを使う**——Next.js の
- * `openGraph` は入れ子ごと差し替わる（浅いマージ）ので、ページ側が
- * `openGraph` を返すとレイアウトのものは1つも残らない。**ページが返さない
- * ルート（`/_not-found`）だけがレイアウトのものを使う。**
+ * ページによらない部分。**`src/components/PageHead.astro` が唯一の読み手。**
+ * 全ページが `PageMeta` を持つので、「ページが返さないときの受け皿」は要らなくなった。
  */
 export const OPEN_GRAPH_DEFAULTS = {
   siteName: SITE_NAME,
@@ -36,7 +32,7 @@ export const OPEN_GRAPH_DEFAULTS = {
       alt: OG_IMAGE.alt,
     },
   ],
-} as const satisfies Metadata["openGraph"];
+} as const;
 
 /**
  * 全ページ共通。**種類だけ宣言する**——`twitter:title` などは Next.js が
@@ -44,16 +40,3 @@ export const OPEN_GRAPH_DEFAULTS = {
  */
 export const TWITTER_DEFAULTS = { card: "summary_large_image" } as const;
 
-/**
- * `PageMeta` から `og:` 一式を作る。**`url` は canonical と同じ相対パス**で、
- * 絶対URLにするのは `metadataBase`（`app/layout.tsx`）の仕事——オリジンを書く
- * 場所は `lib/seo/site.ts` の1か所だけ（ADR-0006）。
- */
-export function openGraphFor(meta: PageMeta): Metadata["openGraph"] {
-  return {
-    ...OPEN_GRAPH_DEFAULTS,
-    title: meta.title,
-    description: meta.description,
-    url: meta.canonical,
-  };
-}

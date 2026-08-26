@@ -5,8 +5,7 @@ import statsData from "../../public/data/stats.json";
 import { buildCompanyView } from "@/features/company/lib/view";
 import type { CompanyStatsData } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
-import { companyMetadata, companyPageMeta } from "./company";
-import { toMetadata } from "./pageMeta";
+import { companyPageMeta } from "./company";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -47,8 +46,4 @@ describe("companyPageMeta", () => {
     expect(meta.description).toContain("電気機器");
   });
 
-  it("`companyMetadata` は `companyPageMeta` を包むだけ", () => {
-    // 文言が2か所に分かれていないことをここで固定する（U16 の要）。
-    expect(companyMetadata(keyence, PERIOD)).toEqual(toMetadata(companyPageMeta(keyence, PERIOD)));
-  });
 });

@@ -1,4 +1,4 @@
-import { test, expect } from "./rankingTest";
+import { test, expect, waitForHydration } from "./appTest";
 import { collectPageRequests } from "./network";
 
 /*
@@ -255,7 +255,10 @@ test.describe("表示モード", () => {
       // OS はライトのままなので、保持されていなければここでライトに戻る。
       await expect(page.locator("html")).toHaveClass(/\bdark\b/);
 
-      // 戻せることも見る。
+      // 戻せることも見る。**押す前にハイドレーションを待つ**——上の `reload` は
+      // `waitUntil` を明示していて（ちらつき防止を見るため）、その時点ではまだ島に
+      // React が取り付いていない（F1・`e2e/appTest.ts`）。
+      await waitForHydration(page);
       await page.getByRole("button", { name: "ライトモードに切り替える" }).click();
       await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
     });

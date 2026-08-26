@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./appTest";
 
 test.describe("計算方法ページ（/about）", () => {
   test("AC-10: ランキングから計算方法リンクをたどると、式・出典・対象範囲・限界が読める", async ({

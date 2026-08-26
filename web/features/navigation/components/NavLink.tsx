@@ -1,38 +1,30 @@
-"use client";
+import type { AnchorHTMLAttributes } from "react";
 
-import Link, { useLinkStatus } from "next/link";
-import { useEffect, type ComponentProps } from "react";
-import { navProgress } from "../lib/navProgress";
+export type NavLinkProps = AnchorHTMLAttributes<HTMLAnchorElement> & {
+  href: string;
+  /**
+   * 受け取るが**何もしない。** `next/link` の頃の呼び出し側をそのまま動かすために
+   * 残してある。**先読みはもともと切ってあり**（本番のトップページ表示だけで34件の
+   * リクエストが飛んだ。`RankingTable.tsx`）、素の `a` 要素にはその概念が無い。
+   */
+  prefetch?: boolean;
+};
 
 /**
- * `useLinkStatus()` は `<Link>` の子孫でしか読めないので、何も描画しない子として
- * 差し込み、遷移待ちを共有ストアへ渡す。
+ * ページ間の遷移はすべてこれを使う。**素の `a` 要素**（F1・Issue #209・ADR-0014）。
  *
- * プリフェッチ済みのリンクでは pending が立たないまま遷移が終わる（公式ドキュメント）。
- * このサイトは `/company/[id]` へのリンクを `prefetch={false}` にしているため
- * （Workerの起動を増やさないため。理由は RankingTable.tsx）、ここが実際に効く。
+ * **`next/link` を外した。** 遷移は素の HTML 取得になり、着いた先ではページごと
+ * 作り直される——それが Astro の遷移で、**静的アセットで返せる**ことの前提でもある
+ * （アセットは `RSC: 1` 付きのリクエストにも `text/html` を返すので、RSC の
+ * クライアント遷移とは両立しなかった。`docs/framework/intent.md`）。
+ *
+ * **JS を1バイトも持たない。** 遷移中のバーは `NavProgressBar` が `document` で
+ * 1本のリスナーとして拾う——**このコンポーネントに `onClick` を置くと、島の外で
+ * 描かれたリンク（`/about` の本文など）では拾えない。**
+ *
+ * 残してあるのは呼び出し側の綴りを変えないためで、`eslint.config.mjs` は
+ * 引き続き素の `a` を直接書かせない（バーが出なくなるため）。
  */
-function PendingReporter() {
-  const { pending } = useLinkStatus();
-
-  useEffect(() => {
-    if (!pending) return;
-    navProgress.begin();
-    return () => navProgress.end();
-  }, [pending]);
-
-  return null;
-}
-
-/**
- * `next/link` に遷移中の表示を足しただけのもの。ページ間の遷移はすべてこれを使う。
- * props は `<Link>` と同じ（`prefetch` もそのまま渡る）。
- */
-export function NavLink({ children, ...props }: ComponentProps<typeof Link>) {
-  return (
-    <Link {...props}>
-      {children}
-      <PendingReporter />
-    </Link>
-  );
+export function NavLink({ children, prefetch: _prefetch, ...props }: NavLinkProps) {
+  return <a {...props}>{children}</a>;
 }

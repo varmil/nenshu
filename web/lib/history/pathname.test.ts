@@ -1,73 +1,52 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPathnameStore } from "./pathname";
+import { afterEach, describe, expect, it } from "vitest";
+import { isRankingPath, readPathname } from "./pathname";
 
-describe("createPathnameStore", () => {
-  it("最初の値は作った時点のパス", () => {
-    const store = createPathnameStore(() => "/about");
-    expect(store.getPathname()).toBe("/about");
+/**
+ * F0（#208）では `history.pushState` を包んで変化を購読していたので、その配線を
+ * ここで固定していた。**F1（#209）で購読ごと消えた**——Astro の遷移はページを
+ * 作り直すので、文書が生きている間にパスは変わらない（`pathname.ts`）。
+ * 残っているのは「どこから読むか」だけなので、見るのもそれだけになる。
+ *
+ * **`window` は差し込む。** vitest の実行環境は node で、jsdom を足していない
+ * （足すのはこの1ファイルのためだけになる）。読んでいるのは
+ * `window.location.pathname` の1つだけなので、その形だけ用意すれば足りる。
+ */
+type Global = Record<"window", unknown>;
+
+function setPathname(pathname: string | null): void {
+  const g = globalThis as unknown as Global;
+  if (pathname === null) delete (g as Partial<Global>).window;
+  else g.window = { location: { pathname } };
+}
+
+afterEach(() => setPathname(null));
+
+describe("readPathname", () => {
+  it("`window.location.pathname` を返す", () => {
+    setPathname("/company/6861");
+    expect(readPathname()).toBe("/company/6861");
   });
 
-  it("パスが変わったら知らせる", () => {
-    let path = "/about";
-    const store = createPathnameStore(() => path);
-    const listener = vi.fn();
-    store.subscribe(listener);
+  it("サーバー（`window` が無い）では空文字", () => {
+    setPathname(null);
+    expect(readPathname()).toBe("");
+  });
+});
 
-    path = "/";
-    expect(store.check()).toBe(true);
-    expect(store.getPathname()).toBe("/");
-    expect(listener).toHaveBeenCalledTimes(1);
+describe("isRankingPath", () => {
+  it("`/` のときだけ真", () => {
+    setPathname("/");
+    expect(isRankingPath()).toBe(true);
+
+    setPathname("/about");
+    expect(isRankingPath()).toBe(false);
+
+    setPathname("/company/6861");
+    expect(isRankingPath()).toBe(false);
   });
 
-  /*
-    **ここがこのストアの要点。** 検索欄は打つそばから `replaceState` を呼ぶ
-    （`features/ranking/lib/queryBroadcast.ts`）が、そのときパスは変わらない。
-    毎打鍵でヘッダを再レンダーさせないために、変化したときだけ知らせる。
-  */
-  it("パスが変わっていなければ誰も起こさない", () => {
-    const store = createPathnameStore(() => "/");
-    const listener = vi.fn();
-    store.subscribe(listener);
-
-    expect(store.check()).toBe(false);
-    expect(listener).not.toHaveBeenCalled();
-  });
-
-  it("購読を解いた相手には知らせない", () => {
-    let path = "/";
-    const store = createPathnameStore(() => path);
-    const listener = vi.fn();
-    const unsubscribe = store.subscribe(listener);
-    unsubscribe();
-
-    path = "/about";
-    store.check();
-    expect(listener).not.toHaveBeenCalled();
-  });
-
-  it("複数の購読者すべてに知らせる", () => {
-    let path = "/";
-    const store = createPathnameStore(() => path);
-    const a = vi.fn();
-    const b = vi.fn();
-    store.subscribe(a);
-    store.subscribe(b);
-
-    path = "/company/6861";
-    store.check();
-    expect(a).toHaveBeenCalledTimes(1);
-    expect(b).toHaveBeenCalledTimes(1);
-  });
-
-  it("同じ変化で二度知らせない", () => {
-    let path = "/";
-    const store = createPathnameStore(() => path);
-    const listener = vi.fn();
-    store.subscribe(listener);
-
-    path = "/about";
-    store.check();
-    store.check();
-    expect(listener).toHaveBeenCalledTimes(1);
+  it("サーバーでは偽（判定はイベントの中でしか使わない）", () => {
+    setPathname(null);
+    expect(isRankingPath()).toBe(false);
   });
 });

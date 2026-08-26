@@ -83,6 +83,25 @@ ADR-0001は「Cloudflare Pages」という表記だが、現在は同じ基盤�
 
 詳細は`docs/ranking/ssr-migration/design.md`参照。
 
+## 2026-08-26追記（Astro へのカットオーバー、ADR-0014・F1・[#209](https://github.com/varmil/nenshu/issues/209)）
+
+`docs/framework/astro-cutover/` で、Next.js ＋ `@opennextjs/cloudflare` から Astro（`@astrojs/cloudflare`）へ移した。**`next` も `@opennextjs/cloudflare` も依存から消えたので、いまのビルドコマンドはそのまま失敗する。**
+
+**ダッシュボードの更新はユーザーが実施する（アカウントアクセスが無いため）。**
+
+- ビルドコマンド: `npx opennextjs-cloudflare build` → **`npm run build`**（＝ `astro build`）
+- デプロイコマンド: `npx wrangler deploy`（変更なし）
+- バージョンコマンド: `npx wrangler versions upload`（変更なし）
+- ルートディレクトリ: `web`（変更なし）
+
+**`wrangler.jsonc` の `build.command` は消えた。** OpenNext が事前生成した結果をアセットへ写す工程で、`opennextjs-cloudflare deploy` を使っていないぶんを補うものだった。Astro は `astro build` の時点で `dist/client/` に HTML を並べるので、写す工程そのものが無い。
+
+**`main` と `assets.directory` も書かなくなった。** `@astrojs/cloudflare` が `@astrojs/cloudflare/entrypoints/server` を差し込み、出力先は `@cloudflare/vite-plugin` が知っている。**書くとビルド前に「そのファイルが無い」で落ちる**（成果物を指すので鶏と卵になる）。
+
+**マージ順序**: 2026-08-17 と同じで、**コード（`main`）を先にマージし、そのあとダッシュボードのコマンドを更新する。** 逆順だと、まだ Next.js のコードに対して `astro build` が走って失敗する。コードを先にマージした場合、ダッシュボードが旧コマンドのままだと `npx opennextjs-cloudflare build` が「そんなコマンドは無い」で失敗する。**どちらの向きでも、Cloudflare はビルド失敗時に直前の成功バージョンを配信し続けるので本番は落ちない**（更新が止まるだけ）。
+
+詳細は `docs/framework/astro-cutover/design.md` 参照。
+
 ## データの再生成
 
 `pipeline/scripts/build-data.ts` の `--out` 引数を使い、`web/public/data/` に出力し直す（`pipeline/` から実行する場合は `--out ../web/public/data`）。リポジトリ直下の暫定 `public/` は削除する。

@@ -1,4 +1,4 @@
-import { test, expect } from "./rankingTest";
+import { test, expect } from "./appTest";
 
 /**
  * 業種セレクトを開いて選択肢をクリックする。

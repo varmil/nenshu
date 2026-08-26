@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { waitForHydration } from "./appTest";
 
 /**
  * 全件を HTML に埋めるのをやめ、静的アセットとして1回だけ配る（E0・Issue #174・
@@ -24,6 +25,10 @@ test.describe("全件データが届く前・届かなかったとき", () => {
   }) => {
     await page.route(DATA_URL, (route) => route.abort());
     await page.goto("/");
+    // **島に React が取り付くまで待つ**（F1・`e2e/appTest.ts`）。この spec だけは
+    // 素の `test` を使う——共有の `test` は全件の到着まで待ってしまい、
+    // ここで見たい「届かなかったとき」に必ずタイムアウトするため。
+    await waitForHydration(page);
 
     // 初期表示はサーバーが渡した1ページぶんで、ここまでは届いた場合と同じ。
     await expect(page.getByRole("heading", { name: "平均年収ランキング", level: 1 })).toBeVisible();
@@ -53,6 +58,7 @@ test.describe("全件データが届く前・届かなかったとき", () => {
       });
     });
     await page.goto("/");
+    await waitForHydration(page);
 
     await expect(page.getByRole("heading", { name: "平均年収ランキング", level: 1 })).toBeVisible();
     await expect(page.locator(READY)).toHaveCount(0);

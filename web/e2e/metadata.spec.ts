@@ -1,4 +1,4 @@
-import { test, expect } from "./rankingTest";
+import { test, expect } from "./appTest";
 import type { APIRequestContext, Page } from "@playwright/test";
 import { collectPageRequests, waitForRankingReady } from "./network";
 

@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./appTest";
 import {
   APPLE_TOUCH_ICON,
   BRAND_ASSET_PATHS,

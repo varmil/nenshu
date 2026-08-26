@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./appTest";
 
 /**
  * S3（Issue #134、親 #104）と E1（`docs/expansion/spec.md` 1.4、Issue #172）。

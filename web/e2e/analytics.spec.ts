@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./appTest";
 
 // Microsoft Clarity（Issue #44）は本番ビルドでだけ読み込む。
 // E2Eは開発サーバーに対して走るため、ここで検証できるのは「開発時は読み込まれないこと」。

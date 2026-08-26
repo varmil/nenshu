@@ -6,9 +6,9 @@ import { OG_IMAGE } from "../lib/brand/assets";
  * HTML だけ**なので、ここは全部 `request` で生のレスポンスを取って見る。
  *
  * 操作したあとの DOM は `e2e/metadata.spec.ts` が見ている（`og:url` が canonical と
- * 同じままであることも含めて）。**単体テストでは足りない**——`toMetadata()` が
- * 返す形が実際に `<meta property="og:...">` として出るか、`metadataBase` が効いて
- * 絶対URLになるかは、Next.js のメタデータ解決を通らないと分からない。
+ * 同じままであることも含めて）。**単体テストでは足りない**——`PageMeta` が
+ * 実際に `<meta property="og:...">` として出るか、`absoluteUrl()` が効いて絶対URLに
+ * なるかは、`src/components/PageHead.astro` を通らないと分からない。
  */
 
 const ORIGIN = "https://openreport.net";

@@ -60,7 +60,7 @@ spec.md の 2.（AC-5・AC-6）。
 
 ## F1 Astro へ移す（カットオーバー・[#209](https://github.com/varmil/nenshu/issues/209)）
 
-spec.md の 1.・3.・4. と 2. の全部。
+spec.md の 1.・3.・4. と 2. の全部。**2026-08-26 実装済み**（`docs/framework/astro-cutover/`）。
 
 **分けられない。** `app/` を消してルーティングを移した時点で、メタデータもキャッシュも `run_worker_first` も同時に移さないとデプロイが通らない。**そのぶん検証を厚くする。**
 
@@ -72,11 +72,21 @@ spec.md の 1.・3.・4. と 2. の全部。
 - **`wrangler.jsonc` は main に入るまで効かない**（2026-08-21・#119）。ブランチのプレビューでの結果で「効かない」と判断しないこと
 - **`/` の HTML を gzip で前後比較する**（予算100KB・ranking spec 3.）。**E0 が入ったので比べる相手は 19,860 B**（上の「実施順序」参照）
 
+**結果**（`docs/framework/astro-cutover/design.md` に手順と全部の数字）。**`/about` 14.3 ms・`/company/6861` 20.6 ms が、どちらも床（3.6〜3.9 ms）と区別が付かなくなった**＝ Worker が起きていない（AC-1）。`/` は 39.5〜44.6 → 21.1〜22.4 ms。**Worker バンドルは gzip 2,089 → 627.9 KiB**（AC-4）。**`/` の HTML は gzip 19,860 → 19,420 B** で、心配していた直列化の差は現れなかった（E0 が先に入っているため）。
+
+**着手して分かったことが3つある。**
+
+- **`astro dev` にアダプタを付けると起動しない。** workerd の中で Vite のモジュールランナーが走る構成で、依存の事前バンドルのたびに古いチャンクを掴んで落ちる。**dev は Astro 自身のサーバーで足りる**——`_headers`・`run_worker_first`・`not_found_handling` はもともと dev では効かない
+- **E2E が27件落ちた。原因は1つで、ハイドレーション前のクリックが消えること。** SSR したボタンは最初から DOM にあるので Playwright の自動待機が素通りする。**待ち方を `e2e/appTest.ts` の1か所に閉じた**
+- **404 は自分で置かないと Astro の既定（英語・ヘッダ無し）が出る。** ステータスは同じ 404 なので、それだけ見ていると気づけない
+
 ## F2 遷移の待ち表示を作り直す（[#210](https://github.com/varmil/nenshu/issues/210)）
 
 spec.md の 2.（AC-5）。
 
 **作ると決めていない Unit。** `NavProgressBar`（`useLinkStatus`）は `prefetch={false}` の代償として入れたもので、**RSC ペイロードの到着を待つ時間を埋めるためだった**（`docs/company/company-page/design.md`）。移行後は静的アセットの取得になるので、その待ち自体が変わる。
+
+**F1 の時点では「壊れていない状態」にしてある。** `next/link` の `useLinkStatus()` が無くなったので、遷移の始まりは `document` で1本の委譲リスナーが拾う（規則は `features/navigation/lib/navIntent.ts` の純粋関数）。**終わりは拾わない**——次のページが来た時点でページごと消える。
 
 **まず測る。** 実測して体感に出ないなら作らない。**作るなら Astro の遷移イベント（`astro:before-preparation` など）で組む**——`nextjs-toploader` 系のライブラリを使わない判断（CLAUDE.md）はそのまま生きている。
 

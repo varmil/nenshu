@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./appTest";
 import { collectPageRequests } from "./network";
 
 // 数値は `docs/company/spec.md` §3 の受け入れ基準（2026-06 版データの実測値）。

@@ -1,4 +1,4 @@
-import { test, expect } from "./rankingTest";
+import { test, expect } from "./appTest";
 import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**

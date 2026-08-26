@@ -86,7 +86,6 @@ export function CompanyLogo({
         （spec 3.）。`alt` は空——社名は同じ行にテキストとしてあり、ロゴは装飾
         として扱う（spec 2.4）。
       */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={`/logos/${id}.webp`}
         alt=""
