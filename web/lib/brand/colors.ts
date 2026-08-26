@@ -41,3 +41,18 @@ export const BRAND_ICON_BACKGROUND = "#ffffff";
  * ホーム画面のアイコンと同じ「白地にブランド色」の版面に揃える。
  */
 export const BRAND_TEXT = "#090b0c";
+
+/**
+ * OG画像のラベルと出典の色。`:root` の `--muted-foreground`。
+ *
+ * 「対象社数」「金融庁 EDINET」のような**添え物**をこの色に落とす。数値と同じ
+ * 濃さで並べると、どれが読ませたい値なのかが版面から消える。
+ */
+export const BRAND_MUTED = "#67787c";
+
+/**
+ * OG画像の罫の色。`:root` の `--border`。
+ *
+ * 見出しと数値の帯を分ける横罫と、3区画を仕切る縦罫の2つに使う。
+ */
+export const BRAND_RULE = "#e3e7e8";

@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
@@ -8,11 +8,13 @@ import {
   MAX_COVERAGE_WITH_CLEAR_SPACE,
 } from "../brand/symbol";
 import { buildIco } from "../brand/ico";
-import { ogOverflow, ogSvg } from "../brand/og";
+import { ogAlt, ogOverflow, ogSvg, type OgFacts } from "../brand/og";
 import {
   BRAND_COLOR,
   BRAND_COLOR_DARK,
   BRAND_ICON_BACKGROUND,
+  BRAND_MUTED,
+  BRAND_RULE,
   BRAND_TEXT,
 } from "../../web/lib/brand/colors";
 import {
@@ -25,6 +27,8 @@ import {
   WEB_MANIFEST,
 } from "../../web/lib/brand/assets";
 import { SITE_NAME } from "../../web/lib/seo/site";
+import { fiscalPeriodLabel } from "../../web/lib/data/period";
+import { toManYen } from "../../web/features/ranking/lib/format";
 
 /**
  * ブランドの成果物を焼く（S4・Issue #163・`docs/site-chrome/spec.md` 6.）。
@@ -42,6 +46,12 @@ import { SITE_NAME } from "../../web/lib/seo/site";
  */
 
 const OUT_DEFAULT = "../web/public";
+
+/** 焼いたときのデータを残す先。`web/lib/brand/assets.ts` の `OG_IMAGE.alt` がここを読む。 */
+const OG_FACTS_DEFAULT = "../web/lib/brand/ogFacts.ts";
+
+/** データの置き場。OG画像に載る社数・全体平均・対象期間はここから引く。 */
+const DATA_DEFAULT = "../web/public/data";
 
 /** SVG のファビコン。デザイン案の座標系そのままで、余白を足さない。 */
 const FAVICON_COVERAGE = 38 / 48;
@@ -86,6 +96,63 @@ function plateSvg(size: number, coverage: number): string {
   });
 }
 
+/**
+ * OG画像に焼く数字をデータから引く（`brand/og.ts`）。
+ *
+ * **ここに数字を直書きしない。** 版面に載るのは母集団そのものの説明なので、
+ * `build:data` を回した次のビルドで自動的に新しい値になる必要がある。
+ * 引き方は画面と同じ1か所を通す——`fiscalPeriodLabel` は決算期を文字列にする
+ * 唯一の場所（CLAUDE.md）、`toManYen` は画面に出る万円と同じ丸め。
+ */
+export function readOgFacts(dataDir: string): OgFacts {
+  const read = (name: string) => JSON.parse(readFileSync(resolve(dataDir, name), "utf8"));
+  const companies = read("companies.json");
+  const stats = read("stats.json");
+
+  // `stats.bases` の先頭が実測値（`null`）。年齢そろえの列を採ると、
+  // 版面の「有価証券報告書の数値のまま」と食い違う（ADR-0007）。
+  if (stats.bases[0] !== null) {
+    throw new Error("stats.bases の先頭が実測値ではない（pipeline/scripts/build-data.ts を確認）");
+  }
+  if (companies.meta.count !== stats.count) {
+    throw new Error(
+      `companies.meta.count（${companies.meta.count}）と stats.count（${stats.count}）が違う`
+    );
+  }
+
+  return {
+    count: companies.meta.count,
+    averageManYen: toManYen(stats.population[0].mean),
+    fiscalPeriod: fiscalPeriodLabel(companies.meta),
+  };
+}
+
+/**
+ * 焼いた値を web 側に残す。**`ogFacts.test.ts` がこれといまのデータを突き合わせる**ので、
+ * `build:data` だけ回して `build:brand` を忘れるとテストが落ちる。
+ */
+export function ogFactsModule(facts: OgFacts): string {
+  return `/* このファイルは \`pipeline/scripts/build-brand.ts\` の出力。手で編集しない。 */
+
+/**
+ * \`public/og.png\` を焼いたときの母集団（S2・Issue #116・\`pipeline/brand/og.ts\`）。
+ *
+ * **絵の中に数字が入っている以上、その数字がどれだったかを web 側も知っている必要が
+ * ある。** \`OG_IMAGE.alt\` は絵に書いてあることをそのまま読み上げる文なので、
+ * ここから組む——書き写すと、焼き直したときに代替テキストだけ古い数字で残る。
+ *
+ * \`ogFacts.test.ts\` が \`public/data/\` の中身と突き合わせている。
+ * **データを作り直したら \`cd pipeline && npm run build:brand\` も回すこと。**
+ */
+export const OG_FACTS = {
+  count: ${facts.count},
+  averageManYen: ${facts.averageManYen},
+  fiscalPeriod: ${JSON.stringify(facts.fiscalPeriod)},
+  alt: ${JSON.stringify(ogAlt(facts))},
+} as const;
+`;
+}
+
 export function manifestJson(): string {
   return `${JSON.stringify(
     {
@@ -109,14 +176,18 @@ export function manifestJson(): string {
   )}\n`;
 }
 
-export async function buildBrand(outDir: string): Promise<string[]> {
+export async function buildBrand(
+  outDir: string,
+  { dataDir, factsFile }: { dataDir: string; factsFile: string }
+): Promise<string[]> {
   if (APP_ICON_COVERAGE > MAX_COVERAGE_WITH_CLEAR_SPACE) {
     throw new Error("アプリアイコンがクリアスペース25%を満たしていない");
   }
   if (MASKABLE_COVERAGE > MAX_COVERAGE_MASKABLE) {
     throw new Error("maskable がセーフゾーンからはみ出す");
   }
-  const overflow = ogOverflow();
+  const facts = readOgFacts(dataDir);
+  const overflow = ogOverflow(facts);
   if (overflow !== null) throw new Error(overflow);
   mkdirSync(outDir, { recursive: true });
 
@@ -173,11 +244,16 @@ export async function buildBrand(outDir: string): Promise<string[]> {
     OG_IMAGE.path,
     await sharp(
       Buffer.from(
-        ogSvg({
-          brand: BRAND_COLOR,
-          text: BRAND_TEXT,
-          background: BRAND_ICON_BACKGROUND,
-        }),
+        ogSvg(
+          {
+            brand: BRAND_COLOR,
+            text: BRAND_TEXT,
+            muted: BRAND_MUTED,
+            rule: BRAND_RULE,
+            background: BRAND_ICON_BACKGROUND,
+          },
+          facts,
+        ),
       ),
       { density: 384 },
     )
@@ -188,6 +264,10 @@ export async function buildBrand(outDir: string): Promise<string[]> {
   );
 
   write(WEB_MANIFEST, manifestJson());
+
+  // 焼いた値の控え。**`public/` ではなく web のソースに置く**——読むのは
+  // `OG_IMAGE.alt` で、リクエスト時に取りに行くものではない。
+  writeFileSync(factsFile, ogFactsModule(facts));
   return written;
 }
 
@@ -195,8 +275,14 @@ const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}
 if (isMain) {
   const index = process.argv.indexOf("--out");
   const out = index >= 0 ? process.argv[index + 1] : OUT_DEFAULT;
-  const outDir = resolve(dirname(fileURLToPath(import.meta.url)), "..", out);
-  const written = await buildBrand(outDir);
+  const here = dirname(fileURLToPath(import.meta.url));
+  const outDir = resolve(here, "..", out);
+  const factsFile = resolve(here, "..", OG_FACTS_DEFAULT);
+  const written = await buildBrand(outDir, {
+    dataDir: resolve(here, "..", DATA_DEFAULT),
+    factsFile,
+  });
   console.log(`${outDir} に ${written.length} 件書いた:`);
   for (const name of written) console.log(`  ${name}`);
+  console.log(`${factsFile} を更新した`);
 }

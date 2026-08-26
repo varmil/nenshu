@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { oklchToHex } from "@/design-system/tokens/oklch";
 import { readTokenBlock } from "@/design-system/tokens/readTokens";
-import { BRAND_COLOR, BRAND_COLOR_DARK, BRAND_ICON_BACKGROUND, BRAND_TEXT } from "./colors";
+import {
+  BRAND_COLOR,
+  BRAND_COLOR_DARK,
+  BRAND_ICON_BACKGROUND,
+  BRAND_MUTED,
+  BRAND_RULE,
+  BRAND_TEXT,
+} from "./colors";
 
 /*
  * ブランド色がトークンから離れないことを固定する（S4・Issue #163・AC-26）。
@@ -19,7 +26,9 @@ describe("ブランド色", () => {
     ["明るい面", BRAND_COLOR, root.primary],
     ["濃色サーフェス", BRAND_COLOR_DARK, dark.primary],
     ["アイコンの地", BRAND_ICON_BACKGROUND, root.background],
-    ["OG画像の説明文", BRAND_TEXT, root.foreground],
+    ["OG画像の見出し", BRAND_TEXT, root.foreground],
+    ["OG画像のラベル", BRAND_MUTED, root["muted-foreground"]],
+    ["OG画像の罫", BRAND_RULE, root.border],
   ])("%s の hex は tokens.css の値と一致する", (_label, hex, token) => {
     expect(hex).toBe(oklchToHex(token));
   });

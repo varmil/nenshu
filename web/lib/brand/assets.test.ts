@@ -120,9 +120,10 @@ describe("OG画像（S2・Issue 116・AC-13）", () => {
   });
 
   it("代替テキストが絵の中の文字と揃っている", () => {
-    // 絵に書いてあるのはブランド名と説明文の2つ（`pipeline/brand/og.ts`）。
+    // 絵に書いてあるのはブランド名・見出し・数値の帯（`pipeline/brand/og.ts`）。
+    // **数字はデータで変わる**ので、値そのものは `ogFacts.test.ts` が突き合わせる。
     expect(OG_IMAGE.alt).toContain("OpenReport");
-    expect(OG_IMAGE.alt).toContain("有価証券報告書ベースの平均年収ランキング");
+    expect(OG_IMAGE.alt).toContain("有価証券報告書の数値のまま、");
   });
 });
 
