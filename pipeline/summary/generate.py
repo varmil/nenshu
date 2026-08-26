@@ -11,6 +11,7 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
     python3 generate.py gate                           # work/gated_0001.json …
     （エージェントが prompts/verify.md に従って work/verify_0001.jsonl を書く）
     python3 generate.py merge                          # → ../data/company_summary_2026.csv
+    python3 generate.py clear                          # 次の回の前に work/ を空にする
     python3 generate.py status
 
 **1回では全社ぶんが回らない**（原文は2,960社で535万字）。`plan` は
@@ -219,6 +220,21 @@ def cmd_merge(args):
     print(f"→ {OUT}（{len(ordered)}行）", flush=True)
 
 
+def cmd_clear(args):
+    """作業ディレクトリを空にする。**`merge` が済んだ回の後に必ず呼ぶ。**
+
+    `plan` は `batch_0001.json` から振り直すので、前の回の `gen_*.jsonl` が残っていると
+    **別の会社の生成物が次の回の取り込みに混ざる。** 消すのは中間ファイルだけで、
+    成果物（`company_summary_2026.csv`）には触らない。
+    """
+    n = 0
+    for path in WORK.glob("*"):
+        if path.is_file():
+            path.unlink()
+            n += 1
+    print(f"work/ を空にした（{n}ファイル）", flush=True)
+
+
 def cmd_status(args):
     src = sources()
     have = done()
@@ -250,8 +266,11 @@ def main():
     c.add_argument("--model", default="claude-opus-5")
     c.set_defaults(func=cmd_merge)
 
-    d = sub.add_parser("status")
-    d.set_defaults(func=cmd_status)
+    d = sub.add_parser("clear")
+    d.set_defaults(func=cmd_clear)
+
+    e = sub.add_parser("status")
+    e.set_defaults(func=cmd_status)
 
     args = p.parse_args()
     args.func(args)
