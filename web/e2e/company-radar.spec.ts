@@ -256,7 +256,8 @@ test.describe("モックとの一致（2巡目）", () => {
       .locator("dl > div")
       .evaluateAll((els) =>
         els.map((row) => {
-          const spans = row.querySelectorAll("dd > span");
+          // 値・順位は行の `dd` そのもの（grid の列）。3つ目は2行目の帯。
+          const cells = row.querySelectorAll("dd");
           // **文字そのものの右端を測る。** 器は固定幅なので、`text-align` を
           // 変えても要素の矩形は動かない——`Range` なら中身の位置が出る。
           const textRight = (el: Element) => {
@@ -265,9 +266,9 @@ test.describe("モックとの一致（2巡目）", () => {
             return Math.round(range.getBoundingClientRect().right);
           };
           return [
-            Math.round(spans[0].getBoundingClientRect().right),
-            Math.round(spans[1].getBoundingClientRect().right),
-            textRight(spans[1]),
+            Math.round(cells[0].getBoundingClientRect().right),
+            Math.round(cells[1].getBoundingClientRect().right),
+            textRight(cells[1]),
           ];
         })
       );
@@ -303,17 +304,17 @@ test.describe("モックとの一致（2巡目）", () => {
         .locator("dl > div")
         .evaluateAll((els) =>
           els.map((row) => {
-            const spans = row.querySelectorAll("dd > span");
+            const cells = row.querySelectorAll("dd");
             const inner = (el: Element) => {
               const range = document.createRange();
               range.selectNodeContents(el);
               return Math.round(range.getBoundingClientRect().width);
             };
             return {
-              text: spans[1].textContent ?? "",
+              text: cells[1].textContent ?? "",
               // 値・順位とも「中身の幅 ≤ 器の幅」。
-              value: [inner(spans[0]), Math.round(spans[0].getBoundingClientRect().width)],
-              rank: [inner(spans[1]), Math.round(spans[1].getBoundingClientRect().width)],
+              value: [inner(cells[0]), Math.round(cells[0].getBoundingClientRect().width)],
+              rank: [inner(cells[1]), Math.round(cells[1].getBoundingClientRect().width)],
               // ラベルが2行に折れていないか（稼ぐ力だけは副題ぶん高い）。
               dtLines: Math.round(
                 row.querySelector("dt")!.getBoundingClientRect().height /
@@ -342,14 +343,55 @@ test.describe("モックとの一致（2巡目）", () => {
     await page.goto("/company/6861");
     const row = section(page).locator("dl > div").last();
     const [rankRight, medianRight] = await row.evaluate((el) => {
-      const spans = el.querySelectorAll("dd > span");
+      const cells = el.querySelectorAll("dd");
+      // 中央値は2行目の帯（`dd`）の中で右寄せ。**帯の矩形ではなく文字の右端**を測る。
+      const note = cells[2].querySelector("span:last-child")!;
       return [
-        Math.round(spans[1].getBoundingClientRect().right),
-        Math.round(spans[2].getBoundingClientRect().right),
+        Math.round(cells[1].getBoundingClientRect().right),
+        Math.round(note.getBoundingClientRect().right),
       ];
     });
     await expect(row).toContainText("電気機器の中央値");
     expect(medianRight).toBe(rankRight);
+  });
+
+  /*
+   * 業種名が長い会社（`証券、商品先物取引業`）。**中央値の注記は業種名の長さで
+   * 伸びる**ので、値と順位の器に同居させると桁そろえを壊す——実際に稼ぐ力の行
+   * だけが 9.3px 右へずれ、器の右端（296px）からはみ出していた。**注記は行の
+   * 2行目に降ろし、収まらなければ独立した行に落とす**（業種名は略さない）。
+   */
+  test("業種名が長くても値と順位の列が動かない（大和証券グループ本社）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.goto("/company/8601");
+    const list = section(page).locator("dl");
+    await expect(list).toContainText("証券、商品先物取引業の中央値");
+
+    const box = await list.evaluate((dl) => {
+      const rows = [...dl.querySelectorAll(":scope > div")];
+      return {
+        listRight: Math.round(dl.getBoundingClientRect().right),
+        rows: rows.map((row) => {
+          const cells = [...row.querySelectorAll("dd")];
+          return {
+            value: Math.round(cells[0].getBoundingClientRect().right),
+            rank: Math.round(cells[1].getBoundingClientRect().right),
+            // **行の矩形は器の幅のままなので、中身の右端を測る。**
+            // はみ出していた `dd` は 805px にあったが、行そのものは 796px だった。
+            right: Math.round(
+              Math.max(...cells.map((c) => c.getBoundingClientRect().right))
+            ),
+          };
+        }),
+      };
+    });
+    expect(box.rows).toHaveLength(5);
+    for (const row of box.rows) {
+      expect(row.value).toBe(box.rows[0].value);
+      expect(row.rank).toBe(box.rows[0].rank);
+      // 中身が器の右端を超えない（行の矩形を見ていると気づけない）。
+      expect(row.right).toBeLessThanOrEqual(box.listRight);
+    }
   });
 
   test("「掲載なし」は実数より一段小さい（運営者の指示）", async ({ page }) => {
