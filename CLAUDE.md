@@ -51,7 +51,12 @@ Next.js（App Router）、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Wor
 
 理由は ADR-0001・ADR-0002・ADR-0004にある（ADR-0004がADR-0001の「サーバー実行環境は要らない」・ADR-0002の`output:'export'`を一部supersede）。
 
-**ただし Astro へ移すと決まった（ADR-0014・`docs/framework/`・Issue #200）。まだ着手していないので、上の記述がいまのコードの正のまま。** 移行は F0（`next/*` への依存を剥がす）→ F1（カットオーバー）→ F2 の3 Unit で、**F1 は分割できない**——Next.js と Astro は同じ Worker に同居できない。**新しいページや `next/*` の新しい API を足す前に `docs/framework/overview.md` を読むこと**（足すほど F1 の差分が増える）。
+**ただし Astro へ移すと決まった（ADR-0014・`docs/framework/`・Issue #200）。カットオーバー（F1・#209）はまだなので、上の記述がいまのコードの正のまま。** 移行は F0（#208・実装済み）→ F1（#209）→ F2（#210）の3 Unit で、**F1 は分割できない**——Next.js と Astro は同じ Worker に同居できない。**新しいページや `next/*` の新しい API を足す前に `docs/framework/overview.md` を読むこと**（足すほど F1 の差分が増える）。
+
+- **`next/*` の実行時 import は `NavLink.tsx` の `next/link` 1件だけ**（F0 で `next/navigation`・`next/script` を剥がした。`docs/framework/next-detach/`）。`eslint.config.mjs` がその2つを止めている
+- **パスは `lib/history/` から取る。`window.location.pathname` を直接書かない。** 購読が要らないなら `isRankingPath()`、要るなら `useIsRankingPath()`。**共通ヘッダはページ遷移で作り直されない**ので、レンダー時に採った値はクリックが来るまでに古くなる
+- **`lib/history/pathname.ts` は `history.pushState`/`replaceState` を包んでいる。** パスが実際に変わったときだけ知らせる（同じパスの `replaceState` は打鍵のたびに飛ぶので、起こすと毎打鍵でヘッダが再レンダーされる）。**知らせるのは `queueMicrotask` 越し**——Next.js のルーターが `useInsertionEffect` の中から `pushState` を呼ぶので、同期で起こすと `useInsertionEffect must not schedule updates` が出る
+- **`next/link` を素の `a` 要素に替えない。** それは「クライアント遷移をやめる」ことで、F1 の中身そのものになる（F0 で一度書いて戻した）
 
 **クエリ文字列を読みたいときは、`app/page.tsx`（Server Component）の`searchParams`プロップで読む。** `next/navigation`の`useSearchParams()`（クライアントフック）は使わない。**`useRouter()`/`router.push()`もフィルタ操作等の高頻度なクライアント側状態変更には使わない**——RSCペイロードの再フェッチによるネットワーク発生・競合状態の問題をU5で実際に踏んだ（`docs/ranking/url-sync/design.md`参照）。クライアント側での状態⇄URL同期は`window.history.pushState`/`replaceState`を直接呼ぶ。**規則は`web/lib/history/useLocationSyncedState.ts`の1か所にあり、ランキングと企業詳細の両方がこれを使う——書き写さないこと**（U14・Issue #108。下の「戻る/進む」参照）。**ページ間の遷移など離散的でネットワークを許容してよい操作は`<Link>`にしてよい**（`/` ⇄ `/about` は`<Link>`を使っている）。ただしページネーションは、**初回ロードの直後にクライアントが全件を持っている**ため`<Link>`にする意味が無く使っていない（U6・Issue #22）。**全件はHTMLに埋めるのをやめ、静的アセットとして1回だけ配る**（E0・ADR-0013）——届くまでの操作は実ナビゲーションに倒れる。
 

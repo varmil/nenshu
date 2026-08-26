@@ -371,6 +371,30 @@ test.describe("ヘッダの検索", () => {
       page.getByRole("banner").getByRole("searchbox", { name: "会社名で検索" })
     ).toHaveValue("商船三井");
   });
+
+  /*
+    F0（#208）で `usePathname` を剥がすときに壊れうる1点。
+
+    **ヘッダはレイアウトが持っていてページ遷移で作り直されない。** いまは
+    `usePathname` が React の context なので、パスが変わるとヘッダが再レンダー
+    され、`?q=` を見て入力欄を合わせる effect が走り直す。context を外すと
+    その経路が消える——**送信せずに打ちかけた語が `/` へ移っても残る**形になる。
+
+    ここを固定しておく。落ちたら「その場でパスを読む」だけでは足りないという
+    ことなので、パスの変化を購読する側で直す。
+  */
+  test("/about で打ちかけた語は、サイト名から / へ移ると消える", async ({ page }) => {
+    await page.goto("/about");
+    const search = page.getByRole("banner").getByRole("searchbox", { name: "会社名で検索" });
+    await search.fill("商船三井");
+    await expect(search).toHaveValue("商船三井");
+
+    // 送信しない。ヘッダのサイト名で `/` へ移る。
+    await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
+
+    await expect(page).toHaveURL(/\/$/);
+    await expect(search).toHaveValue("");
+  });
 });
 
 test.describe("モバイルの絞り込みシート", () => {

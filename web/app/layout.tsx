@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Script from "next/script";
 import { NavProgressBar } from "@/features/navigation/components/NavProgressBar";
 import { SiteHeader } from "@/features/navigation/components/SiteHeader";
 import { buildThemeScript } from "@/features/theme/lib/themeScript";
@@ -99,14 +98,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SiteHeader />
         {children}
         {/*
-          Microsoft Clarity（Issue #44）。
-          strategy="afterInteractive" はNext.jsが解析系スクリプトに推奨する既定値で、
-          ハイドレーションが始まってから読み込まれるため初期表示を遅らせない。
+          Microsoft Clarity（Issue #44）。**素のインライン `<script>`。**
+
+          `next/script` の `strategy="afterInteractive"` を使っていたが、**待たせる
+          相手がここには無い。** このタグの中身は `t.async=1` で本体
+          （clarity.ms/tag/…）を非同期に読ませるだけの数行で、初期表示を遅らせる
+          のは本体のほうになる（`lib/analytics/clarity.ts`）。**`async` 属性は
+          付けない**——インラインのスクリプトでは効かず、付けると「非同期に読む」
+          という嘘の合図になる。
+
+          **順序は `<body>` の末尾にあることが担保する。** 上の表示モードの
+          スクリプトとは目的が逆で、あちらは「描画より先に走ってほしい」から
+          先頭にある。
         */}
         {isClarityEnabled(process.env.NODE_ENV) && (
-          <Script
+          <script
             id="ms-clarity"
-            strategy="afterInteractive"
             dangerouslySetInnerHTML={{
               __html: buildClarityScript(CLARITY_PROJECT_ID),
             }}

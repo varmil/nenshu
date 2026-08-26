@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { usePathname } from "next/navigation";
+import { useIsRankingPath } from "@/lib/history/usePathname";
 import { SearchIcon } from "lucide-react";
 import { Button } from "@/design-system/ui/button";
 import { Input } from "@/design-system/ui/input";
@@ -20,12 +20,13 @@ import { pushRankingQuery } from "@/features/ranking/lib/queryBroadcast";
  * 離散的な操作なのでネットワークを許容してよい（CLAUDE.md）。JS が動かない
  * 環境でも同じ経路で動く。
  *
- * `usePathname` は現在のパスを読むだけで、RSC ペイロードの再取得を起こさない
- * （禁じているのは `useRouter` と `useSearchParams`）。
+ * **パスは `lib/history/usePathname.ts` から取る**（F0・Issue #208）。`next/navigation`
+ * の `usePathname` を使っていた。**ここは購読が要る**——ヘッダはレイアウトが持って
+ * いてページ遷移で作り直されないので、`/about` から `/` へ移ったときに下の effect が
+ * 走り直さないと、**送信せずに打ちかけた語が残る**（E2E で実際に落ちた）。
  */
 export function HeaderSearch() {
-  const pathname = usePathname();
-  const isRanking = pathname === "/";
+  const isRanking = useIsRankingPath();
   const [value, setValue] = useState("");
 
   // 直接 `/?q=…` を開いた場合や、戻る/進むで `q` が変わった場合に欄を合わせる。
