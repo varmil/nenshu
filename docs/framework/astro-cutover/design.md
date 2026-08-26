@@ -136,9 +136,9 @@ web/
 - `devToolbar: { enabled: false }`。dev のオーバーレイが `h1` を3つ持ち込むので、**E2E の `locator("h1")` が strict mode で落ちる**
 - `imageService: "passthrough"`。`next.config.ts` の `images.unoptimized` と同じ立場
 
-**`web/.node-version`（`22.16.0`）**
+**Node のバージョン**
 
-**Astro 7 の要求は Node `>=22.12.0` で、Next.js 16 の `>=20.9.0` より上がっている。** このカットオーバーで初めて 20 系では動かなくなったので、**ビルド環境が既定で選ぶ版に任せない。** `package.json` の `engines.node` にも同じ下限を書いてある（`npm ci` の時点で警告が出る）。置き場所は Cloudflare のルートディレクトリ（`/web`）で、リポジトリの直下ではない。
+Astro 7 の要求は `>=22.12.0` で、**Next.js 16 の `>=20.9.0` より上がっている。** ただし**固定はしない**——ビルド環境が選ぶのは 24.18.0 で（ビルドログの `Detected the following tools` 行）、最初から満たしている。`package.json` の `engines.node` に下限だけ書いてあり、満たさない環境では `npm ci` が警告する。
 
 **`wrangler.jsonc`**
 
