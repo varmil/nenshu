@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { WorklifeRecord } from "@/lib/data/worklife";
-import { buildWorklifeView, WORKLIFE_BAR_MAX } from "./worklife";
+import {
+  buildWorklifeView,
+  metricFootnote,
+  OVERTIME_DEFINITION_NOTE,
+  WORKLIFE_BAR_MAX,
+} from "./worklife";
 
 const EMPTY: WorklifeRecord = {
   overtimeAll: null,
@@ -176,5 +181,76 @@ describe("buildWorklifeView", () => {
   it("公表する範囲が空なら「全体」に倒す", () => {
     const view = buildWorklifeView(record({ overtimeAll: 12 }));
     expect(metric(view, "overtime").rows[0].label).toBe("全体");
+  });
+});
+
+/*
+ * Issue #224——平均残業時間の定義の注記。
+ *
+ * **数値は補正しない。定義を明示する。** 女性活躍データベースの値は法定労働時間
+ * を起点に数えるので、所定労働時間が8時間より短い会社（三菱商事は1日7時間15分）
+ * では自社公表値より構造的に小さく出る。**所定労働時間はどの一次情報にも無い**
+ * ので、補正すると推定値になる。
+ */
+describe("平均残業時間の定義の注記（Issue 224）", () => {
+  it("注記は残業だけが持つ（有給・賃金の差異には付けない）", () => {
+    expect(metricFootnote("overtime")).toBe(OVERTIME_DEFINITION_NOTE);
+    expect(metricFootnote("paidLeave")).toBe("");
+    expect(metricFootnote("wageGap")).toBe("");
+  });
+
+  /*
+   * **島の props は HTML の属性に直列化される**ので、指標ごとに固定の110字を
+   * ビューに持たせると同じ文が props と本文の2か所に出る（実測 +490 B／ページ）。
+   * 会社ごとに変わる値ではないので、描画側で `metricFootnote` から引く。
+   */
+  it("ビューは注記を運ばない（props に載せない）", () => {
+    const view = buildWorklifeView(
+      record({ overtimeAll: 10.5, overtimeScope: "その他" })
+    );
+    expect(JSON.stringify(view)).not.toContain("法定労働時間");
+  });
+
+  it("算式の起点（法定労働時間）と除外規定が読める", () => {
+    for (const word of ["法定労働時間", "1日8時間", "週40時間"]) {
+      expect(OVERTIME_DEFINITION_NOTE).toContain(word);
+    }
+    expect(OVERTIME_DEFINITION_NOTE).toContain(
+      "管理職・事業場外みなし労働の適用者は算入されません"
+    );
+  });
+
+  /*
+   * **注記は指標に1つ。行には持たせない。** 行が持つと区分5件の会社で同じ3文が
+   * 5回並び、区分によって定義が違うように見える（描画側も `rows` の外に置く）。
+   */
+  it("区分がいくつあっても注記は1つ", () => {
+    const view = buildWorklifeView(
+      record({
+        overtimeAll: 10.5,
+        overtimeScope: "その他",
+        overtimeUnits: [
+          { unit: "総合職", value: 14.1 },
+          { unit: "一般職", value: 3.3 },
+          { unit: "嘱託その他", value: 3.2 },
+          { unit: "派遣社員", value: 5.6 },
+        ],
+      })
+    );
+    const overtime = metric(view, "overtime");
+    expect(overtime.rows).toHaveLength(5);
+    // **注記は指標に1つ。行は持たない**——行が持つと同じ3文が5回並ぶ。
+    for (const row of overtime.rows) {
+      expect(JSON.stringify(row)).not.toContain("法定労働時間");
+    }
+  });
+
+  /*
+   * **「推定」の語を持ち込まない**（AC-9）。補正しないと決めたぶん、注記が
+   * 推定の体裁を帯びる書き方にならないこと。
+   */
+  it("注記に「推定」「実測値」の語が無い", () => {
+    expect(OVERTIME_DEFINITION_NOTE).not.toContain("推定");
+    expect(OVERTIME_DEFINITION_NOTE).not.toContain("実測値");
   });
 });
