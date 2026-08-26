@@ -45,7 +45,7 @@ const MAX_ATTEMPTS_PER_COMPANY = 6;
 export type LogoEntry = {
   w: number;
   h: number;
-  src: "commons" | "jsonld" | "header" | "icon";
+  src: "commons" | "jsonld" | "header" | "icon" | "ogp";
   from: string;
   lic?: string;
   by?: string;
@@ -199,7 +199,7 @@ async function main() {
     ? Object.fromEntries(Object.entries(previous.byId).filter(([id]) => !dropped.has(id)))
     : null;
   const byId = carried ? { ...carried, ...entries } : entries;
-  const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0 };
+  const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0, ogp: 0 };
   for (const e of Object.values(byId)) bySource[e.src]++;
   const json: LogosJson = {
     meta: {
