@@ -34,6 +34,22 @@ const PINNED: Record<string, Candidate> = {
   "3315": { source: "header", url: "https://www.n-coke.com/common/img/logo_b.png" },
 
   /*
+    運営者が目視で見つけた3社。**`og:image` が無いので下のまとまりでは拾えず**、
+    サイトごとに原因が違った——**構造を辿る経路を1つ足しても3社は揃わない。**
+
+    - 五洋建設（1893）: ヘッダのロゴが `hd_ci001.gif` で、名前にも囲む `a` にも手掛かりが
+      無い（`headerLogos` は1件も拾わない）。隣の `hd_ci002.gif` は単色で `reject` が落とす
+    - ビジネスエンジニアリング（4828）: **公式サイトのURLが `/` で、中身は `/jp/` にある**。
+      `/` は `location.replace('/jp/')` だけの1,303バイトの頁で、JS を実行しないと辿れない
+      （`/jp/` を読めば `logo_black.svg` が候補に出る。白版が先に来るが判定が落とす）
+    - 建設技術研究所（9621）: ヘッダが空の要素で、JS が `/common/include/_header.html` を
+      差し込む
+  */
+  "1893": { source: "header", url: "https://www.penta-ocean.co.jp/common/images/hd_ci001.gif" },
+  "4828": { source: "header", url: "https://www.b-en-g.co.jp/assets/image/common/logo_black.svg" },
+  "9621": { source: "header", url: "https://www.ctie.co.jp/common/img/logo.svg" },
+
+  /*
     以下は**器の中でファビコンとして出ていた会社**（Issue #221 の続き・運営者の指摘）。
     公式サイトの構造からロゴが1つも取れず（ヘッダのロゴが CSS の背景画像・JSで後から
     差し込まれる・インライン SVG のいずれか）、最後の候補である favicon まで落ちていた。
