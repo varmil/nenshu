@@ -41,11 +41,15 @@ ADR-0005 の2点モデル。目標年齢が平均年齢より下では、その�
 | ファイル | 中身 |
 | --- | --- |
 | `curves.py` | 賃金カーブ、東証33業種のマッピング、補間、推定式 |
-| `edinet.py` | EDINET API クライアント、CSV形式のパーサ |
+| `edinet.py` | EDINET API クライアント、CSV形式のパーサ、拾うテキストブロックの表（`TEXT_BLOCKS`） |
 | `textblock.py` | 「従業員の状況」本文からの抽出（2019年以前はタグが無い） |
+| `businesstext.py` | 「事業の内容」本文を平文にする（C5・#159。使うのは `pipeline/summary/`） |
+| `test_*.py` | 単体テスト。`npm --prefix pipeline test` から走る（`test:py`） |
 | `run.py` | 取得・補正・EDINETコードリストの読み込み |
 | `unified.py` | 全社の統合と派生列。CSV の書き出し |
 | `fetch_estat.py` | e-Stat から賃金カーブを作る |
 | `warm_lists.py` / `fetch_history.py` / `history.py` | 10年推移（timeseries 施策・T0） |
 | `cache/` | ダウンロード済みの書類一覧とZIP（gitignore） |
 | `out/` | 作業用の書き出し先（gitignore） |
+
+**同じ書類を別のデータセットも読む。** 「事業の内容」は `pipeline/summary/`（会社説明文・C5〜C7）、経常利益と従業員数は `pipeline/performance/` が、どちらもここの `cache/` と `edinet.py` を使って読む。**取得の窓とキャッシュはここが正**で、あちらは書類一覧を引き直さない。
