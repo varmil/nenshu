@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
+import { shortIndustryLabel } from "@/lib/data/industry";
 import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
@@ -158,11 +159,16 @@ export function CompanyDetail({
     },
     {
       // **業種の中央値を併記しないと読み違える**（spec 1.3）。稼ぐ力は
-      // 海運業と輸送用機器で19倍開く。**値の下に右寄せで置く**（アートボード 6b）。
+      // 鉱業と陸運業で30.7倍開く。**値の下に右寄せで置く**（アートボード 6b）。
+      //
+      // **ここだけ業種名を略称にする**（`lib/data/industry.ts`）。行の2行目に
+      // 収まらないと中央値だけが次の行へ落ち、その会社の行だけ3行になる
+      // （`証券、商品先物取引業` で実測）。**同じ画面のパンくず・見出し・
+      // 業界内順位は原文のまま**なので、突き合わせる先は同じ画面にある。
       profit:
         radar.profitIndustryMedian === null
           ? ""
-          : `${view.tse33}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
+          : `${shortIndustryLabel(view.tse33)}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
     },
     { profit: "1人当たり経常利益" }
   );

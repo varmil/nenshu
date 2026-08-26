@@ -66,7 +66,9 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
  * 598万円`＝実測201px）がその `dd` を押し広げ、**稼ぐ力の行だけ値と順位が
  * 9.3px 右へずれて器からはみ出していた**（実測。`/company/8601`）。
  * 中央値の長さは業種名の長さで決まるので、**上の行の桁そろえと同じ器に
- * 入れてはいけない。**
+ * 入れてはいけない。**（長い業種名そのものは `lib/data/industry.ts` の
+ * 略称で2行目に収めるが、**器の側もこれで固定してある**——文字列の長さで
+ * 列が動く作りに戻さない。）
  *
  * - 値は固定幅で**右寄せ**（`4.75rem`＝76px）——桁数が違っても右端が動かない
  * - 順位も固定幅で**右寄せ**（`5.75rem`＝92px。運営者の指示。当初は左寄せだった）
@@ -105,9 +107,9 @@ function OverviewAxisRow({ axis }: { axis: RadarAxis }) {
       {(axis.subLabel !== "" || axis.note !== "") && (
         /*
           2行目は**行の幅いっぱいを使う**（左に副題・右に業種中央値）。
-          **収まらなければ中央値だけが次の行へ落ちる**（`flex-wrap`）——
-          業種名は略さない（`証券、商品先物取引業` を `証券・商品` にしない）。
-          長い名前を一段落として収めるのは、雇用管理区分の区分名と同じ扱い。
+          **業種名は `lib/data/industry.ts` で略してから渡る**ので、33業種の
+          どれでもこの1行に収まる（実測。上限8文字）。`flex-wrap` は
+          **表を直し忘れたときに文字を重ねずに折る**ための備えとして残す。
         */
         <dd className="text-muted-foreground col-span-3 mt-0.5 flex flex-wrap items-baseline gap-x-2 text-[0.7rem]">
           {axis.subLabel !== "" && <span>{axis.subLabel}</span>}

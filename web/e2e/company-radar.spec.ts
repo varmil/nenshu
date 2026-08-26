@@ -358,14 +358,18 @@ test.describe("モックとの一致（2巡目）", () => {
   /*
    * 業種名が長い会社（`証券、商品先物取引業`）。**中央値の注記は業種名の長さで
    * 伸びる**ので、値と順位の器に同居させると桁そろえを壊す——実際に稼ぐ力の行
-   * だけが 9.3px 右へずれ、器の右端（296px）からはみ出していた。**注記は行の
-   * 2行目に降ろし、収まらなければ独立した行に落とす**（業種名は略さない）。
+   * だけが 9.3px 右へずれ、器の右端（296px）からはみ出していた。列は grid で
+   * 固定し、**業種名は略称にして2行目へ収めた**（`lib/data/industry.ts`）。
    */
   test("業種名が長くても値と順位の列が動かない（大和証券グループ本社）", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto("/company/8601");
     const list = section(page).locator("dl");
-    await expect(list).toContainText("証券、商品先物取引業の中央値");
+    // 略称で出る。**原文は同じ画面の他の場所（パンくず・業界内順位）に残る**
+    // ので、読者は略称と原文を突き合わせられる。
+    await expect(list).toContainText("証券・商品先物の中央値");
+    await expect(list).not.toContainText("証券、商品先物取引業");
+    await expect(page.locator("body")).toContainText("証券、商品先物取引業");
 
     const box = await list.evaluate((dl) => {
       const rows = [...dl.querySelectorAll(":scope > div")];
@@ -373,6 +377,8 @@ test.describe("モックとの一致（2巡目）", () => {
         listRight: Math.round(dl.getBoundingClientRect().right),
         rows: rows.map((row) => {
           const cells = [...row.querySelectorAll("dd")];
+          const second = cells[2];
+          const lineHeight = (el: Element) => parseFloat(getComputedStyle(el).lineHeight);
           return {
             value: Math.round(cells[0].getBoundingClientRect().right),
             rank: Math.round(cells[1].getBoundingClientRect().right),
@@ -381,6 +387,20 @@ test.describe("モックとの一致（2巡目）", () => {
             right: Math.round(
               Math.max(...cells.map((c) => c.getBoundingClientRect().right))
             ),
+            height: Math.round(row.getBoundingClientRect().height),
+            secondLines:
+              second === undefined
+                ? 0
+                : Math.round(second.getBoundingClientRect().height / lineHeight(second)),
+            // 上の行（1行ぶん）＋2行目1行ぶんが、稼ぐ力の行のあるべき高さ。
+            expectedHeight:
+              second === undefined
+                ? Math.round(row.getBoundingClientRect().height)
+                : Math.round(
+                    row.getBoundingClientRect().height -
+                      second.getBoundingClientRect().height +
+                      lineHeight(second)
+                  ),
           };
         }),
       };
@@ -392,6 +412,10 @@ test.describe("モックとの一致（2巡目）", () => {
       // 中身が器の右端を超えない（行の矩形を見ていると気づけない）。
       expect(row.right).toBeLessThanOrEqual(box.listRight);
     }
+    // **2行目が1行に収まる。** 略称にする前は中央値だけが3行目へ落ちて、
+    // その会社の行だけ高くなっていた（運営者の指摘）。
+    expect(box.rows[4].secondLines).toBe(1);
+    expect(box.rows[4].height).toBe(box.rows[4].expectedHeight);
   });
 
   test("「掲載なし」は実数より一段小さい（運営者の指示）", async ({ page }) => {
