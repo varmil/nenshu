@@ -586,14 +586,16 @@ describe("buildData", () => {
   describe("performance.json", () => {
     const indexOf = (id: string) => result.companies.rows.findIndex((row) => row[0] === id);
 
-    it("AC-1 1,865社ぶんの値が入る", () => {
+    it("AC-1 2,959社ぶんの値が入る", () => {
       expect(result.performance.meta.count).toBe(2961);
       // **欠損0件。** 経常利益の要素名は3つの綴りがあり（`OrdinaryIncomeLoss` /
       // `OrdinaryIncome` / 会社独自の名前空間の `OrdinaryProfit`）、標準名だけを
       // 見ていた頃は13書類が取れず、東京製鐵は2013〜2017年しか残らなかった。
-      // 経常利益そのものは全1,867社で取れる。**2社だけ落としている**——
-      // 最後に開示したのが8年前で、「直近5期」が2014〜2018年になってしまう会社。
-      expect(result.performance.meta.matched).toBe(1865);
+      // 経常利益そのものは全社で取れる。**2社だけ落としている**（弘電社・
+      // キクカワエンタープライズ）——最後に開示したのが8年前で、「直近5期」が
+      // 2014〜2018年になってしまう会社。**母集団を 1,867 → 2,961社に広げても
+      // 2社のまま**（E6・#182。広げる前は 1,865/1,867 だった）。
+      expect(result.performance.meta.matched).toBe(2959);
       // **年の和集合であって「5年ぶん」ではない。** 会社ごとに「持っている年のうち
       // 新しい5つ」を採るので、開示が飛んでいる会社（2026・2025・2024・2021・2019）が
       // いると範囲は広がる。見るのは最新年と、直近5年を含むことの2つ。
@@ -620,9 +622,10 @@ describe("buildData", () => {
     });
 
     it("AC-3 赤字は負のまま残る（捨てるとデータ無しと区別できない）", () => {
-      // ソフトバンクグループ。5期の中央値が負になる会社は59社ある。
+      // ソフトバンクグループ。5期の中央値が負になる会社は136社ある
+      // （E6・#182 で母集団を広げる前は59社）。
       expect(result.performance.perEmployee[indexOf("9984")]).toBeLessThan(0);
-      expect(result.performance.perEmployee.filter((v) => v !== null && v < 0).length).toBe(59);
+      expect(result.performance.perEmployee.filter((v) => v !== null && v < 0).length).toBe(136);
     });
 
     it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
@@ -641,14 +644,20 @@ describe("buildData", () => {
       // **中央値であって平均ではない**——電気機器はキーエンスが桁で外れる。
       const electric =
         result.performance.industryMedian[result.companies.industries.indexOf("電気機器")]!;
-      expect(electric).toBe(1912611);
-      expect(result.performance.perEmployee[indexOf("6861")]! / electric).toBeGreaterThan(20);
+      // E6（#182）で母集団を広げて 191万 → 214万円になった。
+      expect(electric).toBe(2144889);
+      expect(result.performance.perEmployee[indexOf("6861")]! / electric).toBeGreaterThan(15);
     });
 
     it("業種によって中央値が桁で違う（併記が要る理由）", () => {
-      const median = (name: string) =>
-        result.performance.industryMedian[result.companies.industries.indexOf(name)]!;
-      expect(median("海運業") / median("輸送用機器")).toBeGreaterThan(15);
+      // **どの業種が端に来るかは母集団で入れ替わる。** E6（#182）で広げる前は
+      // 海運業 2,524万 / 輸送用機器 131万 の19倍だったが、いまの端は
+      // 鉱業 3,846万 / 陸運業 125万。**業種名を決め打ちすると、母集団が変わった
+      // ときに「桁で違う」が成り立たなくなったのか端が入れ替わっただけなのかを
+      // 区別できない**ので、端そのものを見る。
+      const medians = result.performance.industryMedian.filter((v): v is number => v !== null);
+      expect(medians.length).toBe(result.companies.industries.length);
+      expect(Math.max(...medians) / Math.min(...medians)).toBeGreaterThan(15);
     });
 
     it("AC-4 gzip後サイズが上限(32KB)以内", () => {
@@ -694,7 +703,8 @@ describe("buildData", () => {
     // 新規上場が多く、女性活躍DBへの掲載が任意なため——有給 42.8%・残業 48.0%。
     it("母集団は軸ごとに違う（有給と残業は掲載が任意なので半数に満たない）", () => {
       expect(result.radar.tenure.population).toBe(2961);
-      expect(result.radar.profit.population).toBe(1865);
+      // E6（#182）で母集団に追随させて 1,865 → 2,959社になった。
+      expect(result.radar.profit.population).toBe(2959);
       // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
       // W2（#185）で 0 と入力ミスの100%を落としたぶん、両軸とも母集団が減った。
       expect(result.radar.paidLeave.population).toBe(1264);
@@ -798,8 +808,10 @@ describe("buildData", () => {
       expect(negatives.some((v) => v !== null && v < 0)).toBe(true);
     });
 
-    it("gzip後サイズが上限(256KB)以内", () => {
-      expect(result.profitHistoryGzipSize).toBeLessThanOrEqual(256 * 1024);
+    it("gzip後サイズが上限(384KB)以内", () => {
+      // **E6（#182）で 187.0 → 289.5KB になったので上限を 256 → 384KB に上げた。**
+      // 社数が1.59倍になったぶんそのままで、1社あたりは変わっていない。
+      expect(result.profitHistoryGzipSize).toBeLessThanOrEqual(384 * 1024);
     });
   });
 });

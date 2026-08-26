@@ -31,8 +31,12 @@ const PERFORMANCE_JSON_GZIP_LIMIT_BYTES = 32 * 1024;
 const PERFORMANCE_YEARS = 5;
 // 実測 12.3KB（1,867社 × 4軸のパーセンタイルと値）。上限は 48KB。
 const RADAR_JSON_GZIP_LIMIT_BYTES = 48 * 1024;
-// 1,867社 × 10年 × 3本（稼ぐ力・経常利益・従業員数）。上限は 256KB。
-const PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES = 256 * 1024;
+// 2,961社 × 10年 × 3本（稼ぐ力・経常利益・従業員数）。**E6（#182）で母集団に
+// 追随させて gzip 187.0 → 289.5KB になったので、上限を 256KB から 384KB に上げた**
+// ——社数が1.59倍になったぶんそのままで、1社あたりは変わっていない。
+// **上限を超えたときに何を切り出すかは、Worker バンドルが 3MiB に近づいたかで
+// 決める**（`worklife.json` と同じ扱い）。E6 の実測でバンドルは gzip 2.17MB（68.9%）。
+const PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES = 384 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
