@@ -347,3 +347,78 @@ test.describe("値の隣に単位を出す", () => {
     for (const box of boxes) expect(box).toEqual(boxes[0]);
   });
 });
+
+/*
+ * Issue #224——平均残業時間の定義の注記。
+ *
+ * 女性活躍データベースの算式は**法定労働時間**（1日8時間・週40時間）を起点に
+ * 数える。所定労働時間が8時間より短い会社（三菱商事は1日7時間15分）では、会社が
+ * 自社サイトに出す所定外労働時間より構造的に小さく出る（自社公表 31.0時間／月 に
+ * 対してデータベースは全体10.5時間・総合職14.1時間）。**数値は補正せず、定義を
+ * 画面に置く**——所定労働時間はどの一次情報にも無く、補正すると推定値になる。
+ */
+test.describe("平均残業時間の定義の注記（Issue 224）", () => {
+  /** 注記の中でも**書き写す価値のある語だけ**を見る（AC が名指ししている語）。 */
+  const WORDS = ["法定労働時間", "1日8時間", "週40時間"];
+
+  test("残業のブロックに定義の注記が出る（三菱商事）", async ({ page }) => {
+    await page.goto("/company/8058");
+    const overtime = metric(page, "平均残業時間");
+    for (const word of WORDS) await expect(overtime).toContainText(word);
+    await expect(overtime).toContainText(
+      "管理職・事業場外みなし労働の適用者は算入されません"
+    );
+  });
+
+  test("全体値と区分の両方にかかる位置に1つだけ置く（区分ごとに繰り返さない）", async ({
+    page,
+  }) => {
+    await page.goto("/company/8058");
+    const overtime = metric(page, "平均残業時間");
+    const text = await overtime.innerText();
+    // 区分は4件＋全体値の5行。注記が行に付いていれば5回出る。
+    expect(text.split("法定労働時間")).toHaveLength(2);
+    // 位置は値の並びの**下**——全体値（その他 10.5）と最後の区分（派遣社員）の後ろ。
+    expect(text.indexOf("派遣社員")).toBeLessThan(text.indexOf("法定労働時間"));
+  });
+
+  test("有給・賃金の差異には付けない", async ({ page }) => {
+    await page.goto("/company/8058");
+    for (const label of ["年次有給休暇の取得率", "男女の賃金の差異"]) {
+      await expect(metric(page, label)).not.toContainText("法定労働時間");
+    }
+  });
+
+  test("掲載なしの会社には出さない（キーエンス）", async ({ page }) => {
+    await page.goto("/company/6861");
+    const overtime = metric(page, "平均残業時間");
+    await expect(overtime).toContainText("掲載なし");
+    await expect(overtime).not.toContainText("法定労働時間");
+  });
+
+  test("JS実行前のHTMLに注記の本文が入っている", async ({ request }) => {
+    const html = await (await request.get("/company/8058")).text();
+    for (const word of WORDS) expect(html).toContain(word);
+    expect(html).toContain("管理職・事業場外みなし労働の適用者は算入されません");
+  });
+
+  test("390px で横スクロールが出ない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/8058");
+    await expect(metric(page, "平均残業時間")).toContainText("法定労働時間");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  // 表示基準と独立（AC-11）。年齢そろえは有報の金額にしか効かない。
+  test("年齢そろえに切り替えても注記が変わらない", async ({ page }) => {
+    await page.goto("/company/8058", { waitUntil: "networkidle" });
+    const overtime = metric(page, "平均残業時間");
+    const before = await overtime.innerText();
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+    expect(await overtime.innerText()).toBe(before);
+  });
+});
