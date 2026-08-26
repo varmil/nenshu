@@ -111,13 +111,51 @@ class ApplyGate(unittest.TestCase):
         bad = OK + "連結子会社は39社ある。"
         text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
         self.assertEqual(text, OK)
-        self.assertTrue(any("アラビア数字" in r for r in reasons))
+        self.assertTrue(any("数値: 39" in r for r in reasons))
 
     def test_漢数字は助数詞が続くときだけ落とす(self):
         self.assertEqual(gate.sentence_problems("三社を傘下に置く。", "", ""),
                          ["数値: 三社"])
         self.assertEqual(gate.sentence_problems("十分な体制を敷く。", "", ""), [])
 
+    def test_単一セグメントの一を数と見ない(self):
+        # 有報の定型句で、数を述べているわけではない。**実測で4社がこれで落ちた。**
+        src = "銀行業の単一セグメントであります。その一つとして貸出を行う。"
+        self.assertEqual(gate.sentence_problems("銀行業の単一セグメントとしている。", "", src), [])
+        self.assertEqual(gate.sentence_problems("その一つとして貸出を行う。", "", src), [])
+
+
+class QuantityDigits(unittest.TestCase):
+    def test_量を述べる数字は挙げる(self):
+        self.assertEqual(gate.quantity_digits("連結子会社は39社ある。"), "39")
+
+    def test_英字に隣り合う数字は語の一部として見逃す(self):
+        # `3PL`・`Web3` は原文にある語で量ではない。ロジスティードが `３ＰＬ` で落ちた。
+        self.assertEqual(gate.quantity_digits("３ＰＬ事業を行う。"), "")
+        self.assertEqual(gate.quantity_digits("Web3を扱う。"), "")
+
+
+class CoveredBySource(unittest.TestCase):
+    def test_原文にある塊の繋ぎ合わせは通す(self):
+        # 正規表現はカタカナの連なりを丸ごと1語で拾うので、原文の「インターネット」と
+        # 「サービス」を繋いだ語まで「原文に無い」になる。**ＭＩＸＩがこれで落ちた。**
+        self.assertEqual(
+            gate.unsupported_terms("インターネットサービスを運営する。",
+                                   "インターネットを活用したサービスの運営を行う。"),
+            [],
+        )
+
+    def test_どう切っても原文に無い語は落とす(self):
+        self.assertEqual(gate.unsupported_terms("ファブレス体制をとる。", "当社が製造する。"),
+                         ["ファブレス"])
+
+    def test_3文字以下の塊では覆わない(self):
+        # 「メガ」のような短い塊まで許すと、造語がほぼ全部通ってしまう。
+        self.assertEqual(gate.unsupported_terms("メガソーラーを持つ。", "メガとソーラーがある。"),
+                         ["メガソーラー"])
+
+
+class ApplyGate2(unittest.TestCase):
     def test_文が足りなくなれば不合格(self):
         text, reasons = gate.apply_gate("電子応用機器の製造及び販売を主な事業とする。",
                                         "株式会社キーエンス", KEYENCE)

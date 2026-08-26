@@ -27,11 +27,18 @@ JUDGEMENT_WORDS = (
     "老舗", "名門", "革新的", "画期的", "独創的", "圧倒的",
 )
 
-# 数の混入。**アラビア数字は一律に落とす。** 漢数字は「十分」「一部」のように
-# 数でない語に混ざるので、**助数詞が続くときだけ**見る。
-_ARABIC = re.compile(r"[0-9０-９]")
+# 数の混入。見るのは spec 1.18 が挙げる型（順位・年収・従業員数・子会社数）で、
+# **「いくつあるか」を数えている数字**が対象になる。
+#
+# **アラビア数字は、英字に隣り合っていないときだけ数と見る。** `3PL`・`Web3` は
+# 原文にある語の一部で量ではない（ロジスティードが `３ＰＬ` で落ちた）。
+#
+# **漢数字は助数詞が続くときだけ見る。** ただし `つ`・`事業`・`セグメント` は外して
+# ある——**「単一セグメント」の「一」を数と見て4社が落ちた**。有報の定型句で、
+# 数を述べているわけではない。
+_DIGIT_RUN = re.compile(r"[0-9０-９]+")
 _KANJI_COUNT = re.compile(
-    r"[一二三四五六七八九十百千万]+(?:社|つ|件|名|人|億|兆|拠点|部門|事業|セグメント|カ国|か国|ヶ国)"
+    r"[一二三四五六七八九十百千万]+(?:社|件|名|人|億|兆|拠点|カ国|か国|ヶ国)"
 )
 
 # 固有名詞の候補。**原文に現れなければ、その文は原文から導けていない。**
@@ -97,9 +104,42 @@ def unsupported_terms(sentence, source):
             term = m.group(0).rstrip(".-－・")
             if len(term) < 2:
                 continue
-            if _fold(term) not in src and term not in found:
-                found.append(term)
+            if _fold(term) in src or term in found:
+                continue
+            # **カタカナは原文にある塊の繋ぎ合わせを許す。** 正規表現はカタカナの
+            # 連なりを丸ごと1語として拾うので、原文の「インターネット」と「サービス」を
+            # 繋いだ「インターネットサービス」まで「原文に無い」になる（ＭＩＸＩが
+            # これで落ちた）。**4文字以上の塊で覆えるなら通す**——「ファブレス」は
+            # どう切っても原文に無いので落ちたままになる。
+            if pattern is _KATAKANA and _covered_by_source(term, src):
+                continue
+            found.append(term)
     return found
+
+
+def _covered_by_source(term, src, minimum=4):
+    """カタカナの連なりを、原文にある `minimum` 文字以上の塊だけで覆えるか。"""
+    i = 0
+    while i < len(term):
+        for j in range(len(term), i + minimum - 1, -1):
+            if _fold(term[i:j]) in src:
+                i = j
+                break
+        else:
+            return False
+    return True
+
+
+def quantity_digits(sentence):
+    """量を述べているアラビア数字。**英字に隣り合うものは語の一部として見逃す。**"""
+    folded = _fold(sentence)
+    for m in _DIGIT_RUN.finditer(folded):
+        before = folded[m.start() - 1] if m.start() else ""
+        after = folded[m.end()] if m.end() < len(folded) else ""
+        if (before.isascii() and before.isalpha()) or (after.isascii() and after.isalpha()):
+            continue
+        return m.group(0)
+    return ""
 
 
 def sentence_problems(sentence, name, source):
@@ -109,8 +149,9 @@ def sentence_problems(sentence, name, source):
         if token in sentence:
             bad.append(f"社名: {token}")
             break
-    if _ARABIC.search(sentence):
-        bad.append("数値: アラビア数字")
+    digits = quantity_digits(sentence)
+    if digits:
+        bad.append(f"数値: {digits}")
     m = _KANJI_COUNT.search(sentence)
     if m:
         bad.append(f"数値: {m.group(0)}")
