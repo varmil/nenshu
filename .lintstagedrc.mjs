@@ -5,6 +5,9 @@
  */
 export default {
   "pipeline/scripts/**/*.ts": () => "npm --prefix pipeline test",
+  // パイプラインには Python もある（EDINET からの取得と抽出）。**vitest だけを
+  // ゲートにすると、Python 側の変更はコミット前に一度も走らない**（C5・#159）。
+  "pipeline/**/*.py": () => "npm --prefix pipeline run test:py",
   "web/**/*.{ts,tsx}": () => [
     "npm --prefix web run lint",
     "npm --prefix web run typecheck",

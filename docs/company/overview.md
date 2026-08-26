@@ -88,9 +88,11 @@ spec.md の 1.18 のうち原文の調達だけ。**表示は変わらない**�
 
 `pipeline/salary/edinet.py` は EDINET API v2 の CSV 形式（`type=5`）を叩いて `jpcrp_cor:InformationAboutEmployeesTextBlock` を1つだけ拾っている。**`TEXT_BLOCK` を単数から複数にし**、`jpcrp_cor:DescriptionOfBusinessTextBlock` を足して CSV に落とす。パーサも取得経路も新規に書くところは無い。
 
-**原文の SHA-1 をここで持つ。** 翌年の有報で原文が変わった会社だけ C6 を回し直すためで、持たないと毎年1,867社ぶん生成し直すことになる。
+**原文の SHA-1 をここで持つ。** 翌年の有報で原文が変わった会社だけ C6 を回し直すためで、持たないと毎年全社ぶん生成し直すことになる。
 
 既存の Unit テスト・E2E が緑のままであることが完了条件に入る。
+
+**実装済み**（`docs/company/business-text/`）。成果物は `pipeline/data/business_text_2026.csv`、平文にする規則は `pipeline/salary/businesstext.py` の1か所、取得と抽出は `pipeline/summary/` にある。**CSV 形式（`type=5`）の値には改行が1つも無く、段落の切れ目は全角空白（U+3000）として残る**——AC-18 の「改行は落とさない」がこの形で指しているのはそれで、空白を一律に潰すと原文がひと続きの塊で C6 に渡る。
 
 ## C6 説明文の生成
 

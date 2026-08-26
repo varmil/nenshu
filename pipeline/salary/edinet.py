@@ -6,13 +6,22 @@ APIキーは環境変数 EDINET_API_KEY か、salary/.edinet_key ファイルか
 
 import io
 import os
+import csv
 import time
 import json
 import zipfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
+from collections import namedtuple
 from datetime import date, timedelta
+
+import businesstext
+
+# **テキストブロックは `csv` の既定の上限（131,072字）を超えうる。** 「経営者による
+# 分析」のような節は本文まるごと1セルに入る。超えると `csv.reader` が例外を投げ、
+# **その書類だけが丸ごと読めなくなる**ので上限を上げておく。
+csv.field_size_limit(10 * 1024 * 1024)
 
 BASE = "https://api.edinet-fsa.go.jp/api/v2"
 ROOT = Path(__file__).resolve().parent
@@ -31,8 +40,26 @@ ELEMENTS = {
     "jpdei_cor:CurrentFiscalYearEndDateDEI": "fy_end",
 }
 
-# タグ付けされていない会社のために本文から拾う
-TEXT_BLOCK = "jpcrp_cor:InformationAboutEmployeesTextBlock"
+# 本文から拾うテキストブロック。**要素ごとに保存の条件も採り方も違う**ので、
+# 要素名と一緒に持つ（C5・#159。以前は `TEXT_BLOCK` という単数の定数だった）。
+#
+#   keep  — その値を保存するか。従業員の状況は表の給与の行が要る（無い値は
+#           `textblock.parse` が読めない）が、事業の内容は空でなければ採る
+#   multi — 同じ要素が複数のファイルに現れたとき、全部集めるか最初の1つで足りるか。
+#           集めたほうの採り方は `businesstext.pick`（最長）が持つ
+TextBlockSpec = namedtuple("TextBlockSpec", "slot keep multi")
+
+TEXT_BLOCKS = {
+    # 平均年間給与をタグ付けしていない会社（持株会社傘下の事業会社に多い）のために
+    # 「従業員の状況」の本文を持つ。読むのは `textblock.py`。
+    "jpcrp_cor:InformationAboutEmployeesTextBlock": TextBlockSpec(
+        "employees_textblock", lambda v: "平均年間給与" in v, False
+    ),
+    # 会社の説明文の原文（C5・ADR-0010）。**要約はここでは作らない。**
+    "jpcrp_cor:DescriptionOfBusinessTextBlock": TextBlockSpec(
+        "business_textblocks", lambda v: bool(v.strip()), True
+    ),
+}
 
 
 def api_key():
@@ -199,7 +226,14 @@ def fetch_csv(doc_id, retries=5):
 
 
 def parse_csv_zip(path):
-    """ZIP内のTSVから必要な要素を抜き出す。"""
+    """ZIP内のTSVから必要な要素を抜き出す。
+
+    **値は `csv` モジュールで読む。`split("\t")` と `strip('"')` では読めない。**
+    EDINET の TSV は RFC 4180 と同じ引用符の規則で、本文に含まれる `"` は `""` に
+    倍にして書かれている。素で割ると**倍のまま原文に残る**（「事業の内容」の実測で
+    600社中4社。`""ラメント""` のような形になる）。要約に渡す原文（C5・#159）では
+    引用符は中身の一部なので、ここで戻しておく。
+    """
     rec = {}
     try:
         z = zipfile.ZipFile(path)
@@ -213,13 +247,20 @@ def parse_csv_zip(path):
             text = raw.decode("utf-16")
         except UnicodeError:
             text = raw.decode("utf-8", "replace")
-        for line in text.splitlines()[1:]:
-            cols = [c.strip().strip('"') for c in line.split("\t")]
+        reader = csv.reader(io.StringIO(text), delimiter="\t")
+        next(reader, None)  # 見出し行
+        for cols in reader:
+            cols = [c.strip() for c in cols]
             if len(cols) < 9:
                 continue
             elem, ctx, value = cols[0], cols[2], cols[8]
-            if elem == TEXT_BLOCK and "平均年間給与" in value:
-                rec.setdefault("employees_textblock", value)
+            spec = TEXT_BLOCKS.get(elem)
+            if spec:
+                if spec.keep(value):
+                    if spec.multi:
+                        rec.setdefault(spec.slot, []).append(value)
+                    else:
+                        rec.setdefault(spec.slot, value)
                 continue
             key = ELEMENTS.get(elem)
             if not key:
@@ -283,4 +324,7 @@ def to_record(meta, parsed):
         "employees_nonconsolidated": emp_nc,
         "employees_consolidated": emp_c,
         "salary_candidates": candidates,
+        # 会社の説明文の原文（C5・#159）。**平文にしてから持つ**——整える規則を
+        # 読む側ごとに書き写さないため（`businesstext.py`）。要約は C6 が作る。
+        "business_text": businesstext.pick(parsed.get("business_textblocks")),
     }
