@@ -136,6 +136,48 @@ test.describe("会社の説明文", () => {
     expect(html.split("をもとに要約").length - 1).toBe(1);
   });
 
+  /**
+   * **説明文の左端が画面幅で変わる**（アートボード 4b・2b。運営者の指摘 2026-08-27）。
+   * PC は社名にそろえてロゴの右から、モバイルはロゴの下を全幅で使う。**同じ文を2つ
+   * 書いて `hidden` で切り替えていないこと**の担保でもある——1つの要素が動く。
+   */
+  test("PC では説明文が社名と同じ左端から始まり、行長が止まる", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const box = await page.evaluate(() => {
+      const at = (t: string) =>
+        [...document.querySelectorAll("p,h1")]
+          .find((el) => el.textContent?.includes(t))
+          ?.getBoundingClientRect();
+      const summary = at("電子応用機器");
+      const h1 = at("株式会社キーエンス");
+      return summary && h1
+        ? { left: Math.round(summary.left), h1Left: Math.round(h1.left), width: Math.round(summary.width) }
+        : null;
+    });
+    expect(box?.left).toBe(box?.h1Left);
+    // `max-w-2xl`（672px）。本文カラムは 1,024px あり、いっぱいに流すと行が長すぎる。
+    expect(box?.width).toBe(672);
+  });
+
+  test("モバイルでは説明文がロゴと同じ左端から全幅で始まる", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/company/6861");
+
+    const box = await page.evaluate(() => {
+      const summary = [...document.querySelectorAll("p")]
+        .find((el) => el.textContent?.includes("電子応用機器"))
+        ?.getBoundingClientRect();
+      const logo = document.querySelector("h1")?.closest(".grid")?.firstElementChild
+        ?.getBoundingClientRect();
+      return summary && logo
+        ? { left: Math.round(summary.left), logoLeft: Math.round(logo.left) }
+        : null;
+    });
+    expect(box?.left).toBe(box?.logoLeft);
+  });
+
   test("モバイル幅でも横スクロールが発生しない", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/company/6861");

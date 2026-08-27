@@ -211,7 +211,13 @@ export function CompanyDetail({
           ロゴマークを大きくし、社名と位置をその右に積む（C3、アートボード 4b）。
           C2 では h1 の中に小さなマークが並んでいて、社名の一部のように見えていた。
         */}
-        <div className="flex items-start gap-3.5">
+        {/*
+          **grid で組む**（アートボード 4b・2b）。説明文の左端が画面幅で変わる
+          ——PC は社名にそろえてロゴの右から、モバイルはロゴの下を全幅で使う。
+          flex を入れ子にすると出し分けられず、**同じ文を2つ書いて `hidden` で
+          切り替えることになる**（CLAUDE.md「同じ文言を2つ書いて出し分けない」）。
+        */}
+        <div className="grid grid-cols-[auto_1fr] items-start gap-x-3.5 gap-y-3">
           <CompanyLogo id={view.id} name={view.name} size="lg" />
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -228,34 +234,37 @@ export function CompanyDetail({
                 ` ・全体${formatInt(view.totalCount)}社中${formatInt(current.rankAll)}位`}
             </p>
           </div>
-        </div>
-        {/*
-          会社の説明文（C7・Issue #161、アートボード 4b・2b が3行の紹介文を描いている
-          位置）。**説明文の無い177社では丸ごと出ない**——空の器を出さない（AC-21）。
+          {/*
+            会社の説明文（C7・Issue #161、アートボード 4b・2b が3行の紹介文を描いている
+            位置）。**説明文の無い178社では丸ごと出ない**——空の器を出さない（AC-21）。
 
-          **順位行の直後・見せ方の帯より前に置く。** ここは「どの会社を見ているか」を
-          answer する段で、下の2つの帯からは「その数字をどう見るか」に変わる。
-          モバイルで年齢スイッチが押し下がるが、**押し下がるのは1回きりで、押し下げて
-          いるのは読者が最初に読む文**になる（`docs/company/summary-display/design.md`）。
-        */}
-        {summary !== null && (
-          <div className="flex flex-col gap-1">
-            <p className="text-[0.9375rem] leading-relaxed">{summary.text}</p>
-            {/*
-              要約であることと出典（AC-22）。**決算期を書かない**——同じ画面の
-              「有価証券報告書の実測値（2026年3月期）」の見出しと重なる（S3・#134。
-              決算期は1画面に1回）。**同じ断りも1画面に2回置かない**ので、
-              下の実測値の節にはこの文を重ねていない（Issue #128 と同じ扱い）。
-            */}
-            <p className="text-muted-foreground text-xs">
-              {SUMMARY_SOURCE}（
-              <a href="/about#company-summary" className="text-primary underline">
-                要約の作り方
-              </a>
-              ）
-            </p>
-          </div>
-        )}
+            **順位行の直後・見せ方の帯より前に置く。** ここは「どの会社を見ているか」を
+            answer する段で、下の2つの帯からは「その数字をどう見るか」に変わる。
+            モバイルで年齢スイッチが押し下がるが、**押し下がるのは1回きりで、押し下げて
+            いるのは読者が最初に読む文**になる（`docs/company/summary-display/design.md`）。
+
+            **`max-w-2xl` で行長を止める**（アートボード 4b）。本文カラムは PC で
+            1,024px あり、そこいっぱいに流すと1行が長すぎて次の行頭を見失う。
+          */}
+          {summary !== null && (
+            <div className="col-span-2 flex max-w-2xl flex-col gap-1 sm:col-span-1 sm:col-start-2">
+              <p className="text-muted-foreground text-sm leading-relaxed">{summary.text}</p>
+              {/*
+                要約であることと出典（AC-22）。**決算期を書かない**——同じ画面の
+                「有価証券報告書の実測値（2026年3月期）」の見出しと重なる（S3・#134。
+                決算期は1画面に1回）。**同じ断りも1画面に2回置かない**ので、
+                下の実測値の節にはこの文を重ねていない（Issue #128 と同じ扱い）。
+              */}
+              <p className="text-muted-foreground text-xs">
+                {SUMMARY_SOURCE}（
+                <a href="/about#company-summary" className="text-primary underline">
+                  要約の作り方
+                </a>
+                ）
+              </p>
+            </div>
+          )}
+        </div>
         {/* 器はランキングと同じ（U13 の ControlBand）。同じ操作を2ページで別の形にしない。 */}
         <ControlBand
           label="見せ方"
