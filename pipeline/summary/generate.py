@@ -150,8 +150,32 @@ def cmd_gate(args):
     src = sources()
     total = passed = 0
     chunks = []
-    for path in sorted(WORK.glob("gen_*.json*")):
+
+    # **バッチの数と生成物の数が合わなければ止める。** エージェントが「作成した」と
+    # 報告しながらファイルを書いていなかったことが実際にある（2026-08-27）。
+    # 気づけたのは社数が 240 → 180 と目に見えて減ったからで、**1本まるごとではなく
+    # 一部が欠けた場合は、そのまま取り込まれて静かに消える。**
+    planned = sorted(WORK.glob("batch_*.json"))
+    produced = sorted(WORK.glob("gen_*.json*"))
+    if len(planned) != len(produced):
+        missing = {p.stem.split("_")[1] for p in planned} - {
+            p.stem.split("_")[1] for p in produced
+        }
+        raise SystemExit(
+            f"バッチ {len(planned)}本に対して生成物が {len(produced)}本しかない"
+            f"（欠けているのは {', '.join(sorted(missing))}）。"
+            "そのバッチを回し直してから gate を実行すること。"
+        )
+
+    for path in produced:
         n = int(path.stem.split("_")[1])
+        # **社数も突き合わせる。** 途中で切れた出力は行数が足りない。
+        want = len(json.loads(_batch_path("batch", n).read_text())["companies"])
+        got = len(_jsonl(path))
+        if want != got:
+            raise SystemExit(
+                f"{path.name}: {want}社のバッチに {got}行しかない。回し直すこと。"
+            )
         out = []
         for rec in _jsonl(path):
             code = rec["edinet_code"]
