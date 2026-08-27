@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSummaryView, summarySourceLabel } from "./summary";
+import { buildSummaryView, SUMMARY_SOURCE } from "./summary";
 
 describe("buildSummaryView", () => {
   it("説明文があれば本文を返す", () => {
@@ -28,16 +28,17 @@ describe("buildSummaryView", () => {
   });
 });
 
-describe("summarySourceLabel", () => {
+describe("SUMMARY_SOURCE", () => {
+  it("何を原文にしたかを述べる", () => {
+    expect(SUMMARY_SOURCE).toBe("有価証券報告書「事業の内容」をもとに要約");
+  });
+
   /**
-   * **決算期を直書きしない**（AC-22・`docs/site-chrome/spec.md` AC-20）。
-   * 会社ごとに違うので、渡された値がそのまま出ることを固定する。
+   * **決算期を含めない**（S3・Issue #134・`docs/site-chrome/spec.md` 5.1）。
+   * 同じ画面の「有価証券報告書の実測値（2026年3月期）」の見出しと重なり、
+   * 決算期が1画面に2回出る——`e2e/data-period.spec.ts` が捕まえた形。
    */
-  it("決算期は引数の値がそのまま出る", () => {
-    expect(summarySourceLabel("2026年3月期")).toBe(
-      "有価証券報告書「事業の内容」（2026年3月期）をもとに要約"
-    );
-    expect(summarySourceLabel("2026年4月期")).toContain("2026年4月期");
-    expect(summarySourceLabel("2025年12月期")).toContain("2025年12月期");
+  it("決算期を含めない（1画面に1回の規則）", () => {
+    expect(SUMMARY_SOURCE).not.toMatch(/\d+年\d+月期/);
   });
 });

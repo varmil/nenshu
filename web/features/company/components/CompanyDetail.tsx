@@ -31,7 +31,7 @@ import { ProfitHistorySection } from "./ProfitHistorySection";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { WorklifeSection } from "./WorklifeSection";
 import type { WorklifeView } from "../lib/worklife";
-import { summarySourceLabel, type SummaryView } from "../lib/summary";
+import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
@@ -242,13 +242,13 @@ export function CompanyDetail({
           <div className="flex flex-col gap-1">
             <p className="text-[0.9375rem] leading-relaxed">{summary.text}</p>
             {/*
-              要約であることと出典（AC-22）。**決算期は直書きしない**——値は
-              `companyFiscalPeriodLabel` から来る。**同じ断りを1画面に2回置かない**
-              ので、下の「有価証券報告書の実測値」の節にはこの文を重ねていない
-              （Issue #128 で「推定」について決めたのと同じ扱い）。
+              要約であることと出典（AC-22）。**決算期を書かない**——同じ画面の
+              「有価証券報告書の実測値（2026年3月期）」の見出しと重なる（S3・#134。
+              決算期は1画面に1回）。**同じ断りも1画面に2回置かない**ので、
+              下の実測値の節にはこの文を重ねていない（Issue #128 と同じ扱い）。
             */}
             <p className="text-muted-foreground text-xs">
-              {summarySourceLabel(fiscalPeriod)}（
+              {SUMMARY_SOURCE}（
               <a href="/about#company-summary" className="text-primary underline">
                 要約の作り方
               </a>

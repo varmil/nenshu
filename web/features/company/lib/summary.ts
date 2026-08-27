@@ -37,10 +37,10 @@ export function buildSummaryView(summary: string | null | undefined): SummaryVie
  * `/company/6861` が +134 B。W2・#224 で残業の注記が同じ形で二重になったのと同じ）。
  * 描画側でここから引けば本文ぶんだけになる。
  *
- * **決算期は引数で受ける**——`2026年3月期` を直書きすると年1回のデータ更新でここだけ
- * 古い年が残る（`docs/site-chrome/spec.md` AC-20）。値の出どころは
- * `companyFiscalPeriodLabel`（会社ごとの決算期。母集団の幅ではない）。
+ * **決算期を書かない。** 初版は `（2026年3月期）` を挟んでいたが、**同じ画面の
+ * 「有価証券報告書の実測値（2026年3月期）」の見出しと重なる**——決算期は1画面に1回
+ * （S3・Issue #134・`docs/site-chrome/spec.md` 5.1。Issue #128 で「推定」について
+ * 決めたのと同じ扱い）。この1行の役目は**何を原文にしたか**で、いつかは同じページの
+ * その見出しが持っている。`e2e/data-period.spec.ts` が2回出たところを捕まえた。
  */
-export function summarySourceLabel(fiscalPeriod: string): string {
-  return `有価証券報告書「事業の内容」（${fiscalPeriod}）をもとに要約`;
-}
+export const SUMMARY_SOURCE = "有価証券報告書「事業の内容」をもとに要約";

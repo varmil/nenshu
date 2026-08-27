@@ -73,11 +73,15 @@ test.describe("会社の説明文", () => {
   }) => {
     await page.goto("/company/6861");
 
-    // **決算期は直書きしない**（`docs/site-chrome/spec.md` AC-20）。会社ごとに違う値が
-    // そのまま出ることを見る。キーエンスは3月期。
     await expect(
-      page.getByText("有価証券報告書「事業の内容」（2026年3月期）をもとに要約", { exact: false })
+      page.getByText("有価証券報告書「事業の内容」をもとに要約", { exact: false })
     ).toBeVisible();
+    /*
+     * **この1行に決算期を書かない**（S3・Issue #134）。同じ画面の
+     * 「有価証券報告書の実測値（2026年3月期）」の見出しと重なり、決算期が
+     * 1画面に2回出る。`e2e/data-period.spec.ts` がその重複を数えている。
+     */
+    await expect(page.getByText("事業の内容」（2026年3月期）", { exact: false })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "要約の作り方" })).toHaveAttribute(
       "href",
       "/about#company-summary"
