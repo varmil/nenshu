@@ -57,7 +57,7 @@ test.describe("会社の説明文", () => {
     ).toBeVisible();
     await expect(page.getByText("をもとに要約", { exact: false })).toHaveCount(0);
     await expect(page.getByText("準備中", { exact: false })).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "作り方" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "要約の作り方" })).toHaveCount(0);
   });
 
   test("AC-21: JS実行前のHTMLに説明文が入っている", async ({ request }) => {
@@ -78,7 +78,7 @@ test.describe("会社の説明文", () => {
     await expect(
       page.getByText("有価証券報告書「事業の内容」（2026年3月期）をもとに要約", { exact: false })
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "作り方" })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "要約の作り方" })).toHaveAttribute(
       "href",
       "/about#company-summary"
     );

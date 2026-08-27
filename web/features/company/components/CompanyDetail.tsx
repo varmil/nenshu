@@ -250,7 +250,7 @@ export function CompanyDetail({
             <p className="text-muted-foreground text-xs">
               {summarySourceLabel(fiscalPeriod)}（
               <a href="/about#company-summary" className="text-primary underline">
-                作り方
+                要約の作り方
               </a>
               ）
             </p>
