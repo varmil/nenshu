@@ -27,8 +27,7 @@ export function WorklifeSection({ view }: { view: WorklifeView }) {
       */}
       <p className="text-muted-foreground text-xs">
         厚生労働省「女性の活躍推進企業データベース」の公表値
-        {view.asOf === "" ? "（自己申告値）" : `（${view.asOf}・自己申告値）`}
-        。上の「見せ方」とは関係なく、登録された数字のままです。
+        {view.asOf === "" ? "（自己申告値）。" : `（${view.asOf}・自己申告値）。`}
       </p>
 
       <dl className="border-border divide-border flex flex-col divide-y border-t border-b">
