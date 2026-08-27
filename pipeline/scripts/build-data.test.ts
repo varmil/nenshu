@@ -814,6 +814,52 @@ describe("buildData", () => {
       expect(result.profitHistoryGzipSize).toBeLessThanOrEqual(384 * 1024);
     });
   });
+
+  /**
+   * 会社の説明文（C7・Issue #161・親 #158）。**`/company/[id]` だけが読む**ので、
+   * ここで見るのは中身ではなく**引き方が壊れていないこと**になる。
+   */
+  describe("summaries.json", () => {
+    it("キーは companies.json の id（証券コード／EDINETコード）", () => {
+      const ids = new Set(result.companies.rows.map((row) => row[0]));
+      for (const id of Object.keys(result.summaries.byId)) {
+        expect(ids.has(id), id).toBe(true);
+      }
+    });
+
+    /**
+     * **CSV の説明文がある行はすべて掲載社に当たる。** 当たらない行があるのは
+     * 突合キー（`edinet_code`）か母集団が変わったときで、`buildSummaries` はそこで
+     * 落ちる——**落とさないと「説明文の無い会社」として静かに配ることになる。**
+     */
+    it("説明文のある CSV の行数と、掲載社に当たった数が一致する", () => {
+      const csv = parseCsv(readFileSync(join(ROOT, "data/company_summary_2026.csv"), "utf-8"));
+      const summaryIndex = csv[0].indexOf("summary");
+      const written = csv.slice(1).filter((line) => (line[summaryIndex] ?? "") !== "").length;
+      expect(Object.keys(result.summaries.byId)).toHaveLength(written);
+      expect(written).toBe(2783);
+    });
+
+    /** **空文字はキーごと落とす**（`undefined` がそのまま「説明文が無い」を表す）。 */
+    it("説明文の無い会社はキーごと無い", () => {
+      // 東京海上ホールディングス（8766）は C6 の目視レビューで型⑪に落ち、
+      // 原文の事業の中身が1文ぶんしかないので空が正しいと判定した会社。
+      expect(result.summaries.byId["8766"]).toBeUndefined();
+      expect(result.summaries.byId["6861"]).toContain("電子応用機器");
+    });
+
+    /** 規格（`docs/company/spec.md` 1.18）。C6 の機械ゲートが通した結果を再確認する。 */
+    it("全件が全角60〜130字に収まる", () => {
+      for (const [id, text] of Object.entries(result.summaries.byId)) {
+        const width = [...text].reduce(
+          (sum, ch) => sum + (/[\u0020-\u007e\uff61-\uff9f]/.test(ch) ? 0.5 : 1),
+          0
+        );
+        expect(width, `${id}: ${text}`).toBeGreaterThanOrEqual(60);
+        expect(width, `${id}: ${text}`).toBeLessThanOrEqual(130);
+      }
+    });
+  });
 });
 
 /**

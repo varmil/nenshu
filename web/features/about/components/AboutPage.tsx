@@ -21,6 +21,7 @@ import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/pe
 import companiesData from "@/public/data/companies.json";
 import curvesData from "@/public/data/curves.json";
 import logosData from "@/public/data/logos.json";
+import summariesData from "@/public/data/summaries.json";
 
 const companies = companiesData as CompaniesData;
 const logoEntries = logosData.byId as Record<string, LogoEntry>;
@@ -31,10 +32,30 @@ const logoEntries = logosData.byId as Record<string, LogoEntry>;
 const logoCredits = attributionCredits(companies.rows, logoEntries);
 const logoCounts = creditCounts(logoEntries);
 
+/**
+ * 説明文のある社数（C7・Issue #161）。**直書きしない**——社数・決算期と同じ扱いで、
+ * データを作り直すたびに動く（`docs/site-chrome/spec.md` AC-20）。`/about` は静的
+ * ページなので、`summaries.json`（gzip 261.8KB）はここで消費されクライアントには渡らない。
+ */
+const summaryCount = Object.keys(summariesData.byId).length;
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+
+/**
+ * `id` は**この節へ画面から直接来る導線があるときだけ**付ける（C7・Issue #161）。
+ * 企業詳細ページの説明文からここへ飛ばすのに要る——9つ並ぶ節のどれかは、
+ * `/about` を開いただけでは分からない。
+ */
+function Section({
+  title,
+  id,
+  children,
+}: {
+  title: string;
+  id?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="flex flex-col gap-3">
+    <section id={id} className="flex flex-col gap-3">
       <h2 className="border-border border-b pb-1 text-xl font-bold">{title}</h2>
       {children}
     </section>
@@ -449,6 +470,33 @@ export function AboutPage() {
             経由で取得
           </li>
         </ul>
+      </Section>
+
+      <Section title="会社の説明文の作り方" id="company-summary">
+        <p>
+          企業ページの社名の下に置いている2〜3文は、その会社の
+          <strong>有価証券報告書の「事業の内容」</strong>
+          を原文として、生成AIで要約したものです。{formatInt(summaryCount)}社に出しています。
+        </p>
+        <p>
+          <strong>原文から導ける事実だけを書きます。</strong>
+          外部サイトや百科事典、AIが学習で知っている一般知識は材料にしません。書いてよいことを次の形に絞っています。
+        </p>
+        <ul className="ml-5 list-disc space-y-1">
+          <li>社名を含めない（すぐ上の見出しにあります）</li>
+          <li>数値を含めない（年収・順位・従業員数は同じページの他の節が出しています）</li>
+          <li>評価語を含めない（「業界最大手」「高い収益性」のような書き方はしません）</li>
+          <li>原文に出てこない固有名詞を含めない</li>
+        </ul>
+        <p>
+          この規格は<strong>機械的な検査</strong>
+          で確かめたうえ、さらに<strong>原文と照らし合わせる別の工程</strong>
+          を通しています。前者は字数・文数と上の4条件を、後者は「その文が原文に書いてあるか」だけを見ます。言い換えたときに原文と食い違う文は、前者では捕まらないためです。
+        </p>
+        <p>
+          <strong>書けない会社では、説明文そのものを出しません。</strong>
+          原文が当期の異動やグループの構成しか述べていない会社があり、そこで字数を埋めると根拠のない文になります。空欄や「準備中」も出しません。
+        </p>
       </Section>
 
       <Section title="企業ロゴの出典">

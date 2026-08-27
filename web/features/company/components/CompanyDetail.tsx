@@ -31,6 +31,7 @@ import { ProfitHistorySection } from "./ProfitHistorySection";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { WorklifeSection } from "./WorklifeSection";
 import type { WorklifeView } from "../lib/worklife";
+import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
@@ -84,6 +85,7 @@ export function CompanyDetail({
   worklife,
   history,
   profitHistory,
+  summary,
   fiscalPeriod,
 }: {
   view: CompanyView;
@@ -106,6 +108,12 @@ export function CompanyDetail({
    * **`byBasis` の外に置く**——年齢そろえを選んでも過去の経常利益は変わらない。
    */
   profitHistory: ProfitHistory | null;
+  /**
+   * 会社の説明文（C7・Issue #161）。**説明文の無い会社では `null`** で、そのとき
+   * 節ごと出さない（AC-21。空の器・プレースホルダを出さない）。**`byBasis` の外に
+   * 置く**——事業の記述なので表示基準でも年齢スイッチでも変わらない（AC-23）。
+   */
+  summary: SummaryView | null;
   /**
    * 掲載データの決算期（`2026年3月期`）。**文字列にするのはサーバー側**
    * （`app/company/[id]/page.tsx` が `lib/data/period.ts` を通す）で、ここは
@@ -221,6 +229,33 @@ export function CompanyDetail({
             </p>
           </div>
         </div>
+        {/*
+          会社の説明文（C7・Issue #161、アートボード 4b・2b が3行の紹介文を描いている
+          位置）。**説明文の無い177社では丸ごと出ない**——空の器を出さない（AC-21）。
+
+          **順位行の直後・見せ方の帯より前に置く。** ここは「どの会社を見ているか」を
+          answer する段で、下の2つの帯からは「その数字をどう見るか」に変わる。
+          モバイルで年齢スイッチが押し下がるが、**押し下がるのは1回きりで、押し下げて
+          いるのは読者が最初に読む文**になる（`docs/company/summary-display/design.md`）。
+        */}
+        {summary !== null && (
+          <div className="flex flex-col gap-1">
+            <p className="text-[0.9375rem] leading-relaxed">{summary.text}</p>
+            {/*
+              要約であることと出典（AC-22）。**決算期を書かない**——同じ画面の
+              「有価証券報告書の実測値（2026年3月期）」の見出しと重なる（S3・#134。
+              決算期は1画面に1回）。**同じ断りも1画面に2回置かない**ので、
+              下の実測値の節にはこの文を重ねていない（Issue #128 と同じ扱い）。
+            */}
+            <p className="text-muted-foreground text-xs">
+              {SUMMARY_SOURCE}（
+              <a href="/about#company-summary" className="text-primary underline">
+                要約の作り方
+              </a>
+              ）
+            </p>
+          </div>
+        )}
         {/* 器はランキングと同じ（U13 の ControlBand）。同じ操作を2ページで別の形にしない。 */}
         <ControlBand
           label="見せ方"

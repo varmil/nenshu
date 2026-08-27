@@ -21,6 +21,7 @@ export function CompanyDetailIsland({ data }: { data: CompanyPageData }) {
         worklife={data.worklife}
         history={data.history}
         profitHistory={data.profitHistory}
+        summary={data.summary}
         fiscalPeriod={data.fiscalPeriod}
       />
     </LogoIdsProvider>
