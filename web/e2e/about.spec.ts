@@ -43,7 +43,9 @@ test.describe("計算方法ページ（/about）", () => {
     // 理由（同業種は必ず同じカーブを引くこと）と、動く割合の実測値まで書かれている
     await expect(page.getByText("同じ業種の2社は必ず同じカーブを引きます")).toBeVisible();
     await expect(page.getByText("2.4%")).toBeVisible();
-    await expect(page.getByText("36社")).toBeVisible();
+    // **`exact` を外さない。** `getByText` は部分一致なので、同じ頁のロゴの出典が
+    // 「2,536社ぶん」になった時点で `36社` が2箇所に当たる（実際に落ちた）
+    await expect(page.getByText("36社", { exact: true })).toBeVisible();
   });
 
   test("2点モデルの仮定と、残っている限界が数値付きで書かれている", async ({ page }) => {
