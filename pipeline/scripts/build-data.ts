@@ -37,6 +37,11 @@ const RADAR_JSON_GZIP_LIMIT_BYTES = 48 * 1024;
 // **上限を超えたときに何を切り出すかは、Worker バンドルが 3MiB に近づいたかで
 // 決める**（`worklife.json` と同じ扱い）。E6 の実測でバンドルは gzip 2.17MB（68.9%）。
 const PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES = 384 * 1024;
+// 2,783社ぶんの説明文（C6・#160）。実測 gzip 261.8KB。**上限は気づくための線**で、
+// `worklife.json` と同じく実測の 1.2 倍に置く。**このファイルはクライアントへ送らない**
+// （`/company/[id]` がビルド時に1社ぶんを抜くだけ・AC-23）ので、効くのは Worker
+// バンドルへの同梱ぶんだけになる。
+const SUMMARIES_JSON_GZIP_LIMIT_BYTES = 320 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -207,6 +212,7 @@ export function buildData(outDir: string) {
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
   const profitHistory = buildProfitHistory(rows, companyRows, history.years);
+  const summaries = buildSummaries(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -217,12 +223,14 @@ export function buildData(outDir: string) {
   const performancePath = resolve(outDir, "performance.json");
   const radarPath = resolve(outDir, "radar.json");
   const profitHistoryPath = resolve(outDir, "profit-history.json");
+  const summariesPath = resolve(outDir, "summaries.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
   const performanceJson = JSON.stringify(performance);
   const radarJson = JSON.stringify(radar);
   const profitHistoryJson = JSON.stringify(profitHistory);
+  const summariesJson = JSON.stringify(summaries);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
@@ -231,46 +239,54 @@ export function buildData(outDir: string) {
   writeFileSync(performancePath, performanceJson);
   writeFileSync(radarPath, radarJson);
   writeFileSync(profitHistoryPath, profitHistoryJson);
+  writeFileSync(summariesPath, summariesJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `companies.json のgzipサイズが上限(100KB)を超えています: ${(gzipSize / 1024).toFixed(1)}KB`
+      `companies.json のgzipサイズが上限(${limitLabel(COMPANIES_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(gzipSize / 1024).toFixed(1)}KB`
     );
   }
 
   const historyGzipSize = gzipSync(historyJson).length;
   if (historyGzipSize > HISTORY_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `history.json のgzipサイズが上限(150KB)を超えています: ${(historyGzipSize / 1024).toFixed(1)}KB`
+      `history.json のgzipサイズが上限(${limitLabel(HISTORY_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(historyGzipSize / 1024).toFixed(1)}KB`
     );
   }
 
   const worklifeGzipSize = gzipSync(worklifeJson).length;
   if (worklifeGzipSize > WORKLIFE_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `worklife.json のgzipサイズが上限(160KB)を超えています: ${(worklifeGzipSize / 1024).toFixed(1)}KB`
+      `worklife.json のgzipサイズが上限(${limitLabel(WORKLIFE_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(worklifeGzipSize / 1024).toFixed(1)}KB`
     );
   }
 
   const performanceGzipSize = gzipSync(performanceJson).length;
   if (performanceGzipSize > PERFORMANCE_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `performance.json のgzipサイズが上限(32KB)を超えています: ${(performanceGzipSize / 1024).toFixed(1)}KB`
+      `performance.json のgzipサイズが上限(${limitLabel(PERFORMANCE_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(performanceGzipSize / 1024).toFixed(1)}KB`
     );
   }
 
   const radarGzipSize = gzipSync(radarJson).length;
   if (radarGzipSize > RADAR_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `radar.json のgzipサイズが上限(48KB)を超えています: ${(radarGzipSize / 1024).toFixed(1)}KB`
+      `radar.json のgzipサイズが上限(${limitLabel(RADAR_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(radarGzipSize / 1024).toFixed(1)}KB`
     );
   }
 
   const profitHistoryGzipSize = gzipSync(profitHistoryJson).length;
   if (profitHistoryGzipSize > PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES) {
     throw new Error(
-      `profit-history.json のgzipサイズが上限(256KB)を超えています: ${(profitHistoryGzipSize / 1024).toFixed(1)}KB`
+      `profit-history.json のgzipサイズが上限(${limitLabel(PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(profitHistoryGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
+  const summariesGzipSize = gzipSync(summariesJson).length;
+  if (summariesGzipSize > SUMMARIES_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `summaries.json のgzipサイズが上限(${limitLabel(SUMMARIES_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(summariesGzipSize / 1024).toFixed(1)}KB`
     );
   }
 
@@ -283,6 +299,7 @@ export function buildData(outDir: string) {
     performancePath,
     radarPath,
     profitHistoryPath,
+    summariesPath,
     companies,
     curves,
     stats,
@@ -291,12 +308,14 @@ export function buildData(outDir: string) {
     performance,
     radar,
     profitHistory,
+    summaries,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
     performanceGzipSize,
     radarGzipSize,
     profitHistoryGzipSize,
+    summariesGzipSize,
   };
 }
 
@@ -551,6 +570,69 @@ function median(values: readonly number[]): number {
  *
  * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
  */
+/** 上限の定数をそのままメッセージに出す。**手で書くと定数を動かしたとき嘘になる。** */
+function limitLabel(bytes: number): string {
+  return `${bytes / 1024}KB`;
+}
+
+/**
+ * 会社の説明文（`summaries.json`）。C7・Issue #161（親 #158・ADR-0010）。
+ *
+ * **`/company/[id]` だけが import する。`src/pages/index.astro` からは読まない**
+ * ——トップページの HTML を1バイトも増やさないため（Issue #22）。渡すのは当該
+ * 1社ぶんの文字列だけで、このファイル全体を props に載せない（AC-23）。
+ *
+ * **行の配列ではなく ID の辞書にする。** `worklife.json` や `radar.json` は
+ * `companies.rows` と同じ並びの配列だが、あちらは全社を舐める場面（順位・軸）が
+ * ある。説明文にはそれが無く、引くのは常に1社ぶんなので、**行がずれると別の会社の
+ * 文を出すという危険を持ち込む理由がない。** 掲載の無い177社はキーごと落とす
+ * （`history.json` と同じ扱い）——`undefined` がそのまま「説明文が無い」を表す。
+ */
+function buildSummaries(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const csvText = readFileSync(resolve(ROOT, "data/company_summary_2026.csv"), "utf-8");
+  const table = parseCsv(csvText);
+  const header = table[0] ?? [];
+  const codeIndex = header.indexOf("edinet_code");
+  const summaryIndex = header.indexOf("summary");
+  if (codeIndex === -1 || summaryIndex === -1) {
+    throw new Error(
+      "data/company_summary_2026.csv に edinet_code / summary の列がありません。" +
+        "pipeline/summary/generate.py の merge を確認すること"
+    );
+  }
+
+  const byEdinetCode = new Map<string, string>();
+  for (const line of table.slice(1)) {
+    const summary = line[summaryIndex] ?? "";
+    if (summary === "") continue;
+    byEdinetCode.set(line[codeIndex] ?? "", summary);
+  }
+
+  const byId: Record<string, string> = {};
+  let matched = 0;
+  rows.forEach((row, i) => {
+    const summary = byEdinetCode.get(row.edinetCode);
+    if (summary === undefined) return;
+    matched++;
+    byId[companyRows[i][0] as string] = summary;
+  });
+
+  // **突合が全件当たることを確かめる**（`buildWorklife` と同じガード）。CSV に
+  // あって掲載社に無い会社が出るのは、母集団の側が変わったときだけ——**黙って
+  // 「説明文の無い会社」として配ると、突合キーを間違えても気づけない。**
+  if (matched !== byEdinetCode.size) {
+    throw new Error(
+      `company_summary_2026.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+    );
+  }
+
+  return { byId };
+}
+
 function buildHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
@@ -855,6 +937,10 @@ if (isMain) {
   console.log(
     `${result.profitHistoryPath}: ${coverage(Object.keys(result.profitHistory.profit).length, total)} × ` +
       `${result.profitHistory.years.length}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.summariesPath}: ${coverage(Object.keys(result.summaries.byId).length, total)}, ` +
+      `gzip ${(result.summariesGzipSize / 1024).toFixed(1)}KB`
   );
 
   // ロゴだけは別のコマンドが作るので、パスではなく施策名で出す（E3・#175 で追随する）。

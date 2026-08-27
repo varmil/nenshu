@@ -1,5 +1,6 @@
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView } from "@/features/company/lib/worklife";
+import { buildSummaryView, type SummaryView } from "@/features/company/lib/summary";
 import {
   decodeWorklife,
   type WorklifeData,
@@ -30,6 +31,7 @@ import radarData from "@/public/data/radar.json";
 import performanceData from "@/public/data/performance.json";
 import profitHistoryData from "@/public/data/profit-history.json";
 import logosData from "@/public/data/logos.json";
+import summariesData from "@/public/data/summaries.json";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -72,6 +74,16 @@ const profitHistory = profitHistoryData as unknown as {
 };
 
 const logoIds = logosData.byId as Record<string, unknown>;
+
+/**
+ * 会社の説明文（C7・Issue #161）。**ここだけが import する**——`src/pages/index.astro`
+ * から読むとトップページの HTML が 2,783社ぶん増える（Issue #22）。渡すのは当該
+ * 1社ぶんの文字列だけで、この辞書は props に載せない（AC-23）。
+ *
+ * **掲載の無い会社はキーごと無い**ので `undefined` が返る。それが
+ * `buildSummaryView` で `null` になり、節ごと出ない（AC-21）。
+ */
+const summaries = summariesData.byId as Record<string, string>;
 
 /**
  * この画面に出る会社（自身と、9基準ぶんの近傍10社）のうちロゴを持つIDだけを配る。
@@ -197,6 +209,7 @@ export interface CompanyPageData {
   worklife: ReturnType<typeof buildWorklifeView>;
   history: SalaryHistory | null;
   profitHistory: ProfitHistory | null;
+  summary: SummaryView | null;
   fiscalPeriod: string;
   logoIds: string[];
 }
@@ -218,6 +231,7 @@ export function companyPageData(id: string): CompanyPageData {
     worklife: buildWorklifeView(worklifeRecord),
     history: historyFor(view.id),
     profitHistory: profitHistoryFor(view.id),
+    summary: buildSummaryView(summaries[view.id]),
     fiscalPeriod: fiscalPeriodFor(view.id),
     logoIds: logoIdsOnPage(view),
   };

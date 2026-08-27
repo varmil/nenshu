@@ -106,11 +106,17 @@ spec.md 1.18 の出力の規格と、書けない会社の落とし方。**オ�
 
 spec.md 1.18 の表示。h1 と順位行の直後に2〜3文と、出典の1行を置く。
 
-**`summaries.json` は `companies.json` に混ぜない。** 1,867社 × 約110字で raw 約600KB になり、`companies.json` の gzip 100KB の上限に収まらない。`worklife.json` と同じく別ファイルにして、**gzip の上限は実測してから決める**。
+**実装済み**（`docs/company/summary-display/`）。成果物は `web/public/data/summaries.json`（2,783 / 2,961社 = 94.0%・gzip 261.8KB・上限 320KB）。
 
-**クライアントに送るのは当該1社ぶんだけ**（spec 2. 非機能要件）。`worklife.json` と同じく `/company/[id]` だけが import し、`app/page.tsx` からは読まない（Issue #22）。
+**`companies.json` に混ぜない。** 2,783社 × 約116字で raw 950KB になり、`companies.json` の gzip 100KB の上限に収まらない。`worklife.json` と同じく別ファイルにした。
+
+**クライアントに送るのは当該1社ぶんだけ**（spec 2. 非機能要件）。`/company/[id]` だけが import し、`src/pages/index.astro` からは読まない（Issue #22。実測で `/` の HTML に説明文は0件）。
+
+**行の配列ではなく ID の辞書にした。** `worklife.json`・`radar.json` が `companies.rows` と同じ並びの配列なのは全社を舐める場面があるためで、説明文にはそれが無い——**行がずれると別の会社の文を出すという危険を持ち込む理由がない**（gzip の差は 1.2KB）。
 
 **表示基準・年齢に依らない。** timeseries の推移・worklife の節と同じ扱いで、`CompanyView.byBasis` の中に入れない——入れると「年齢そろえにしたら事業の内容が変わる」を表現できてしまう（`docs/company/company-refresh/` と同じ線）。
+
+**`summaries.json` は Worker バンドルに入らない。** F1（Astro・#209）以降、`/company/[id]` だけが読むデータはビルド時に消費される（`dist/server` を grep して0件）。**`worklife.json` の切り出しをバンドルの余裕で判断する、という前提は OpenNext 時代のもので、いまは成り立たない。**
 
 ## ranking 施策の Unit で同時に直すもの
 
