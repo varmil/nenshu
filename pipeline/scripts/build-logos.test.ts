@@ -145,6 +145,63 @@ describe("公式サイトからの候補の抽出", () => {
   });
 });
 
+describe("公式サイトの取得（`http://` からの引き上げ）", () => {
+  const stub = (answers: Record<string, number>) => {
+    const seen: string[] = [];
+    return {
+      seen,
+      fetcher: {
+        get: async (url: string) => {
+          seen.push(url);
+          const status = answers[url] ?? 0;
+          return {
+            status,
+            body: status === 200 ? Buffer.from("<html></html>") : Buffer.alloc(0),
+            contentType: "text/html",
+            url,
+          };
+        },
+      },
+    };
+  };
+
+  it("`http://` が失敗したら `https://` でやり直す", async () => {
+    const { fetchSite } = await import("./lib/logo/fetcher");
+    const { fetcher, seen } = stub({ "https://www.example.co.jp/": 200 });
+    const res = await fetchSite(fetcher, "http://www.example.co.jp/");
+    expect(res?.status).toBe(200);
+    expect(seen).toEqual(["http://www.example.co.jp/", "https://www.example.co.jp/"]);
+  });
+
+  it("`http://` で通れば引き上げない（余計な1往復を全社に掛けない）", async () => {
+    const { fetchSite } = await import("./lib/logo/fetcher");
+    const { fetcher, seen } = stub({ "http://www.example.co.jp/": 200 });
+    expect((await fetchSite(fetcher, "http://www.example.co.jp/"))?.status).toBe(200);
+    expect(seen).toEqual(["http://www.example.co.jp/"]);
+  });
+
+  it("`https://` が失敗しても `http://` へは落とさない", async () => {
+    const { fetchSite } = await import("./lib/logo/fetcher");
+    const { fetcher, seen } = stub({ "http://www.example.co.jp/": 200 });
+    expect(await fetchSite(fetcher, "https://www.example.co.jp/")).toBeNull();
+    expect(seen).toEqual(["https://www.example.co.jp/"]);
+  });
+
+  it("引き上げても駄目なら null（候補は空になる）", async () => {
+    const { fetchSite } = await import("./lib/logo/fetcher");
+    const { fetcher } = stub({});
+    expect(await fetchSite(fetcher, "http://www.example.co.jp/")).toBeNull();
+  });
+
+  it("200 でも中身が空なら失敗として扱う", async () => {
+    const { fetchSite } = await import("./lib/logo/fetcher");
+    const empty = {
+      get: async (url: string) => ({ status: 200, body: Buffer.alloc(0), contentType: "", url }),
+    };
+    expect(await fetchSite(empty, "https://www.example.co.jp/")).toBeNull();
+  });
+});
+
 describe("候補の優先順", () => {
   const cands: Candidate[] = [
     { source: "icon", url: "a", declared: { w: 512, h: 512 } },

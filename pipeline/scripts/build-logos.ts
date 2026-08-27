@@ -3,7 +3,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv } from "./lib/csv";
 import { makeId } from "./lib/slug";
-import { Fetcher, mapLimit } from "./lib/logo/fetcher";
+import { Fetcher, fetchSite, mapLimit } from "./lib/logo/fetcher";
 import { lookupByHoujin, WikidataHit } from "./lib/logo/wikidata";
 import { readToken, lookupUrls } from "./lib/logo/gbiz";
 import { fetchInfo, titleFromP154, CommonsInfo } from "./lib/logo/commons";
@@ -277,8 +277,8 @@ async function buildIndex(fetcher: Fetcher, companies: readonly Company[], parti
 }
 
 async function siteCandidates(fetcher: Fetcher, site: string): Promise<Candidate[]> {
-  const res = await fetcher.get(site);
-  if (res.status !== 200 || res.body.length === 0) return [];
+  const res = await fetchSite(fetcher, site);
+  if (!res) return [];
   const html = res.body.toString("utf-8");
   const base = res.url || site;
   const out = extractCandidates(html, base);
