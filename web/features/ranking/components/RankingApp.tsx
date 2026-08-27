@@ -97,6 +97,12 @@ export function RankingApp({
   // データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
   const fiscalPeriod = fiscalPeriodLabel(bootstrap.meta);
   const total = formatInt(bootstrap.meta.count);
+  /**
+   * 掲載条件のうち**読者がいちばん取り違えるのは従業員数の線**（E2・#173 で
+   * `/about` に省いた社数を出したのと同じ理由）。数は直書きせず
+   * `meta.excluded.minEmployees` から引く（spec 1.4 と同じ扱い）。
+   */
+  const minEmployees = formatInt(bootstrap.meta.excluded.minEmployees);
   const basisPopulation = populationForBasis(population, state.targetAge);
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
   // 業種ごとの社数は**母集団の内訳なので絞り込みで変わらない**。サーバーが数えた
@@ -163,9 +169,14 @@ export function RankingApp({
                 : `${state.targetAge}歳年収ランキング`}
             </h1>
             {/*
-            **モバイルは先頭の1文だけを出す**（アートボード 5c、公開後の指摘）。
+            **PC でだけ足す文は「補足」に限る**（アートボード 5c、公開後の指摘）。
             2文まとめて出すと 390px で3行になり、本文が下に押し出されていた。
             同じ文を2つ書いて出し分けるのではなく、続きの1文だけを PC で足す。
+
+            **掲載条件（従業員100人以上）はその例外で、両方に出す**（運営者の指示
+            2026-08-27）。「有報を出している会社が全部載っている」と読まれるのを
+            防ぐ断りなので、狭い画面の読者にだけ届かないと意味が無い。**代償として
+            モバイルでは2行になる**（3行は超えないことを E2E が見ている）。
           */}
             {/*
             **データの時点は1文目に置く**（S3・`docs/site-chrome/spec.md` 5.1）。
@@ -174,15 +185,10 @@ export function RankingApp({
           */}
             <p className="text-muted-foreground text-xs md:text-sm">
               {isRaw ? (
-                <>
-                  {`${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。`}
-                  <span className="hidden md:inline">
-                    年齢は会社ごとに違うため、若い会社は低めに出ます。
-                  </span>
-                </>
+                `${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。従業員${minEmployees}人以上が対象。`
               ) : (
                 <>
-                  {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。`}
+                  {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。従業員${minEmployees}人以上が対象。`}
                   <span className="hidden md:inline">
                     元になる金額は有価証券報告書の平均年間給与です。
                   </span>

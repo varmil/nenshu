@@ -701,6 +701,38 @@ test.describe("公開後の手直し", () => {
 });
 
 /*
+ * リード文の掲載条件（運営者の指示 2026-08-27）。**従業員数の線は PC でもモバイルでも
+ * 出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の持株会社が
+ * 載っていないのか」が届かない。数は `meta.excluded.minEmployees` から引くので、
+ * 実データの値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
+ */
+for (const [label, width] of [
+  ["PC", 1280],
+  ["モバイル", 390],
+] as const) {
+  test.describe(`リード文の掲載条件（${label}）`, () => {
+    test.use({ viewport: { width, height: 844 } });
+
+    for (const [basis, path] of [
+      ["実測値", "/"],
+      ["年齢そろえ", "/?age=35"],
+    ] as const) {
+      test(`${basis}のリード文に従業員100人以上が出る`, async ({ page }) => {
+        await page.goto(path);
+        await expect(
+          page.getByText("従業員100人以上が対象。").first(),
+        ).toBeVisible();
+      });
+    }
+
+    test("年齢は会社ごとに違う旨の一文は出さない", async ({ page }) => {
+      await page.goto("/");
+      await expect(page.getByText("若い会社は低めに出ます")).toHaveCount(0);
+    });
+  });
+}
+
+/*
  * モバイルの行の形（アートボード 2a、Issue #119）。要素の位置関係そのものを固定する。
  * `docs/ranking/ranking-mock-alignment/design.md` の「モバイルの行を4カラムにする」に対応。
  */
@@ -920,13 +952,20 @@ test.describe("公開後の手直し（モバイルの行）", () => {
     await expect(salary).toHaveCSS("font-size", "16px");
   });
 
-  test("見出しと説明文がそれぞれ1行に収まる", async ({ page }) => {
+  test("見出しは1行、説明文は2行までに収まる", async ({ page }) => {
     await page.goto("/");
     const lines = async (locator: import("@playwright/test").Locator) =>
       locator.evaluate((el) => el.getClientRects().length);
 
     expect(await lines(page.getByRole("heading", { level: 1 }))).toBe(1);
-    expect(await lines(page.getByText("有価証券報告書の平均年間給与（単体）で2,961社。"))).toBe(1);
+    /*
+     * **説明文はモバイルで2行まで**。掲載条件（従業員100人以上）を PC・モバイルの
+     * 両方に出す（運営者の指示 2026-08-27）ぶん、390px では1行に収まらない。
+     * 3行になると本文の表が画面外へ押し出されるので、上限だけを固定する。
+     */
+    expect(
+      await lines(page.getByText("有価証券報告書の平均年間給与（単体）で2,961社。")),
+    ).toBeLessThanOrEqual(2);
     expect(await lines(page.getByText("有価証券報告書の数値のまま。"))).toBe(1);
   });
 });
