@@ -43,3 +43,6 @@ pipeline/salary/out/
 
 # Playwright MCP（ブラウザ確認時のスクリーンショット・スナップショット）。作業用の一時ファイル。
 .playwright-mcp/
+
+# pipeline: 説明文の生成の作業用（C6）。バッチと生成の中間ファイル。
+pipeline/summary/work/
