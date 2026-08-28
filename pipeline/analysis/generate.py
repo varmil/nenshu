@@ -424,6 +424,25 @@ def cmd_gate(args):
           f"（1本 {args.chunk}社まで）", flush=True)
 
 
+def pair_or_drop(summary, headline, analysis, s_reason, a_reason):
+    """**要約と分析は対で出す。片方だけのページを作らない**（2026-08-28・運営者の判断。
+    `docs/company/spec.md` 1.19・AC-28）。
+
+    満たし方は2つあり、**書き直して両方通す**のが本筋である——パイロットで落ちた2社は
+    どちらも**1文を直せば通った**（材料は足りていて、言い過ぎていただけだった）。
+    ここが受け持つのはもう一方、**それでも通らなかったときに残ったほうも落とす**ほうになる。
+
+    **この逃げ道が要る。** 「必ず対にする」を絶対条件にすると、**通らない分析を通す圧力が
+    そのまま検証パスに掛かる。** 落とせるようにしておくことで、書き直しの回数に上限を
+    置ける（`prompts/verify.md` の「2回まで」）。
+    """
+    if summary and not analysis:
+        return "", "", "", f"分析が付かないため対で落とした（{a_reason}）", a_reason
+    if analysis and not summary:
+        return "", "", "", s_reason, f"要約が付かないため対で落とした（{s_reason}）"
+    return summary, headline, analysis, s_reason, a_reason
+
+
 def cmd_merge(args):
     """ゲートと検証の結果を CSV に取り込む。**verdict が ok 以外は本文を空にする。**"""
     src = sources_by_code()
@@ -469,6 +488,9 @@ def cmd_merge(args):
                 headline = analysis = ""
                 a_reason = "検証パス: " + (v.get("analysis_reason") or "材料から導けない")
 
+        summary, headline, analysis, s_reason, a_reason = pair_or_drop(
+            summary, headline, analysis, s_reason, a_reason)
+
         counts["n"] += 1
         counts["summary_ok"] += bool(summary)
         counts["analysis_ok"] += bool(analysis)
@@ -505,8 +527,12 @@ def cmd_merge(args):
             w.writerow(r)
 
     n = counts["n"]
+    # **対で出すので、通った社数は要約と分析で必ず一致する。** ずれたら対にする処理が
+    # 効いていないということなので、数を並べて出しておく。
     print(f"この回: {n}社 → 要約 ok {counts['summary_ok']}社 / "
-          f"分析 ok {counts['analysis_ok']}社", flush=True)
+          f"分析 ok {counts['analysis_ok']}社"
+          f"{'' if counts['summary_ok'] == counts['analysis_ok'] else '  ← 対になっていない'}",
+          flush=True)
     for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]):
         print(f"  {k}: {v}社", flush=True)
     print(f"→ {OUT}（{len(ordered)}行）", flush=True)

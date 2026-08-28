@@ -77,5 +77,32 @@ class SourcePath(unittest.TestCase):
         self.assertTrue(is_cut)
 
 
+class PairOrDrop(unittest.TestCase):
+    """**要約と分析は対で出す**（spec 1.19・AC-28）。"""
+
+    def test_両方あればそのまま(self):
+        got = generate.pair_or_drop("要約", "見出し", "本文", "", "")
+        self.assertEqual(got, ("要約", "見出し", "本文", "", ""))
+
+    def test_分析が無ければ要約も落とす(self):
+        s, h, a, sr, ar = generate.pair_or_drop("要約", "", "", "", "材料から導けない")
+        self.assertEqual((s, h, a), ("", "", ""))
+        self.assertIn("対で落とした", sr)
+        # **落ちた元の理由を残す。** 「対で落とした」だけだと、なぜ分析が付かなかったのかが
+        # 実行ログから消える。
+        self.assertIn("材料から導けない", sr)
+
+    def test_要約が無ければ分析も落とす(self):
+        # 原文に書いてあることすら書けなかった会社の解釈は据わりが悪い。**両方向で対にする。**
+        s, h, a, sr, ar = generate.pair_or_drop("", "見出し", "本文", "原文から支持されない", "")
+        self.assertEqual((s, h, a), ("", "", ""))
+        self.assertIn("対で落とした", ar)
+        self.assertIn("原文から支持されない", ar)
+
+    def test_両方無ければそのまま(self):
+        got = generate.pair_or_drop("", "", "", "要約が空", "分析が空")
+        self.assertEqual(got, ("", "", "", "要約が空", "分析が空"))
+
+
 if __name__ == "__main__":
     unittest.main()
