@@ -6,6 +6,8 @@
 
 親 Issue: [#158](https://github.com/varmil/nenshu/issues/158)。Unit は C5（[#159](https://github.com/varmil/nenshu/issues/159)）・C6（[#160](https://github.com/varmil/nenshu/issues/160)）・C7（[#161](https://github.com/varmil/nenshu/issues/161)）。施策は `docs/company/`。
 
+**一部が [ADR-0015](0015-company-analysis-subjectivity.md) で上書きされている**（決定2 の「評価語を書かない」が、分析セクションに限って覆った。2026-08-28）。
+
 **これは `docs/company/intent.md` の「作らないもの」を覆す決定である。** 方針転換の判断は運営者が 2026-08-23 に行い、ここに記録する。
 
 ## 文脈
@@ -44,6 +46,8 @@ XBRL 要素 `jpcrp_cor:DescriptionOfBusinessTextBlock` の値を原文として�
 **原文を増やして埋めない。** 沿革（`CompanyHistoryTextBlock`）と経営方針（`BusinessPolicyBusinessEnvironmentIssuesToAddressEtcTextBlock`）も見たが、前者は商号変更の年表、後者は中期経営計画の話で、「何をやっている会社か」には答えない。書けない会社は書けないままにする（決定2）。
 
 ### 2. 原文から導けない事実は書かない
+
+**【2026-08-28・ADR-0015】この決定のうち「評価語を書かない」の1点は、#214 の AI分析セクションに限って上書きされた**（[ADR-0015](0015-company-analysis-subjectivity.md) 決定1）。**説明文（C7）と要約セクションでは、この決定はそのまま効く。** また「原文に無い事実を書かない」——モデルの一般知識・報道・世評を材料にしない——は**分析セクションでも守る**ので、下のキーエンスの例が塞いだ経路は塞がったままである。
 
 生成に使う原文は**その会社の「事業の内容」1つだけ**とし、そこから導けないことは1文も書かない。**世間で知られている話をモデルの一般知識から補わない。評価語を書かない。**
 
