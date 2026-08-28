@@ -16,7 +16,7 @@ C8（[#240](https://github.com/varmil/nenshu/issues/240)・親 #214・ADR-0015�
 | ファイル | 大きさ | git |
 | --- | --- | --- |
 | `analysis_text_2026.csv`（切らない原文） | 167MB | **置かない** |
-| `analysis_text_head1800_2026.csv.gz`（節ごと1,800字） | gzip 15.8MB | **置く** |
+| `analysis_text_cut2200-1500-3000-1500_2026.csv.gz`（節ごとに切った版） | gzip 約18MB | **置く** |
 | `analysis_text_manifest_2026.csv`（節ごとの字数と SHA-1） | 740KB | **置く** |
 
 **切らない原文は git に置けない。** 実測で167MB（gzip 46.6MB）あり、`pipeline/data/` の
@@ -25,10 +25,10 @@ C8（[#240](https://github.com/varmil/nenshu/issues/240)・親 #214・ADR-0015�
 **切った版を置くのは、C9 のセッションを持ち運べるようにするため**（2026-08-28・運営者の
 判断）。**ZIP キャッシュ（326MB）はコンテナが変わると消える**ので、置かないと C9 の
 セッションごとに `fetch.py` の26分がかかる（**約48セッションで21時間**）。C9 が読むのは
-節ごと1,800字までなので、そこまでを置けば**キャッシュも EDINET キーも要らなくなる。**
+切った版までなので、それを置けば**キャッシュも EDINET キーも要らなくなる。**
 
-**切る長さは C9 のパイロットが決めた1,800字**（`docs/company/analysis-generation/design.md`）。
-**ファイル名に長さを入れてある**——変えたら別名になるので、古い版が残っていても混ざらない。
+**切る長さは節ごとに違う**（`CUT_CHARS`。理由はそこに書いてある）。**ファイル名に長さの並びを
+入れてある**——変えたら別名になるので、古い版が残っていても混ざらない。
 """
 
 import argparse
@@ -47,14 +47,32 @@ UNIVERSE = ROOT / "../data/ranking_unified_2026.csv"
 OUT = ROOT / "../data/analysis_text_2026.csv"
 MANIFEST = ROOT / "../data/analysis_text_manifest_2026.csv"
 
-# **git に置くほうの切り方。** C9 のパイロットが決めた値で、`generate.py` の
-# `--max-chars` の既定と同じ。**この定数からファイル名を組む**ので、長さを変えれば
-# 別名になり、古い版が残っていても混ざらない。
-CUT_CHARS = 1800
-CUT_OUT = ROOT / f"../data/analysis_text_head{CUT_CHARS}_2026.csv.gz"
-
 KEYS = [s.key for s in edinet.ANALYSIS_SECTIONS]
 LABELS = {s.key: s.label for s in edinet.ANALYSIS_SECTIONS}
+
+# **git に置くほうの切り方。節ごとに長さを変える。**
+#
+# C9 のパイロットは 1,800字一律で始めたが、**実測で固有名詞のほぼ半分が切り落とされて
+# いた**（全2,961社で、1,800字以内にある候補が中央73語・切ると落ちるだけの候補が中央67語。
+# 実例では ジェネレーションパスの「リコメン堂」が 1,947字目、三陽商会の「AUREME」が
+# 2,465字目）。**製品名・ブランド名が無いと分析が「本体のEC支援」のような言い方になる。**
+#
+# **節ごとに密度が違う**ので、一律に伸ばすより効く（カギ括弧で囲まれた語＝有報が製品名・
+# ブランド名・計画名を書く形、を1,800/2,500/3,000字で数えた）。
+#
+#   issues          64.8% → 76.3% → 82.2%  ← 節が短く（中央2,749字）、最も密
+#   mdna            40.4% → 50.8% → 56.7%
+#   risks           36.6% → 46.1% → 53.4%  ← 総論が先。製品名は少ない
+#   sustainability  34.2% → 43.0% → 48.2%  ← 語は最多だが大半が方針名
+#
+# **`issues` を厚くし、`risks` と `sustainability` を薄くして帳尻を合わせた。**
+# 1社あたり 6,968 → 7,553字（全社2,236万字・**約50セッション**。2,500字一律なら62回で、
+# しかも issues は76.3%にしかならない）。
+#
+# **この表からファイル名を組む**ので、長さを変えれば別名になり、古い版と混ざらない。
+CUT_CHARS = {"mdna": 2200, "risks": 1500, "issues": 3000, "sustainability": 1500}
+CUT_SIG = "-".join(str(CUT_CHARS[k]) for k in KEYS)
+CUT_OUT = ROOT / f"../data/analysis_text_cut{CUT_SIG}_2026.csv.gz"
 
 # EDINET 側の打ち切り。**ここでは復元しない**——原本の XBRL（`type=1`）を読めば伸びるが、
 # この Unit の範囲は「平均年間給与を拾ったのと同じ書類から拾う」ことに閉じている。
@@ -179,7 +197,7 @@ def main():
         w = csv.DictWriter(f, fieldnames=BASE_HEADERS + KEYS, extrasaction="ignore")
         w.writeheader()
         for r in out:
-            w.writerow({**r, **{k: (r[k] or "")[:CUT_CHARS] for k in KEYS}})
+            w.writerow({**r, **{k: (r[k] or "")[:CUT_CHARS[k]] for k in KEYS}})
 
     meta_headers = BASE_HEADERS + [c for k in KEYS for c in (f"{k}_len", f"{k}_sha1")] + ["truncated"]
     with open(MANIFEST, "w", encoding="utf-8", newline="") as f:
@@ -199,7 +217,8 @@ def main():
             print(f"    …ほか{len(bad) - 10}社", flush=True)
     report(out, len(rows))
     print(f"→ {OUT}（{OUT.stat().st_size / 1024 / 1024:.0f}MB・git には置かない）", flush=True)
-    print(f"→ {CUT_OUT.name}（節ごと{CUT_CHARS}字・"
+    cut_desc = " / ".join(f"{LABELS[k]}{CUT_CHARS[k]}" for k in KEYS)
+    print(f"→ {CUT_OUT.name}（{cut_desc}字・"
           f"{CUT_OUT.stat().st_size / 1024 / 1024:.1f}MB・git に置く）", flush=True)
     print(f"→ {MANIFEST.name}", flush=True)
 

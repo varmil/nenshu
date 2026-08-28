@@ -44,6 +44,15 @@ class SummaryGate(unittest.TestCase):
     def test_英字に隣り合う数字は数と見ない(self):
         self.assertEqual(gate.digit_runs("Web3 と 3PL を手がける。"), [])
 
+    def test_カギ括弧の中の数字は数えない(self):
+        # **具体的に書くほど上限に食い込む**のを避ける。止めたいのは量を並べることで、
+        # 名前を出すことではない。
+        self.assertEqual(gate.digit_runs("中期経営計画「変革2030」を掲げる。"), [])
+        self.assertEqual(gate.digit_runs("家電の「S!mplus」と「R-2000シリーズ」。"), [])
+
+    def test_カギ括弧の外の数字は数える(self):
+        self.assertEqual(gate.digit_runs("「変革2030」のもとで2割伸びた。"), ["2"])
+
     def test_通った要約が返る(self):
         text = "電子応用機器の開発を行う。" * 3 + "売上高は58,448百万円であった。" * 12
         got, reasons = gate.apply_summary_gate(text, NAME, SOURCE)

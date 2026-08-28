@@ -46,15 +46,17 @@ DATA = ROOT / "../data"
 
 # **原文は2つある。切らない版が git に無いので、切った版が既定の入り口になる。**
 #
-#   analysis_text_2026.csv                 切らない・167MB・gitignore
-#   analysis_text_head1800_2026.csv.gz     節ごと1,800字・15.8MB・**コミットする**
+#   analysis_text_2026.csv                       切らない・167MB・gitignore
+#   analysis_text_cut2200-1500-3000-1500_….gz    節ごとに切った版・**コミットする**
 #
 # **切らない版があればそちらを使う**——`--max-chars 0` で切らずに読ませる余地を残すため。
 # 無ければ切った版に落ちる。**ZIP キャッシュはコンテナが変わると消える**ので、
 # 切った版があることで C9 のセッションはキャッシュも EDINET キーも要らなくなる
 # （`extract_analysis.py` の表）。
 SOURCE = DATA / "analysis_text_2026.csv"
-CUT_SOURCE = DATA / f"analysis_text_head{extract_analysis.CUT_CHARS}_2026.csv.gz"
+# **名前は `extract_analysis` が持つ。** 切り方を変えるとファイル名も変わるので、
+# こちらで組み立てると片方だけ古くなる。
+CUT_SOURCE = DATA / extract_analysis.CUT_OUT.name
 MANIFEST = DATA / "analysis_text_manifest_2026.csv"
 UNIVERSE = DATA / "ranking_unified_2026.csv"
 SALARY_HISTORY = DATA / "salary_history.csv"
@@ -248,11 +250,16 @@ def cmd_plan(args):
         )
     if is_cut:
         cut = extract_analysis.CUT_CHARS
-        if args.max_chars == 0 or args.max_chars > cut:
+        if args.max_chars == 0:
             raise SystemExit(
-                f"読めるのは切った版（節ごと{cut}字）だけなので、"
-                f"--max-chars {args.max_chars or 0} は出せない。"
-                f"{cut}以下にするか、`python3 extract_analysis.py` で切らない版を作ること。"
+                "読めるのは切った版だけなので、--max-chars 0（切らない）は出せない。"
+                "`python3 extract_analysis.py` で切らない版を作ること。"
+            )
+        over = [f"{k}は{cut[k]}字" for k in KEYS if args.max_chars and args.max_chars > cut[k]]
+        if over:
+            raise SystemExit(
+                f"--max-chars {args.max_chars} は切った版から出せない（{' / '.join(over)}まで）。"
+                "`python3 extract_analysis.py` で切らない版を作ること。"
             )
         # **行数をマニフェストと突き合わせる。** 切った版は git 経由で運ばれてくるので、
         # 古い版が混ざっても字面では気づけない（C6・C8 の「ファイルを数える」と同じ線）。
@@ -299,8 +306,11 @@ def cmd_plan(args):
             sections = {}
             for k in KEYS:
                 text = r.get(k) or ""
-                if args.max_chars and len(text) > args.max_chars:
-                    text = text[: args.max_chars]
+                # **既定は節ごとの表**（`extract_analysis.CUT_CHARS`）。`--max-chars` を
+                # 渡したときだけ全節をその長さで切る。**0 は「切らない」。**
+                limit = extract_analysis.CUT_CHARS[k] if args.max_chars is None else args.max_chars
+                if limit and len(text) > limit:
+                    text = text[:limit]
                 used += len(text)
                 sections[k] = text
             figures = build_figures(r, uni_index, history, per_emp, ind_by_name, wl)
@@ -320,9 +330,10 @@ def cmd_plan(args):
           f"（1本 {args.size}社）", flush=True)
     print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}",
           flush=True)
-    print(f"エージェントに読ませる有報の原文: {used:,}字"
-          f"（節ごとに{args.max_chars or 0}字で切る{'' if args.max_chars else '＝切らない'}）",
-          flush=True)
+    how = ("節ごと（" + " / ".join(f"{k}{extract_analysis.CUT_CHARS[k]}" for k in KEYS) + "字）"
+           if args.max_chars is None else
+           ("切らない" if args.max_chars == 0 else f"全節{args.max_chars}字"))
+    print(f"エージェントに読ませる有報の原文: {used:,}字（{how}）", flush=True)
     print(f"→ {WORK}/batch_0001.json …", flush=True)
 
 
@@ -573,8 +584,10 @@ def main():
     a = sub.add_parser("plan")
     a.add_argument("--size", type=int, default=6)
     a.add_argument("--batches", type=int, default=1)
-    # **節ごとに切る。** 切る長さはパイロットで決める（design.md）。`0` で切らない。
-    a.add_argument("--max-chars", type=int, default=1800, help="0で打ち切らない")
+    # **既定は節ごとの表**（`extract_analysis.CUT_CHARS`）。全節を同じ長さにしたいときだけ
+    # 渡す。`0` で切らない（切らない版が要る）。
+    a.add_argument("--max-chars", type=int, default=None,
+                   help="全節をこの長さで切る（既定は節ごとの表。0で切らない）")
     a.add_argument("--pilot", action="store_true", help="回帰ケース＋無作為で選ぶ")
     a.add_argument("--seed", type=int, default=20260828)
     a.add_argument("--force", action="store_true")
