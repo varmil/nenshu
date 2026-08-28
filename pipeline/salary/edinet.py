@@ -61,6 +61,57 @@ TEXT_BLOCKS = {
     ),
 }
 
+# 要約と分析の原文になる4節（C8・#240・ADR-0015）。**要約も分析もここでは作らない**（C9）。
+#
+# **「事業の内容」はこの表に入っていない。** 説明文（C7）が同じ原文を使っており、
+# 両方を材料にすると1画面に同じ内容が2回出る（ADR-0015 決定4）。上の
+# `DescriptionOfBusinessTextBlock` は説明文だけのものとして残す。
+#
+# **要素名は `jpcrp_cor:` の完全一致で足りる。接尾辞で拾わない。** 着手前の想定は
+# 逆で、人的資本の節が会社独自の名前空間で来るため接尾辞マッチが要る、としていた
+# （#214・AC-24 の初版）。**実測で覆った**——1,476社で4節とも `jpcrp_cor:` から
+# 100.0 / 100.0 / 100.0 / 99.8% 取れており、人的資本の独自要素
+# （`jpcrp030000-asr_EXXXXX-000:StrategyHumanCapitalTextBlock` 等）を持つ331社でも、
+# **その中身はサステナビリティの節に丸ごと含まれている**（1,035件中1,009件。
+# 残り26件は9社ぶんで、いずれも親の節が30,000字の打ち切りに当たっている）。
+# 接尾辞にすると `ReferenceToOtherInformationStrategyHumanCapitalTextBlock`
+# （「他の節を参照してください」の1行）まで巻き込むので、広げる側の害のほうが大きい。
+AnalysisSection = namedtuple("AnalysisSection", "key element label")
+
+ANALYSIS_SECTIONS = (
+    AnalysisSection(
+        "mdna",
+        "jpcrp_cor:ManagementAnalysisOfFinancialPositionOperatingResultsAndCashFlowsTextBlock",
+        "経営者による分析",
+    ),
+    AnalysisSection("risks", "jpcrp_cor:BusinessRisksTextBlock", "事業等のリスク"),
+    AnalysisSection(
+        "issues",
+        "jpcrp_cor:BusinessPolicyBusinessEnvironmentIssuesToAddressEtcTextBlock",
+        "対処すべき課題",
+    ),
+    AnalysisSection(
+        "sustainability",
+        "jpcrp_cor:DisclosureOfSustainabilityRelatedFinancialInformationTextBlock",
+        "サステナビリティ",
+    ),
+)
+
+for _s in ANALYSIS_SECTIONS:
+    # 採り方は「事業の内容」と同じ——空でなければ集め、複数現れたら最長を採る
+    # （`businesstext.pick`）。**走査順で決めない**ためで、節ごとに変えていない。
+    TEXT_BLOCKS[_s.element] = TextBlockSpec(f"analysis__{_s.key}", lambda v: bool(v.strip()), True)
+
+
+def analysis_texts(parsed):
+    """`parse_csv_zip` の結果から4節の平文を作る。`{key: 平文}`。
+
+    **`to_record` には入れない。** あちらはランキングの1行を組み立てるもので、
+    `run.py`（2,961件）と `history.py`（17,684件）が全書類ぶん呼ぶ。1社あたり
+    約25,000字を毎回平文に直す理由が無い——**この4節を読むのは C8・C9 だけである。**
+    """
+    return {s.key: businesstext.pick(parsed.get(f"analysis__{s.key}")) for s in ANALYSIS_SECTIONS}
+
 
 def api_key():
     k = os.environ.get("EDINET_API_KEY")

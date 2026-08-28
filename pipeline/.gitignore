@@ -14,3 +14,10 @@ worklife/source/
 salary/cache/
 logo-cache/
 salary/out/
+
+# 分析用テキストの原文（C8・#240）。**194MB（gzip 54MB）あるので git に置かない。**
+# `pipeline/data/` の最大である business_text_2026.csv でも15.2MB で、桁が違う。
+# コミットするのは同じ工程が書く analysis_text_manifest_2026.csv（節ごとの字数と
+# SHA-1）のほうで、原文は summary/extract_analysis.py をキャッシュに対して回せば
+# 数分で作り直せる（EDINET を叩かない）。
+data/analysis_text_2026.csv

@@ -34,6 +34,7 @@ def _row(elem, value, ctx="FilingDateInstant", label=""):
 
 
 BUSINESS = "jpcrp_cor:DescriptionOfBusinessTextBlock"
+MDNA, RISKS, ISSUES, SUSTAINABILITY = (s.element for s in edinet.ANALYSIS_SECTIONS)
 EMPLOYEES = "jpcrp_cor:InformationAboutEmployeesTextBlock"
 META = [
     _row("jpdei_cor:EDINETCodeDEI", "E00001"),
@@ -126,6 +127,69 @@ class ToRecord(unittest.TestCase):
             })
             rec = edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))
             self.assertEqual(rec["business_text"], "こちらが長いほうの原文です。")
+
+
+class AnalysisTexts(unittest.TestCase):
+    """4節の抜き出し（C8・#240・AC-24）。"""
+
+    def _texts(self, rows):
+        with TemporaryDirectory() as d:
+            path = _zip(d, {"XBRL_TO_CSV/a.csv": META + rows})
+            return edinet.analysis_texts(edinet.parse_csv_zip(path))
+
+    def test_4節ぶんの鍵が常に揃う(self):
+        # **無い節を鍵ごと落とさない。** 呼び出し側（`extract_analysis`）に
+        # 「有る節だけ回す」分岐を作らせないため。
+        texts = self._texts([])
+        self.assertEqual(sorted(texts), ["issues", "mdna", "risks", "sustainability"])
+        self.assertEqual(set(texts.values()), {""})
+
+    def test_節ごとに平文で入る(self):
+        texts = self._texts([
+            _row(MDNA, "４【経営者による分析】　増収増益となりました。"),
+            _row(RISKS, "３【事業等のリスク】　為替変動の影響を受けます。"),
+            _row(ISSUES, "１【対処すべき課題】　海外展開を進めます。"),
+            _row(SUSTAINABILITY, "２【サステナビリティ】　人材育成方針を定めています。"),
+        ])
+        self.assertEqual(texts["mdna"], "４【経営者による分析】\n増収増益となりました。")
+        self.assertEqual(texts["risks"], "３【事業等のリスク】\n為替変動の影響を受けます。")
+        self.assertEqual(texts["issues"], "１【対処すべき課題】\n海外展開を進めます。")
+        self.assertEqual(texts["sustainability"], "２【サステナビリティ】\n人材育成方針を定めています。")
+
+    def test_複数あれば長いほうを採る(self):
+        with TemporaryDirectory() as d:
+            path = _zip(d, {
+                "XBRL_TO_CSV/a.csv": META + [_row(RISKS, "短いほう")],
+                "XBRL_TO_CSV/b.csv": [_row(RISKS, "こちらが長いほうの原文です。")],
+            })
+            self.assertEqual(edinet.analysis_texts(edinet.parse_csv_zip(path))["risks"],
+                             "こちらが長いほうの原文です。")
+
+    def test_人的資本の独自要素は拾わない(self):
+        # **接尾辞で拾わないことを固定する**（`edinet.ANALYSIS_SECTIONS` の注記）。
+        # 独自要素の中身はサステナビリティの節に含まれており（実測1,035件中1,009件）、
+        # 接尾辞にすると「他の節を参照してください」の1行まで巻き込む。
+        texts = self._texts([
+            _row(SUSTAINABILITY, "サステナビリティ全般。②戦略　人材育成方針。"),
+            _row("jpcrp030000-asr_E00001-000:StrategyHumanCapitalTextBlock", "②戦略　人材育成方針。"),
+            _row("jpcrp030000-asr_E00001-000:ReferenceToOtherInformationStrategyHumanCapitalTextBlock",
+                 "「１．サステナビリティ全般」を参照してください。"),
+        ])
+        self.assertEqual(texts["sustainability"], "サステナビリティ全般。②戦略\n人材育成方針。")
+
+    def test_事業の内容は4節に入らない(self):
+        # ADR-0015 決定4。説明文（C7）と同じ原文を材料にすると1画面に2回出る。
+        texts = self._texts([_row(BUSINESS, "３【事業の内容】　当社の事業。")])
+        self.assertEqual(set(texts.values()), {""})
+
+    def test_ランキングの記録には4節を入れない(self):
+        # `run.py`（2,961件）と `history.py`（17,684件）が全書類ぶん呼ぶので、
+        # 1社あたり約25,000字をそこで平文に直さない。
+        with TemporaryDirectory() as d:
+            path = _zip(d, {"XBRL_TO_CSV/a.csv": META + [_row(MDNA, "増収増益となりました。")]})
+            rec = edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))
+            self.assertNotIn("mdna", rec)
+            self.assertEqual(rec["business_text"], "")
 
 
 if __name__ == "__main__":
