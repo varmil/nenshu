@@ -5,7 +5,7 @@
   "scripts": {
     "build:data": "tsx scripts/build-data.ts",
     "test": "vitest run && npm run test:py",
-    "test:py": "python3 -m unittest discover -s salary -t salary -p 'test_*.py' && python3 -m unittest discover -s summary -t summary -p 'test_*.py'",
+    "test:py": "python3 -m unittest discover -s salary -t salary -p 'test_*.py' && python3 -m unittest discover -s summary -t summary -p 'test_*.py' && python3 -m unittest discover -s analysis -t analysis -p 'test_*.py'",
     "build:logos": "tsx scripts/build-logos.ts",
     "build:brand": "tsx scripts/build-brand.ts",
     "extract:worklife": "tsx worklife/extract.ts"
