@@ -240,6 +240,25 @@ def build_figures(row, uni_index, history, per_emp, ind_by_name, wl):
     return figures
 
 
+def cut_sections(row, max_chars=None):
+    """節ごとに切った版。**`plan` と `gate` の両方がこれを使う。**
+
+    **`gate` が検証パスに渡す `sections` が全文だった**（32回目に検証パス自身が
+    見つけた）。検証パスには「これが生成の見た材料だ」と伝えているので、**全文を渡すと
+    切った先を根拠にした指摘が出るし、こちらもそれを「切った版にある」と誤って
+    確かめてしまう**（実際、25回目以降は `gated_*.json` を grep して確かめていた）。
+    **切り方を2か所に書き写さない**ためにここへ寄せてある。
+    """
+    out = {}
+    for k in KEYS:
+        text = row.get(k) or ""
+        limit = extract_analysis.CUT_CHARS[k] if max_chars is None else max_chars
+        if limit and len(text) > limit:
+            text = text[:limit]
+        out[k] = text
+    return out
+
+
 def figures_context():
     """`build_figures` に渡す表をまとめて読む。
 
@@ -313,16 +332,10 @@ def cmd_plan(args):
             break
         payload = []
         for r in chunk:
-            sections = {}
-            for k in KEYS:
-                text = r.get(k) or ""
-                # **既定は節ごとの表**（`extract_analysis.CUT_CHARS`）。`--max-chars` を
-                # 渡したときだけ全節をその長さで切る。**0 は「切らない」。**
-                limit = extract_analysis.CUT_CHARS[k] if args.max_chars is None else args.max_chars
-                if limit and len(text) > limit:
-                    text = text[:limit]
-                used += len(text)
-                sections[k] = text
+            # **既定は節ごとの表**（`extract_analysis.CUT_CHARS`）。`--max-chars` を
+            # 渡したときだけ全節をその長さで切る。**0 は「切らない」。**
+            sections = cut_sections(r, args.max_chars)
+            used += sum(len(v) for v in sections.values())
             figures = build_figures(r, uni_index, history, per_emp, ind_by_name, wl)
             payload.append({
                 "edinet_code": r["edinet_code"],
@@ -434,7 +447,9 @@ def cmd_gate(args):
             "sources": rec.get("sources") or [],
             # **生成に渡したのと同じ数値を検証にも渡す**（`verify.md` の「材料」の表）。
             "figures": build_figures(row, uni_index, history, per_emp, ind_by_name, wl),
-            "sections": {k: row.get(k) or "" for k in KEYS},
+            # **生成に渡したのと同じ切った版を渡す。全文を渡さない**（上の
+            # `cut_sections` 参照）。
+            "sections": cut_sections(row, getattr(args, "max_chars", None)),
         })
 
     for i in range(0, len(items), args.chunk):
