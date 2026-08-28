@@ -92,16 +92,41 @@ export function sameSite(a: string, b: string): boolean {
  */
 const COPYRIGHT = /(?:copyright|\(c\)|&copy;|©)[^<]{0,120}/gi;
 
-export function verifySite(html: string, names: { ja: string; en: string }): boolean {
+export function verifySite(
+  html: string,
+  names: { ja: string; en: string },
+  guessedHost?: string
+): boolean {
   const hay = [titleOf(html), ...jsonLdNames(html), ...copyrightLines(html)]
     .filter(Boolean)
-    .map((s) => normalize(s!));
+    .map((s) => normalize(stripHost(s!, guessedHost)));
   if (hay.length === 0) return false;
-  const needles = [normalize(coreJa(names.ja)), normalize(coreEn(names.en))].filter(
-    (n) => n.length >= 2
-  );
-  if (needles.length === 0) return false;
-  return hay.some((h) => needles.some((n) => h.includes(n)));
+  // **照合するのは和文社名だけ。** 英字名も見ていた頃は、同じ英単語を持つ海外の会社を
+  // 拾っていた（ワークマン → Workman Publishing の hachettebookgroup.com、
+  // ルネサンス → renaissance.com、エイチ・アイ・エス → his.com）。
+  // **日本の上場企業の公式サイトなら、和文社名が `<title>` かコピーライトに出る。**
+  const needle = normalize(coreJa(names.ja));
+  if (needle.length < 2) return false;
+  return hay.some((h) => h.includes(needle));
+}
+
+/**
+ * **推定に使ったドメイン名を照合の前に取り除く。**
+ * ドメイン売却のパーキングページは `<社名>.com is for sale` と書くので、
+ * 社名がそのまま `<title>` に現れる——実測で `hugedomains.com` が5件・
+ * `forsale.dynadot.com` が1件、これで検証を通っていた。
+ * **ドメイン名の再掲は「その会社のサイトである」証拠にならない。**
+ */
+function stripHost(text: string, host: string | undefined): string {
+  if (!host) return text;
+  const labels = host.toLowerCase().split(".").filter((l) => l.length >= 2);
+  let out = text;
+  for (const l of labels) out = out.replace(new RegExp(escapeRe(l), "gi"), " ");
+  return out;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function titleOf(html: string): string | null {

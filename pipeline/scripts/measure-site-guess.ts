@@ -115,7 +115,7 @@ async function guessSite(fetcher: Fetcher, c: Company) {
   for (const host of domainCandidates(c.nameEn)) {
     const res = await fetchSite(fetcher, `https://${host}/`);
     if (!res) { tried.push({ host, status: 0, verified: false }); continue; }
-    const ok = verifySite(res.body.toString("utf-8"), { ja: c.nameJa, en: c.nameEn });
+    const ok = verifySite(res.body.toString("utf-8"), { ja: c.nameJa, en: c.nameEn }, host);
     tried.push({ host, status: res.status, verified: ok });
     if (ok) return { guess: res.url || `https://${host}/`, tried };
   }

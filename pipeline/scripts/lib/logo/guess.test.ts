@@ -60,7 +60,24 @@ describe("推定したサイトがその会社のものかの検証（precision 
   });
 
   it("コピーライト行でも通す", () => {
-    expect(verifySite("<footer>© Hokuhoku Financial Group</footer>", names)).toBe(true);
+    expect(verifySite("<footer>© ほくほくフィナンシャルグループ</footer>", names)).toBe(true);
+  });
+
+  it("英字名だけの一致では通さない（同じ英単語を持つ海外の会社を拾うため）", () => {
+    // 実測: ワークマン → Workman Publishing を抱える hachettebookgroup.com、
+    // ルネサンス → renaissance.com、エイチ・アイ・エス → his.com
+    expect(verifySite("<title>Hokuhoku Financial Group</title>", names)).toBe(false);
+  });
+
+  it("推定に使ったドメイン名の再掲では通さない（パーキングページ）", () => {
+    // 実測: `hugedomains.com` が5件・`forsale.dynadot.com` が1件、これで通っていた
+    const html = "<title>hokuhoku.com is for sale | HugeDomains</title>";
+    expect(verifySite(html, { ja: "hokuhoku", en: "" }, "hokuhoku.com")).toBe(false);
+  });
+
+  it("ドメイン名を取り除いても社名が残っていれば通す", () => {
+    const html = "<title>hokuhoku.com — ほくほくフィナンシャルグループ</title>";
+    expect(verifySite(html, names, "hokuhoku.com")).toBe(true);
   });
 
   it("別の会社のサイトは落とす", () => {
@@ -87,6 +104,10 @@ describe("推定したサイトがその会社のものかの検証（precision 
     expect(verifySite(html, names)).toBe(true);
   });
 
+  it("社名が本文にあるだけでは通さない（コピーライト行は例外的に見る）", () => {
+    expect(verifySite("<div>ほくほくフィナンシャルグループ</div>", names)).toBe(false);
+  });
+
   it("社名が2文字未満なら判定しない（何にでも当たるため）", () => {
     expect(verifySite("<title>なんでも</title>", { ja: "あ", en: "" })).toBe(false);
   });
@@ -94,7 +115,13 @@ describe("推定したサイトがその会社のものかの検証（precision 
   it("全角・中黒・大文字小文字の揺れを吸収する", () => {
     const n = { ja: "株式会社コスモ・バイオ", en: "Cosmo Bio Co., Ltd." };
     expect(verifySite("<title>コスモバイオ株式会社</title>", n)).toBe(true);
-    expect(verifySite("<title>COSMO BIO</title>", n)).toBe(true);
+  });
+
+  it("和文社名が英字の会社でも通る（NFKC で全角英字が半角になる）", () => {
+    const n = { ja: "ＳＣＳＫ株式会社", en: "SCSK Corporation" };
+    expect(verifySite("<title>SCSK株式会社</title>", n)).toBe(true);
+    // ただしパーキングページは落とす
+    expect(verifySite("<title>scsk.com is for sale</title>", n, "scsk.com")).toBe(false);
   });
 });
 
