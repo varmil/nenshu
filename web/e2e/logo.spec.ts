@@ -10,7 +10,14 @@ import { collectPageRequests, waitForRankingReady } from "./network";
  * 崩れないことがこの Unit の眼目なので、両方が出るページで見る。
  */
 const WITH_LOGO = { id: "6861", name: "株式会社キーエンス" };
-const WITHOUT_LOGO = { id: "285A", name: "キオクシアホールディングス株式会社", initial: "キ" };
+/**
+ * **ロゴを持たない会社は、到達率が上がるたびに入れ替わる。** 以前のキオクシアHD（285A）は
+ * 公式サイトのURLを人が見つけて `PINNED` に足したので、ロゴを持つ側へ移った。
+ * **選び直すときは「URLがどこにも無い269社」から採ること**——そこはサイトに届く手段が
+ * 無いので当面は変わらない（日本オラクルは Wikidata に P856 が無く、gBizINFO の
+ * `company_url` も null。`docs/logo/logo-pipeline/design.md`「公開後に直したもの6」）。
+ */
+const WITHOUT_LOGO = { id: "4716", name: "日本オラクル株式会社", initial: "日" };
 
 test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
   test("ロゴを持つ会社は画像が出る", async ({ page }) => {

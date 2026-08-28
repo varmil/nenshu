@@ -70,6 +70,31 @@ export class Fetcher {
   }
 }
 
+/**
+ * **`http://` で失敗したら `https://` に上げて1回だけやり直す。**
+ * Wikidata の公式サイト（P856）は古い `http://` のまま登録されていることが多く、
+ * いまはその宛先が生きていない会社がある——実測で、URL を持つ183社のうち**22社**が
+ * これだけで通る（オービックは `http://` が 503、`https://` が 200）。
+ *
+ * **上げるのは失敗したときだけ。** 先に `https://` を試す形にすると、`https` を持たない
+ * サイトで余計な1往復が全社に掛かる。**逆向き（https → http）はしない**——平文へ落として
+ * まで取りに行く理由が無い。
+ */
+export async function fetchSite(
+  fetcher: SiteFetcher,
+  site: string
+): Promise<FetchResult | null> {
+  const res = await fetcher.get(site);
+  if (res.status === 200 && res.body.length > 0) return res;
+  if (!site.startsWith("http://")) return null;
+  const upgraded = await fetcher.get(`https://${site.slice("http://".length)}`);
+  return upgraded.status === 200 && upgraded.body.length > 0 ? upgraded : null;
+}
+
+
+/** 取得だけを使う。テストが `Fetcher` を丸ごと作らずに済むように構造で受ける。 */
+export type SiteFetcher = Pick<Fetcher, "get">;
+
 /** 上限つきの並列実行。順序は保つ。 */
 export async function mapLimit<T, R>(
   items: readonly T[],

@@ -50,6 +50,34 @@ const PINNED: Record<string, Candidate> = {
   "9621": { source: "header", url: "https://www.ctie.co.jp/common/img/logo.svg" },
 
   /*
+    **公式サイトのURLが Wikidata にも gBizINFO にも無い会社。** ロゴが出ていない454社のうち
+    271社がこれで、**サイトを知らないので候補が1件も集まらない**（`noUrl`）。gBizINFO は
+    社名を返すのに `company_url` が null で、キオクシアHD・日本オラクル・グロービングとも
+    そうだった（API を直接叩いて確認）。**URLさえ分かればヘッダのロゴが取れる**ことは
+    実測してある——だから「取れないから諦める」ではなく、分かった会社から指定に足す。
+  */
+  "4051": { source: "header", url: "https://www.gmo-fg.com/images/common/logo.png" },
+  "285A": {
+    source: "header",
+    url: "https://www.kioxia.com/etc.clientlibs/kioxia-libs/clientlibs/kioxia/resources/component/kioxia_logo.svg",
+  },
+
+  /*
+    **URL はあるがロゴが1枚も取れなかった159社**に、下と同じ `og:image` の手当てを回した
+    ぶん。**通ったのは5件だけで、うち3件を採った**（ケイアイスター不動産は
+    `MOVE ON TO THE NEXT STAGE` の広告バナー、オリエンタルチエン工業はページの
+    サムネイル画像だったので落とした）。
+    **残り154社の壁は `og:image` ではなくサイトに届かないこと**——116社は HTML が
+    取れず、36社は `og:image` を持っていない。
+    正興電機製作所（6653）は上の引き上げで 32×9 の favicon が出るようになった会社で、
+    **器の中では読めない**ので同じ手当てを当てた。
+  */
+  "2791": { source: "ogp", url: "https://www.e-dkt.co.jp/common/images/ogp.png" },
+  "4820": { source: "ogp", url: "https://emsystems.co.jp/top_img/logo_ogp.jpg" },
+  "5408": { source: "ogp", url: "https://www.nakayama-steel.co.jp/cmn/img/ogp.jpg" },
+  "6653": { source: "ogp", url: "https://www.seiko-denki.co.jp/common/img/ogp.png" },
+
+  /*
     以下は**器の中でファビコンとして出ていた会社**（Issue #221 の続き・運営者の指摘）。
     公式サイトの構造からロゴが1つも取れず（ヘッダのロゴが CSS の背景画像・JSで後から
     差し込まれる・インライン SVG のいずれか）、最後の候補である favicon まで落ちていた。
