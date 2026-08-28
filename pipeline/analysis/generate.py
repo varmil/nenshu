@@ -240,6 +240,28 @@ def build_figures(row, uni_index, history, per_emp, ind_by_name, wl):
     return figures
 
 
+def figures_context():
+    """`build_figures` に渡す表をまとめて読む。
+
+    **`plan` と `gate` の両方が同じ数値を必要とする。** 生成に渡した `figures` を検証にも
+    渡さないと、**検証パスが数値の根拠を見ないまま通す**（C9 の16回目に検証側から指摘が
+    来た。`verify.md` は `figures` があると書いていたのに、`gated_NNNN.json` は持って
+    いなかった）。**読み方を2か所に書き写さない**ためにここへ寄せてある。
+    """
+    uni = universe()
+    uni_index = {}
+    industries = sorted({u.get("tse33") or "" for u in uni})
+    for i, u in enumerate(uni):
+        u["_index"] = i
+        uni_index[u["edinet_code"]] = u
+    per_emp, ind_median = profit_per_employee()
+    ind_by_name = {}
+    if isinstance(ind_median, list) and len(ind_median) == len(industries) - (1 if "" in industries else 0):
+        names = [n for n in industries if n]
+        ind_by_name = dict(zip(names, ind_median))
+    return uni_index, salary_history(), per_emp, ind_by_name, worklife()
+
+
 def cmd_plan(args):
     src_path, is_cut = source_path()
     if not src_path.exists():
@@ -281,19 +303,7 @@ def cmd_plan(args):
         random.Random(args.seed).shuffle(rest)
         rows = anchors + rest[: max(0, args.size * args.batches - len(anchors))]
 
-    uni = universe()
-    uni_index = {}
-    for i, u in enumerate(uni):
-        u["_index"] = i
-        uni_index[u["edinet_code"]] = u
-    industries = sorted({u.get("tse33") or "" for u in uni})
-    history = salary_history()
-    per_emp, ind_median = profit_per_employee()
-    ind_by_name = {}
-    if isinstance(ind_median, list) and len(ind_median) == len(industries) - (1 if "" in industries else 0):
-        names = [n for n in industries if n]
-        ind_by_name = dict(zip(names, ind_median))
-    wl = worklife()
+    uni_index, history, per_emp, ind_by_name, wl = figures_context()
 
     WORK.mkdir(exist_ok=True)
     made = used = 0
@@ -394,7 +404,7 @@ def cmd_gate(args):
     そのものに対して行う。
     """
     src = sources_by_code()
-    history = salary_history()
+    uni_index, history, per_emp, ind_by_name, wl = figures_context()
     total = s_pass = a_pass = 0
     items = []
     for rec in _load_generated():
@@ -422,6 +432,8 @@ def cmd_gate(args):
             "headline": headline,
             "analysis": analysis,
             "sources": rec.get("sources") or [],
+            # **生成に渡したのと同じ数値を検証にも渡す**（`verify.md` の「材料」の表）。
+            "figures": build_figures(row, uni_index, history, per_emp, ind_by_name, wl),
             "sections": {k: row.get(k) or "" for k in KEYS},
         })
 
