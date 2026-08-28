@@ -102,6 +102,13 @@ class ApplyGate(unittest.TestCase):
         self.assertTrue(any("ファブレス" in r for r in reasons))
         self.assertTrue(any("高い収益性" in r for r in reasons))
 
+    def test_語形の違う評価語も落ちる(self):
+        # 「高い収益性」は入っていたが「収益性の高い」は素通りしていた（C9 の15回目）。
+        bad = OK + "収益性の高い事業を中心に展開している。"
+        text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, OK)
+        self.assertTrue(any("収益性の高い" in r for r in reasons))
+
     def test_社名が入った文は落ちる(self):
         bad = "キーエンスは電子応用機器を作る。" + OK
         text, _ = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
