@@ -9,20 +9,31 @@ C8（[#240](https://github.com/varmil/nenshu/issues/240)・親 #214・ADR-0015�
 （C5 の `extract.py` と同じ）。
 
   python3 fetch.py             # 未取得の書類を落とす（キャッシュが生きていれば0件）
-  python3 extract_analysis.py  # → ../data/analysis_text_2026.csv（＋マニフェスト）
+  python3 extract_analysis.py  # → ../data/analysis_text_*.csv（3つ書く）
 
-**原文の CSV は git に置かない**（`pipeline/.gitignore`）。実測で **194MB**（gzip 54MB）
-あり、`pipeline/data/` の最大である `business_text_2026.csv` の15.2MB とは桁が違う。
-代わりに**マニフェスト**——会社ごと・節ごとの字数と SHA-1——をコミットする。C9 が
-「原文が変わった会社だけ回し直す」ために要るのはこちらで、原文そのものはキャッシュから
-数分で作り直せる（EDINET を叩かない）。
+**書くものが3つある。**
 
-**切るのは C9 の仕事。** `--max-chars` は持っているが既定では切らない——切る長さは
-60社のパイロットで決まる（ADR-0015 決定2）ので、**C8 が先に決めて原文を捨てない。**
+| ファイル | 大きさ | git |
+| --- | --- | --- |
+| `analysis_text_2026.csv`（切らない原文） | 167MB | **置かない** |
+| `analysis_text_head1800_2026.csv.gz`（節ごと1,800字） | gzip 15.8MB | **置く** |
+| `analysis_text_manifest_2026.csv`（節ごとの字数と SHA-1） | 740KB | **置く** |
+
+**切らない原文は git に置けない。** 実測で167MB（gzip 46.6MB）あり、`pipeline/data/` の
+最大である `business_text_2026.csv` の15.2MB とは桁が違う。
+
+**切った版を置くのは、C9 のセッションを持ち運べるようにするため**（2026-08-28・運営者の
+判断）。**ZIP キャッシュ（326MB）はコンテナが変わると消える**ので、置かないと C9 の
+セッションごとに `fetch.py` の26分がかかる（**約48セッションで21時間**）。C9 が読むのは
+節ごと1,800字までなので、そこまでを置けば**キャッシュも EDINET キーも要らなくなる。**
+
+**切る長さは C9 のパイロットが決めた1,800字**（`docs/company/analysis-generation/design.md`）。
+**ファイル名に長さを入れてある**——変えたら別名になるので、古い版が残っていても混ざらない。
 """
 
 import argparse
 import csv
+import gzip
 import hashlib
 import statistics
 import sys
@@ -35,6 +46,12 @@ ROOT = Path(__file__).resolve().parent
 UNIVERSE = ROOT / "../data/ranking_unified_2026.csv"
 OUT = ROOT / "../data/analysis_text_2026.csv"
 MANIFEST = ROOT / "../data/analysis_text_manifest_2026.csv"
+
+# **git に置くほうの切り方。** C9 のパイロットが決めた値で、`generate.py` の
+# `--max-chars` の既定と同じ。**この定数からファイル名を組む**ので、長さを変えれば
+# 別名になり、古い版が残っていても混ざらない。
+CUT_CHARS = 1800
+CUT_OUT = ROOT / f"../data/analysis_text_head{CUT_CHARS}_2026.csv.gz"
 
 KEYS = [s.key for s in edinet.ANALYSIS_SECTIONS]
 LABELS = {s.key: s.label for s in edinet.ANALYSIS_SECTIONS}
@@ -156,6 +173,14 @@ def main():
         for r in out:
             w.writerow(r)
 
+    # **git に置く版。** 節ごとに `CUT_CHARS` で切って gzip で書く。**列は切らない版と
+    # 同じ**にしてあり、`generate.py` はどちらを読んでも同じように扱える。
+    with gzip.open(CUT_OUT, "wt", encoding="utf-8", newline="", compresslevel=6) as f:
+        w = csv.DictWriter(f, fieldnames=BASE_HEADERS + KEYS, extrasaction="ignore")
+        w.writeheader()
+        for r in out:
+            w.writerow({**r, **{k: (r[k] or "")[:CUT_CHARS] for k in KEYS}})
+
     meta_headers = BASE_HEADERS + [c for k in KEYS for c in (f"{k}_len", f"{k}_sha1")] + ["truncated"]
     with open(MANIFEST, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=meta_headers, extrasaction="ignore")
@@ -173,8 +198,10 @@ def main():
         if len(bad) > 10:
             print(f"    …ほか{len(bad) - 10}社", flush=True)
     report(out, len(rows))
-    print(f"→ {OUT}（git には置かない）", flush=True)
-    print(f"→ {MANIFEST}", flush=True)
+    print(f"→ {OUT}（{OUT.stat().st_size / 1024 / 1024:.0f}MB・git には置かない）", flush=True)
+    print(f"→ {CUT_OUT.name}（節ごと{CUT_CHARS}字・"
+          f"{CUT_OUT.stat().st_size / 1024 / 1024:.1f}MB・git に置く）", flush=True)
+    print(f"→ {MANIFEST.name}", flush=True)
 
 
 if __name__ == "__main__":

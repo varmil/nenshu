@@ -29,6 +29,7 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
 
 import argparse
 import csv
+import gzip
 import hashlib
 import json
 import random
@@ -38,10 +39,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gate  # noqa: E402
+import extract_analysis  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
 DATA = ROOT / "../data"
+
+# **原文は2つある。切らない版が git に無いので、切った版が既定の入り口になる。**
+#
+#   analysis_text_2026.csv                 切らない・167MB・gitignore
+#   analysis_text_head1800_2026.csv.gz     節ごと1,800字・15.8MB・**コミットする**
+#
+# **切らない版があればそちらを使う**——`--max-chars 0` で切らずに読ませる余地を残すため。
+# 無ければ切った版に落ちる。**ZIP キャッシュはコンテナが変わると消える**ので、
+# 切った版があることで C9 のセッションはキャッシュも EDINET キーも要らなくなる
+# （`extract_analysis.py` の表）。
 SOURCE = DATA / "analysis_text_2026.csv"
+CUT_SOURCE = DATA / f"analysis_text_head{extract_analysis.CUT_CHARS}_2026.csv.gz"
 MANIFEST = DATA / "analysis_text_manifest_2026.csv"
 UNIVERSE = DATA / "ranking_unified_2026.csv"
 SALARY_HISTORY = DATA / "salary_history.csv"
@@ -82,10 +95,21 @@ csv.field_size_limit(200 * 1024 * 1024)
 
 
 def read_csv(path):
-    if not Path(path).exists():
+    """CSV を読む。**`.gz` なら展開しながら読む**（切った版はそれで置いてある）。"""
+    path = Path(path)
+    if not path.exists():
         return []
-    with open(path, encoding="utf-8-sig") as f:
+    opener = (lambda: gzip.open(path, "rt", encoding="utf-8-sig")) if path.suffix == ".gz" \
+        else (lambda: open(path, encoding="utf-8-sig"))
+    with opener() as f:
         return list(csv.DictReader(f))
+
+
+def source_path():
+    """使う原文と、それが切った版かどうか。**切らない版を優先する。**"""
+    if SOURCE.exists():
+        return SOURCE, False
+    return CUT_SOURCE, True
 
 
 def _num(v):
@@ -137,7 +161,7 @@ def universe():
 
 
 def sources_by_code():
-    return {r["edinet_code"]: r for r in read_csv(SOURCE)}
+    return {r["edinet_code"]: r for r in read_csv(source_path()[0])}
 
 
 def combined_sha1(manifest_row):
@@ -215,11 +239,29 @@ def build_figures(row, uni_index, history, per_emp, ind_by_name, wl):
 
 
 def cmd_plan(args):
-    if not SOURCE.exists():
+    src_path, is_cut = source_path()
+    if not src_path.exists():
         raise SystemExit(
-            f"{SOURCE} が無い。git には置いていない（175MB）ので、"
-            "`python3 extract_analysis.py` をキャッシュに対して回して作ること（27秒）。"
+            f"{CUT_SOURCE.name} も {SOURCE.name} も無い。"
+            "切った版は git にあるはずなので、まず `git status` を見ること。"
+            "作り直すなら `python3 extract_analysis.py`（キャッシュがあれば51秒）。"
         )
+    if is_cut:
+        cut = extract_analysis.CUT_CHARS
+        if args.max_chars == 0 or args.max_chars > cut:
+            raise SystemExit(
+                f"読めるのは切った版（節ごと{cut}字）だけなので、"
+                f"--max-chars {args.max_chars or 0} は出せない。"
+                f"{cut}以下にするか、`python3 extract_analysis.py` で切らない版を作ること。"
+            )
+        # **行数をマニフェストと突き合わせる。** 切った版は git 経由で運ばれてくるので、
+        # 古い版が混ざっても字面では気づけない（C6・C8 の「ファイルを数える」と同じ線）。
+        want, got = len(manifest()), len(sources_by_code())
+        if want != got:
+            raise SystemExit(
+                f"{src_path.name} は {got}社だが、マニフェストは {want}社。"
+                "版がずれているので `python3 extract_analysis.py` で作り直すこと。"
+            )
     rows = pending(force=args.force)
     if args.pilot:
         by_sec = {}
@@ -276,6 +318,8 @@ def cmd_plan(args):
 
     print(f"未生成 {len(pending(force=args.force))}社 → バッチ {made}本"
           f"（1本 {args.size}社）", flush=True)
+    print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}",
+          flush=True)
     print(f"エージェントに読ませる有報の原文: {used:,}字"
           f"（節ごとに{args.max_chars or 0}字で切る{'' if args.max_chars else '＝切らない'}）",
           flush=True)
