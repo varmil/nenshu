@@ -109,6 +109,13 @@ class ApplyGate(unittest.TestCase):
         self.assertEqual(text, OK)
         self.assertTrue(any("収益性の高い" in r for r in reasons))
 
+    def test_強みの語形違いも落ちる(self):
+        # 「強みと」は入っていたが「強みである」は素通りしていた（C9 の42回目・住友化学）。
+        bad = OK + "強みである有機合成技術を軸に事業を進める。"
+        text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, OK)
+        self.assertTrue(any("強みである" in r for r in reasons))
+
     def test_社名が入った文は落ちる(self):
         bad = "キーエンスは電子応用機器を作る。" + OK
         text, _ = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
