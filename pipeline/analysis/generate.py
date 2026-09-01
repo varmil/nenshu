@@ -64,6 +64,7 @@ SALARY_HISTORY = DATA / "salary_history.csv"
 # 年ごとの生の CSV（`performance_history.csv`）で、「直近5期の中央値 ÷ 従業員数」に
 # するのは `build-data.ts` の仕事——**規則を Python 側に書き写さない。**
 PERFORMANCE = ROOT / "../../web/public/data/performance.json"
+COMPANIES = ROOT / "../../web/public/data/companies.json"
 WORKLIFE = DATA / "worklife_2026.csv"
 OUT = DATA / "company_analysis_2026.csv"
 WORK = ROOT / "work"
@@ -150,7 +151,16 @@ def profit_per_employee():
     if not PERFORMANCE.exists():
         return [], {}
     d = json.loads(PERFORMANCE.read_text(encoding="utf-8"))
-    return d.get("perEmployee") or [], d.get("industryMedian") or []
+    medians = d.get("industryMedian") or []
+    # **業種名の並びは `companies.json` の `industries` から取る。ここで並べ直さない。**
+    # `build-data.ts` は `localeCompare(a, b, "ja")` で並べており、Python の `sorted()`
+    # （コードポイント順）とは**33業種中31業種でずれる**（13回目に生成側が見つけた。
+    # 機械（三井海洋開発）に鉱業の 3,845万円が入り、電気機器には 587万円が入っていた）。
+    names = []
+    if COMPANIES.exists():
+        names = json.loads(COMPANIES.read_text(encoding="utf-8")).get("industries") or []
+    by_name = dict(zip(names, medians)) if len(names) == len(medians) else {}
+    return d.get("perEmployee") or [], by_name
 
 
 def worklife():
@@ -295,15 +305,10 @@ def figures_context():
     """
     uni = universe()
     uni_index = {}
-    industries = sorted({u.get("tse33") or "" for u in uni})
     for i, u in enumerate(uni):
         u["_index"] = i
         uni_index[u["edinet_code"]] = u
-    per_emp, ind_median = profit_per_employee()
-    ind_by_name = {}
-    if isinstance(ind_median, list) and len(ind_median) == len(industries) - (1 if "" in industries else 0):
-        names = [n for n in industries if n]
-        ind_by_name = dict(zip(names, ind_median))
+    per_emp, ind_by_name = profit_per_employee()
     return uni_index, salary_history(), per_emp, ind_by_name, worklife()
 
 
