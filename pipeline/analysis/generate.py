@@ -86,14 +86,16 @@ HEADERS = [
     "summary_reason",
     "analysis_verdict",
     "analysis_reason",
-    # **要約の規格の版**（50回目に足した）。空は改める前の版で、そこでは要約が
-    # 「当期の業績はどうだったか」を数値で書いていた（316社の実測で中央27個）。
-    # **`plan --resummarize` はこの列で対象を選ぶ**ので、規格を改めたら値を上げる。
-    "summary_spec",
+    # **規格の版**（50回目に足した）。空は改める前の版で、**要約は当期の業績を数値で
+    # 書き**（316社の実測で中央27個）、**分析は材料の言い直しにとどまっていた**。
+    # **`plan --regenerate` はこの列で対象を選ぶ**ので、規格を改めたら値を上げる。
+    "spec",
 ]
 
-# いまの要約の規格の版。**`prompts/generate.md` の「## 要約の規格」と対で動かす。**
-SUMMARY_SPEC = "2"
+# いまの規格の版。**`prompts/generate.md` の「## 要約の規格」「## 分析の規格」と
+# 対で動かす。** 2 = 要約は「何をしている会社か」（50回目・運営者の指示）、
+# 分析は推測してよい（ADR-0016）。
+SPEC = "2"
 
 # 目視の回帰ケース。**パイロットには必ず入れる。**
 # #214 が**この5社について「好調かどうかの一言」を人手で書いている**ので、
@@ -187,12 +189,12 @@ def done():
     return {r["edinet_code"]: r for r in read_csv(OUT)}
 
 
-def pending(force=False, resummarize=False):
+def pending(force=False, regenerate=False):
     """未生成の会社。**4節の SHA-1 が変わった会社も入れる。**
 
-    `resummarize=True` のときは逆で、**既に生成済みで、要約が古い規格のもの**を返す
-    （50回目に足した）。分析の規格は変わっていないので、そちらは持ち回って使う——
-    生成に渡す `batch` へ既存の要約・分析を `existing` として入れてある。
+    `regenerate=True` のときは逆で、**既に生成済みで、規格の版が古いもの**を返す
+    （50回目に足した）。**要約も分析も作り直す**——50回目に両方の規格が変わったので、
+    片方だけ持ち回っても古い版が残る。
     """
     have = done()
     man = manifest()
@@ -202,13 +204,12 @@ def pending(force=False, resummarize=False):
         if m is None:
             continue
         old = have.get(code)
-        if resummarize:
-            # 生成済みで、要約が通っていて、規格の版が古いものだけ。**落ちている社は
-            # 対象にしない**——あちらは `pending()` が別に拾う（SHA-1 が同じなら拾わないが、
-            # 落ちた社を作り直すのは `--force` の仕事で、規格の入れ替えとは別の話）。
+        if regenerate:
+            # 生成済みで、規格の版が古いものだけ。**落ちている社は対象にしない**——
+            # 落ちた社を作り直すのは `--force` の仕事で、規格の入れ替えとは別の話。
             if old is None or not old.get("summary"):
                 continue
-            if (old.get("summary_spec") or "") == SUMMARY_SPEC:
+            if (old.get("spec") or "") == SPEC:
                 continue
             out.append(row)
             continue
@@ -335,7 +336,7 @@ def cmd_plan(args):
                 f"{src_path.name} は {got}社だが、マニフェストは {want}社。"
                 "版がずれているので `python3 extract_analysis.py` で作り直すこと。"
             )
-    rows = pending(force=args.force, resummarize=args.resummarize)
+    rows = pending(force=args.force, regenerate=args.regenerate)
     if args.pilot:
         by_sec = {}
         for r in rows:
@@ -348,10 +349,6 @@ def cmd_plan(args):
         rows = anchors + rest[: max(0, args.size * args.batches - len(anchors))]
 
     uni_index, history, per_emp, ind_by_name, wl = figures_context()
-    # **作り直しでは既存の分析を持ち回る**（50回目）。要約の規格だけが変わったので、
-    # 分析まで書き直すと同じ材料から同じものを作り直すだけになる——生成には
-    # 「要約を書き、分析は `existing` をそのまま写す」と伝える。
-    have = done() if args.resummarize else {}
 
     WORK.mkdir(exist_ok=True)
     made = used = 0
@@ -366,28 +363,19 @@ def cmd_plan(args):
             sections = cut_sections(r, args.max_chars)
             used += sum(len(v) for v in sections.values())
             figures = build_figures(r, uni_index, history, per_emp, ind_by_name, wl)
-            item = {
+            payload.append({
                 "edinet_code": r["edinet_code"],
                 "sec_code": r.get("sec_code") or "",
                 "name": r.get("name") or "",
                 "sections": sections,
                 "figures": figures,
-            }
-            old = have.get(r["edinet_code"])
-            if old:
-                item["existing"] = {
-                    "summary": old.get("summary") or "",
-                    "headline": old.get("headline") or "",
-                    "analysis": old.get("analysis") or "",
-                    "sources": json.loads(old.get("sources") or "[]"),
-                }
-            payload.append(item)
+            })
         path = _batch_path("batch", made + 1)
         path.write_text(json.dumps({"batch": made + 1, "companies": payload},
                                    ensure_ascii=False, indent=1), encoding="utf-8")
         made += 1
 
-    label = "要約が古い規格" if args.resummarize else "未生成"
+    label = "規格が古い" if args.regenerate else "未生成"
     print(f"{label} {len(rows)}社 → バッチ {made}本"
           f"（1本 {args.size}社）", flush=True)
     print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}",
@@ -592,7 +580,7 @@ def cmd_merge(args):
             "summary_reason": s_reason,
             "analysis_verdict": "ok" if analysis else "rejected",
             "analysis_reason": a_reason,
-            "summary_spec": SUMMARY_SPEC if summary else "",
+            "spec": SPEC if summary else "",
         }
 
     order = list(src)
@@ -657,8 +645,8 @@ def main():
     a.add_argument("--pilot", action="store_true", help="回帰ケース＋無作為で選ぶ")
     a.add_argument("--seed", type=int, default=20260828)
     a.add_argument("--force", action="store_true")
-    a.add_argument("--resummarize", action="store_true",
-                   help="要約の規格が古い社を選ぶ（分析は既存を持ち回る）")
+    a.add_argument("--regenerate", action="store_true",
+                   help="規格の版が古い社を選び直す（要約も分析も作り直す）")
     a.set_defaults(func=cmd_plan)
 
     b = sub.add_parser("gate")
