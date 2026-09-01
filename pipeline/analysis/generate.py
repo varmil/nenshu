@@ -86,7 +86,16 @@ HEADERS = [
     "summary_reason",
     "analysis_verdict",
     "analysis_reason",
+    # **規格の版**（50回目に足した）。空は改める前の版で、**要約は当期の業績を数値で
+    # 書き**（316社の実測で中央27個）、**分析は材料の言い直しにとどまっていた**。
+    # **`plan --regenerate` はこの列で対象を選ぶ**ので、規格を改めたら値を上げる。
+    "spec",
 ]
+
+# いまの規格の版。**`prompts/generate.md` の「## 要約の規格」「## 分析の規格」と
+# 対で動かす。** 2 = 要約は「何をしている会社か」（50回目・運営者の指示）、
+# 分析は推測してよい（ADR-0016）。
+SPEC = "2"
 
 # 目視の回帰ケース。**パイロットには必ず入れる。**
 # #214 が**この5社について「好調かどうかの一言」を人手で書いている**ので、
@@ -180,9 +189,14 @@ def done():
     return {r["edinet_code"]: r for r in read_csv(OUT)}
 
 
-def pending(force=False):
-    """未生成の会社。**4節の SHA-1 が変わった会社も入れる。**"""
-    have = {} if force else done()
+def pending(force=False, regenerate=False):
+    """未生成の会社。**4節の SHA-1 が変わった会社も入れる。**
+
+    `regenerate=True` のときは逆で、**既に生成済みで、規格の版が古いもの**を返す
+    （50回目に足した）。**要約も分析も作り直す**——50回目に両方の規格が変わったので、
+    片方だけ持ち回っても古い版が残る。
+    """
+    have = done()
     man = manifest()
     out = []
     for code, row in sources_by_code().items():
@@ -190,6 +204,18 @@ def pending(force=False):
         if m is None:
             continue
         old = have.get(code)
+        if regenerate:
+            # 生成済みで、規格の版が古いものだけ。**落ちている社は対象にしない**——
+            # 落ちた社を作り直すのは `--force` の仕事で、規格の入れ替えとは別の話。
+            if old is None or not old.get("summary"):
+                continue
+            if (old.get("spec") or "") == SPEC:
+                continue
+            out.append(row)
+            continue
+        if force:
+            out.append(row)
+            continue
         if old is not None and old.get("source_sha1") == combined_sha1(m):
             continue
         out.append(row)
@@ -310,7 +336,7 @@ def cmd_plan(args):
                 f"{src_path.name} は {got}社だが、マニフェストは {want}社。"
                 "版がずれているので `python3 extract_analysis.py` で作り直すこと。"
             )
-    rows = pending(force=args.force)
+    rows = pending(force=args.force, regenerate=args.regenerate)
     if args.pilot:
         by_sec = {}
         for r in rows:
@@ -349,7 +375,8 @@ def cmd_plan(args):
                                    ensure_ascii=False, indent=1), encoding="utf-8")
         made += 1
 
-    print(f"未生成 {len(pending(force=args.force))}社 → バッチ {made}本"
+    label = "規格が古い" if args.regenerate else "未生成"
+    print(f"{label} {len(rows)}社 → バッチ {made}本"
           f"（1本 {args.size}社）", flush=True)
     print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}",
           flush=True)
@@ -391,8 +418,7 @@ def _load_generated():
 def _apply_gates(rec, row, history, max_digits):
     """1社ぶんに両方のゲートを当てる。`(要約, 見出し, 本文, 要約の理由, 分析の理由)`。"""
     joined = "\n".join(row.get(k) or "" for k in KEYS)
-    summary, s_reasons = gate.apply_summary_gate(rec.get("summary", ""), row.get("name") or "",
-                                                 joined)
+    summary, s_reasons = gate.apply_summary_gate(rec.get("summary", ""), joined)
     headline, analysis, a_reasons = gate.apply_analysis_gate(
         rec.get("headline", ""), rec.get("analysis", ""), rec.get("sources") or [],
         max_digits=max_digits)
@@ -554,6 +580,7 @@ def cmd_merge(args):
             "summary_reason": s_reason,
             "analysis_verdict": "ok" if analysis else "rejected",
             "analysis_reason": a_reason,
+            "spec": SPEC if summary else "",
         }
 
     order = list(src)
@@ -618,6 +645,8 @@ def main():
     a.add_argument("--pilot", action="store_true", help="回帰ケース＋無作為で選ぶ")
     a.add_argument("--seed", type=int, default=20260828)
     a.add_argument("--force", action="store_true")
+    a.add_argument("--regenerate", action="store_true",
+                   help="規格の版が古い社を選び直す（要約も分析も作り直す）")
     a.set_defaults(func=cmd_plan)
 
     b = sub.add_parser("gate")

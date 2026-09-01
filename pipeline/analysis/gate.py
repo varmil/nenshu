@@ -9,9 +9,18 @@ C9（[#241](https://github.com/varmil/nenshu/issues/241)・親 #214・ADR-0015�
 | | 要約 | 分析 |
 | --- | --- | --- |
 | 評価語 | **落とす**（C6 の表をそのまま使う） | **通す**（これが本体） |
-| 社名 | 落とす（h1 にある） | 通す（地の文なので「同社は」等が自然） |
-| 算用数字 | 通すが、**原文に無い数は落とす** | **個数に上限**（ADR-0015 決定2） |
+| 社名 | **通す**（50回目に外した。下記） | 通す（地の文なので「同社は」等が自然） |
+| 算用数字 | **個数に上限**（50回目に足した）。通すものも**原文に無い数は落とす** | **個数に上限**（ADR-0015 決定2） |
 | 原文に無い固有名詞 | 落とす | **見ない** |
+
+**要約で社名を落とすのは 50回目にやめた**（運営者の指示）。C6 から引き継いだ規則で、
+理由は「h1 に社名が出ているから繰り返さない」という表示上のものだったが、
+**`name_tokens` は社名の語を含む子会社名・ブランド名・サービス名まで巻き込む**——
+いちご（16回目）は理念と投資法人の名前が、太陽ホールディングス（21回目）は太陽ファルマが、
+富士通ゼネラル・楽天市場・中部電力ミライズ・タカラトミーアーツ（33回目）はその名前自体が、
+東急（50回目）は東急電鉄・東急バスが書けなかった。**要約の規格が「何をしている会社か」を
+固有名詞で書く形に変わった以上、この規則は害のほうが大きい。** 社名が原文に無ければ
+`unsupported_terms` が落とすので、**書けるのは原文にある呼び方だけ**という線は残る。
 
 **分析で固有名詞を見ないのは、外部の文書も材料だからである。** 有報の原文だけと突き合わせると、
 公式サイトやリリースから採った正しい語がすべて「原文に無い」になる。**埋め合わせは検証パスの
@@ -46,7 +55,6 @@ summary_gate = _load("summary_gate", Path(__file__).resolve().parent.parent / "s
 JUDGEMENT_WORDS = summary_gate.JUDGEMENT_WORDS
 width = summary_gate.width
 sentences = summary_gate.sentences
-name_tokens = summary_gate.name_tokens
 unsupported_terms = summary_gate.unsupported_terms
 _fold = summary_gate._fold
 
@@ -64,7 +72,22 @@ ANALYSIS_MIN_SENTENCES, ANALYSIS_MAX_SENTENCES = 3, 10
 # 63〜90字で、ここで書く本文は3観点まで含めて約250字——**3倍の長さに同じ上限を当てると、
 # 数を漢数字で書いて逃げる**という別の歪みが出た（実際に1社で出た）。8社の実測は1〜3個で、
 # 3で頭打ちになる。
-MAX_ANALYSIS_DIGITS = 3
+#
+# **50回目に5へ緩めた**（ADR-0016）。分析が推測まで踏み込む形になり、**時点を名指しする
+# 必要が出た**——「2024年11月の公募増資で得た資金が手元にある」は日付だけで2個を使う。
+# **「数値は脇役」は変わっていない**ので、少ないほど良いことに変わりはない。
+MAX_ANALYSIS_DIGITS = 5
+
+# 要約に含めてよい算用数字の個数。**50回目に足した**（運営者の指示で要約の規格を
+# 「当期の業績はどうだったか」から「この会社は何をしている会社か」へ改めたときに、
+# 数を機械で落とせるようにした）。
+#
+# **改める前の316社の実測は中央27個**で、168社（53.2%）が「当連結会計年度の売上高は…」で
+# 始まっていた。**改めた後の6社は0〜1個**（唯一の1個は「2050年カーボンニュートラル」）。
+# **2にしたのはその間を取ったのではなく、1では偶然に落ちるからである**——年号・設立年・
+# 拠点数のような、量を並べているわけではない数字が1つ2つ混じるのは自然で、3つ並べば
+# それは業績の列挙に戻っている。**カギ括弧の中は数えない**ので `一太郎2025` は名前のまま。
+MAX_SUMMARY_DIGITS = 2
 
 _DIGIT_RUN = re.compile(r"[0-9０-９][0-9０-９,，．.]*")
 _URL = re.compile(r"^https?://[^\s]+$")
@@ -123,13 +146,12 @@ def unsupported_numbers(text, source):
     return out
 
 
-def summary_sentence_problems(sentence, name, source):
-    """要約の1文の違反。**空なら通す。**"""
+def summary_sentence_problems(sentence, source):
+    """要約の1文の違反。**空なら通す。**
+
+    **社名は見ない**（50回目に外した。理由は冒頭の表の下）。
+    """
     bad = []
-    for token in name_tokens(name):
-        if token in sentence:
-            bad.append(f"社名: {token}")
-            break
     for word in JUDGEMENT_WORDS:
         if word in sentence:
             bad.append(f"評価語: {word}")
@@ -143,16 +165,19 @@ def summary_sentence_problems(sentence, name, source):
     return bad
 
 
-def apply_summary_gate(summary, name, source):
+def apply_summary_gate(summary, source, max_digits=MAX_SUMMARY_DIGITS):
     """要約に機械ゲートを当てる。`(通った要約, 落とした理由の並び)` を返す。
 
     **文ごとに落とし、残りで全体を見る**（C6 と同じ順序）。1文だけが原文から離れている型を、
     要約ごと捨てずに済む。
+
+    **数値の個数だけは文ごとに落とせない**——どの文を落とすかを機械では決められないので、
+    字数・文数と同じ段で見て、超えていれば要約ごと返す（書き直しになる）。
     """
     reasons = []
     kept = []
     for s in sentences(summary):
-        bad = summary_sentence_problems(s, name, source)
+        bad = summary_sentence_problems(s, source)
         if bad:
             reasons.append("文を落とした（" + " / ".join(bad) + "）")
         else:
@@ -167,6 +192,11 @@ def apply_summary_gate(summary, name, source):
     w = width(text)
     if not (SUMMARY_MIN_LEN <= w <= SUMMARY_MAX_LEN):
         reasons.append(f"字数が範囲外: 全角{w}字")
+        return "", reasons
+    digits = digit_runs(text)
+    if len(digits) > max_digits:
+        reasons.append(f"数値が多い: {len(digits)}個（上限{max_digits}）"
+                       f" — {'・'.join(digits[:5])}")
         return "", reasons
     return text, reasons
 
