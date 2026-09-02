@@ -93,7 +93,8 @@ _DIGIT_RUN = re.compile(r"[0-9０-９][0-9０-９,，．.]*")
 _URL = re.compile(r"^https?://[^\s]+$")
 # 固有名詞を囲むカギ括弧。**有報もこのプロンプトも、製品名・ブランド名・計画名を
 # カギ括弧で書く**（`「変革2030」`・`「S!mplus」`・`「AUREME」`）。
-_QUOTED = re.compile(r"「[^」]*」")
+# **二重カギ括弧も同じ。** 作品名は有報がこちらで書く（`『ストリートファイター6』`）。
+_QUOTED = re.compile(r"「[^」]*」|『[^』]*』")
 
 
 def digit_runs(text):
