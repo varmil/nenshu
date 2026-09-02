@@ -50,6 +50,7 @@ class SummaryGate(unittest.TestCase):
         # 名前を出すことではない。
         self.assertEqual(gate.digit_runs("中期経営計画「変革2030」を掲げる。"), [])
         self.assertEqual(gate.digit_runs("家電の「S!mplus」と「R-2000シリーズ」。"), [])
+        self.assertEqual(gate.digit_runs("『ストリートファイター6』を出した。"), [])
 
     def test_カギ括弧の外の数字は数える(self):
         self.assertEqual(gate.digit_runs("「変革2030」のもとで2割伸びた。"), ["2"])
