@@ -153,8 +153,14 @@ def summary_sentence_problems(sentence, source):
     **社名は見ない**（50回目に外した。理由は冒頭の表の下）。
     """
     bad = []
+    # **カギ括弧の中は見ない。** 作品名・製品名・計画名に評価語が入っている型——
+    # 東映の `『ナンバーワン戦隊ゴジュウジャー』`——は珍しくなく、数えると
+    # **具体的に書くほど機械が止める**という逆向きの圧力になる（`digit_runs` と同じ根拠）。
+    # **カギ括弧に入れれば評価語が書けるわけではない**——原文に無い括弧の中身は
+    # `unsupported_terms` が「原文に無い固有名詞」で落とし、評価の言い直しは検証パスが見る。
+    naked = _QUOTED.sub(lambda m: "〓" * len(m.group(0)), sentence or "")
     for word in JUDGEMENT_WORDS:
-        if word in sentence:
+        if word in naked:
             bad.append(f"評価語: {word}")
             break
     terms = unsupported_terms(sentence, source)
