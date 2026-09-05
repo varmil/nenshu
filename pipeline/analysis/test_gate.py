@@ -24,6 +24,25 @@ class SummaryGate(unittest.TestCase):
         bad = gate.summary_sentence_problems("業界最大手として販売を行う。", SOURCE)
         self.assertTrue(any(b.startswith("評価語") for b in bad))
 
+    def test_カギ括弧の中の評価語は数えない(self):
+        # **116回目に足した。** 東映の要約が原文どおりに書いた作品名
+        # `『ナンバーワン戦隊ゴジュウジャー』` の「ナンバーワン」を評価語として落とし、
+        # 文が丸ごと消えていた（`digit_runs` がカギ括弧の中を数えないのと同じ根拠）。
+        src = "テストは『ナンバーワン戦隊ゴジュウジャー』を放映した。"
+        self.assertEqual(
+            gate.summary_sentence_problems(
+                "テストは『ナンバーワン戦隊ゴジュウジャー』を放映した。", src
+            ),
+            [],
+        )
+
+    def test_括弧の外の評価語は落とす(self):
+        # カギ括弧を書いても、地の文の評価語は落ちる。
+        bad = gate.summary_sentence_problems(
+            "テストは『ゴジュウジャー』で業界最大手となった。", SOURCE
+        )
+        self.assertTrue(any(b.startswith("評価語") for b in bad))
+
     def test_社名は通す(self):
         # **50回目に外した**（運営者の指示）。C6 から引き継いだ「h1 にあるから書かない」は、
         # 社名の語を含む子会社名・ブランド名まで巻き込んでいた（東急電鉄・楽天市場・太陽ファルマ）。
