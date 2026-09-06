@@ -71,6 +71,22 @@ class SummaryGate(unittest.TestCase):
         self.assertEqual(gate.digit_runs("家電の「S!mplus」と「R-2000シリーズ」。"), [])
         self.assertEqual(gate.digit_runs("『ストリートファイター6』を出した。"), [])
 
+    def test_角括弧の中の数字は数えない(self):
+        # **有報は計画名を角括弧で書く**（`「」` と同じ役割）。162回目、新明和工業の
+        # 要約は数を1つも書いていないのに `［SG-2026］` と `ＵＳ−２型` だけで枠を
+        # 使い切っていた。
+        self.assertEqual(gate.digit_runs("中期経営計画［SG-2026］を進める。"), [])
+        self.assertEqual(gate.digit_runs("〔R-2000〕を出した。"), [])
+
+    def test_英字とハイフンでつながる型式名は数と見ない(self):
+        self.assertEqual(gate.digit_runs("ＵＳ−２型救難飛行艇を製造している。"), [])
+        self.assertEqual(gate.digit_runs("SG-2026を掲げる。"), [])
+
+    def test_数字始まりの範囲や助数詞は数える(self):
+        # **見るのはハイフン1文字ぶん手前まで。** 前が数字なら語の一部ではない。
+        self.assertEqual(gate.digit_runs("2025-2027年度の計画である。"), ["2025", "2027"])
+        self.assertEqual(gate.digit_runs("第2四半期に入った。"), ["2"])
+
     def test_カギ括弧の外の数字は数える(self):
         self.assertEqual(gate.digit_runs("「変革2030」のもとで2割伸びた。"), ["2"])
 
