@@ -417,7 +417,38 @@ def _load_generated():
             raise SystemExit(
                 f"{path.name}: {want}社のバッチに {len(recs)}行しかない。回し直すこと。")
         out += recs
-    return out
+    return _prefer_gated(out)
+
+
+def _prefer_gated(recs):
+    """`work/gated_*.json` に書き直しがあれば、そちらの本文を採る。
+
+    **検証パスが読むのは `gated_*.json`** なので、申告を受けて本文を直すときも
+    そこに当たる。**それを CSV に写さないと、検証が見た本文と公開する本文が
+    食い違う**——二段構えの保証（ADR-0015 決定2）が、2段目の見ていない文を
+    通してしまう。140回目に実際に起き、133〜139回目の直し26箇所が CSV に
+    入っていなかった（検証を通った本文ではなく、直す前の本文が公開待ちで残って
+    いた）。**gate を当て直すのは呼び出し側**なので、ここでは本文を差し替える
+    だけでよい。
+    """
+    edited = {}
+    for path in sorted(WORK.glob("gated_*.json")):
+        for c in json.loads(path.read_text(encoding="utf-8")).get("companies", []):
+            edited[c.get("edinet_code")] = c
+    if not edited:
+        return recs
+    n = 0
+    for rec in recs:
+        c = edited.get(rec.get("edinet_code"))
+        if not c:
+            continue
+        for key in ("summary", "headline", "analysis"):
+            if c.get(key) and rec.get(key) != c.get(key):
+                rec[key] = c[key]
+                n += 1
+    if n:
+        print(f"gated_*.json の書き直し {n}件を採った（gen_*.jsonl より優先）")
+    return recs
 
 
 def _apply_gates(rec, row, history, max_digits):
