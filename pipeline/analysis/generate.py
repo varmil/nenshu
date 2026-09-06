@@ -392,8 +392,13 @@ def cmd_plan(args):
     print(f"→ {WORK}/batch_0001.json …", flush=True)
 
 
-def _load_generated():
+def _load_generated(prefer_gated=False):
     """`work/gen_*.jsonl` を読み、バッチと突き合わせて返す。
+
+    **`prefer_gated` は `merge` だけが立てる。** 機械ゲートを当てる側（`gate`）が
+    立てると、**前の実行が残した `gated_*.json` の古い本文で生成物を上書きする**
+    ——生成の途中で本文を直して `gate` を回し直したときに実際に起きた（142回目）。
+    ゲートが見るのは生成物そのもの、`merge` が見るのは検証パスが読んだ本文。
 
     **エージェントの報告を数えない。ファイルを数える**（C6 の教訓）。「作成した」と
     報告しながらファイルを書いていなかった事故が実際にあり、一部だけ欠けた場合は
@@ -417,7 +422,7 @@ def _load_generated():
             raise SystemExit(
                 f"{path.name}: {want}社のバッチに {len(recs)}行しかない。回し直すこと。")
         out += recs
-    return _prefer_gated(out)
+    return _prefer_gated(out) if prefer_gated else out
 
 
 def _prefer_gated(recs):
@@ -562,7 +567,7 @@ def cmd_merge(args):
         head = reason.split("（")[0].split(":")[0].strip()
         reasons[head] = reasons.get(head, 0) + 1
 
-    for rec in _load_generated():
+    for rec in _load_generated(prefer_gated=True):
         code = rec.get("edinet_code")
         row = src.get(code)
         m = man.get(code)
