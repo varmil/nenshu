@@ -104,5 +104,70 @@ class PairOrDrop(unittest.TestCase):
         self.assertEqual(got, ("", "", "", "要約が空", "分析が空"))
 
 
+class PreferGated(unittest.TestCase):
+    """**検証パスが読むのは `gated_*.json`** なので、書き直しはそちらに当たる。
+
+    140回目、`merge` が `gen_*.jsonl` だけを読んでいたため、**検証を受けて直した
+    26箇所が CSV に入らず、直す前の本文が公開待ちで残っていた**。二段構えの
+    2段目が見ていない文を通すことになるので、`merge` は書き直しのほうを採る。
+    """
+
+    def _work(self, tmp, gen, gated):
+        work = Path(tmp)
+        (work / "gen_0001.jsonl").write_text(
+            "\n".join(__import__("json").dumps(r, ensure_ascii=False) for r in gen),
+            encoding="utf-8")
+        (work / "gated_0001.json").write_text(
+            __import__("json").dumps({"companies": gated}, ensure_ascii=False),
+            encoding="utf-8")
+        return work
+
+    def test_書き直しを採る(self):
+        with TemporaryDirectory() as tmp:
+            work = self._work(
+                tmp,
+                [{"edinet_code": "E00001", "summary": "旧", "headline": "旧見出し",
+                  "analysis": "旧本文"}],
+                [{"edinet_code": "E00001", "summary": "新", "headline": "旧見出し",
+                  "analysis": "新本文"}])
+            old_work = generate.WORK
+            generate.WORK = work
+            try:
+                got = generate._prefer_gated([
+                    {"edinet_code": "E00001", "summary": "旧", "headline": "旧見出し",
+                     "analysis": "旧本文"}])
+            finally:
+                generate.WORK = old_work
+        self.assertEqual(got[0]["summary"], "新")
+        self.assertEqual(got[0]["analysis"], "新本文")
+        self.assertEqual(got[0]["headline"], "旧見出し")
+
+    def test_書き直しが無ければそのまま(self):
+        with TemporaryDirectory() as tmp:
+            old_work = generate.WORK
+            generate.WORK = Path(tmp)
+            try:
+                got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
+            finally:
+                generate.WORK = old_work
+        self.assertEqual(got[0]["summary"], "旧")
+
+    def test_空の本文で上書きしない(self):
+        # **機械ゲートが落とした社は `gated_*.json` に空で載る。** それで上書きすると、
+        # 落ちた理由を `merge` 側で数え直せなくなる。
+        with TemporaryDirectory() as tmp:
+            work = self._work(
+                tmp,
+                [{"edinet_code": "E00001", "summary": "旧"}],
+                [{"edinet_code": "E00001", "summary": ""}])
+            old_work = generate.WORK
+            generate.WORK = work
+            try:
+                got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
+            finally:
+                generate.WORK = old_work
+        self.assertEqual(got[0]["summary"], "旧")
+
+
 if __name__ == "__main__":
     unittest.main()
