@@ -142,6 +142,35 @@ class PreferGated(unittest.TestCase):
         self.assertEqual(got[0]["analysis"], "新本文")
         self.assertEqual(got[0]["headline"], "旧見出し")
 
+    def test_gate_は書き直しを拾わない(self):
+        """**`_load_generated()` の既定は生成物そのもの。** 142回目、生成の途中で
+        本文を直して `gate` を回し直したところ、**前の実行が残した
+        `gated_*.json` の古い本文で上書きされた**（`prefer_gated` を既定で
+        立てていたため）。ゲートが見るのは生成物、`merge` が見るのは検証パスが
+        読んだ本文。
+        """
+        import json as _json
+        with TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            (work / "batch_0001.json").write_text(
+                _json.dumps({"companies": [{"edinet_code": "E00001"}]}, ensure_ascii=False),
+                encoding="utf-8")
+            (work / "gen_0001.jsonl").write_text(
+                _json.dumps({"edinet_code": "E00001", "summary": "新"}, ensure_ascii=False),
+                encoding="utf-8")
+            (work / "gated_0001.json").write_text(
+                _json.dumps({"companies": [{"edinet_code": "E00001", "summary": "古"}]},
+                            ensure_ascii=False), encoding="utf-8")
+            old_work = generate.WORK
+            generate.WORK = work
+            try:
+                plain = generate._load_generated()
+                merged = generate._load_generated(prefer_gated=True)
+            finally:
+                generate.WORK = old_work
+        self.assertEqual(plain[0]["summary"], "新")
+        self.assertEqual(merged[0]["summary"], "古")
+
     def test_書き直しが無ければそのまま(self):
         with TemporaryDirectory() as tmp:
             old_work = generate.WORK
