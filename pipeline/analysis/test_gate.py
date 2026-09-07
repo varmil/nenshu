@@ -228,3 +228,39 @@ class TrendClaims(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class 逃げの語(unittest.TestCase):
+    """**帰属で言い切りを避ける語だけを数える。** 主観の語に下限を課さないのは、
+    語彙を固定すると分析が単調になるため（ADR-0015 が段階評価を却下した理由と同じ）。
+    逃げる側は語彙を狭めても失うものが無い。"""
+
+    def test_帰属の語を数える(self):
+        t = "AとしているBと説明しているCと書いておりDとしており"
+        self.assertEqual(len(gate.escape_phrases(t)), 4)
+
+    def test_言い切る文は0件(self):
+        t = "この会社に入るなら営業から始まると見ていい。市況が返れば止まる。"
+        self.assertEqual(gate.escape_phrases(t), [])
+
+    def test_重なる語を二重に数えない(self):
+        # 「と説明している」の中に「としている」は含まれないが、位置の畳み込みが働くことを固定する
+        t = "と説明している"
+        self.assertEqual(gate.escape_phrases(t), ["と説明している"])
+
+    def test_上限を超えるとゲートが落とす(self):
+        headline = "この会社は次の柱を作っている途中である。"
+        analysis = ("会社は伸ばすとしている。" * 3) + "入るなら覚悟が要る。" * 3
+        _, _, reasons = gate.apply_analysis_gate(headline, analysis, [])
+        self.assertTrue(any("言い切りを避ける語" in r for r in reasons), reasons)
+
+    def test_上限内なら通る(self):
+        headline = "稼ぐ形は完成していて、次の柱はまだ作っている途中である。"
+        analysis = (
+            "二輪も四輪もクラッチで稼ぐ形が完成しており、当期は増収増益だった。"
+            "問題はその本業が内燃機関を前提にしていることで、働いているうちに主力製品が"
+            "消えるかもしれないという話になる。会社は転換を進めるとしているが、"
+            "当面の人と金は前者に置かれ続ける。入るなら、その覚悟が要る。"
+        )
+        _, _, reasons = gate.apply_analysis_gate(headline, analysis, [])
+        self.assertEqual([r for r in reasons if "言い切りを避ける語" in r], [])
+

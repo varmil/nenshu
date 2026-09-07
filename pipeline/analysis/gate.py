@@ -236,6 +236,51 @@ def source_problems(sources):
     return bad
 
 
+# **「逃げの語」の上限。** 180回目、運営者から「分析が要約に戻っている」と指摘を受けて
+# 実測したところ、初期60社と直近60社で**主観の語が 109 → 44 に減り、事実の語が 119 → 284
+# に増えて**いた。原因の1つが**帰属の語で言い切りを回避する形**である——`〜としている`
+# `〜と会社は説明している` は要約の書き方で、分析でそれをやると2つ持つ意味が消える。
+#
+# **主観の語を数えて下限を課すことはしない。** 語彙を固定すると分析が単調になり、
+# ADR-0015 が「段階評価を先に決めていたらファナックの食い違いが『好調』の一語に潰れて
+# いた」として却下した形に近づく。**代わりに、逃げる側の語だけを数えて上限を課す**——
+# こちらは語彙を狭めても失うものが無い。
+_ESCAPE_PHRASES = (
+    "としている",
+    "と説明している",
+    "と会社は説明",
+    "と会社は述べ",
+    "と書いており",
+    "と述べており",
+    "としており",
+)
+
+MAX_ESCAPE_PHRASES = 2
+
+
+def escape_phrases(text):
+    """帰属で言い切りを避ける語を数える。見つかった語を出現順に返す。"""
+    found = []
+    for phrase in _ESCAPE_PHRASES:
+        start = 0
+        while True:
+            i = text.find(phrase, start)
+            if i < 0:
+                break
+            found.append((i, phrase))
+            start = i + 1
+    # 同じ位置から始まる長い語と短い語が二重に当たらないよう、位置で畳む
+    found.sort()
+    out = []
+    covered = -1
+    for i, phrase in found:
+        if i <= covered:
+            continue
+        out.append(phrase)
+        covered = i + len(phrase) - 1
+    return out
+
+
 def apply_analysis_gate(headline, analysis, sources, max_digits=MAX_ANALYSIS_DIGITS):
     """分析に機械ゲートを当てる。`(通った見出し, 通った本文, 落とした理由の並び)` を返す。
 
@@ -269,6 +314,11 @@ def apply_analysis_gate(headline, analysis, sources, max_digits=MAX_ANALYSIS_DIG
     if len(digits) > max_digits:
         reasons.append(f"数値が多い: {len(digits)}個（上限{max_digits}）"
                        f" — {'・'.join(digits[:5])}")
+
+    escapes = escape_phrases(analysis)
+    if len(escapes) > MAX_ESCAPE_PHRASES:
+        reasons.append(f"帰属で言い切りを避ける語が多い: {len(escapes)}個"
+                       f"（上限{MAX_ESCAPE_PHRASES}） — {'・'.join(escapes)}")
 
     reasons += source_problems(sources)
 
