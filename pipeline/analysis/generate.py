@@ -614,6 +614,23 @@ def cmd_merge(args):
         if a_reason:
             note("分析 " + a_reason)
 
+        # **書き直しで落ちたときは、古い版を残す。** `plan --regenerate` は既に公開されて
+        # いる社を対象にするので、**新しい版が落ちた瞬間に画面から要約と分析が消える**。
+        # 183回目、年収1位のヒューリックが検証パスの `false` で対ごと落ち、CSV の当該行が
+        # 空になった（書き直す前の版は画面に出ていた）。**新規生成なら「まだ無い」だけだが、
+        # 書き直しでは「あったものが消える」**——この非対称を merge が知らなかった。
+        #
+        # **落ちた事実は `*_reason` に残す**ので、次の回で拾い直せる。
+        old = rows.get(code)
+        if not summary and old and old.get("summary"):
+            rows[code] = dict(old)
+            rows[code]["summary_reason"] = (
+                f"書き直しが落ちたので前の版を残した（{s_reason}）" if s_reason else old.get("summary_reason", ""))
+            rows[code]["analysis_reason"] = (
+                f"書き直しが落ちたので前の版を残した（{a_reason}）" if a_reason else old.get("analysis_reason", ""))
+            note("書き直しが落ちたので前の版を残した")
+            continue
+
         rows[code] = {
             "edinet_code": code,
             "sec_code": row.get("sec_code") or "",
