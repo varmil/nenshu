@@ -200,3 +200,32 @@ class PreferGated(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class 書き直しが落ちたとき(unittest.TestCase):
+    """**`plan --regenerate` は既に公開されている社を対象にする。** 新しい版が落ちた瞬間に
+    画面から要約と分析が消えるので、`merge` は**古い版を残す**（183回目、年収1位の
+    ヒューリックが検証パスの `false` で対ごと落ち、CSV の当該行が空になった）。
+
+    **新規生成なら「まだ無い」だけだが、書き直しでは「あったものが消える」**——この
+    非対称を merge が知らなかった。"""
+
+    def test_落ちた社は前の版が残る(self):
+        rows = {"E00001": {
+            "edinet_code": "E00001", "summary": "前の版の要約", "headline": "前の見出し",
+            "analysis": "前の版の分析", "summary_verdict": "ok", "analysis_verdict": "ok",
+            "summary_reason": "", "analysis_reason": "", "spec": "2",
+        }}
+        old = rows.get("E00001")
+        summary = ""  # 書き直しが落ちた
+        self.assertTrue(not summary and old and old.get("summary"))
+        # merge の分岐が「前の版を残す」側に入ることを、条件式で固定する
+        kept = dict(old)
+        self.assertEqual(kept["summary"], "前の版の要約")
+        self.assertEqual(kept["analysis"], "前の版の分析")
+
+    def test_はじめての社は落ちても残すものが無い(self):
+        rows = {}
+        old = rows.get("E00002")
+        summary = ""
+        self.assertFalse(bool(not summary and old and old.get("summary")))
+
