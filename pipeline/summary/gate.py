@@ -55,6 +55,11 @@ _ORG = re.compile(r"[一-龥ァ-ヶA-Za-z]{2,}(?:株式会社|㈱|ホールデ�
 # 社名から落とす語。**「株式会社キーエンス」も「キーエンス」も混入とみなす**ため。
 _NAME_NOISE = re.compile(r"株式会社|㈱|合同会社|有限会社|ホールディングス|ＨＤ|グループ本社|グループ")
 
+# 引用・角括弧の中の `。` では文を割らない。企業理念の引用（`「〜を実現する。」を掲げる`）
+# のように、引用の中に文末の `。` を含む型がある——中で割ると、引用の残りが次の「文」の
+# 先頭に閉じ括弧だけを残した壊れた文になる（C9・216回目・ランドネット）。
+_QUOTED = re.compile(r"「[^」]*」|『[^』]*』|［[^］]*］|〔[^〕]*〕")
+
 MIN_LEN, MAX_LEN = 60, 130
 MIN_SENTENCES, MAX_SENTENCES = 2, 3
 
@@ -72,8 +77,15 @@ def width(text):
 
 
 def sentences(text):
-    """文に分ける。区切りは `。`（句点は文の側に残す）。"""
-    parts = re.split(r"(?<=。)", (text or "").strip())
+    """文に分ける。区切りは `。`（句点は文の側に残す）。**引用の中の `。` は区切りに数えない。**"""
+    t = (text or "").strip()
+    masked = _QUOTED.sub(lambda m: "〓" * len(m.group(0)), t)
+    parts, start = [], 0
+    for m in re.finditer(r"(?<=。)", masked):
+        parts.append(t[start:m.end()])
+        start = m.end()
+    if start < len(t):
+        parts.append(t[start:])
     return [p.strip() for p in parts if p.strip()]
 
 

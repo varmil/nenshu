@@ -44,6 +44,14 @@ class Sentences(unittest.TestCase):
         self.assertEqual(gate.sentences(""), [])
         self.assertEqual(gate.sentences(None), [])
 
+    def test_引用の中の句点では割らない(self):
+        # C9・216回目・ランドネット。引用の中の「。」で割ると、閉じ括弧だけが
+        # 次の「文」の先頭に残る壊れた文になる。
+        self.assertEqual(
+            gate.sentences("Ａは、「世界を変える。」を掲げる会社だ。当期は伸びた。"),
+            ["Ａは、「世界を変える。」を掲げる会社だ。", "当期は伸びた。"],
+        )
+
 
 class NameTokens(unittest.TestCase):
     def test_株式会社を外した形も見る(self):
