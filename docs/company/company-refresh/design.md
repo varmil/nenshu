@@ -14,7 +14,7 @@ web/features/company/
     SalaryDistributionChart.tsx   位置バー＋9ビンのヒストグラム
     SalaryHistoryChart.tsx        10年推移の棒（T1）
     NeighborCompanies.tsx         水準が近い会社
-    HowItWorks.tsx                この数字の作り方（3ステップ）
+    HowItWorks.tsx                この数字の作り方（3ステップ。C12・#805 で消し、SourcesSection.tsx に替えた）
   lib/
     neighbors.ts                  同業種で金額が近い10社（Issue #195 で5社から）
     highlights.ts                 推移の増減の文（要点の箇条書きは C11・#799 で削除）

@@ -35,7 +35,6 @@ import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
-import { HowItWorks } from "./HowItWorks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import {
   buildActualsSummary,
@@ -88,6 +87,7 @@ export function CompanyDetail({
   fiscalPeriod,
   analysis,
   digest,
+  sources,
 }: {
   view: CompanyView;
   /**
@@ -129,6 +129,11 @@ export function CompanyDetail({
    */
   analysis?: ReactNode;
   digest?: ReactNode;
+  /**
+   * 「このページの出典」（C12・Issue #805）。**同じく静的な HTML として届く。** 本文の
+   * 末尾（要約の後ろ）に置く。
+   */
+  sources?: ReactNode;
 }) {
   const { targetAge, setTargetAge } = useTargetAge();
   /*
@@ -447,6 +452,20 @@ export function CompanyDetail({
           */}
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
+            {/*
+              **年齢補正の手順はこの1行だけ**（C12・#805）。以前は本文の末尾に
+              「この数字の作り方」として3枚のカードで並べていたが、推定値はこの節
+              （と年齢そろえの金額）にしか無く、既定の実測値では関係が薄い。見出しに
+              「推定」があるので、この行では同じ語を重ねない（Issue #128）。
+              **見出しと包まない**——既存の E2E は見出しの親をこの節として引いている。
+            */}
+            <p className="text-muted-foreground -mt-1.5 text-xs">
+              実測値を業種の賃金カーブ（賃金構造基本統計調査）で各年齢の水準に置き換えた値です（
+              <a href="/about" className="text-primary underline">
+                計算方法
+              </a>
+              ）
+            </p>
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
             {/*
               数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。**3文を1つの
@@ -565,7 +584,11 @@ export function CompanyDetail({
           */}
           {digest}
 
-          <HowItWorks />
+          {/*
+            **本文の末尾**（C12・#805）。ページに出ているデータを加工の度合いで6区分に分け、
+            区分ごとに該当するものと出典を並べる。フッタの出典の行はこれに移した。
+          */}
+          {sources}
         </div>
 
         {/*
@@ -585,16 +608,11 @@ export function CompanyDetail({
 
       <footer className="text-muted-foreground flex flex-col gap-1 text-xs">
         {/*
-          **決算期はここに書かない。** 上の「有価証券報告書の実測値（{決算期}）」に
-          出ているので、重ねると1画面に2回になる（spec 5.1）。推移の年は
-          `history.json` の `years` から引く——手で書くと年1回のデータ更新で
-          ここだけ古い範囲が残る。
+          **出典はここに書かない**（C12・#805）。本文の末尾の「このページの出典」が
+          ページ全体の出典を持っている。ここに以前あった1行は EDINET と賃金構造基本統計
+          調査の2つしか挙げておらず、女性活躍DBが抜けていた。残すのは表示基準ごとの
+          断り（AC-9）と「本社のみ」の断り（AC-6）。
         */}
-        <p>
-          出典: 金融庁 EDINET の有価証券報告書
-          {history ? `（推移は${history.years[0]}〜${history.years[history.years.length - 1]}年の各年）` : ""}
-          、厚生労働省「賃金構造基本統計調査」。
-        </p>
         <p>
           {isRaw
             ? "実測値モードでは補正を行っていません。年齢別の推定年収だけが推定値です。"
