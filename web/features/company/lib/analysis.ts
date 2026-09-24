@@ -22,6 +22,8 @@ export interface AnalysisRecord {
   headline: string;
   body: string;
   sources: AnalysisSource[];
+  /** 分析を書いた年月（`YYYY-MM`・日本時間）。 */
+  generatedAt: string;
 }
 
 export interface AnalysisView {
@@ -32,6 +34,8 @@ export interface AnalysisView {
   /** 分析の本文。一言と同じ書き出しの文はビルド時に落としてある。 */
   body: string;
   sources: AnalysisSourceView[];
+  /** 分析を書いた時点。`2026年9月時点`。 */
+  asOf: string;
 }
 
 export interface AnalysisSourceView {
@@ -61,7 +65,14 @@ export function buildAnalysisView(record: AnalysisRecord | null | undefined): An
       title: source.title,
       meta: sourceMeta(source),
     })),
+    asOf: asOfLabel(record.generatedAt),
   };
+}
+
+/** `"2026-09"` → `"2026年9月時点"`。月はゼロ埋めしない（`sourceMeta` の日付と同じ書き方）。 */
+export function asOfLabel(generatedAt: string): string {
+  const [y, m] = generatedAt.split("-").map(Number);
+  return `${y}年${m}月時点`;
 }
 
 /**
@@ -85,12 +96,25 @@ function accessedLabel(accessed: string): string {
  * 分析の節の断り（AC-29）。**要約の節には置かない**——あちらは有報に書いてある事実なので、
  * 同じ断りを付けると2つの区別が消える。**見出しに「AIによる分析」を付けない**のは、
  * この1行と合わせて AI である旨を2回言うことになるため（アートボード 8b）。
+ *
+ * **書いた時点を添える**（2026-09-24・運営者の判断）。分析は公開資料とモデルの一般知識を
+ * 使って「今後」まで書いており、いつの評価かが読めないと古くなったことに気づけない。
+ * 参照した資料の日付（`sourceMeta`）は資料を使った会社にしか出ないので、節の側に1つ置く。
  */
-export const ANALYSIS_NOTE = "有価証券報告書・このページの数値・公開資料をもとにAIが書いた評価です。";
+export function analysisNote(asOf: string): string {
+  return `有価証券報告書・公開資料をもとにAIが書いた評価です（${asOf}）。`;
+}
 
 /**
  * 要約の節の説明。**C7 の説明文の出典（「事業の内容」をもとに要約）と重ならない言い方**
- * にする。決算期は書かない（「有価証券報告書の実測値」の見出しが持っている・S3）。
+ * にする。
+ *
+ * **原文の決算期をここに書く**（2026-09-24・運営者の判断で S3 の「1画面に1回」を改めた。
+ * `docs/site-chrome/spec.md` 5.1）。要約の節は「有価証券報告書の実測値」の見出しから
+ * 離れた位置にあり、どの年度の有報を要約したのかが節の中で読めることが信頼性に効く。
+ * 値は見出しと同じ `fiscalPeriod`（`pageData.ts`）で、要約の原文の書類は実測値と同じ
+ * 書類なので食い違わない（C8 が同じ `doc_id` から落としている）。
  */
-export const DIGEST_NOTE =
-  "「経営成績の分析」「事業等のリスク」「対処すべき課題」「サステナビリティ」の4節に書いてある事実だけをまとめたものです。";
+export function digestNote(fiscalPeriod: string): string {
+  return `${fiscalPeriod}の有価証券報告書のうち「経営成績の分析」「事業等のリスク」「対処すべき課題」「サステナビリティ」の4節に書いてある事実だけをまとめたものです。`;
+}

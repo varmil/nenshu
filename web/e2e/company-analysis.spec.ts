@@ -59,6 +59,20 @@ test.describe("有報の要約と AI 分析", () => {
     await expect(digest(page)).not.toContainText("をもとに要約");
   });
 
+  // **分析は書いた時点を、要約は原文の決算期を出す**（2026-09-24・運営者の判断）。分析は
+  // 公開資料と一般知識を使って「今後」まで書くので、いつの評価かが読めないと古くなったことに
+  // 気づけない。**値は `analyses.json` から引く**——文言を書き写すと、データを作り直した年に
+  // テストだけが古い年月で落ちる。
+  test("分析の断りに書いた年月が出る。要約には出ない", async ({ page, request }) => {
+    const analyses = await (await request.get("/data/analyses.json")).json();
+    const [y, m] = (analyses.byId["6861"].generatedAt as string).split("-").map(Number);
+    const asOf = `（${y}年${m}月時点）`;
+
+    await page.goto("/company/6861");
+    await expect(analysis(page)).toContainText(`AIが書いた評価です${asOf}`);
+    await expect(digest(page)).not.toContainText("時点");
+  });
+
   test("AC-29: 分析の節は muted の面で囲い、要約の節は地のまま", async ({ page }) => {
     await page.goto("/company/6861");
     const bg = (locator: ReturnType<typeof analysis>) =>

@@ -100,26 +100,80 @@ test.describe("AC-7 欠測軸", () => {
   });
 
   /*
-   * W2（Issue 185・Issue 207 例1）。**「公表していない」と「区分ごとに公表して
-   * いる」を図の上で分ける。** 規則（1点に代表を選ばない）は変えていないので
-   * 頂点は打たないが、「掲載なし」のままだと**節に値が出ているのに図だけ
-   * 掲載なし**になり、読者からは壊れて見える（有給221社・残業114社）。
+   * W3（Issue 802・AC-13 改訂）。~~「区分別」と書いて頂点を打たない~~（W2）→
+   * **区分の並びの先頭の値で点を打つ。** ラクスの有給は 正社員88.0 /
+   * RAM社員92.7 / 契約社員96.8 で、全体値が無い。
    */
-  test("区分ごとに公表している軸は「区分別」（ラクス）", async ({ page }) => {
+  test("区分ごとに公表している軸は先頭の区分で頂点を打つ（ラクス）", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto("/company/3923");
     const svg = chart(page);
     await expect(svg).toContainText("有給の取得");
-    await expect(svg).toContainText("区分別");
-    // 頂点は打たない（有給を除く4軸）。
-    await expect(svg.locator("circle")).toHaveCount(4);
-    // 値そのものは下の節に区分のまま出ている。
+    await expect(svg).toContainText("88.0%");
+    // 5軸すべてに頂点がある（W2 までは有給を除く4つだった）。
+    await expect(svg.locator("circle")).toHaveCount(5);
+    await expect(section(page).locator("dl")).toContainText("1,486社中100位");
+    // 「区分別」の表記は無くなった。**節の中で見る**——会社の説明文や AI 分析の
+    // 本文には「区分別に給与体系を…」のような語が実在する（2327 ほか8社）。
+    await expect(section(page)).not.toContainText("区分別");
+    // 値そのものは下の節に区分のまま出ている（先頭が 88.0）。
     const worklife = page
       .getByRole("heading", { name: "残業・有給・男女の賃金の差異" })
       .locator("xpath=..");
     await expect(worklife).toContainText("92.7");
     await expect(worklife).toContainText("96.8");
-    // 図の説明文が「区分別」の意味を引き受ける（値の列は3文字ぶんしか無い）。
-    await expect(section(page)).toContainText("雇用管理区分ごとに公表している会社は「区分別」");
+  });
+});
+
+/*
+ * W3（Issue 802・AC-17）。**どの区分の値で点を打ったかを、該当する会社にだけ
+ * 断る。** W2 の「区分別」の断りは全社のページに出ていて、どちらの軸も
+ * 当てはまらない三菱商事でも読まされた。
+ */
+test.describe("AC-17 先頭の区分で点を打った断り", () => {
+  test("1軸なら軸と区分名が出る（ラクスの有給）", async ({ page }) => {
+    await page.goto("/company/3923");
+    await expect(section(page)).toContainText(
+      "有給は雇用管理区分ごとの公表で全体の値が無いため、先頭の区分「正社員」の値で点を打っています。区分ごとの値は下の節にあります。"
+    );
+  });
+
+  test("2軸なら両方の区分名が1文に出る（オルガノ。先頭が管理職でも飛ばさない）", async ({
+    page,
+  }) => {
+    await page.goto("/company/6368");
+    await expect(section(page)).toContainText("（有給は「管理職」、残業は「総合職」）");
+    const svg = chart(page);
+    await expect(svg).toContainText("48.2%");
+    await expect(svg).toContainText("16.1時間");
+  });
+
+  for (const [label, id] of [
+    ["残業は全体値・有給は区分が1つ（三菱商事）", "8058"],
+    ["有給は区分が1つ・残業は掲載なし（キーエンス）", "6861"],
+  ] as const) {
+    test(`該当しない会社には出ない: ${label}`, async ({ page }) => {
+      await page.goto(`/company/${id}`);
+      // 既存の断り（稼ぐ力の分母・欠測軸）は出ている。
+      await expect(section(page)).toContainText("残りの点で閉じています。");
+      await expect(section(page)).not.toContainText("先頭の区分");
+      await expect(section(page)).not.toContainText("区分別");
+    });
+  }
+
+  test("JS実行前のHTMLに断りが入っている（ラクス）", async ({ request }) => {
+    const html = await (await request.get("/company/3923")).text();
+    expect(html).toContain("先頭の区分「正社員」の値で点を打っています");
+  });
+
+  test("390px で横スクロールが出ない（オルガノ。断りが2軸ぶん長い）", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/6368");
+    await expect(section(page)).toContainText("先頭の区分の値で点を打っています");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 });
 
@@ -142,8 +196,8 @@ test.describe("W2 入力ミスとみられる値", () => {
     const svg = chart(page);
     await expect(svg).toContainText("残業時間");
     await expect(svg).toContainText("掲載なし");
-    // 「区分別」ではない——値が1つも残っていないので公表していない扱いになる。
-    await expect(svg).not.toContainText("区分別");
+    // 値が1つも残っていないので公表していない扱いになる（先頭の区分で打つ対象でもない）。
+    await expect(section(page)).not.toContainText("先頭の区分");
     const worklife = page
       .getByRole("heading", { name: "残業・有給・男女の賃金の差異" })
       .locator("xpath=..");
@@ -168,7 +222,8 @@ test.describe("AC-9 図だけが情報源にならない", () => {
     await page.goto("/company/6861");
     const list = section(page).locator("dl");
     await expect(list).toContainText("2,961社中3位");
-    await expect(list).toContainText("1,264社中1,245位");
+    // W3（Issue 802）で有給の母集団が 1,264 → 1,486社になった。
+    await expect(list).toContainText("1,486社中1,461位");
     // 「上位◯%」は使わない（上位82%が良い意味に読まれるため）。
     await expect(list).not.toContainText("上位");
   });
@@ -277,7 +332,7 @@ test.describe("モックとの一致（2巡目）", () => {
     const withRank = rows.filter((r) => r[2] > 0);
     expect(withRank.length).toBeGreaterThan(1);
     for (const row of rows) expect(row.slice(0, 2)).toEqual(rows[0].slice(0, 2));
-    // 桁数の違う順位（`2,961社中3位` と `1,266社中1,246位`）が右端でそろう。
+    // 桁数の違う順位（`2,961社中3位` と `1,486社中1,461位`）が右端でそろう。
     for (const row of withRank) expect(row[2]).toBe(withRank[0][2]);
   });
 

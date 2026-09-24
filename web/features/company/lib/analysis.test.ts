@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import analysesData from "../../../public/data/analyses.json";
 import companiesData from "../../../public/data/companies.json";
-import { buildAnalysisView, sourceMeta, type AnalysisRecord } from "./analysis";
+import { analysisNote, asOfLabel, buildAnalysisView, digestNote, sourceMeta, type AnalysisRecord } from "./analysis";
 
 const analyses = analysesData.byId as Record<string, AnalysisRecord>;
 
@@ -10,6 +10,7 @@ const record: AnalysisRecord = {
   headline: "一言。",
   body: "本文。",
   sources: [{ url: "https://www.mitsui.com/jp/ja/release/a.html", title: "お知らせ", accessed: "2026-09-08" }],
+  generatedAt: "2026-09",
 };
 
 describe("buildAnalysisView（AC-28）", () => {
@@ -18,6 +19,7 @@ describe("buildAnalysisView（AC-28）", () => {
     expect(view.digest).toBe("要約。");
     expect(view.headline).toBe("一言。");
     expect(view.sources[0].meta).toBe("www.mitsui.com・2026年9月8日に参照");
+    expect(view.asOf).toBe("2026年9月時点");
   });
 
   it("記録が無い会社では null（節ごと出さない）", () => {
@@ -29,6 +31,22 @@ describe("buildAnalysisView（AC-28）", () => {
     expect(buildAnalysisView({ ...record, digest: " " })).toBeNull();
     expect(buildAnalysisView({ ...record, headline: "" })).toBeNull();
     expect(buildAnalysisView({ ...record, body: "" })).toBeNull();
+  });
+});
+
+describe("時点の表記", () => {
+  it("分析は書いた年月。月はゼロ埋めしない", () => {
+    expect(asOfLabel("2026-09")).toBe("2026年9月時点");
+    expect(asOfLabel("2027-01")).toBe("2027年1月時点");
+  });
+
+  it("分析の断りに書いた時点が入る", () => {
+    expect(analysisNote("2026年9月時点")).toContain("（2026年9月時点）");
+  });
+
+  it("要約の説明に原文の決算期が入る。会社ごとに違う値が出る", () => {
+    expect(digestNote("2026年3月期")).toMatch(/^2026年3月期の有価証券報告書/);
+    expect(digestNote("2025年12月期")).toMatch(/^2025年12月期の有価証券報告書/);
   });
 });
 
@@ -49,6 +67,12 @@ describe("analyses.json", () => {
     expect(Object.keys(analyses)).toHaveLength(companiesData.rows.length);
     for (const row of companiesData.rows) {
       expect(buildAnalysisView(analyses[row[0] as string]), String(row[0])).not.toBeNull();
+    }
+  });
+
+  it("全社に書いた年月がある", () => {
+    for (const [id, entry] of Object.entries(analyses)) {
+      expect(entry.generatedAt, id).toMatch(/^\d{4}-(0[1-9]|1[0-2])$/);
     }
   });
 

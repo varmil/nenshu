@@ -72,7 +72,7 @@ describe("buildSourceRows（C12・AC-16）", () => {
     }
   });
 
-  it("決算期を書かない（S3。1画面に1回）", () => {
+  it("決算期を書かない（S3。企業詳細で認めているのは実測値の見出しと要約の説明の2か所だけ）", () => {
     for (const row of buildSourceRows(ALL)) {
       expect(`${row.covers}${text(row.source)}`).not.toMatch(/\d{4}年\d{1,2}月期/);
     }

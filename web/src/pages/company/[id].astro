@@ -44,7 +44,7 @@ const sourceRows = buildSourceRows({
   />
   <CompanyDetailIsland data={data} client:load>
     {analysis && <AnalysisSection slot="analysis" name={data.view.name} view={analysis} />}
-    {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} />}
+    {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} fiscalPeriod={data.fiscalPeriod} />}
     <SourcesSection slot="sources" rows={sourceRows} />
   </CompanyDetailIsland>
 </Base>
