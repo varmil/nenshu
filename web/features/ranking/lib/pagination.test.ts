@@ -15,21 +15,42 @@ describe("getPaginationRange", () => {
     expect(getPaginationRange(2, 3)).toEqual([1, 2, 3]);
   });
 
-  it("先頭付近では末尾側だけ省略記号になる", () => {
-    expect(getPaginationRange(1, 19)).toEqual([1, 2, "ellipsis", 19]);
+  // 前後2ページまで並べる（U17・Issue #813。U6 では前後1ページだった）。
+  // 2,961社は99ページなので、実際の総ページ数で固定する。
+  it("先頭では2ページ先まで並び、末尾側だけ省略記号になる", () => {
+    expect(getPaginationRange(1, 99)).toEqual([1, 2, 3, "ellipsis", 99]);
   });
 
-  it("末尾付近では先頭側だけ省略記号になる", () => {
-    expect(getPaginationRange(19, 19)).toEqual([1, "ellipsis", 18, 19]);
+  it("末尾では2ページ前まで並び、先頭側だけ省略記号になる", () => {
+    expect(getPaginationRange(99, 99)).toEqual([1, "ellipsis", 97, 98, 99]);
   });
 
-  it("中間では両側が省略記号になる", () => {
-    expect(getPaginationRange(10, 19)).toEqual([1, "ellipsis", 9, 10, 11, "ellipsis", 19]);
+  it("中ほどでは前後2ページずつと、両側の省略記号が並ぶ", () => {
+    expect(getPaginationRange(10, 99)).toEqual([1, "ellipsis", 8, 9, 10, 11, 12, "ellipsis", 99]);
   });
 
-  it("隣接ページとの間が1ページしか空かないときは省略記号を挟まない", () => {
-    // currentPage=3, totalPages=5: 先頭側1,2,3・末尾側3,4,5で隙間なし
+  it("先頭と2ページ前が隣り合うときは省略記号を挟まない", () => {
+    expect(getPaginationRange(3, 99)).toEqual([1, 2, 3, 4, 5, "ellipsis", 99]);
+    expect(getPaginationRange(4, 99)).toEqual([1, 2, 3, 4, 5, 6, "ellipsis", 99]);
+  });
+
+  // 隠すのが1ページだけでも省略記号にする。数字にすると 360px の本文幅に
+  // 収まらない（docs/ranking/pagination-reach/design.md「幅の予算」）。
+  it("隙間が1ページだけでも省略記号にする", () => {
+    expect(getPaginationRange(5, 99)).toEqual([1, "ellipsis", 3, 4, 5, 6, 7, "ellipsis", 99]);
+    expect(getPaginationRange(95, 99)).toEqual([1, "ellipsis", 93, 94, 95, 96, 97, "ellipsis", 99]);
+  });
+
+  it("総ページ数が前後2ページに収まるときは省略記号を出さない", () => {
     expect(getPaginationRange(3, 5)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("並ぶ項目は最大9つ（数字7つ・省略記号2つ）", () => {
+    for (let page = 1; page <= 99; page++) {
+      const items = getPaginationRange(page, 99);
+      expect(items.length).toBeLessThanOrEqual(9);
+      expect(items.filter((item) => item === "ellipsis").length).toBeLessThanOrEqual(2);
+    }
   });
 });
 
