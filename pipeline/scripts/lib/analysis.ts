@@ -22,6 +22,13 @@ export interface AnalysisRecord {
   /** 分析の本文。 */
   body: string;
   sources: AnalysisSource[];
+  /**
+   * 分析を書いた年月（`YYYY-MM`・日本時間）。**分析の断りに「◯年◯月時点」として出す**
+   * ——公開資料とモデルの一般知識を使って「今後」まで書いているので、いつの時点の評価かが
+   * 読めないと古くなったことに気づけない。日までは出さない（年1回の更新で、日単位の差は
+   * 読者にとって情報にならない）。
+   */
+  generatedAt: string;
 }
 
 /**
@@ -83,12 +90,27 @@ export function parseSources(raw: string, code: string): AnalysisSource[] {
 }
 
 /**
+ * CSV の `generated_at`（ISO 8601。C9 は UTC で書いている）を**日本時間の**年月にする。
+ * UTC のまま月を取ると、月末の夜に書いた分析が前の月の日付になる。**形が崩れていたら
+ * ビルドを落とす**——黙って空にすると、時点の無い分析が配られる。
+ */
+export function generatedMonth(raw: string, code: string): string {
+  const time = Date.parse(raw.trim());
+  if (!/^\d{4}-\d{2}-\d{2}T/.test(raw.trim()) || Number.isNaN(time)) {
+    throw new Error(`${code}: generated_at が ISO 8601 の日時ではありません（${raw}）`);
+  }
+  const jst = new Date(time + 9 * 60 * 60 * 1000);
+  const month = String(jst.getUTCMonth() + 1).padStart(2, "0");
+  return `${jst.getUTCFullYear()}-${month}`;
+}
+
+/**
  * CSV の1行から表示用の記録を作る。**要約か分析のどちらかが空なら `null`**——
  * 対で出す（AC-28）。いまの CSV は全社が両方を持つが、C9 の `pair_or_drop` は
  * 片方が落ちたら両方を空にする契約なので、ここでも同じ線で読む。
  */
 export function toAnalysisRecord(
-  line: { digest: string; headline: string; body: string; sources: string },
+  line: { digest: string; headline: string; body: string; sources: string; generatedAt: string },
   code: string
 ): AnalysisRecord | null {
   const digest = line.digest.trim();
@@ -100,5 +122,6 @@ export function toAnalysisRecord(
     headline,
     body: dropRepeatedHeadline(headline, body),
     sources: parseSources(line.sources, code),
+    generatedAt: generatedMonth(line.generatedAt, code),
   };
 }

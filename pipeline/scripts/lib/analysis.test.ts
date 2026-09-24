@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dropRepeatedHeadline, parseSources, toAnalysisRecord } from "./analysis";
+import { dropRepeatedHeadline, generatedMonth, parseSources, toAnalysisRecord } from "./analysis";
 
 describe("dropRepeatedHeadline", () => {
   it("本文が一言と同じ文で始まっていれば1文目を落とす", () => {
@@ -45,15 +45,44 @@ describe("parseSources", () => {
 });
 
 describe("toAnalysisRecord（AC-28）", () => {
-  const line = { digest: "要約。", headline: "一言。", body: "本文。", sources: "[]" };
+  const line = {
+    digest: "要約。",
+    headline: "一言。",
+    body: "本文。",
+    sources: "[]",
+    generatedAt: "2026-09-08T06:47:16+00:00",
+  };
 
   it("要約と分析がそろっていれば記録を作る", () => {
-    expect(toAnalysisRecord(line, "x")).toEqual({ digest: "要約。", headline: "一言。", body: "本文。", sources: [] });
+    expect(toAnalysisRecord(line, "x")).toEqual({
+      digest: "要約。",
+      headline: "一言。",
+      body: "本文。",
+      sources: [],
+      generatedAt: "2026-09",
+    });
   });
 
   it("どちらかが空なら対で落とす", () => {
     expect(toAnalysisRecord({ ...line, digest: "" }, "x")).toBeNull();
     expect(toAnalysisRecord({ ...line, headline: " " }, "x")).toBeNull();
     expect(toAnalysisRecord({ ...line, body: "" }, "x")).toBeNull();
+  });
+});
+
+describe("generatedMonth", () => {
+  it("日本時間の年月にする", () => {
+    expect(generatedMonth("2026-09-08T06:47:16+00:00", "x")).toBe("2026-09");
+  });
+
+  it("UTC の月末の夜は日本時間では翌月になる", () => {
+    expect(generatedMonth("2026-08-31T20:00:00+00:00", "x")).toBe("2026-09");
+    expect(generatedMonth("2026-12-31T15:00:00+00:00", "x")).toBe("2027-01");
+  });
+
+  it("日時でなければ落とす", () => {
+    expect(() => generatedMonth("", "x")).toThrow();
+    expect(() => generatedMonth("2026-09", "x")).toThrow();
+    expect(() => generatedMonth("9月8日", "x")).toThrow();
   });
 });
