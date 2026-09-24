@@ -864,6 +864,33 @@ describe("buildData", () => {
       }
     });
   });
+
+  /**
+   * 有報の書類 ID（C13・Issue #814）。企業詳細が EDINET の書類閲覧ページへのリンクにする。
+   * **実測値の4項目を取った書類そのもの**でなければならないので、CSV の `doc_id` と行ごとに
+   * 突き合わせる——行がずれると別の会社の有報へ飛ばすことになる。
+   */
+  describe("filings.json", () => {
+    it("全社に書類 ID があり、キーは companies.json の id", () => {
+      const ids = result.companies.rows.map((row) => row[0]);
+      expect(Object.keys(result.filings.byId).sort()).toEqual([...ids].sort());
+    });
+
+    it("各社の書類 ID は、その会社の平均年間給与を取った書類（CSV の doc_id）", () => {
+      const rows = parseUnifiedCsv(readFileSync(join(ROOT, "data/ranking_unified_2026.csv"), "utf-8"));
+      result.companies.rows.forEach((row, i) => {
+        expect(result.filings.byId[row[0] as string], row[1] as string).toBe(rows[i].docId);
+      });
+      // キーエンス。E2E（`web/e2e/company-filing.spec.ts`）が同じ値でリンク先を見ている。
+      expect(result.filings.byId["6861"]).toBe("S100YAHE");
+    });
+
+    it("URL は持たない（組み立ては web の1か所）", () => {
+      for (const docId of Object.values(result.filings.byId)) {
+        expect(docId).toMatch(/^S[0-9A-Z]{7}$/);
+      }
+    });
+  });
 });
 
 /**

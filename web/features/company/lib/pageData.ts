@@ -33,6 +33,7 @@ import profitHistoryData from "@/public/data/profit-history.json";
 import logosData from "@/public/data/logos.json";
 import summariesData from "@/public/data/summaries.json";
 import analysesData from "@/public/data/analyses.json";
+import filingsData from "@/public/data/filings.json";
 import { buildAnalysisView, type AnalysisRecord, type AnalysisView } from "@/features/company/lib/analysis";
 
 const companies = companiesData as CompaniesData;
@@ -207,6 +208,26 @@ function requireCompanyView(id: string): CompanyView {
   return view;
 }
 
+/**
+ * 有報の書類 ID（C13・Issue #814）。**実測値の4項目を取った書類そのもの**で、企業詳細は
+ * これを EDINET の書類閲覧ページへのリンクにする。**ここだけが import する**——
+ * `src/pages/index.astro` から読むとトップページの HTML が全社ぶん増える（AC-31）。
+ */
+const filings = (filingsData as { byId: Record<string, string> }).byId;
+
+/**
+ * **全社にある前提で、無ければビルドを落とす**（`requireCompanyView` と同じ扱い）。
+ * `build-data.ts` が全社にあることを確かめて書くので、ここで欠けるのはデータが自己矛盾した
+ * ときだけ——その会社のページだけリンクが消えて誰も気づかない、という形で配らない。
+ */
+function requireFilingDocId(id: string): string {
+  const docId = filings[id];
+  if (docId === undefined) {
+    throw new Error(`企業ID ${id} の書類 ID が filings.json にありません（build:data を回し直すこと）`);
+  }
+  return docId;
+}
+
 export interface CompanyPageData {
   view: CompanyView;
   radar: CompanyRadarInput;
@@ -215,6 +236,8 @@ export interface CompanyPageData {
   profitHistory: ProfitHistory | null;
   summary: SummaryView | null;
   fiscalPeriod: string;
+  /** 実測値の4項目を取った有報の書類 ID（`S100YAHE` の形・8文字）。URL にするのは描画側。 */
+  filingDocId: string;
   logoIds: string[];
 }
 
@@ -237,6 +260,7 @@ export function companyPageData(id: string): CompanyPageData {
     profitHistory: profitHistoryFor(view.id),
     summary: buildSummaryView(summaries[view.id]),
     fiscalPeriod: fiscalPeriodFor(view.id),
+    filingDocId: requireFilingDocId(view.id),
     logoIds: logoIdsOnPage(view),
   };
 }

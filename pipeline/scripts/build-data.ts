@@ -48,6 +48,10 @@ const SUMMARIES_JSON_GZIP_LIMIT_BYTES = 320 * 1024;
 // **クライアントへは送らない**——`/company/[id]` がビルド時に1社ぶんを抜いて静的な
 // HTML にするだけ（AC-30）。`summaries.json` と同じく Worker バンドルにも入らない。
 const ANALYSES_JSON_GZIP_LIMIT_BYTES = 2600 * 1024;
+// 2,961社ぶんの書類 ID（C13・#814）。実測 gzip 16.6KB。**上限は気づくための線**で、
+// 実測の 1.2 倍に置く。**クライアントへは送らない**——`/company/[id]` がビルド時に
+// 1社ぶんを抜くだけ。
+const FILINGS_JSON_GZIP_LIMIT_BYTES = 20 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -220,6 +224,7 @@ export function buildData(outDir: string) {
   const profitHistory = buildProfitHistory(rows, companyRows, history.years);
   const summaries = buildSummaries(rows, companyRows);
   const analyses = buildAnalyses(rows, companyRows);
+  const filings = buildFilings(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -232,6 +237,7 @@ export function buildData(outDir: string) {
   const profitHistoryPath = resolve(outDir, "profit-history.json");
   const summariesPath = resolve(outDir, "summaries.json");
   const analysesPath = resolve(outDir, "analyses.json");
+  const filingsPath = resolve(outDir, "filings.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
@@ -240,6 +246,7 @@ export function buildData(outDir: string) {
   const profitHistoryJson = JSON.stringify(profitHistory);
   const summariesJson = JSON.stringify(summaries);
   const analysesJson = JSON.stringify(analyses);
+  const filingsJson = JSON.stringify(filings);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
@@ -250,6 +257,7 @@ export function buildData(outDir: string) {
   writeFileSync(profitHistoryPath, profitHistoryJson);
   writeFileSync(summariesPath, summariesJson);
   writeFileSync(analysesPath, analysesJson);
+  writeFileSync(filingsPath, filingsJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -307,6 +315,13 @@ export function buildData(outDir: string) {
     );
   }
 
+  const filingsGzipSize = gzipSync(filingsJson).length;
+  if (filingsGzipSize > FILINGS_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `filings.json のgzipサイズが上限(${limitLabel(FILINGS_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(filingsGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
@@ -318,6 +333,7 @@ export function buildData(outDir: string) {
     profitHistoryPath,
     summariesPath,
     analysesPath,
+    filingsPath,
     companies,
     curves,
     stats,
@@ -328,6 +344,7 @@ export function buildData(outDir: string) {
     profitHistory,
     summaries,
     analyses,
+    filings,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
@@ -336,6 +353,7 @@ export function buildData(outDir: string) {
     profitHistoryGzipSize,
     summariesGzipSize,
     analysesGzipSize,
+    filingsGzipSize,
   };
 }
 
@@ -593,6 +611,33 @@ function median(values: readonly number[]): number {
 /** 上限の定数をそのままメッセージに出す。**手で書くと定数を動かしたとき嘘になる。** */
 function limitLabel(bytes: number): string {
   return `${bytes / 1024}KB`;
+}
+
+/**
+ * 有報の書類 ID（`filings.json`）。C13・Issue #814（`docs/company/spec.md` 1.20）。
+ *
+ * **実測値の4項目を取った書類そのもの**（`ranking_unified_2026.csv` の `doc_id`）。企業詳細は
+ * これを EDINET の書類閲覧ページへのリンクにする。**持つのは ID だけで、URL は持たない**——
+ * 閲覧ページの URL は公開 API ではなく EDINET の画面の URL なので、変わったときに作り直すのが
+ * データではなく web の関数1つで済むようにする（`web/lib/data/sources.ts`）。
+ *
+ * **`summaries.json` と同じく ID の辞書**で、`/company/[id]` だけが import する。
+ * `src/pages/index.astro` からは読まない（トップページの HTML を増やさない・AC-31）。
+ */
+function buildFilings(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const byId: Record<string, string> = {};
+  rows.forEach((row, i) => {
+    // **全社にあることを確かめる。** 無い会社を黙って飛ばすと、その会社のページだけ
+    // リンクが消えて誰も気づかない。形は EDINET の書類管理番号（`S` ＋英数字7桁）。
+    if (!/^S[0-9A-Z]{7}$/.test(row.docId)) {
+      throw new Error(`${row.name} の doc_id が書類管理番号の形でありません: "${row.docId}"`);
+    }
+    byId[companyRows[i][0] as string] = row.docId;
+  });
+  return { byId };
 }
 
 /**
@@ -1033,6 +1078,10 @@ if (isMain) {
   console.log(
     `${result.analysesPath}: ${coverage(Object.keys(result.analyses.byId).length, total)}, ` +
       `gzip ${(result.analysesGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.filingsPath}: ${coverage(Object.keys(result.filings.byId).length, total)}, ` +
+      `gzip ${(result.filingsGzipSize / 1024).toFixed(1)}KB`
   );
 
   // ロゴだけは別のコマンドが作るので、パスではなく施策名で出す（E3・#175 で追随する）。

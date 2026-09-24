@@ -34,16 +34,17 @@ export function SourcesSection({ rows }: { rows: SourceRow[] }) {
                     /*
                      * `/about` の「出典」と同じ扱い（別タブ・`noreferrer`）。分析の「参照した
                      * 資料」は `nofollow` を付けているが、あちらは会社ごとに違う外部サイトで、
-                     * **こちらは全ページ共通の公的な一次情報**なので付けない。
+                     * **こちらは公的な一次情報**なので付けない。有報の書類閲覧ページ（C13）も
+                     * 同じ扱い——行き先は会社ごとに違うが、同じ EDINET の中の書類になる。
                      */
                     <a
                       key={i}
-                      href={PRIMARY_SOURCES[segment.source].url}
+                      href={"source" in segment ? PRIMARY_SOURCES[segment.source].url : segment.url}
                       target="_blank"
                       rel="noreferrer"
                       className="text-primary underline"
                     >
-                      {PRIMARY_SOURCES[segment.source].name}
+                      {"source" in segment ? PRIMARY_SOURCES[segment.source].name : segment.text}
                     </a>
                   )
                 )}
