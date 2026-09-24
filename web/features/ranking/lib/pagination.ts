@@ -2,12 +2,16 @@ export type PaginationItem = number | "ellipsis";
 
 /**
  * ページネーションUIに表示するページ番号の並びを計算する。
- * 先頭・末尾・現在ページの前後1ページを表示し、間が空く箇所は"ellipsis"にする。
+ * 先頭・末尾・現在ページの前後2ページを表示し、間が空く箇所は"ellipsis"にする。
+ *
+ * **前後2ページが 360px の本文幅に収まる上限**（U17・Issue #813）。3にすると
+ * 388px になって収まらない。隠すのが1ページだけの隙間も省略記号にしているのも
+ * 同じ理由で、数字にすると 340px になる（`docs/ranking/pagination-reach/design.md`）。
  */
 export function getPaginationRange(currentPage: number, totalPages: number): PaginationItem[] {
   if (totalPages <= 0) return [];
 
-  const SIBLING_COUNT = 1;
+  const SIBLING_COUNT = 2;
   const pages = new Set<number>();
   pages.add(1);
   pages.add(totalPages);

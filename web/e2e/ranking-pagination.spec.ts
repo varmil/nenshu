@@ -77,6 +77,82 @@ test.describe("0件・端の状態と段階表示", () => {
     expect(requests).toHaveLength(0);
   });
 
+  // U17・Issue #813。前後1ページだった頃は、2ページ先へ移るのに2回押していた。
+  test("AC-17: 10ページ目では前後2ページ（8・9・11・12）へのボタンが並び、12を押すと移る", async ({
+    page,
+  }) => {
+    await page.goto("/?page=10");
+    await expect(page.getByText("2,961社 中 271〜300社目")).toBeVisible();
+
+    const pageButton = (n: number) => page.getByRole("button", { name: String(n), exact: true });
+    for (const n of [8, 9, 11, 12]) await expect(pageButton(n)).toBeVisible();
+    // 前後3ページ目は並ばない（間は省略記号になる）
+    await expect(pageButton(7)).toHaveCount(0);
+    await expect(pageButton(13)).toHaveCount(0);
+
+    await waitForRankingReady(page);
+    const requests = collectPageRequests(page);
+
+    await pageButton(12).click();
+
+    await expect(page).toHaveURL(/[?&]page=12(&|$)/);
+    await expect(page.getByText("2,961社 中 331〜360社目")).toBeVisible();
+    await expect(pageButton(12)).toHaveAttribute("aria-current", "page");
+    expect(requests).toHaveLength(0);
+  });
+
+  test("AC-17: 1ページ目では2・3ページへ、最終ページでは97・98ページへのボタンが並ぶ", async ({
+    page,
+  }) => {
+    const pageButton = (n: number) => page.getByRole("button", { name: String(n), exact: true });
+
+    await page.goto("/");
+    for (const n of [1, 2, 3, 99]) await expect(pageButton(n)).toBeVisible();
+    await expect(pageButton(4)).toHaveCount(0);
+
+    await page.goto("/?page=99");
+    for (const n of [1, 97, 98, 99]) await expect(pageButton(n)).toBeVisible();
+    await expect(pageButton(96)).toHaveCount(0);
+  });
+
+  test.describe("AC-17 モバイル", () => {
+    test.use({ viewport: { width: 360, height: 800 } });
+
+    /**
+     * 並びは中央寄せなので、本文の幅を超えると**左右の両側へ**はみ出す。左へ出た
+     * 「前へ」は画面の外になり、スクロールでも戻せない（`scrollWidth` は増えない）。
+     * だから横スクロールの有無ではなく、並びの左右の端を本文の器と突き合わせる。
+     *
+     * 測るのは並びが一番長くなるページ（前後2ページの両側に省略記号が出る位置）。
+     * 1ページ目や最終ページは短いので、見ても何も守らない。
+     */
+    for (const n of [5, 10, 95]) {
+      test(`360px で ${n}ページ目の並びが本文の幅からはみ出さない`, async ({ page }) => {
+        await page.goto(`/?page=${n}`);
+
+        const nav = page.getByRole("navigation", { name: "ページネーション", exact: true });
+        const list = nav.locator("ul").first();
+        await expect(list.locator(":scope > li")).toHaveCount(11); // 前へ・数字7・省略記号2・次へ
+
+        const navBox = await nav.boundingBox();
+        const listBox = await list.boundingBox();
+        expect(navBox).not.toBeNull();
+        expect(listBox).not.toBeNull();
+        expect(listBox!.x).toBeGreaterThanOrEqual(navBox!.x);
+        expect(listBox!.x + listBox!.width).toBeLessThanOrEqual(navBox!.x + navBox!.width);
+
+        // 押せる大きさは削っていない（数字の器は 32px のまま）
+        const current = page.getByRole("button", { name: String(n), exact: true });
+        expect((await current.boundingBox())!.width).toBeGreaterThanOrEqual(32);
+
+        // 並びは表の下にあるので、縦にスクロールしてから両端が丸ごと見えているかを見る
+        await nav.scrollIntoViewIfNeeded();
+        await expect(page.getByRole("button", { name: "前のページへ" })).toBeInViewport({ ratio: 1 });
+        await expect(page.getByRole("button", { name: "次のページへ" })).toBeInViewport({ ratio: 1 });
+      });
+    }
+  });
+
   test("SSR: 生HTTPリクエスト（JS実行なし）でも/?page=2のレスポンスHTMLがページ2の内容になっている", async ({
     request,
   }) => {
