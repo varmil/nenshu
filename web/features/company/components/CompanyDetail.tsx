@@ -40,7 +40,6 @@ import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import {
   buildActualsSummary,
   buildCurveSummary,
-  buildHighlights,
   buildHistoryPeak,
   buildHistorySummary,
 } from "../lib/highlights";
@@ -138,7 +137,6 @@ export function CompanyDetail({
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
-  const highlights = buildHighlights(view, current);
   const historySummary = history
     ? buildHistorySummary(history.years, history.values)
     : null;
@@ -547,17 +545,13 @@ export function CompanyDetail({
           <HowItWorks />
         </div>
 
-        {/* サイドバーは2枚のカード（アートボード 5b）。地のままだと本文の続きに見える。 */}
+        {/*
+          **サイドバーは「水準が近い会社」の1枚だけ**（C11・#799）。以前は上に
+          「この会社の要点」があったが、中身はカードの数値の繰り返しで、サイドバーを
+          画面より高くしていた（`md:sticky` なので下端が本文の最後まで見えない）。
+          要約の置き場所にもしない（C10 で決める）。
+        */}
         <aside className="flex flex-col gap-4 md:sticky md:top-4">
-          <section className="bg-muted flex flex-col gap-2 rounded-lg p-4">
-            <h2 className="text-sm font-bold">この会社の要点</h2>
-            {/* 数値から導ける事実だけ。会社ごとの解説文は書かない（spec 1.11）。 */}
-            <ul className="text-muted-foreground flex list-disc flex-col gap-1.5 pl-4 text-xs leading-relaxed">
-              {highlights.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </section>
           <NeighborCompanies
             neighbors={current.neighbors}
             industry={view.tse33}

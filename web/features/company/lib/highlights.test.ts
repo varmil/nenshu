@@ -3,14 +3,12 @@ import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import historyData from "../../../public/data/history.json";
-import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
+import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
 import { buildCompanyView } from "./view";
-import { statsForBasis } from "./stats";
 import {
   buildActualsSummary,
   buildCurveSummary,
-  buildHighlights,
   buildHistoryPeak,
   buildHistorySummary,
   findSalaryMilestones,
@@ -21,48 +19,6 @@ const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
 const stats = statsData as CompanyStatsData;
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
-
-function highlights(id: string, age: TargetAge | null) {
-  const view = buildCompanyView(companies, curves, stats, id)!;
-  return buildHighlights(view, statsForBasis(view, age));
-}
-
-describe("buildHighlights（AC-11）", () => {
-  it("金額・全体順位・業界内順位を必ず含む", () => {
-    const items = highlights("6861", null);
-    expect(items[0]).toContain("2,178万円");
-    expect(items[0]).toContain("3位");
-    // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
-    expect(items[0]).toContain("偏差値124.8");
-    expect(items[1]).toContain("電気機器");
-  });
-
-  it("表示基準を切り替えると位置の記述が変わる", () => {
-    const raw = highlights("6861", null);
-    const at25 = highlights("6861", 25);
-    expect(raw[0]).not.toBe(at25[0]);
-    expect(at25[0]).toContain("25歳にそろえた推定年収");
-    // 実測値では「推定」の語を出さない（spec AC-9）。
-    expect(raw.join("")).not.toContain("推定");
-  });
-
-  /*
-   * 該当しない項目は出さない（項目数を揃えない）。三分位の真ん中に入る会社は
-   * 年齢・勤続・規模の行がすべて落ちるので、項目数が最小になる。
-   */
-  it("該当しない項目は出さない", () => {
-    const middle = companies.rows.find(
-      (r) => r[4] >= 40 && r[4] < 43 && r[5] >= 13 && r[5] < 17 && r[7] >= 300 && r[7] < 1000 && r[8] === 0
-    )!;
-    const items = highlights(middle[0], 35);
-    expect(items).toHaveLength(2);
-  });
-
-  it("「本社のみ」の会社にはその断りが入る", () => {
-    const badged = companies.rows.find((r) => r[8] === 1)!;
-    expect(highlights(badged[0], null).join("")).toContain("本社のみ");
-  });
-});
 
 describe("buildCurveSummary", () => {
   function byAge(id: string) {

@@ -9,30 +9,19 @@ import { collectPageRequests } from "./network";
  * C1 で作った数値と表示基準の切替は `company-page.spec.ts` にある。
  */
 
-test.describe("AC-11 この会社の要点", () => {
-  test("箇条書きが出て、位置と業界内順位を含む", async ({ page }) => {
+/*
+ * 「この会社の要点」は C11（#799）で外した。カードの数値を文にした繰り返しで、
+ * サイドバーを画面より高くしていた。**生の HTML でも見る**——ハイドレーション後の
+ * DOM だけだと、サーバーが描いてクライアントが消す形でも通ってしまう。
+ */
+test.describe("AC-11 この会社の要点（削除）", () => {
+  test("見出しも箇条書きも出ない", async ({ page, request }) => {
     await page.goto("/company/6861");
-    const list = page.getByRole("heading", { name: "この会社の要点" }).locator("xpath=../ul");
-    await expect(list.getByRole("listitem").first()).toContainText("2,178万円");
-    // 括弧に添えるのは偏差値（アートボード 4b）。上位◯%は出さない。
-    await expect(list.getByRole("listitem").first()).toContainText("偏差値124.8");
-    await expect(list).toContainText("電気機器");
-  });
+    await expect(page.getByRole("heading", { name: "電気機器で水準が近い会社" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "この会社の要点" })).toHaveCount(0);
 
-  test("実測値では「推定」の語を出さない（AC-9）", async ({ page }) => {
-    await page.goto("/company/6861");
-    const list = page.getByRole("heading", { name: "この会社の要点" }).locator("xpath=../ul");
-    await expect(list).not.toContainText("推定");
-  });
-
-  test("表示基準を切り替えると位置の記述が追随する", async ({ page }) => {
-    await page.goto("/company/6861");
-    const list = page.getByRole("heading", { name: "この会社の要点" }).locator("xpath=../ul");
-    await expect(list).not.toContainText("25歳");
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await page.getByRole("group", { name: "目標年齢" }).getByRole("button", { name: "25歳" }).click();
-    await expect(list).toContainText("25歳にそろえた推定年収");
+    const html = await (await request.get("/company/6861")).text();
+    expect(html).not.toContain("この会社の要点");
   });
 });
 
@@ -345,6 +334,28 @@ test.describe("AC-15 レイアウト", () => {
     await page.waitForTimeout(200);
     const after = await aside.boundingBox();
     expect(after!.y).toBeGreaterThan(before!.y - 1500);
+  });
+
+  /*
+   * サイドバーは `md:sticky md:top-4` で画面に貼り付く。**画面より高いと、はみ出した
+   * 下端は本文を最後まで下ろすまで見えない**（C11・#799 の前は 6861 で 964px あった）。
+   * 水準が近い会社は最大10社なので、10社そろう 6861 で見る。
+   */
+  test("PC ではサイドバーが画面の高さに収まり、最後の1社まで見える", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/company/6861");
+
+    const aside = await page.locator("aside").boundingBox();
+    expect(aside!.height).toBeLessThanOrEqual(800 - 16);
+
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    await page.waitForTimeout(200);
+    const last = page
+      .getByRole("heading", { name: "電気機器で水準が近い会社" })
+      .locator("xpath=../ul")
+      .getByRole("listitem")
+      .last();
+    await expect(last).toBeInViewport();
   });
 
   test("390px では1カラムで、横スクロールが発生しない", async ({ page }) => {

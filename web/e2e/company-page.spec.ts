@@ -234,7 +234,7 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByRole("heading", { name: "三菱商事株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("本社のみ", { exact: true }).first()).toBeVisible();
-    // C2 で「この会社の要点」にも同じ断りが入るので2か所ある。
+    // 断りはフッタにある（C11・#799 で「この会社の要点」を外すまでは2か所だった）。
     await expect(
       page.getByText("単体従業員数が連結の10%未満", { exact: false }).first()
     ).toBeVisible();
