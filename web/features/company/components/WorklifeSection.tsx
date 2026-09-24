@@ -21,13 +21,15 @@ export function WorklifeSection({ view }: { view: WorklifeView }) {
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-bold">残業・有給・男女の賃金の差異</h2>
       {/*
-        **「推定」とも「実測値」とも呼ばない。「自己申告値」**（AC-9・glossary）
-        ——「実測値」は有報の平均年間給与を指す語で、同じ画面にある以上ぶつかる。
+        **「推定」とも「実測値」とも呼ばない**（AC-9・glossary）——「実測値」は有報の
+        平均年間給与を指す語で、同じ画面にある以上ぶつかる。**「自己申告値」の語はこの行に
+        置かない**（運営者の指示で短くした）。区分名はページ末尾の「このページの出典」（C12）が
+        持ち、監査を経ていないことは節の末尾の1文が書いている。
         時点も**有報の決算期とは別物**なので `lib/data/period.ts` には相乗りさせない。
       */}
       <p className="text-muted-foreground text-xs">
         厚生労働省「女性の活躍推進企業データベース」の公表値
-        {view.asOf === "" ? "（自己申告値）。" : `（${view.asOf}・自己申告値）。`}
+        {view.asOf === "" ? "。" : `（${view.asOf}）。`}
       </p>
 
       <dl className="border-border divide-border flex flex-col divide-y border-t border-b">
