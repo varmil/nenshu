@@ -494,9 +494,7 @@ export function CompanyDetail({
             */}
             <p className="text-sm">{actualsSummary}</p>
             <p className="text-muted-foreground text-xs">
-              {isRaw
-                ? "補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
-                : "ここから下は補正していない実際の数字です。提出会社（単体）のもので、連結子会社の従業員は入りません。"}
+              提出会社（単体）のもので、連結子会社の従業員は入りません。
             </p>
             {/*
               罫線で仕切った4セル（アートボード 4b）。地のまま並べると、上のカードの

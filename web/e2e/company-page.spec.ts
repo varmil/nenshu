@@ -51,7 +51,9 @@ test.describe("企業詳細ページ", () => {
 
     // 「有価証券報告書の実測値」の節。C3 で上部カードにも平均年齢・在籍年数・
     // 従業員数が並ぶようになったので、**節を特定してから**中を見る。
-    const rawFacts = page.locator("section", { hasText: "補正していない実際の数字です" });
+    const rawFacts = page.locator("section", {
+      has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }),
+    });
     await expect(rawFacts.getByText("35.0歳", { exact: true })).toBeVisible();
     await expect(rawFacts.getByText("11.3年", { exact: true })).toBeVisible();
     await expect(rawFacts.getByText("3,306人", { exact: true })).toBeVisible();
