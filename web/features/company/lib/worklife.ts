@@ -117,6 +117,16 @@ function barRatio(value: number): number {
 }
 
 /**
+ * 区分名を画面に出す形にする。名前の無い区分は「全体」。
+ *
+ * **レーダーの断り（W3・#802）も同じ関数を通す**——断りは「先頭の区分」を
+ * 名指しするので、節の行の名前と1文字でもずれると突き合わせられない。
+ */
+export function unitLabel(unit: string): string {
+  return unit === "" ? "全体" : unit;
+}
+
+/**
  * 区分別の値を行にする。**並べ替えない**（spec 2.2b）——会社が主たる区分を
  * 先に置いていることが多く、その並び自体が読者への情報になる。
  */
@@ -124,7 +134,7 @@ function unitRows(units: readonly WorklifeUnit[]): WorklifeValueRow[] {
   const out: WorklifeValueRow[] = [];
   for (const { unit, value } of units) {
     if (value === null) continue;
-    out.push({ label: unit === "" ? "全体" : unit, value, ratio: barRatio(value) });
+    out.push({ label: unitLabel(unit), value, ratio: barRatio(value) });
   }
   return out;
 }

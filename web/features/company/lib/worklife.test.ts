@@ -4,6 +4,7 @@ import {
   buildWorklifeView,
   metricFootnote,
   OVERTIME_DEFINITION_NOTE,
+  unitLabel,
   WORKLIFE_BAR_MAX,
 } from "./worklife";
 
@@ -252,5 +253,28 @@ describe("平均残業時間の定義の注記（Issue 224）", () => {
   it("注記に「推定」「実測値」の語が無い", () => {
     expect(OVERTIME_DEFINITION_NOTE).not.toContain("推定");
     expect(OVERTIME_DEFINITION_NOTE).not.toContain("実測値");
+  });
+});
+
+/*
+ * W3（Issue 802）。レーダーの断りは「先頭の区分「◯◯」」と節の行を名指しするので、
+ * **節の行の名前と同じ関数を通す。** ずれると断りと節を突き合わせられない。
+ */
+describe("unitLabel", () => {
+  it("区分名はそのまま、名前の無い区分は「全体」", () => {
+    expect(unitLabel("正社員")).toBe("正社員");
+    expect(unitLabel("")).toBe("全体");
+  });
+
+  it("節の行の名前と一致する", () => {
+    const view = buildWorklifeView({
+      ...EMPTY,
+      paidLeaveUnits: [
+        { unit: "", value: 63.7 },
+        { unit: "契約社員", value: 70 },
+      ],
+    });
+    const rows = view.metrics.find((m) => m.key === "paidLeave")!.rows;
+    expect(rows.map((r) => r.label)).toEqual([unitLabel(""), unitLabel("契約社員")]);
   });
 });

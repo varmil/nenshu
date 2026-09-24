@@ -7,7 +7,9 @@ import {
   ranks,
   representative,
   representativeValue,
+  type RadarAxis,
   type RadarAxisInput,
+  unitPickNote,
 } from "./radar";
 
 describe("representativeValue", () => {
@@ -19,13 +21,20 @@ describe("representativeValue", () => {
     expect(representativeValue(null, [{ value: 38.8 }])).toBe(38.8);
   });
 
-  it("区分が2つ以上なら掲載なしにする（代表を選ばない・平均もしない）", () => {
-    // spec 2.2b が禁じた「代表の1区分を選んで残りを捨てる」ことを図の側でもしない。
-    expect(representativeValue(null, [{ value: 67.4 }, { value: 60.8 }])).toBeNull();
+  /*
+   * ~~区分が2つ以上なら掲載なしにする~~（W2 まで）→ **先頭の区分の値を採る**
+   * （W3・#802）。区分ごとに公表している有給222社・残業112社の図から軸が
+   * 1本欠けていた。**平均はしない**（spec 1.4）。
+   */
+  it("区分が2つ以上なら先頭の区分の値を採る（新日本空調の有給）", () => {
+    // 営業・管理系 67.4 / 技術系 60.8。平均の 64.1 にしない。
+    expect(representativeValue(null, [{ value: 67.4 }, { value: 60.8 }])).toBe(67.4);
   });
 
   it("値が null の区分は数に入れない", () => {
     expect(representativeValue(null, [{ value: 38.8 }, { value: null }])).toBe(38.8);
+    // 先頭の値が落とされていれば、値のある最初の区分（節の先頭の行と同じ）。
+    expect(representativeValue(null, [{ value: null }, { value: 12 }, { value: 30 }])).toBe(12);
   });
 
   it("区分が無ければ掲載なし", () => {
@@ -34,25 +43,52 @@ describe("representativeValue", () => {
 });
 
 describe("representative", () => {
-  it("区分が2つ以上なら「区分別」であることを添える（W2・Issue 207 例1）", () => {
-    // 値は選ばない（規則は変えない）。図とリストの文言だけが変わる。
-    expect(representative(null, [{ value: 88 }, { value: 92.7 }, { value: 96.8 }])).toEqual({
-      value: null,
-      byUnit: true,
-    });
+  it("区分が2つ以上なら先頭を選び、その区分名を添える（ラクスの有給・W3）", () => {
+    expect(
+      representative(null, [
+        { unit: "正社員", value: 88 },
+        { unit: "RAM社員", value: 92.7 },
+        { unit: "契約社員", value: 96.8 },
+      ])
+    ).toEqual({ value: 88, pickedUnit: "正社員" });
   });
 
-  it("値が決まったとき・1つも無いときは `byUnit` を立てない", () => {
-    expect(representative(10.5, [{ value: 14.1 }, { value: 3.3 }])).toEqual({
-      value: 10.5,
-      byUnit: false,
+  it("区分名は会社が登録したまま。管理職が先頭でも飛ばさない（オルガノの有給）", () => {
+    // 名前で振り分けると spec 2.2b が禁じた「区分名を分類する」ことになる。
+    expect(
+      representative(null, [
+        { unit: "管理職", value: 48.2 },
+        { unit: "総合職", value: 66 },
+        { unit: "一般職", value: 81.1 },
+      ])
+    ).toEqual({ value: 48.2, pickedUnit: "管理職" });
+  });
+
+  it("選んでいないときは区分名を添えない", () => {
+    // 全体値がある（三菱商事の残業）。
+    expect(
+      representative(10.5, [
+        { unit: "総合職", value: 14.1 },
+        { unit: "一般職", value: 3.3 },
+      ])
+    ).toEqual({ value: 10.5, pickedUnit: null });
+    // 区分がちょうど1つ（キーエンスの有給）。登録された値が1つしか無く、選んでいない。
+    expect(representative(null, [{ unit: "正社員", value: 38.8 }])).toEqual({
+      value: 38.8,
+      pickedUnit: null,
     });
-    expect(representative(null, [{ value: 38.8 }])).toEqual({ value: 38.8, byUnit: false });
-    expect(representative(null, [])).toEqual({ value: null, byUnit: false });
+    // 値のある区分が1つだけ（もう1つは W2 で落とした）。
+    expect(
+      representative(null, [
+        { unit: "総合職", value: null },
+        { unit: "一般職", value: 20 },
+      ])
+    ).toEqual({ value: 20, pickedUnit: null });
+    expect(representative(null, [])).toEqual({ value: null, pickedUnit: null });
     // 区分の行はあるが値が無い会社（W2 で 0 を落とした野村総合研究所）。
     expect(representative(null, [{ value: null }, { value: null }])).toEqual({
       value: null,
-      byUnit: false,
+      pickedUnit: null,
     });
   });
 });
@@ -176,17 +212,21 @@ describe("buildRadarAxes", () => {
     expect(axes[3].note).toBe("電気機器の中央値 191万円");
   });
 
-  it("区分ごとに公表している軸は「区分別」（W2・Issue 207 例1）", () => {
-    const withByUnit = buildRadarAxes(
-      { ...inputs, paidLeave: { value: null, rank: -1, population: 895, byUnit: true } },
+  it("先頭の区分で点を打った軸は、実数と順位を出し区分名を持つ（W3）", () => {
+    const picked = buildRadarAxes(
+      { ...inputs, paidLeave: { value: 88, rank: 120, population: 1486, pickedUnit: "正社員" } },
       FORMAT
     );
-    expect(withByUnit[1].valueText).toBe("区分別");
-    // 頂点を打たないのも順位が空なのも掲載なしと同じ。変わるのは文言だけ。
-    expect(withByUnit[1].position).toBeNull();
-    expect(withByUnit[1].rankText).toBe("");
-    // 値の列は13px・76px 固定。3文字を超えると左へはみ出して隣のラベルを押す。
-    expect(withByUnit[1].valueText.length).toBeLessThanOrEqual(4);
+    expect(picked[1].valueText).toBe("88%");
+    expect(picked[1].position).not.toBeNull();
+    expect(picked[1].rankText).toBe("1,486社中120位");
+    expect(picked[1].pickedUnit).toBe("正社員");
+    // **「区分別」は無くなった**（W2 の表記）。値が無い軸は「掲載なし」だけ。
+    expect(picked.some((a) => a.valueText === "区分別")).toBe(false);
+  });
+
+  it("区分名は選んだ軸だけが持つ", () => {
+    expect(axes.map((a) => a.pickedUnit)).toEqual(["", "", "", "", ""]);
   });
 
   it("掲載なしの軸には注記を付けない", () => {
@@ -222,5 +262,57 @@ describe("RADAR_LIST_ORDER", () => {
     expect([...RADAR_LIST_ORDER].sort()).toEqual(
       ["overtime", "paidLeave", "profit", "salary", "tenure"].sort()
     );
+  });
+});
+
+describe("unitPickNote", () => {
+  const axis = (key: RadarAxis["key"], pickedUnit = ""): RadarAxis => ({
+    key,
+    label: "",
+    valueText: "",
+    position: 0.5,
+    rankText: "",
+    subLabel: "",
+    note: "",
+    pickedUnit,
+  });
+  const base = [axis("salary"), axis("paidLeave"), axis("tenure"), axis("profit"), axis("overtime")];
+
+  /*
+   * AC-17。**断りは該当する会社にだけ出す**——W2 の「区分別」の断りは全社の
+   * ページに出ていて、どちらの軸も当てはまらない三菱商事でも読まされた。
+   */
+  it("先頭の区分で点を打った軸が無ければ出さない", () => {
+    expect(unitPickNote(base)).toBeNull();
+  });
+
+  it("1軸なら軸と区分名を入れる（ラクスの有給）", () => {
+    const note = unitPickNote([
+      axis("salary"),
+      axis("paidLeave", "正社員"),
+      axis("tenure"),
+      axis("profit"),
+      axis("overtime"),
+    ]);
+    expect(note).toBe(
+      "有給は雇用管理区分ごとの公表で全体の値が無いため、先頭の区分「正社員」の値で点を打っています。区分ごとの値は下の節にあります。"
+    );
+  });
+
+  it("2軸なら両方の区分名を1文に入れる（オルガノ）", () => {
+    const note = unitPickNote([
+      axis("salary"),
+      axis("paidLeave", "管理職"),
+      axis("tenure"),
+      axis("profit"),
+      axis("overtime", "総合職"),
+    ]);
+    expect(note).toBe(
+      "有給・残業は雇用管理区分ごとの公表で全体の値が無いため、先頭の区分の値で点を打っています（有給は「管理職」、残業は「総合職」）。区分ごとの値は下の節にあります。"
+    );
+  });
+
+  it("有給・残業以外の軸は数えない", () => {
+    expect(unitPickNote([axis("salary", "正社員"), axis("profit", "正社員")])).toBeNull();
   });
 });

@@ -705,10 +705,11 @@ describe("buildData", () => {
       expect(result.radar.tenure.population).toBe(2961);
       // E6（#182）で母集団に追随させて 1,865 → 2,959社になった。
       expect(result.radar.profit.population).toBe(2959);
-      // 全体値か、区分がちょうど1つの会社だけが軸に乗る（代表を選ばないため）。
-      // W2（#185）で 0 と入力ミスの100%を落としたぶん、両軸とも母集団が減った。
-      expect(result.radar.paidLeave.population).toBe(1264);
-      expect(result.radar.overtime.population).toBe(1413);
+      // 値のある区分を1つでも持てば軸に乗る（全体値 → 無ければ先頭の区分）。
+      // W2（#185）で 0 と入力ミスの100%を落とし（1,266 → 1,264・1,420 → 1,413）、
+      // W3（#802）で区分が2つ以上の会社も乗せた（有給 +222社・残業 +112社）。
+      expect(result.radar.paidLeave.population).toBe(1486);
+      expect(result.radar.overtime.population).toBe(1525);
     });
 
     it("キーエンスは残業が掲載なし、有給は区分1つぶんが乗る", () => {
@@ -718,9 +719,12 @@ describe("buildData", () => {
       expect(result.radar.paidLeave.rank[i]).toBeGreaterThan(0);
     });
 
-    it("区分が2つ以上の会社は軸に乗せない（新日本空調の有給）", () => {
-      // 営業・管理系 67.4 / 技術系 60.8。**どちらかを代表に選ばない**（spec 2.2b）。
-      expect(result.radar.paidLeave.rank[indexOf("1952")]).toBe(-1);
+    it("区分が2つ以上の会社は先頭の区分で軸に乗る（新日本空調の有給・W3）", () => {
+      // 営業・管理系 67.4 / 技術系 60.8。~~どちらかを代表に選ばない~~（W2 まで）
+      // → 先頭の 67.4 で順位を決める。平均の 64.1 にはしない。
+      // 先頭を採る（平均しない）ことは `web/features/company/lib/radar.test.ts` が
+      // 固定している。ここは実データで軸に乗ることだけを見る。
+      expect(result.radar.paidLeave.rank[indexOf("1952")]).toBeGreaterThan(0);
     });
 
     it("在籍年数の1位は実データの最長の会社", () => {

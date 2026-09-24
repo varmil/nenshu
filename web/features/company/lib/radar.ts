@@ -36,10 +36,20 @@ export const RADAR_LIST_ORDER = [
  * 節の表示（W1）は「代表を選ばない」——区分をそのまま全部並べる（spec 2.2b）。
  * だがレーダーは1軸に1点しか打てないので、ここだけは1つに決める必要がある。
  *
- * **全体値があればそれ。無ければ区分がちょうど1つのときだけその値。**
- * 区分が2つ以上ある会社は「掲載なし」にする——そこで1つを選ぶことは
- * spec 2.2b が禁じた「代表の1区分を選んで残りを捨てる」ことそのものになる。
- * **平均もしない**（spec 1.4）。
+ * 1. **全体値があればそれ**
+ * 2. 無ければ、**値のある区分のうち先頭**（会社が登録した順。節の先頭の行と同じ）
+ * 3. 区分にも値が無ければ掲載なし
+ *
+ * **区分が2つ以上ある会社でも先頭の値で点を打つ**（W3・#802）。W2 までは
+ * 頂点を打たずに「区分別」と書いていたが、有給222社・残業112社の図から軸が
+ * 1本欠けていた。先頭には正社員・総合職のような主たる区分が来ていることが多く
+ * （有給の76%・残業の72%）、全体値と両方持つ会社で測ると先頭とのずれは小さい
+ * （有給 −1.5pt・残業 +0.2h。中央値）。
+ *
+ * **区分名で振り分けない。** 先頭が管理職・男性・部門の会社もある（有給54社・
+ * 残業31社）が、名前で飛ばす判定は spec 2.2b が禁じた「区分名を分類する」ことに
+ * なる。代わりに**どの区分の値かを画面に書く**（`unitPickNote`）。**平均もしない**
+ * （spec 1.4）——人数の重みが無いぶん実際の全体値とずれる。
  *
  * キーエンスの有給（区分「正社員」1件・38.8%）はこの規則で軸に出る
  * ——アートボード 6a・6b がそう描いている。
@@ -52,24 +62,23 @@ export function representativeValue(
 }
 
 /**
- * `representativeValue` に**なぜ1点に決められなかったか**を添えた版（W2・Issue #185）。
+ * `representativeValue` に**先頭の区分を選んだかどうか**を添えた版（W3・#802）。
  *
- * `byUnit` は「値が無い」のではなく「**区分ごとには公表されているが、1点には
- * まとめられない**」ことを表す。区分が2つ以上ある会社は有給221社・残業114社あり、
- * その全部で**節には値が出ているのにレーダーだけ「掲載なし」**になっていた
- * （Issue #207 例1）。**規則は変えない**——ここで1つ選ぶのは spec 2.2b が禁じた
- * 「代表を選ぶ」ことで、単純平均は人数の重みが無いぶん実際の全体値とずれる
- * （ラクスは正社員88.0・契約社員96.8で、単純平均は全体より高く出る）。
- * **変えるのは図とリストの文言だけ**にして、読者が節を見に行けるようにする。
+ * `pickedUnit` は**2つ以上ある区分から先頭を選んだとき**だけ、その区分名になる。
+ * 区分がちょうど1つの会社は選んでいない（登録された値が1つしか無い）ので `null`
+ * ——W2 までと同じく断りを出さない。
  */
 export function representative(
   all: number | null,
-  units: readonly { value: number | null }[]
-): { value: number | null; byUnit: boolean } {
-  if (all !== null) return { value: all, byUnit: false };
+  units: readonly { unit?: string; value: number | null }[]
+): { value: number | null; pickedUnit: string | null } {
+  if (all !== null) return { value: all, pickedUnit: null };
   const values = units.filter((u) => u.value !== null);
-  if (values.length === 1) return { value: values[0].value as number, byUnit: false };
-  return { value: null, byUnit: values.length > 1 };
+  if (values.length === 0) return { value: null, pickedUnit: null };
+  return {
+    value: values[0].value as number,
+    pickedUnit: values.length > 1 ? (values[0].unit ?? "") : null,
+  };
 }
 
 /*
@@ -186,13 +195,18 @@ export interface RadarAxis {
    */
   rankText: string;
   /**
-   * ラベルの隣に添える小さな注記（アートボード 6b）。有給・残業では**その値が
-   * どの雇用管理区分のものか**（`正社員`）、稼ぐ力では `1人あたり経常利益`。
-   * 無ければ空文字。
+   * ラベルの隣に添える小さな注記（アートボード 6b）。いまは稼ぐ力の
+   * `1人当たり経常利益` だけ。無ければ空文字。
    */
   subLabel: string;
   /** 値の下に**右寄せで**添える注記（`電気機器の中央値 191万円`）。無ければ空文字。 */
   note: string;
+  /**
+   * **2つ以上ある区分から先頭を選んで点を打った**ときの区分名（W3・#802）。
+   * 有給・残業の2軸だけが持ちうる。無ければ空文字。行には出さず、
+   * 図の下の断り（`unitPickNote`）に入る。
+   */
+  pickedUnit: string;
 }
 
 /** 1軸ぶんの入力。`rank` が `-1` なら掲載なし。 */
@@ -201,10 +215,14 @@ export interface RadarAxisInput {
   rank: number;
   population: number;
   /**
-   * 値は無いが**区分ごとには公表されている**（W2・Issue #185）。有給・残業の
-   * 2軸だけが持つ。頂点を打たないのは掲載なしと同じで、文言だけが変わる。
+   * **2つ以上ある区分から先頭を選んだ**ときの区分名（W3・#802。`representative`
+   * の `pickedUnit`）。有給・残業の2軸だけが持ちうる。
+   *
+   * **選んでいないときはキーごと持たない。** この入力は島の props として
+   * HTML の属性に直列化されるので、全軸にキーを並べると該当しない会社
+   * （有給・残業とも9割以上）のページまで重くなる。
    */
-  byUnit?: boolean;
+  pickedUnit?: string;
 }
 
 /**
@@ -253,16 +271,11 @@ export function buildRadarAxes(
       key,
       label: LABELS[key],
       /*
-       * **「掲載なし」と「区分別」を分ける**（W2・Issue #185・#207 例1）。
-       * 区分ごとに公表している会社では、節には値が出ているのに図だけが
-       * 「掲載なし」になり、公表していない会社と見分けが付かなかった。
-       *
-       * **3文字に収める。** リストの値の列は 13px・76px 固定で、右寄せの
-       * 文字が器を超えると左へはみ出して隣のラベルを押す（`OverviewSection`）。
-       * 「区分別で公表」は6文字＝約78pxで入らない。**何の区分かは節の説明文が
-       * 引き受ける**（`OverviewSection` の末尾の1文）。
+       * ~~「掲載なし」と「区分別」を分ける~~（W2）→ **区分ごとに公表している
+       * 会社も先頭の区分で点を打つ**ようになったので（W3・#802）、値が無い軸は
+       * 本当に何も公表していない軸だけになった。
        */
-      valueText: missing ? (inputs[key].byUnit === true ? "区分別" : "掲載なし") : format[key](value),
+      valueText: missing ? "掲載なし" : format[key](value),
       position: missing ? null : axisPosition(rank, population),
       rankText: missing
         ? ""
@@ -271,6 +284,46 @@ export function buildRadarAxes(
       // 残ると、値が無いのに説明だけある行になる。
       subLabel: missing ? "" : (subLabels[key] ?? ""),
       note: missing ? "" : (notes[key] ?? ""),
+      pickedUnit: missing ? "" : (inputs[key].pickedUnit ?? ""),
     };
   });
+}
+
+/** 断りの中での軸の呼び名。図のラベル（`有給の取得`・`残業時間`）より短くする。 */
+const PICK_NAMES: Partial<Record<RadarAxisKey, string>> = {
+  paidLeave: "有給",
+  overtime: "残業",
+};
+
+/**
+ * **先頭の区分で点を打った軸がある会社にだけ**出す断りの1文（W3・#802・AC-17）。
+ * 該当しなければ `null`。
+ *
+ * **区分名を必ず入れる。** 先頭が管理職・男性・部門の会社でも点を打つので、
+ * 何の値かを書かないと会社全体の数字に読める。**リストの行には入れない**——
+ * 値の列は 76px 固定で長い区分名が入らず、行に区分名を添えるのは P1 の2巡目に
+ * 運営者の指示で外している。
+ *
+ * **文はここで組む。ビューに持たせない。** 島の props は HTML の属性に直列化
+ * されるので、文をビューに載せると同じ文が props と本文の2か所に出る
+ * （W2・#224 の残業の注記と同じ扱い）。props に載るのは区分名だけになる。
+ *
+ * 「先頭の区分」は下の節で先頭に出ている行を指す。節も値の無い区分を
+ * 飛ばして並べるので、`representative` が選ぶものと一致する。
+ */
+export function unitPickNote(axes: readonly RadarAxis[]): string | null {
+  const picks = axes.flatMap((axis) => {
+    const name = PICK_NAMES[axis.key];
+    return name !== undefined && axis.pickedUnit !== "" ? [{ name, unit: axis.pickedUnit }] : [];
+  });
+  if (picks.length === 0) return null;
+  const lead = "雇用管理区分ごとの公表で全体の値が無いため、";
+  const tail = "区分ごとの値は下の節にあります。";
+  if (picks.length === 1) {
+    const [{ name, unit }] = picks;
+    return `${name}は${lead}先頭の区分「${unit}」の値で点を打っています。${tail}`;
+  }
+  const names = picks.map((p) => p.name).join("・");
+  const units = picks.map((p) => `${p.name}は「${p.unit}」`).join("、");
+  return `${names}は${lead}先頭の区分の値で点を打っています（${units}）。${tail}`;
 }
