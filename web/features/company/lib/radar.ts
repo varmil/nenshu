@@ -289,6 +289,21 @@ export function buildRadarAxes(
   });
 }
 
+/**
+ * **頂点を打たなかった軸がある会社にだけ**出す断りの1文（P1 の AC-7）。
+ * 該当しなければ `null`。
+ *
+ * 図を見ただけでは「頂点が無い」ことに気づけない読者がいるので断る。ただし
+ * **5軸すべてに頂点がある会社（トヨタ自動車・三菱商事など）には出さない**
+ * ——W3（#802）の後、運営者の指摘で `unitPickNote` と同じ扱いにそろえた。
+ * 以前は全社のページに出ていて、形が欠けていない図の下にも読まされた。
+ */
+export function missingAxisNote(axes: readonly RadarAxis[]): string | null {
+  return axes.some((axis) => axis.position === null)
+    ? "公表の無い指標は頂点を打たず、残りの点で閉じています。"
+    : null;
+}
+
 /** 断りの中での軸の呼び名。図のラベル（`有給の取得`・`残業時間`）より短くする。 */
 const PICK_NAMES: Partial<Record<RadarAxisKey, string>> = {
   paidLeave: "有給",
