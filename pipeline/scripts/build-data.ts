@@ -10,6 +10,7 @@ import {
 import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
+import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { ranks, representativeValue } from "../../web/features/company/lib/radar";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -42,6 +43,11 @@ const PROFIT_HISTORY_JSON_GZIP_LIMIT_BYTES = 384 * 1024;
 // （`/company/[id]` がビルド時に1社ぶんを抜くだけ・AC-23）ので、効くのは Worker
 // バンドルへの同梱ぶんだけになる。
 const SUMMARIES_JSON_GZIP_LIMIT_BYTES = 320 * 1024;
+// 2,961社ぶんの有報の要約と AI 分析（C9・#241、表示は C10・#242）。**上限は気づくための線**で、
+// 実測 gzip 2,150KB（raw は要約・一言・本文で1社あたり約2.4KB）の 1.2 倍に置く。
+// **クライアントへは送らない**——`/company/[id]` がビルド時に1社ぶんを抜いて静的な
+// HTML にするだけ（AC-30）。`summaries.json` と同じく Worker バンドルにも入らない。
+const ANALYSES_JSON_GZIP_LIMIT_BYTES = 2600 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -213,6 +219,7 @@ export function buildData(outDir: string) {
   const radar = buildRadar(rows, companyRows, performance);
   const profitHistory = buildProfitHistory(rows, companyRows, history.years);
   const summaries = buildSummaries(rows, companyRows);
+  const analyses = buildAnalyses(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -224,6 +231,7 @@ export function buildData(outDir: string) {
   const radarPath = resolve(outDir, "radar.json");
   const profitHistoryPath = resolve(outDir, "profit-history.json");
   const summariesPath = resolve(outDir, "summaries.json");
+  const analysesPath = resolve(outDir, "analyses.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
@@ -231,6 +239,7 @@ export function buildData(outDir: string) {
   const radarJson = JSON.stringify(radar);
   const profitHistoryJson = JSON.stringify(profitHistory);
   const summariesJson = JSON.stringify(summaries);
+  const analysesJson = JSON.stringify(analyses);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
@@ -240,6 +249,7 @@ export function buildData(outDir: string) {
   writeFileSync(radarPath, radarJson);
   writeFileSync(profitHistoryPath, profitHistoryJson);
   writeFileSync(summariesPath, summariesJson);
+  writeFileSync(analysesPath, analysesJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -290,6 +300,13 @@ export function buildData(outDir: string) {
     );
   }
 
+  const analysesGzipSize = gzipSync(analysesJson).length;
+  if (analysesGzipSize > ANALYSES_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `analyses.json のgzipサイズが上限(${limitLabel(ANALYSES_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(analysesGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
@@ -300,6 +317,7 @@ export function buildData(outDir: string) {
     radarPath,
     profitHistoryPath,
     summariesPath,
+    analysesPath,
     companies,
     curves,
     stats,
@@ -309,6 +327,7 @@ export function buildData(outDir: string) {
     radar,
     profitHistory,
     summaries,
+    analyses,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
@@ -316,6 +335,7 @@ export function buildData(outDir: string) {
     radarGzipSize,
     profitHistoryGzipSize,
     summariesGzipSize,
+    analysesGzipSize,
   };
 }
 
@@ -633,6 +653,72 @@ function buildSummaries(
   return { byId };
 }
 
+/**
+ * 有報の要約と AI 分析（`analyses.json`）。C10・Issue #242（親 #214・ADR-0015）。
+ *
+ * **`summaries.json`（C7 の説明文）と同じ形——ID の辞書**にする。引くのは常に1社ぶんで、
+ * 全社を舐める場面が無いため。**要約と分析は1つの記録に入れる**——別のファイルに
+ * 分けると、片方だけある会社を作れてしまう（AC-28 は対で出すことを求めている）。
+ *
+ * **`src/pages/index.astro` からは読まない**（Issue #22・AC-30）。
+ */
+function buildAnalyses(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const csvText = readFileSync(resolve(ROOT, "data/company_analysis_2026.csv"), "utf-8");
+  const table = parseCsv(csvText);
+  const header = table[0] ?? [];
+  const col = (name: string) => {
+    const index = header.indexOf(name);
+    if (index === -1) {
+      throw new Error(
+        `data/company_analysis_2026.csv に ${name} の列がありません。pipeline/analysis/generate.py の merge を確認すること`
+      );
+    }
+    return index;
+  };
+  const codeIndex = col("edinet_code");
+  const summaryIndex = col("summary");
+  const headlineIndex = col("headline");
+  const analysisIndex = col("analysis");
+  const sourcesIndex = col("sources");
+
+  const byEdinetCode = new Map<string, AnalysisRecord>();
+  for (const line of table.slice(1)) {
+    const code = line[codeIndex] ?? "";
+    const record = toAnalysisRecord(
+      {
+        digest: line[summaryIndex] ?? "",
+        headline: line[headlineIndex] ?? "",
+        body: line[analysisIndex] ?? "",
+        sources: line[sourcesIndex] ?? "",
+      },
+      code
+    );
+    if (record !== null) byEdinetCode.set(code, record);
+  }
+
+  const byId: Record<string, AnalysisRecord> = {};
+  let matched = 0;
+  rows.forEach((row, i) => {
+    const record = byEdinetCode.get(row.edinetCode);
+    if (record === undefined) return;
+    matched++;
+    byId[companyRows[i][0] as string] = record;
+  });
+
+  // **突合が全件当たることを確かめる**（`buildSummaries` と同じガード）。
+  if (matched !== byEdinetCode.size) {
+    throw new Error(
+      `company_analysis_2026.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+    );
+  }
+
+  return { byId };
+}
+
 function buildHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
@@ -941,6 +1027,10 @@ if (isMain) {
   console.log(
     `${result.summariesPath}: ${coverage(Object.keys(result.summaries.byId).length, total)}, ` +
       `gzip ${(result.summariesGzipSize / 1024).toFixed(1)}KB`
+  );
+  console.log(
+    `${result.analysesPath}: ${coverage(Object.keys(result.analyses.byId).length, total)}, ` +
+      `gzip ${(result.analysesGzipSize / 1024).toFixed(1)}KB`
   );
 
   // ロゴだけは別のコマンドが作るので、パスではなく施策名で出す（E3・#175 で追随する）。

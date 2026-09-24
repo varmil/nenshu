@@ -22,7 +22,8 @@ test.describe("計算方法ページ（/about）", () => {
 
     // 対象範囲
     await expect(page.getByRole("heading", { name: "対象範囲" })).toBeVisible();
-    await expect(page.getByText("2,961社")).toBeVisible();
+    // 「要約と分析の作り方」の節（C10）にも社数が出るので、対象範囲の太字に絞る。
+    await expect(page.getByText("2,961社", { exact: true })).toBeVisible();
 
     // 限界
     await expect(page.getByRole("heading", { name: "この方法の限界" })).toBeVisible();
