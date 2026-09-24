@@ -158,11 +158,14 @@ test.describe("AC-8 男女の賃金の差異", () => {
 });
 
 test.describe("AC-9 出典と時点", () => {
-  test("出典・自己申告値・集計時点・対象期間が出る", async ({ page }) => {
+  /*
+   * 「自己申告値」の語は節の出典の1行から外した（運営者の指示で短くした）。区分名は
+   * ページ末尾の「このページの出典」（C12）が持ち、監査を経ていないことは節の末尾の文が書く。
+   */
+  test("出典・集計時点・対象期間・監査を経ていないことが出る", async ({ page }) => {
     await page.goto("/company/7203");
     const worklife = section(page);
-    await expect(worklife).toContainText("厚生労働省「女性の活躍推進企業データベース」");
-    await expect(worklife).toContainText("自己申告値");
+    await expect(worklife).toContainText("厚生労働省「女性の活躍推進企業データベース」の公表値（2026年3月時点）。");
     await expect(worklife).toContainText("2026年3月時点");
     await expect(worklife).toContainText("2025年4月1日～2026年3月31日");
     await expect(worklife).toContainText("監査を経ていません");

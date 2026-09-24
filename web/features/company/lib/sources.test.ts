@@ -72,6 +72,11 @@ describe("buildSourceRows（C12・AC-16）", () => {
     }
   });
 
+  it("AIの評価の材料は分析の節の断りと同じ2つ（有価証券報告書・公開資料）", () => {
+    const analysis = buildSourceRows(ALL).find((r) => r.kind === "aiAnalysis")!;
+    expect(text(analysis.source)).toBe("有価証券報告書・公開資料");
+  });
+
   it("決算期を書かない（S3。企業詳細で認めているのは実測値の見出しと要約の説明の2か所だけ）", () => {
     for (const row of buildSourceRows(ALL)) {
       expect(`${row.covers}${text(row.source)}`).not.toMatch(/\d{4}年\d{1,2}月期/);
