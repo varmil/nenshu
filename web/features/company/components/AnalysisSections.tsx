@@ -1,5 +1,5 @@
 import { ExternalLink } from "lucide-react";
-import { ANALYSIS_NOTE, DIGEST_NOTE, type AnalysisView } from "../lib/analysis";
+import { analysisNote, digestNote, type AnalysisView } from "../lib/analysis";
 
 /*
  * 有報の要約と AI 分析の2節（C10・Issue #242、アートボード 8a / 8b / 8c）。
@@ -25,7 +25,7 @@ export function AnalysisSection({ name, view }: { name: string; view: AnalysisVi
     >
       <h2 className="text-lg font-bold">{name}の現状と今後</h2>
       <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-        {ANALYSIS_NOTE}
+        {analysisNote(view.asOf)}
         <a href="/about#company-analysis" className="text-primary underline">
           要約と分析の作り方
         </a>
@@ -77,11 +77,20 @@ export function AnalysisSection({ name, view }: { name: string; view: AnalysisVi
  * 「{社名}の有価証券報告書の要約」。**稼ぐ力の推移の後ろ・この数字の作り方の前**。
  * 1文目が事業の説明になりやすく、ページ上部の説明文（C7）と内容が重なるので離して置く。
  */
-export function DigestSection({ name, view }: { name: string; view: AnalysisView }) {
+export function DigestSection({
+  name,
+  view,
+  fiscalPeriod,
+}: {
+  name: string;
+  view: AnalysisView;
+  /** その会社の決算期（`2026年3月期`）。「有価証券報告書の実測値」の見出しと同じ値。 */
+  fiscalPeriod: string;
+}) {
   return (
     <section className="flex flex-col" data-testid="company-digest">
       <h2 className="text-lg font-bold">{name}の有価証券報告書の要約</h2>
-      <p className="text-muted-foreground mt-1 mb-2.5 text-xs leading-relaxed">{DIGEST_NOTE}</p>
+      <p className="text-muted-foreground mt-1 mb-2.5 text-xs leading-relaxed">{digestNote(fiscalPeriod)}</p>
       <p className="text-[13px] leading-[1.85] text-pretty sm:text-sm">{view.digest}</p>
     </section>
   );

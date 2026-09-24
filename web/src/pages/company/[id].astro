@@ -36,6 +36,6 @@ const analysis = companyAnalysisFor(data.view.id);
   />
   <CompanyDetailIsland data={data} client:load>
     {analysis && <AnalysisSection slot="analysis" name={data.view.name} view={analysis} />}
-    {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} />}
+    {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} fiscalPeriod={data.fiscalPeriod} />}
   </CompanyDetailIsland>
 </Base>
