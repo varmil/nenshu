@@ -35,6 +35,7 @@ import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
+import { FilingLink } from "./FilingLink";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import {
   buildActualsSummary,
@@ -85,6 +86,7 @@ export function CompanyDetail({
   profitHistory,
   summary,
   fiscalPeriod,
+  filingDocId,
   analysis,
   digest,
   sources,
@@ -122,6 +124,11 @@ export function CompanyDetail({
    * これ1つでは無いのと同じ理由で、渡すのは使う形だけにしておく。
    */
   fiscalPeriod: string;
+  /**
+   * 実測値の4項目を取った有報の書類 ID（C13・Issue #814）。**8文字だけを props に載せ、
+   * URL は描画時に組み立てる**（`lib/data/sources.ts` の `edinetDocumentUrl`）。
+   */
+  filingDocId: string;
   /**
    * 「{社名}の現状と今後」と「{社名}の有価証券報告書の要約」（C10・Issue #242）。
    * **静的な HTML として届く**（`CompanyDetailIsland` の名前付きスロット）。置く場所だけを
@@ -501,34 +508,41 @@ export function CompanyDetail({
               数値との境目が無く、どこからが「補正していない数字」なのかが分からない。
               `gap-px` と背景色で1本ずつの罫線を作る（内側の罫線を各セルに書くと角で重なる）。
             */}
-            <dl className="bg-border border-border grid grid-cols-2 gap-px overflow-hidden rounded-lg border sm:grid-cols-4">
-              <div className="bg-background p-3">
-                <dt className="text-muted-foreground text-xs">平均年収</dt>
-                <dd className="text-lg font-semibold tabular-nums">
-                  {formatManYen(view.avgSalary)}
-                </dd>
-              </div>
-              <div className="bg-background p-3">
-                <dt className="text-muted-foreground text-xs">平均年齢</dt>
-                <dd className="text-lg font-semibold tabular-nums">
-                  {formatDecimal1(view.avgAge)}歳
-                </dd>
-              </div>
-              <div className="bg-background p-3">
-                <dt className="text-muted-foreground text-xs">在籍年数</dt>
-                <dd className="text-lg font-semibold tabular-nums">
-                  {formatDecimal1(view.avgTenure)}年
-                </dd>
-              </div>
-              <div className="bg-background p-3">
-                <dt className="text-muted-foreground text-xs">
-                  従業員数（単体）
-                </dt>
-                <dd className="text-lg font-semibold tabular-nums">
-                  {formatInt(view.employees)}人
-                </dd>
-              </div>
-            </dl>
+            {/*
+              **下の角は丸めない。** 直下の帯（有報への直リンク・C13）が表の枠の続きとして
+              下の角を持つ。
+            */}
+            <div className="flex flex-col">
+              <dl className="bg-border border-border grid grid-cols-2 gap-px overflow-hidden rounded-t-lg border sm:grid-cols-4">
+                <div className="bg-background p-3">
+                  <dt className="text-muted-foreground text-xs">平均年収</dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {formatManYen(view.avgSalary)}
+                  </dd>
+                </div>
+                <div className="bg-background p-3">
+                  <dt className="text-muted-foreground text-xs">平均年齢</dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {formatDecimal1(view.avgAge)}歳
+                  </dd>
+                </div>
+                <div className="bg-background p-3">
+                  <dt className="text-muted-foreground text-xs">在籍年数</dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {formatDecimal1(view.avgTenure)}年
+                  </dd>
+                </div>
+                <div className="bg-background p-3">
+                  <dt className="text-muted-foreground text-xs">
+                    従業員数（単体）
+                  </dt>
+                  <dd className="text-lg font-semibold tabular-nums">
+                    {formatInt(view.employees)}人
+                  </dd>
+                </div>
+              </dl>
+              <FilingLink docId={filingDocId} />
+            </div>
           </section>
 
           {/*

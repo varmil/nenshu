@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { PRIMARY_SOURCES } from "@/lib/data/sources";
+import { PRIMARY_SOURCES, edinetDocumentUrl } from "@/lib/data/sources";
 import { buildSourceRows, type PagePresence, type SourceSegment } from "./sources";
 
-const ALL: PagePresence = { history: true, summary: true, analysis: true };
+const ALL: PagePresence = { history: true, summary: true, analysis: true, filingDocId: "S100YAHE" };
 
 const text = (segments: SourceSegment[]) =>
-  segments.map((s) => (typeof s === "string" ? s : PRIMARY_SOURCES[s.source].name)).join("");
+  segments
+    .map((s) => (typeof s === "string" ? s : "source" in s ? PRIMARY_SOURCES[s.source].name : s.text))
+    .join("");
 
 describe("buildSourceRows（C12・AC-16）", () => {
   it("すべての節がある会社では6区分を決めた順に並べる", () => {
@@ -19,11 +21,19 @@ describe("buildSourceRows（C12・AC-16）", () => {
     ]);
   });
 
-  it("一次情報3つにリンクする", () => {
+  it("一次情報にリンクする。有報はトップではなくその会社の書類へ（C13）", () => {
     const linked = buildSourceRows(ALL).flatMap((r) =>
-      r.source.flatMap((s) => (typeof s === "string" ? [] : [s.source]))
+      r.source.flatMap((s) => (typeof s === "string" ? [] : ["source" in s ? s.source : s.url]))
     );
-    expect(linked).toEqual(["edinet", "wageCensus", "positiveDb"]);
+    expect(linked).toEqual([edinetDocumentUrl("S100YAHE"), "wageCensus", "positiveDb"]);
+  });
+
+  it("実測値の行の「有価証券報告書」が、渡した書類 ID の閲覧ページを指す", () => {
+    const measured = buildSourceRows({ ...ALL, filingDocId: "S100YBLA" })[0];
+    expect(measured.source).toContainEqual({
+      text: "有価証券報告書",
+      url: "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YBLA,,",
+    });
   });
 
   it("出典の文は機関名と一次情報の名前を含む", () => {
@@ -52,7 +62,7 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("AIの文章が1つも無い会社では、AIの2区分とも出さない", () => {
-    const rows = buildSourceRows({ history: true, summary: false, analysis: false });
+    const rows = buildSourceRows({ ...ALL, summary: false, analysis: false });
     expect(rows.map((r) => r.label)).toEqual(["実測値", "計算値", "推定値", "自己申告値"]);
   });
 

@@ -44,6 +44,7 @@ export function CompanyDetailIsland({
         profitHistory={data.profitHistory}
         summary={data.summary}
         fiscalPeriod={data.fiscalPeriod}
+        filingDocId={data.filingDocId}
         analysis={analysis}
         digest={digest}
         sources={sources}

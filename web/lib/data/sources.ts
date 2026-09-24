@@ -26,3 +26,15 @@ export const PRIMARY_SOURCES = {
     url: "https://positive-ryouritsu.mhlw.go.jp/positivedb/",
   },
 } as const;
+
+/**
+ * 有報1件の EDINET 書類閲覧ページ（C13・Issue #814、`docs/company/spec.md` 1.20）。
+ *
+ * **この URL は公開 API ではなく EDINET の画面の URL。** システムの更新で変わりうるので、
+ * データ（`filings.json`）には書類 ID だけを持たせ、組み立てはここ1か所にする。変わったら
+ * ここを直せば全社のリンクがそろって直る。末尾の `,,` は有っても無くても同じ書類が開く
+ * （2026-09-24 に確かめた。存在しない ID はリダイレクトされる）。
+ */
+export function edinetDocumentUrl(docId: string): string {
+  return `https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?${docId},,`;
+}

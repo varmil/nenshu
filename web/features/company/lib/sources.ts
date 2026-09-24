@@ -1,4 +1,4 @@
-import type { PRIMARY_SOURCES } from "@/lib/data/sources";
+import { edinetDocumentUrl, type PRIMARY_SOURCES } from "@/lib/data/sources";
 
 /**
  * 「このページの出典」の行（C12・Issue #805、`docs/company/spec.md` 1.15・AC-16）。
@@ -29,8 +29,14 @@ export type SourceKind =
   | "aiDigest"
   | "aiAnalysis";
 
-/** 出典の文の切れ端。文字列はそのまま、`source` は一次情報へのリンクになる。 */
-export type SourceSegment = string | { source: keyof typeof PRIMARY_SOURCES };
+/**
+ * 出典の文の切れ端。文字列はそのまま、`source` は一次情報（全ページ共通）へのリンク、
+ * `url` はその会社だけのリンク（C13・有報の書類閲覧ページ）になる。
+ */
+export type SourceSegment =
+  | string
+  | { source: keyof typeof PRIMARY_SOURCES }
+  | { text: string; url: string };
 
 export interface SourceRow {
   kind: SourceKind;
@@ -50,6 +56,8 @@ export interface PagePresence {
   summary: boolean;
   /** 「有価証券報告書の要約」と「現状と今後」。**2つは対**（AC-28）なので1つで持つ。 */
   analysis: boolean;
+  /** 実測値の4項目を取った有報の書類 ID（C13）。全社にある。 */
+  filingDocId: string;
 }
 
 /*
@@ -65,7 +73,15 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
       covers: presence.history
         ? "平均年収とその推移・平均年齢・在籍年数・従業員数"
         : "平均年収・平均年齢・在籍年数・従業員数",
-      source: ["金融庁 ", { source: "edinet" }, " の有価証券報告書（単体）"],
+      /*
+       * **「有価証券報告書」はその会社の書類そのものへのリンク**（C13・spec 1.20）。実測値の
+       * 節の下辺の帯と同じ行き先で、C12 の時点では EDINET のトップだった。
+       */
+      source: [
+        "金融庁 EDINET の",
+        { text: "有価証券報告書", url: edinetDocumentUrl(presence.filingDocId) },
+        "（単体）",
+      ],
     },
     {
       /*

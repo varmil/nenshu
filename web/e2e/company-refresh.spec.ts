@@ -396,9 +396,11 @@ test.describe("AC-16 このページの出典", () => {
       "AIの評価",
     ]);
 
-    await expect(sources(page).getByRole("link", { name: "EDINET" })).toHaveAttribute(
+    // 有報はトップではなく、その会社の書類の閲覧ページへ（C13・#814）。行き先の書類 ID は
+    // `e2e/company-filing.spec.ts` が見ている。
+    await expect(sources(page).getByRole("link", { name: "有価証券報告書" })).toHaveAttribute(
       "href",
-      "https://disclosure2.edinet-fsa.go.jp/"
+      /^https:\/\/disclosure2\.edinet-fsa\.go\.jp\/WZEK0040\.aspx\?S[0-9A-Z]{7},,$/
     );
     await expect(sources(page).getByRole("link", { name: "賃金構造基本統計調査" })).toHaveAttribute(
       "href",
