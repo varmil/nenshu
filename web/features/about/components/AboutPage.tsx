@@ -18,6 +18,7 @@ import {
 } from "@/features/ranking/lib/format";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/period";
+import { PRIMARY_SOURCES } from "@/lib/data/sources";
 import companiesData from "@/public/data/companies.json";
 import curvesData from "@/public/data/curves.json";
 import logosData from "@/public/data/logos.json";
@@ -444,33 +445,49 @@ export function AboutPage() {
         </div>
       </Section>
 
+      {/*
+        URL は `lib/data/sources.ts` の1か所から引く。企業ページの「このページの出典」
+        （C12・#805）が同じ表を見る。**女性活躍DBは C12 で足した**——W1 で企業ページに
+        載せてから、ここにもフッタにも無かった。
+      */}
       <Section title="出典">
         <ul className="ml-5 list-disc space-y-1">
           <li>
             <a
-              href="https://disclosure2.edinet-fsa.go.jp/"
+              href={PRIMARY_SOURCES.edinet.url}
               className="text-primary underline"
               target="_blank"
               rel="noreferrer"
             >
-              EDINET（金融庁）
+              {PRIMARY_SOURCES.edinet.name}（金融庁）
             </a>
-            — 有価証券報告書。平均年間給与・平均年齢・平均勤続年数・従業員数
+            — 有価証券報告書。平均年間給与・平均年齢・平均勤続年数・従業員数（単体）と、稼ぐ力に使う連結の経常利益・従業員数
           </li>
           <li>
             <a
-              href="https://www.mhlw.go.jp/toukei/list/chinginkouzou.html"
+              href={PRIMARY_SOURCES.wageCensus.url}
               className="text-primary underline"
               target="_blank"
               rel="noreferrer"
             >
-              賃金構造基本統計調査（厚生労働省）
+              {PRIMARY_SOURCES.wageCensus.name}（厚生労働省）
             </a>
             — 賃金カーブ。
             <a href="https://www.e-stat.go.jp/" className="text-primary underline" target="_blank" rel="noreferrer">
               e-Stat
             </a>
             経由で取得
+          </li>
+          <li>
+            <a
+              href={PRIMARY_SOURCES.positiveDb.url}
+              className="text-primary underline"
+              target="_blank"
+              rel="noreferrer"
+            >
+              {PRIMARY_SOURCES.positiveDb.name}（厚生労働省）
+            </a>
+            — 平均残業時間・年次有給休暇の取得率・男女の賃金の差異。会社が登録した自己申告値
           </li>
         </ul>
       </Section>

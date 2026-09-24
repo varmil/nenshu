@@ -4,7 +4,8 @@ import { collectPageRequests } from "./network";
 
 /**
  * C2（Issue #83）で足したもの——この会社の要点・水準が近い会社・分布・年齢別の表と
- * ±20%・10年推移（timeseries の T1）・この数字の作り方——の E2E。
+ * ±20%・10年推移（timeseries の T1）・この数字の作り方（C12 で「このページの出典」に
+ * 作り替えた）——の E2E。
  *
  * C1 で作った数値と表示基準の切替は `company-page.spec.ts` にある。
  */
@@ -372,12 +373,87 @@ test.describe("AC-15 レイアウト", () => {
   });
 });
 
-test.describe("AC-16 この数字の作り方", () => {
-  test("3ステップと計算方法への導線がある", async ({ page }) => {
+/*
+ * C12（Issue #805）で「この数字の作り方」（年齢補正の3ステップ）から作り替えた。ページに
+ * 出ているデータを加工の度合いで6区分に分け、区分ごとに該当するものと出典を並べる。
+ */
+test.describe("AC-16 このページの出典", () => {
+  const sources = (page: Page) => page.getByTestId("company-sources");
+  const row = (page: Page, label: string) =>
+    sources(page).locator("dl > div", { has: page.locator("dt", { hasText: label }) });
+
+  test("6区分が該当するものと出典を添えて並び、一次情報へのリンクがある", async ({ page }) => {
     await page.goto("/company/6861");
-    const section = page.getByRole("heading", { name: "この数字の作り方" }).locator("xpath=..");
-    await expect(section.getByRole("listitem")).toHaveCount(3);
-    await expect(section.getByRole("link", { name: "計算方法" })).toHaveAttribute("href", "/about");
+
+    await expect(page.getByRole("heading", { name: "この数字の作り方" })).toHaveCount(0);
+    await expect(sources(page).getByRole("heading", { name: "このページの出典", level: 2 })).toBeVisible();
+    await expect(sources(page).locator("dt")).toHaveText([
+      "実測値",
+      "計算値",
+      "推定値",
+      "自己申告値",
+      "AIの要約",
+      "AIの評価",
+    ]);
+
+    await expect(sources(page).getByRole("link", { name: "EDINET" })).toHaveAttribute(
+      "href",
+      "https://disclosure2.edinet-fsa.go.jp/"
+    );
+    await expect(sources(page).getByRole("link", { name: "賃金構造基本統計調査" })).toHaveAttribute(
+      "href",
+      "https://www.mhlw.go.jp/toukei/list/chinginkouzou.html"
+    );
+    await expect(
+      sources(page).getByRole("link", { name: "女性の活躍推進企業データベース" })
+    ).toHaveAttribute("href", "https://positive-ryouritsu.mhlw.go.jp/positivedb/");
+
+    // キーエンスは説明文・推移・要約と分析をすべて持つ。
+    await expect(row(page, "実測値")).toContainText("平均年収とその推移");
+    await expect(row(page, "計算値")).toContainText("稼ぐ力");
+    await expect(row(page, "AIの要約")).toContainText("社名の下の説明文");
+    await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
+    await expect(row(page, "AIの評価")).toContainText("現状と今後");
+  });
+
+  test("本文の末尾（要約の節の次）にあり、JS 実行前の HTML にもある", async ({ page, request }) => {
+    await page.goto("/company/6861");
+    const headings = await page.locator("h2").allTextContents();
+    expect(headings.findIndex((h) => h.startsWith("このページの出典"))).toBe(
+      headings.findIndex((h) => h.endsWith("有価証券報告書の要約")) + 1
+    );
+
+    const html = await (await request.get("/company/6861")).text();
+    expect(html).toContain("このページの出典");
+    expect(html).not.toContain("この数字の作り方");
+  });
+
+  test("説明文の無い会社では、AIの要約に説明文を挙げない", async ({ page }) => {
+    // 三菱地所は説明文を持たない178社の1つ（要約と分析はある）。
+    await page.goto("/company/8802");
+    await expect(row(page, "AIの要約")).not.toContainText("説明文");
+    await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
+  });
+
+  test("年齢補正の手順は年齢別の節の1行にあり、フッタに出典の行は無い", async ({ page }) => {
+    await page.goto("/company/6861");
+    const curve = page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
+    await expect(curve).toContainText("賃金構造基本統計調査");
+    await expect(curve.getByRole("link", { name: "計算方法" })).toHaveAttribute("href", "/about");
+    await expect(page.getByText(/^出典: /)).toHaveCount(0);
+  });
+
+  test("PC でもモバイルでも、作り替える前の3ステップより低い", async ({ page }) => {
+    // 3ステップは PC（1280×800）で 260px、モバイル（390×844）で 580px あった（変更前の実測）。
+    for (const [viewport, before] of [
+      [{ width: 1280, height: 800 }, 260],
+      [{ width: 390, height: 844 }, 580],
+    ] as const) {
+      await page.setViewportSize(viewport);
+      await page.goto("/company/6861");
+      const box = await sources(page).boundingBox();
+      expect(box!.height).toBeLessThan(before);
+    }
   });
 });
 
@@ -725,6 +801,13 @@ test.describe("年齢別の表の列幅", () => {
 test.describe("C4 説明文の強化", () => {
   const curveSummary = (page: Page) =>
     page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
+  /*
+   * 説明文の段落。**節の最初の `p` ではない**——C12（#805）で見出しの直下に年齢補正の
+   * 1行が入った。「年齢別に見ると」は到達年齢の文にも、それが無い会社で書き出しを引き継ぐ
+   * 最高水準の文にも入る。
+   */
+  const curveParagraph = (page: Page) =>
+    curveSummary(page).locator("p", { hasText: "年齢別に見ると" });
 
   test("AC-14: 年齢別の説明文が到達年齢を述べる", async ({ page }) => {
     await page.goto("/company/6861");
@@ -740,7 +823,7 @@ test.describe("C4 説明文の強化", () => {
   test("AC-14: 到達年齢の行は表でもその金額以上になっている", async ({ page }) => {
     await page.goto("/company/9020");
     const section = curveSummary(page);
-    const sentence = (await section.locator("p").first().textContent())!;
+    const sentence = (await curveParagraph(page).textContent())!;
     const pairs = [...sentence.matchAll(/(\d+)歳で([\d,]+)万円/g)];
     expect(pairs.length).toBeGreaterThan(0);
 
@@ -754,7 +837,7 @@ test.describe("C4 説明文の強化", () => {
   // 8点の推定カーブは表示基準に依らないので、説明文も変わらない。
   test("AC-14: 表示基準を切り替えても年齢別の説明文は変わらない", async ({ page }) => {
     await page.goto("/company/6861");
-    const first = curveSummary(page).locator("p").first();
+    const first = curveParagraph(page);
     const before = await first.textContent();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
@@ -810,7 +893,7 @@ test.describe("C4 説明文の強化", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     // 社名の長い会社（文が最も長くなる）。
     await page.goto("/company/9413");
-    await expect(curveSummary(page).locator("p").first()).toContainText("に達します");
+    await expect(curveParagraph(page)).toContainText("に達します");
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );

@@ -17,6 +17,7 @@ export function CompanyDetailIsland({
   data,
   analysis,
   digest,
+  sources,
 }: {
   data: CompanyPageData;
   /**
@@ -27,6 +28,11 @@ export function CompanyDetailIsland({
    */
   analysis?: ReactNode;
   digest?: ReactNode;
+  /**
+   * 「このページの出典」（C12・Issue #805）。**同じく名前付きスロット**（`slot="sources"`）。
+   * 表示基準で変わらない静的な節なので、島の JS に文言を持たせない。
+   */
+  sources?: ReactNode;
 }) {
   return (
     <LogoIdsProvider ids={data.logoIds}>
@@ -40,6 +46,7 @@ export function CompanyDetailIsland({
         fiscalPeriod={data.fiscalPeriod}
         analysis={analysis}
         digest={digest}
+        sources={sources}
       />
     </LogoIdsProvider>
   );
