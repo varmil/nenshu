@@ -103,9 +103,13 @@ function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            {metric.rows.map((row) => (
+            {/*
+              **key に区分名だけを使わない。** 全体値の行も `全体` で、区分名に
+              `全体` を登録している会社がある（残業で5社。オーテックほか）。
+            */}
+            {metric.rows.map((row, index) => (
               <WorklifeRowLine
-                key={row.label}
+                key={`${index}-${row.label}`}
                 row={row}
                 hasBar={hasBar}
                 valueSuffix={metric.valueSuffix}
@@ -161,6 +165,16 @@ function WorklifeRowLine({
         }`}
       >
         {row.label}
+        {/*
+          **全体値の公表する範囲は2行目に小さく添える**（運営者の指摘）。
+          `全体（対象正社員）` を1行に書くと 96px の器に収まらず、`対象正社`
+          の途中で折れる。2行目なら最長の `（基幹的な職種）` でも1行に収まる。
+        */}
+        {row.scope !== undefined && (
+          <span className="text-muted-foreground block text-[0.65rem] leading-tight">
+            （{row.scope}）
+          </span>
+        )}
       </span>
       {hasBar && <WorklifeBar ratio={row.ratio} />}
       {/*

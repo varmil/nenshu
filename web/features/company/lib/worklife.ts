@@ -12,9 +12,18 @@ import type { WorklifeRecord, WorklifeUnit } from "@/lib/data/worklife";
 export interface WorklifeValueRow {
   /**
    * 行の名前。区分別なら**会社が登録した区分名そのまま**（spec 2.2b）。
-   * 全体値なら残業は「公表する範囲」、有給は `全体`、賃金の差異は労働者の別。
+   * 全体値なら残業・有給とも `全体`、賃金の差異は労働者の別。
    */
   label: string;
+  /**
+   * 残業の全体値の**公表する範囲**（`対象正社員` / `その他` / `基幹的な職種`）。
+   * ラベルの下に小さく添える。無ければ持たない。
+   *
+   * ~~範囲をそのままラベルにする~~ → **ラベルは `全体` にして、範囲を添える**
+   * （運営者の指摘）。`その他 9.9h` と並ぶと、全体値ではなく「その他」という
+   * 区分の値に読める。
+   */
+  scope?: string;
   value: number;
   /**
    * バーの塗り（0〜1）。**1メモリ＝10時間・10%で上限100**（アートボード 6c）。
@@ -145,12 +154,15 @@ function unitRows(units: readonly WorklifeUnit[]): WorklifeValueRow[] {
  */
 function withAll(
   all: number | null,
-  allLabel: string,
-  units: readonly WorklifeUnit[]
+  units: readonly WorklifeUnit[],
+  scope = ""
 ): WorklifeValueRow[] {
   const rows = unitRows(units);
   if (all === null) return rows;
-  return [{ label: allLabel, value: all, ratio: barRatio(all) }, ...rows];
+  const row: WorklifeValueRow = { label: "全体", value: all, ratio: barRatio(all) };
+  // **範囲が空なら持たない。** 島の props に直列化されるので空文字も運ばない。
+  if (scope !== "") row.scope = scope;
+  return [row, ...rows];
 }
 
 /** 男女の賃金の差異の3つ。**バーは描かない**（アートボード 6b・6c）。 */
@@ -182,11 +194,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       valueSuffix: "h",
       definition: "",
       rows: record
-        ? withAll(
-            record.overtimeAll,
-            record.overtimeScope === "" ? "全体" : record.overtimeScope,
-            record.overtimeUnits
-          )
+        ? withAll(record.overtimeAll, record.overtimeUnits, record.overtimeScope)
         : [],
       emptyNote: "この会社は残業時間をデータベースに登録していません。",
     },
@@ -197,7 +205,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       unit: "",
       valueSuffix: "%",
       definition: "",
-      rows: record ? withAll(record.paidLeaveAll, "全体", record.paidLeaveUnits) : [],
+      rows: record ? withAll(record.paidLeaveAll, record.paidLeaveUnits) : [],
       emptyNote: "この会社は取得率をデータベースに登録していません。",
     },
     {
