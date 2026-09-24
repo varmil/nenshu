@@ -83,10 +83,39 @@ describe("buildWorklifeView", () => {
       })
     );
     expect(metric(view, "overtime").rows.map((r) => [r.label, r.value])).toEqual([
-      ["その他", 10.5],
+      ["全体", 10.5],
       ["総合職", 14.1],
       ["一般職", 3.3],
     ]);
+  });
+
+  /*
+   * ~~全体値のラベルは公表する範囲そのもの~~ → **ラベルは `全体`、範囲は添える**
+   * （運営者の指摘）。`その他 9.9h` と並ぶと、全体値ではなく「その他」という
+   * 区分の値に読める。範囲は spec 2.2 のとおり読めるように残す（AC-6）。
+   */
+  it("残業の全体値は「全体」とし、公表する範囲を添える", () => {
+    const view = buildWorklifeView(
+      record({
+        overtimeAll: 9.9,
+        overtimeScope: "その他",
+        overtimeUnits: [
+          { unit: "正社員", value: 10 },
+          { unit: "契約社員等", value: 4 },
+        ],
+      })
+    );
+    const rows = metric(view, "overtime").rows;
+    expect(rows[0]).toMatchObject({ label: "全体", scope: "その他", value: 9.9 });
+    // 範囲を持つのは全体値の行だけ。
+    expect(rows.slice(1).every((r) => r.scope === undefined)).toBe(true);
+  });
+
+  it("有給の全体値は範囲を持たない（原典に対応する語が無い）", () => {
+    const view = buildWorklifeView(record({ paidLeaveAll: 73.1 }));
+    const [row] = metric(view, "paidLeave").rows;
+    expect(row.label).toBe("全体");
+    expect(row.scope).toBeUndefined();
   });
 
   it("AC-6b 値の大小で並べ替えない（会社が主たる区分を先に置いている）", () => {
@@ -179,9 +208,11 @@ describe("buildWorklifeView", () => {
     expect(text).not.toContain("実測値");
   });
 
-  it("公表する範囲が空なら「全体」に倒す", () => {
+  it("公表する範囲が空なら範囲を持たない（空文字も運ばない）", () => {
     const view = buildWorklifeView(record({ overtimeAll: 12 }));
-    expect(metric(view, "overtime").rows[0].label).toBe("全体");
+    const [row] = metric(view, "overtime").rows;
+    expect(row.label).toBe("全体");
+    expect("scope" in row).toBe(false);
   });
 });
 

@@ -28,6 +28,58 @@ test.describe("AC-6 平均残業時間", () => {
     await expect(overtime).toContainText("月あたり");
   });
 
+  /*
+   * ~~全体値のラベルは公表する範囲そのもの~~ → **ラベルは「全体」、範囲は2行目に
+   * 小さく添える**（運営者の指摘）。`その他 9.9h` と並ぶと、全体値ではなく
+   * 「その他」という区分の値に読めた。
+   */
+  test("全体値のラベルは「全体」で、公表する範囲を添える（ソフトバンクグループ）", async ({
+    page,
+  }) => {
+    await page.goto("/company/9984");
+    const rows = metric(page, "平均残業時間").locator("div.items-center");
+    await expect(rows).toHaveCount(3);
+    const label = rows.first().locator("span").first();
+    await expect(label).toHaveText("全体（その他）");
+    await expect(label.locator("span")).toHaveText("（その他）");
+    await expect(rows.first()).toContainText("9.9");
+    // 区分の行は範囲を持たない。
+    await expect(rows.nth(1).locator("span").first()).toHaveText("正社員");
+  });
+
+  test("区分名が「全体」の会社でも、全体値の行と見分けられる（オーテック）", async ({
+    page,
+  }) => {
+    await page.goto("/company/1736");
+    const rows = metric(page, "平均残業時間").locator("div.items-center");
+    await expect(rows).toHaveCount(4);
+    // 先頭は全体値（範囲つき）、末尾は会社が「全体」と名付けた区分。
+    await expect(rows.first().locator("span").first()).toHaveText("全体（対象正社員）");
+    await expect(rows.first()).toContainText("13.3");
+    await expect(rows.last().locator("span").first()).toHaveText("全体");
+    await expect(rows.last()).toContainText("12.8");
+  });
+
+  test("最長の範囲（基幹的な職種）も390pxで1行に収まる（電通総研）", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto("/company/4812");
+    const scope = metric(page, "平均残業時間")
+      .locator("div.items-center")
+      .first()
+      .locator("span")
+      .first()
+      .locator("span");
+    await expect(scope).toHaveText("（基幹的な職種）");
+    const lines = await scope.evaluate(
+      (el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)
+    );
+    expect(Math.round(lines)).toBe(1);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
   test("雇用管理区分の4件が登録順で出る（三菱商事）", async ({ page }) => {
     await page.goto("/company/8058");
     const overtime = metric(page, "平均残業時間");
