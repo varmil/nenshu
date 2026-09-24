@@ -72,10 +72,18 @@ export function RankingPagination({
     scrollToPageTop();
   };
 
+  /**
+   * 前後2ページを並べると、狭い画面では本文の幅に収まらない（U17・Issue #813）。
+   * 並びは中央寄せなので、はみ出すと左端が画面の外に出て「前へ」が押せなくなる。
+   * `sm` 未満だけ項目の隙間を 0 に、省略記号を 16px に詰めて 360px の本文幅
+   * （328px）に 324px で収める。**数字の器（32px）は削らない**——押せる大きさの
+   * ほうを残す。プリミティブ（`design-system/ui/pagination.tsx`）は触らず、
+   * ここから class を渡す。
+   */
   return (
     <nav aria-label="ページネーション" className="flex flex-col items-center gap-1">
       <Pagination>
-        <PaginationContent>
+        <PaginationContent className="gap-0 sm:gap-0.5">
           <PaginationItem>
             <PaginationPrevious
               text="前へ"
@@ -92,7 +100,7 @@ export function RankingPagination({
           {getPaginationRange(current, totalPages).map((item, index) =>
             item === "ellipsis" ? (
               <PaginationItem key={`ellipsis-${index}`}>
-                <PaginationEllipsis />
+                <PaginationEllipsis className="w-4 sm:w-8" />
               </PaginationItem>
             ) : (
               <PaginationItem key={item}>

@@ -63,6 +63,8 @@ export function buildRankedCompanies(
 
 ページネーションUIに表示するページ番号の並び（先頭・末尾・現在ページの前後1ページ、間は省略記号）を計算する、Reactに依存しない純粋関数。`Set`で表示すべきページ番号を集め、ソート後に隣接ページとの差が1より大きい箇所に`"ellipsis"`を挿む方式。ページ数が少ないときは自然に省略記号が出ない（特別扱いのコードが不要）。
 
+**2026-09-24 追記（U17・Issue #813）: 前後1ページ → 前後2ページに広げた。** 狭い画面で1行に収めるための詰め方と幅の予算は `docs/ranking/pagination-reach/design.md` にある。
+
 ## `components/RankingPagination.tsx`（新規）
 
 - 各`PaginationLink`の`href`は`buildSearchParams({...state, page: n}).toString()`から生成する。現在のフィルタを保持したままの完全なクエリ文字列になるため、クロールされれば直接そのURLがSSRで正しく返る。
