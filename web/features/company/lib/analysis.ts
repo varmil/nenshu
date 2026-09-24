@@ -102,7 +102,7 @@ function accessedLabel(accessed: string): string {
  * 参照した資料の日付（`sourceMeta`）は資料を使った会社にしか出ないので、節の側に1つ置く。
  */
 export function analysisNote(asOf: string): string {
-  return `有価証券報告書・このページの数値・公開資料をもとにAIが書いた評価です（${asOf}）。`;
+  return `有価証券報告書・公開資料をもとにAIが書いた評価です（${asOf}）。`;
 }
 
 /**
