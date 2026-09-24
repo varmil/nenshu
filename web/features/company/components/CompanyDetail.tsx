@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { shortIndustryLabel } from "@/lib/data/industry";
@@ -86,6 +86,8 @@ export function CompanyDetail({
   profitHistory,
   summary,
   fiscalPeriod,
+  analysis,
+  digest,
 }: {
   view: CompanyView;
   /**
@@ -120,6 +122,13 @@ export function CompanyDetail({
    * これ1つでは無いのと同じ理由で、渡すのは使う形だけにしておく。
    */
   fiscalPeriod: string;
+  /**
+   * 「{社名}の現状と今後」と「{社名}の有価証券報告書の要約」（C10・Issue #242）。
+   * **静的な HTML として届く**（`CompanyDetailIsland` の名前付きスロット）。置く場所だけを
+   * ここが決め、中身には触らない。**2つは対**（AC-28）で、両方あるか両方無いか。
+   */
+  analysis?: ReactNode;
+  digest?: ReactNode;
 }) {
   const { targetAge, setTargetAge } = useTargetAge();
   /*
@@ -418,6 +427,13 @@ export function CompanyDetail({
           </Card>
 
           {/*
+            **AI 分析は平均年収カードの直後**（C10、アートボード 8a / 8b）。「◯◯ 年収」で
+            来た読者の答え（カード）を押し下げず、数字を見た直後に「この会社はいまどうなのか」
+            が続く。
+          */}
+          {analysis}
+
+          {/*
             **上のカードと「年齢別の推定年収」の間に置く**（W1、アートボード 6b）。
             上のカードまでが有報の数字、ここから下は別の出典・別の時点になるので、
             推定の話（年齢別）に入る前に区切りを1つ挟む形にしてある。
@@ -541,6 +557,13 @@ export function CompanyDetail({
             給与が増えた年に利益も増えたのかを目で追える。
           */}
           {profitHistory && <ProfitHistorySection history={profitHistory} />}
+
+          {/*
+            **有報の要約は稼ぐ力の推移の後ろ**（C10、アートボード 8a / 8b）。1文目が事業の
+            説明になりやすく、ページ上部の説明文（C7）と内容が重なるので離して置く。
+            分析と離れていることも、2つを取り違えにくくしている（AC-29）。
+          */}
+          {digest}
 
           <HowItWorks />
         </div>

@@ -6,7 +6,8 @@
  */
 import Base from "@/src/layouts/Base.astro";
 import { CompanyDetailIsland } from "@/features/company/components/CompanyDetailIsland";
-import { companyIds, companyPageData } from "@/features/company/lib/pageData";
+import { companyAnalysisFor, companyIds, companyPageData } from "@/features/company/lib/pageData";
+import { AnalysisSection, DigestSection } from "@/features/company/components/AnalysisSections";
 import { companyPageMeta } from "@/lib/seo/company";
 import { breadcrumbJsonLd } from "@/lib/seo/jsonLd";
 import { companyBreadcrumb } from "@/features/company/lib/breadcrumb";
@@ -17,6 +18,9 @@ export function getStaticPaths() {
 
 const data = companyPageData(Astro.params.id!);
 const meta = companyPageMeta(data.view, data.fiscalPeriod);
+// 有報の要約と AI 分析（C10・#242）。**`data` に入れない**——島の props を通さず、
+// 下の名前付きスロットで静的な HTML として差し込む（`features/company/lib/analysis.ts`）。
+const analysis = companyAnalysisFor(data.view.id);
 ---
 
 <Base meta={meta}>
@@ -30,5 +34,8 @@ const meta = companyPageMeta(data.view, data.fiscalPeriod);
     is:inline
     set:html={JSON.stringify(breadcrumbJsonLd(companyBreadcrumb(data.view)))}
   />
-  <CompanyDetailIsland data={data} client:load />
+  <CompanyDetailIsland data={data} client:load>
+    {analysis && <AnalysisSection slot="analysis" name={data.view.name} view={analysis} />}
+    {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} />}
+  </CompanyDetailIsland>
 </Base>

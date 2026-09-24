@@ -22,6 +22,7 @@ import companiesData from "@/public/data/companies.json";
 import curvesData from "@/public/data/curves.json";
 import logosData from "@/public/data/logos.json";
 import summariesData from "@/public/data/summaries.json";
+import analysesData from "@/public/data/analyses.json";
 
 const companies = companiesData as CompaniesData;
 const logoEntries = logosData.byId as Record<string, LogoEntry>;
@@ -38,6 +39,8 @@ const logoCounts = creditCounts(logoEntries);
  * ページなので、`summaries.json`（gzip 261.8KB）はここで消費されクライアントには渡らない。
  */
 const summaryCount = Object.keys(summariesData.byId).length;
+// 要約と分析は対で出す（C10・AC-28）ので、社数は1つで足りる。
+const analysisCount = Object.keys(analysesData.byId).length;
 
 
 /**
@@ -496,6 +499,45 @@ export function AboutPage() {
         <p>
           <strong>書けない会社では、説明文そのものを出しません。</strong>
           原文が当期の異動やグループの構成しか述べていない会社があり、そこで字数を埋めると根拠のない文になります。空欄や「準備中」も出しません。
+        </p>
+      </Section>
+
+      {/*
+        有報の要約と AI 分析の作り方（C10・Issue #242・ADR-0015）。企業ページの分析の節から
+        `#company-analysis` で飛んでくる。**上の「会社の説明文の作り方」と線が違う**——
+        あちらは一般知識を使わない、こちらの分析は使う——ので、並べて置いて違いが読めるようにする。
+      */}
+      <Section title="要約と分析の作り方" id="company-analysis">
+        <p>
+          企業ページの「有価証券報告書の要約」と「現状と今後」は、生成AIで書いたものです。
+          {formatInt(analysisCount)}社に出しています。
+          <strong>2つは書いてよいことの線が違います。</strong>
+        </p>
+        <p>
+          <strong>要約</strong>
+          は、有価証券報告書の「経営成績の分析」「事業等のリスク」「対処すべき課題」「サステナビリティ」の4節に書いてある事実だけをまとめたものです。評価語は書きません。
+        </p>
+        <p>
+          <strong>現状と今後</strong>
+          は、AIによる評価です。材料は次の4つです。
+        </p>
+        <ul className="ml-5 list-disc space-y-1">
+          <li>有価証券報告書の同じ4節</li>
+          <li>同じページに出している数値（平均年収の10年推移・稼ぐ力とその推移・定着・残業と有給）</li>
+          <li>その会社が自ら出している文書（公式サイト・ニュースリリース・採用情報。配信サービスや求人サイトに載せたものを含む）。生成のときに検索して取りに行き、使った文書は「参照した資料」に、参照した日と一緒に並べています</li>
+          <li>AIが学習で知っている一般知識（業界の文脈や相場観）</li>
+        </ul>
+        <p>
+          <strong>金額・率・順位・シェア・従業員数のような具体的な数値は、上の材料にあるものだけを使います。</strong>
+          AIの記憶から数値を書くと、有価証券報告書の数値と見分けがつかなくなるためです。年収のまとめ記事のような、会社以外が書いた文書は材料にしません。
+        </p>
+        <p>
+          書いたものは<strong>機械的な検査</strong>と、<strong>材料と照らし合わせる別の工程</strong>
+          を通しています。後者が落とすのは事実の誤り（数値の増減の向きや幅、出来事の時点、事業の区分の取り違えなど）で、評価や見通しは材料と食い違わない限り残します。
+        </p>
+        <p>
+          <strong>要約と分析は、両方そろった会社にだけ出します。</strong>
+          どちらかが検査を通らなければ、もう片方も出しません。空欄や「準備中」も出しません。
         </p>
       </Section>
 

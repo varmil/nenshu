@@ -32,6 +32,8 @@ import performanceData from "@/public/data/performance.json";
 import profitHistoryData from "@/public/data/profit-history.json";
 import logosData from "@/public/data/logos.json";
 import summariesData from "@/public/data/summaries.json";
+import analysesData from "@/public/data/analyses.json";
+import { buildAnalysisView, type AnalysisRecord, type AnalysisView } from "@/features/company/lib/analysis";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -84,6 +86,7 @@ const logoIds = logosData.byId as Record<string, unknown>;
  * `buildSummaryView` で `null` になり、節ごと出ない（AC-21）。
  */
 const summaries = summariesData.byId as Record<string, string>;
+const analyses = analysesData.byId as Record<string, AnalysisRecord>;
 
 /**
  * この画面に出る会社（自身と、9基準ぶんの近傍10社）のうちロゴを持つIDだけを配る。
@@ -235,6 +238,15 @@ export function companyPageData(id: string): CompanyPageData {
     fiscalPeriod: fiscalPeriodFor(view.id),
     logoIds: logoIdsOnPage(view),
   };
+}
+
+/**
+ * 有報の要約と AI 分析（C10・Issue #242）。**`companyPageData` に入れない**——あちらは
+ * 島の props になり HTML の属性に直列化される。この2節は `[id].astro` が静的な HTML に
+ * して名前付きスロットで島に差し込むので、props を通らない（`lib/analysis.ts`）。
+ */
+export function companyAnalysisFor(id: string): AnalysisView | null {
+  return buildAnalysisView(analyses[id]);
 }
 
 /** 事前生成する全社のID（Astro の `getStaticPaths`）。 */
