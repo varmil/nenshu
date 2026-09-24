@@ -1,4 +1,4 @@
-import { RADAR_LIST_ORDER, type RadarAxis } from "../lib/radar";
+import { RADAR_LIST_ORDER, type RadarAxis, unitPickNote } from "../lib/radar";
 import { OverviewRadar } from "./OverviewRadar";
 
 /**
@@ -12,6 +12,7 @@ import { OverviewRadar } from "./OverviewRadar";
  * 図の中のテキストとして DOM に出る（AC-9）。
  */
 export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
+  const pickNote = unitPickNote(axes);
   return (
     <section className="flex flex-col gap-3">
       <h2 className="text-lg font-bold">公開資料による全体像</h2>
@@ -48,10 +49,13 @@ export function OverviewSection({ axes }: { axes: RadarAxis[] }) {
           **稼ぐ力は分母の範囲が年収と違う。** 年収は提出会社（単体）、稼ぐ力は
           グループ全体（連結）で、臨時雇用人員は従業員数に入らない（spec 2.4）。
           **欠測軸の描き方もここで断る**——図を見ただけでは「頂点が無い」ことに
-          気づけない読者がいる。**「区分別」の断りもここに置く**（W2・#185）——
-          値の列は3文字ぶんしか無く（13px・76px 固定）、行の中では説明しきれない。
+          気づけない読者がいる。
+          **先頭の区分で点を打った軸の断りもここに置く。該当する会社にだけ出す**
+          （W3・#802・AC-17）。値の列は 76px 固定で区分名が入らないので、何の値かは
+          この1文が引き受ける。W2 では「区分別」の意味を全社のページで断っていた。
         */}
-        稼ぐ力は、連結の経常利益（直近5期の中央値）を連結の従業員数で割った額です。パート・アルバイトは従業員数に含まれません。公表の無い指標は頂点を打たず、残りの点で閉じています。有給・残業を雇用管理区分ごとに公表している会社は「区分別」とし、値は下の節に区分のまま出しています。
+        稼ぐ力は、連結の経常利益（直近5期の中央値）を連結の従業員数で割った額です。パート・アルバイトは従業員数に含まれません。公表の無い指標は頂点を打たず、残りの点で閉じています。
+        {pickNote}
       </p>
     </section>
   );

@@ -1,5 +1,5 @@
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
-import { buildWorklifeView } from "@/features/company/lib/worklife";
+import { buildWorklifeView, unitLabel } from "@/features/company/lib/worklife";
 import { buildSummaryView, type SummaryView } from "@/features/company/lib/summary";
 import {
   decodeWorklife,
@@ -134,23 +134,24 @@ function radarFor(id: string, record: WorklifeRecord | null): CompanyRadarInput 
   const axis = (
     data: RadarAxisData,
     value: number | null,
-    byUnit = false
+    pickedUnit: string | null = null
   ): RadarAxisInput => ({
     value,
     rank: data.rank[index] ?? -1,
     population: data.population,
-    byUnit,
+    // **選んでいないときはキーごと持たない**（島の props に直列化されるため）。
+    ...(pickedUnit === null ? {} : { pickedUnit: unitLabel(pickedUnit) }),
   });
-  // **区分ごとの公表かどうかも一緒に受け取る**（W2・#185）。値と別々に判定すると、
-  // 図の頂点と文言が別の規約で決まることになる。
+  // **どの区分を選んだかも一緒に受け取る**（W3・#802）。値と別々に判定すると、
+  // 図の頂点と断りの区分名が別の規約で決まることになる。
   const paidLeave = representative(record?.paidLeaveAll ?? null, record?.paidLeaveUnits ?? []);
   const overtime = representative(record?.overtimeAll ?? null, record?.overtimeUnits ?? []);
   return {
-    paidLeave: axis(radar.paidLeave, paidLeave.value, paidLeave.byUnit),
+    paidLeave: axis(radar.paidLeave, paidLeave.value, paidLeave.pickedUnit),
     // 在籍年数は `companies.rows` の6番目（`buildCompanyView` の分解と同じ並び）。
     tenure: axis(radar.tenure, (row?.[5] as number) ?? null),
     profit: axis(radar.profit, performance.perEmployee[index] ?? null),
-    overtime: axis(radar.overtime, overtime.value, overtime.byUnit),
+    overtime: axis(radar.overtime, overtime.value, overtime.pickedUnit),
     profitIndustryMedian: performance.industryMedian[(row?.[2] as number) ?? -1] ?? null,
   };
 }
