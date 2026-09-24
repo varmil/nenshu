@@ -66,6 +66,10 @@ test.describe("AC-7 欠測軸", () => {
     await expect(chart(page)).toContainText("掲載なし");
     // **中心まで引き込まない**（破線でつなぐ描き方をしない）。
     await expect(chart(page).locator("polygon[stroke-dasharray]")).toHaveCount(0);
+    // 欠けた軸があるので、描き方の断りが出る。
+    await expect(section(page)).toContainText(
+      "公表の無い指標は頂点を打たず、残りの点で閉じています。"
+    );
   });
 
   test("2軸が欠けても残りの3点で閉じる（三菱UFJ）", async ({ page }) => {
@@ -80,6 +84,10 @@ test.describe("AC-7 欠測軸", () => {
   test("欠測が無い会社は5つの頂点が出る（トヨタ自動車）", async ({ page }) => {
     await page.goto("/company/7203");
     await expect(chart(page).locator("circle")).toHaveCount(5);
+    // **欠けた軸が無ければ描き方の断りは出さない**（W3 の後の指摘）。
+    // 稼ぐ力の断りは全社に出る。
+    await expect(section(page)).toContainText("連結の経常利益");
+    await expect(section(page)).not.toContainText("残りの点で閉じています");
   });
 
   /*
@@ -154,12 +162,28 @@ test.describe("AC-17 先頭の区分で点を打った断り", () => {
   ] as const) {
     test(`該当しない会社には出ない: ${label}`, async ({ page }) => {
       await page.goto(`/company/${id}`);
-      // 既存の断り（稼ぐ力の分母・欠測軸）は出ている。
-      await expect(section(page)).toContainText("残りの点で閉じています。");
+      // 稼ぐ力の断りは全社に出ている（節の取り違えでないことの確認）。
+      await expect(section(page)).toContainText("連結の経常利益");
       await expect(section(page)).not.toContainText("先頭の区分");
       await expect(section(page)).not.toContainText("区分別");
     });
   }
+
+  /*
+   * **全体値があれば、区分がいくつあっても全体値で打つ。** 住友商事の残業は
+   * 全体 9.8h（範囲「対象正社員」）と2区分（9.9h・2.8h）を登録している。区分から
+   * 選んでいないので残業の断りは出ず、有給（全体値が無く2区分）の断りだけが出る。
+   * 図の値は節の先頭の行と同じになる。
+   */
+  test("残業は全体値で打ち、断りは有給だけに出る（住友商事）", async ({ page }) => {
+    await page.goto("/company/8053");
+    const svg = chart(page);
+    await expect(svg).toContainText("9.8時間");
+    await expect(svg).toContainText("73.0%");
+    await expect(section(page)).toContainText("有給は雇用管理区分ごとの公表");
+    await expect(section(page)).toContainText("「プロフェッショナル職」");
+    await expect(section(page)).not.toContainText("残業は");
+  });
 
   test("JS実行前のHTMLに断りが入っている（ラクス）", async ({ request }) => {
     const html = await (await request.get("/company/3923")).text();

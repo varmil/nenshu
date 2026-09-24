@@ -9,6 +9,7 @@ import {
   representativeValue,
   type RadarAxis,
   type RadarAxisInput,
+  missingAxisNote,
   unitPickNote,
 } from "./radar";
 
@@ -314,5 +315,55 @@ describe("unitPickNote", () => {
 
   it("有給・残業以外の軸は数えない", () => {
     expect(unitPickNote([axis("salary", "正社員"), axis("profit", "正社員")])).toBeNull();
+  });
+});
+
+/*
+ * P1 の AC-7。**頂点を打たなかった軸がある会社にだけ出す**（W3 の後の指摘で
+ * `unitPickNote` とそろえた）。以前は5軸すべてに頂点がある会社にも出ていた。
+ */
+describe("missingAxisNote", () => {
+  const FULL = buildRadarAxes(
+    {
+      salary: input(2178, 1, 2961),
+      paidLeave: input(73.1, 700, 1486),
+      tenure: input(18, 100, 2961),
+      profit: input(475, 300, 2959),
+      overtime: input(10.5, 400, 1525),
+    },
+    FORMAT
+  );
+
+  it("5軸すべてに頂点があれば出さない（三菱商事・トヨタ自動車）", () => {
+    expect(missingAxisNote(FULL)).toBeNull();
+  });
+
+  it("掲載なしの軸が1つでもあれば出す（キーエンスの残業）", () => {
+    const axes = buildRadarAxes(
+      {
+        salary: input(2178, 1, 2961),
+        paidLeave: input(38.8, 1461, 1486),
+        tenure: input(11.3, 1955, 2961),
+        profit: input(4062, 16, 2959),
+        overtime: input(null, -1, 1525),
+      },
+      FORMAT
+    );
+    expect(missingAxisNote(axes)).toBe("公表の無い指標は頂点を打たず、残りの点で閉じています。");
+  });
+
+  it("先頭の区分で点を打った軸は欠けていない扱い（ラクスの有給）", () => {
+    const axes = buildRadarAxes(
+      {
+        salary: input(900, 500, 2961),
+        paidLeave: { value: 88, rank: 100, population: 1486, pickedUnit: "正社員" },
+        tenure: input(4, 2000, 2961),
+        profit: input(300, 900, 2959),
+        overtime: input(19.3, 1137, 1525),
+      },
+      FORMAT
+    );
+    expect(missingAxisNote(axes)).toBeNull();
+    expect(unitPickNote(axes)).not.toBeNull();
   });
 });
