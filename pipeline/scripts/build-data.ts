@@ -683,6 +683,7 @@ function buildAnalyses(
   const headlineIndex = col("headline");
   const analysisIndex = col("analysis");
   const sourcesIndex = col("sources");
+  const generatedAtIndex = col("generated_at");
 
   const byEdinetCode = new Map<string, AnalysisRecord>();
   for (const line of table.slice(1)) {
@@ -693,6 +694,7 @@ function buildAnalyses(
         headline: line[headlineIndex] ?? "",
         body: line[analysisIndex] ?? "",
         sources: line[sourcesIndex] ?? "",
+        generatedAt: line[generatedAtIndex] ?? "",
       },
       code
     );
