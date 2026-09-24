@@ -17,7 +17,7 @@ web/features/company/
     HowItWorks.tsx                この数字の作り方（3ステップ）
   lib/
     neighbors.ts                  同業種で金額が近い10社（Issue #195 で5社から）
-    highlights.ts                 要点の箇条書き・推移の増減の文
+    highlights.ts                 推移の増減の文（要点の箇条書きは C11・#799 で削除）
     stats.ts                      binOf / formatBinLabel / positionPercent / estimateRange を追加
 pipeline/scripts/build-data.ts    buildStats に buildDistribution を追加
 ```
@@ -31,7 +31,6 @@ pipeline/scripts/build-data.ts    buildStats に buildDistribution を追加
 | 金額・順位・偏差値・全体平均との差 | ○ | |
 | 中位・ヒストグラムの階級と形 | ○ | |
 | 水準が近い会社の10社 | ○ | |
-| 要点の箇条書き（位置の記述） | ○ | |
 | 年齢別の折れ線と表 | 選択中の点の強調だけ | 8点の値そのものは不変 |
 | **平均年収推移（10年）** | | **○** |
 
@@ -96,7 +95,9 @@ CPU 10ms に収まる。
 
 近さで選び、**並べるときは金額の降順に直す**——近さ順のままだと上下に交互に跳ねて読みにくい。
 
-## 要点の箇条書き（`buildHighlights`）
+## ~~要点の箇条書き（`buildHighlights`）~~
+
+**C11（#799）で外した。** 以下は外す前の記録（`docs/company/highlights-removal/design.md`）。
 
 **数値から機械的に導ける事実だけ。** 会社ごとの解説文は spec 1.10 で対象外のまま。
 
