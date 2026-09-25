@@ -112,10 +112,13 @@ export function SalaryDistributionChart({
         ))}
       </ul>
 
+      {/*
+        **両端の階級が外側を含むことは文で断らない**（C14・#818）。横軸の目盛が `〜500` /
+        `1,200+` の形で、読み上げ用の一覧が「500万円未満」「1,200万円以上」の形で既に言っている。
+      */}
       <figcaption className="text-muted-foreground text-xs">
         全{formatInt(count)}社の分布（単位は万円）。{companyName}は
         {formatBinLabel(distribution, bin)}の帯（{formatInt(distribution.counts[bin])}社）にいます。
-        両端の階級はそれより外側をすべて含みます。
       </figcaption>
     </figure>
   );
