@@ -496,15 +496,6 @@ test.describe("C3 モックとの一致", () => {
     expect(Math.abs(figureBox.y - amountBox.y)).toBeLessThan(220);
   });
 
-  test("カードの中に平均年齢・在籍年数・従業員数が並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    // カードの中の2つ目。P1 がページ先頭に置いた指標リストも `dl` なので絞る。
-    const stats = page.locator('[data-slot="card"] dl').nth(1);
-    await expect(stats).toContainText("35.0歳");
-    await expect(stats).toContainText("11.3年");
-    await expect(stats).toContainText("3,306人");
-  });
-
   test("位置バーの両端が順位で書かれている", async ({ page }) => {
     await page.goto("/company/6861");
     const figure = page.locator("figure").first();
@@ -589,6 +580,95 @@ test.describe("C3 モックとの一致", () => {
 });
 
 /*
+ * C14（#818・親 #817）。金額の直後は「どういう会社の金額か」（平均年齢・従業員数）、
+ * その下に順位と偏差値。在籍年数はカードから外し、太字は金額だけにした。
+ */
+test.describe("AC-32 平均年収カード（C14）", () => {
+  const salaryCard = (page: Page) => page.locator('[data-slot="card"]').first();
+  const texts = (page: Page, row: number, cell: "dt" | "dd") =>
+    salaryCard(page).locator("dl").nth(row).locator(cell).allTextContents();
+
+  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並ぶ", async ({ page }) => {
+    await page.goto("/company/6861");
+
+    expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
+    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
+    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位", "年収偏差値"]);
+    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社", "124.8"]);
+
+    // 上下の順（モバイルでも同じ。カードが1カラムに積まれても段の順は変わらない）。
+    const dls = salaryCard(page).locator("dl");
+    const first = (await dls.nth(0).boundingBox())!;
+    const second = (await dls.nth(1).boundingBox())!;
+    expect(first.y + first.height).toBeLessThanOrEqual(second.y);
+  });
+
+  test("カードの中に在籍年数が無く、実測値の節には残る", async ({ page }) => {
+    await page.goto("/company/6861");
+    await expect(salaryCard(page)).not.toContainText("在籍年数");
+    await expect(salaryCard(page)).not.toContainText("11.3年");
+
+    const rawFacts = page.locator("section", {
+      has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }),
+    });
+    await expect(rawFacts.getByText("11.3年", { exact: true })).toBeVisible();
+  });
+
+  // 1段目が2項目・2段目が3項目なので、器を3列にそろえてある。2等分にすると
+  // 従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
+  test("2つの段の列の左端がそろっている", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const lefts = async (row: number) =>
+      salaryCard(page)
+        .locator("dl")
+        .nth(row)
+        .locator("dt")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
+    const [age, employees] = await lefts(0);
+    const [rankAll, rankIndustry] = await lefts(1);
+    expect(Math.abs(age - rankAll)).toBeLessThanOrEqual(1);
+    expect(Math.abs(employees - rankIndustry)).toBeLessThanOrEqual(1);
+  });
+
+  test("太字は金額だけで、順位と偏差値は通常の太さ", async ({ page }) => {
+    await page.goto("/company/6861");
+
+    const amount = salaryCard(page).getByText("2,178万円", { exact: true });
+    expect(Number(await amount.evaluate((el) => getComputedStyle(el).fontWeight))).toBe(700);
+
+    const weights = await salaryCard(page)
+      .locator("dl dd")
+      .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).fontWeight)));
+    expect(weights).toHaveLength(5);
+    for (const weight of weights) expect(weight).toBe(400);
+  });
+
+  test("年齢そろえに切り替えると2段目だけが変わる", async ({ page }) => {
+    await page.goto("/company/6861");
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
+
+    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
+    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);
+  });
+
+  // 横軸の目盛が「〜500」「1,200+」の形で既に同じことを言っている。
+  test("分布の図の説明に両端の階級の断りが無く、両端の目盛は残る", async ({ page, request }) => {
+    await page.goto("/company/6861");
+    const figure = salaryCard(page).locator("figure");
+    await expect(figure.locator("figcaption")).toContainText("の帯（");
+    await expect(figure.locator("figcaption")).not.toContainText("両端の階級");
+    await expect(figure.getByText("〜500", { exact: true })).toBeVisible();
+    await expect(figure.getByText("1,200+", { exact: true })).toBeVisible();
+
+    const html = await (await request.get("/company/6861")).text();
+    expect(html).not.toContain("両端の階級");
+  });
+});
+
+/*
  * 公開後の指摘（2026-08-20）で直したもの。
  * `docs/company/company-mock-alignment/design.md` の「公開後に直したもの」に対応する。
  */
@@ -603,18 +683,22 @@ test.describe("公開後の手直し", () => {
   });
 
   // 110px ほどの列に収める必要がある。折り返すと「38位 /2,961社」が2行になる（報告あり）。
-  test("カードの順位と実測値が1行に収まる", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/company/8725");
+  // モバイルはカードが1カラムになるが、本文の幅が狭いぶん1列あたりはほぼ同じになる。
+  for (const width of [1280, 390]) {
+    test(`カードの順位と実測値が1行に収まる（${width}px）`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/company/8725");
 
-    const cardLists = page.locator('[data-slot="card"] dl');
-    for (const dl of [cardLists.nth(0), cardLists.nth(1)]) {
-      const overflow = await dl.evaluate((el) =>
-        [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
-      );
-      for (const value of overflow) expect(value).toBeLessThanOrEqual(0);
-    }
-  });
+      const cardLists = page.locator('[data-slot="card"] dl');
+      await expect(cardLists).toHaveCount(2);
+      for (const dl of [cardLists.nth(0), cardLists.nth(1)]) {
+        const overflow = await dl.evaluate((el) =>
+          [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
+        );
+        for (const value of overflow) expect(value).toBeLessThanOrEqual(0);
+      }
+    });
+  }
 
   test("位置バーに見出しと偏差値が出る", async ({ page }) => {
     await page.goto("/company/6861");

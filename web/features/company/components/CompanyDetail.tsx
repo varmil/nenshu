@@ -18,11 +18,8 @@ import {
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
-import {
-  formatDeviation,
-  formatDiffFromMean,
-  statsForBasis,
-} from "../lib/stats";
+import { buildCardFacts, type CardFact } from "../lib/cardFacts";
+import { formatDiffFromMean, statsForBasis } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { YearlyBarChart } from "./YearlyBarChart";
@@ -153,6 +150,7 @@ export function CompanyDetail({
    */
   usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
+  const cardFacts = buildCardFacts(view, current);
   const isRaw = targetAge === null;
   const breadcrumb = companyBreadcrumb(view);
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
@@ -328,7 +326,8 @@ export function CompanyDetail({
             **カードは2カラム**（C3、アートボード 5b）。左が「いくらか」、右が
             「その額が母集団のどこか」。C2 は全部を縦に積んでいたため、金額と位置の
             間に順位4件が挟まり、同じことを言う数字が離れていた。
-            モバイルでは縦に積まれ、読み順は 金額 → 順位 → 位置 → 分布 になる。
+            モバイルでは縦に積まれ、読み順は 金額 → 平均年齢・従業員数 → 順位 → 位置 →
+            分布 になる（C14）。
           */}
           <Card>
             <CardContent className="grid gap-6 p-5 md:grid-cols-2">
@@ -354,77 +353,14 @@ export function CompanyDetail({
                 </div>
 
                 {/*
-                  **3つとも1行に収める。** ラベルも値も `whitespace-nowrap` にしてある——
-                  カードを2カラムにしたぶん1つあたり 110px ほどしか無く、既定のままだと
-                  「38位 /1,867社」と「従業員数（単体）」が2行に折れていた（報告あり）。
-                  偏差値に上位◯%は添えない（モックに無いものを足さない）。
+                  **金額の下は2段**（C14・#818、spec 1.4）。1段目が「どういう会社の金額か」
+                  （平均年齢・従業員数）、2段目が順位と偏差値。**在籍年数はカードに出さない**
+                  （下の「有価証券報告書の実測値」とレーダーの定着の軸にある）。平均年齢と
+                  従業員数は下の節と重複するが、**金額の隣に無いと「35.0歳の会社の2,178万円」
+                  という読み方ができない**（C3）。
                 */}
-                <dl className="border-border grid grid-cols-3 gap-2 border-t pt-3">
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      全体順位
-                    </dt>
-                    <dd className="font-semibold whitespace-nowrap tabular-nums">
-                      {formatInt(current.rankAll)}位
-                      <span className="text-muted-foreground text-[0.7rem] font-normal">
-                        {" "}
-                        /{formatInt(view.totalCount)}社
-                      </span>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      業界内順位
-                    </dt>
-                    <dd className="font-semibold whitespace-nowrap tabular-nums">
-                      {formatInt(current.rankIndustry)}位
-                      <span className="text-muted-foreground text-[0.7rem] font-normal">
-                        {" "}
-                        /{formatInt(view.industryCount)}社
-                      </span>
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      年収偏差値
-                    </dt>
-                    <dd className="font-semibold whitespace-nowrap tabular-nums">
-                      {formatDeviation(current.deviation)}
-                    </dd>
-                  </div>
-                </dl>
-
-                {/*
-                  平均年齢・在籍年数・従業員数はカードの中にも出す（アートボード 5b）。
-                  下の「有価証券報告書の実測値」と重複するが、**金額の隣に無いと
-                  「35.0歳の会社の2,178万円」という読み方ができない**。
-                */}
-                <dl className="border-border grid grid-cols-3 gap-2 border-t pt-3">
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      平均年齢
-                    </dt>
-                    <dd className="whitespace-nowrap tabular-nums">
-                      {formatDecimal1(view.avgAge)}歳
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      在籍年数
-                    </dt>
-                    <dd className="whitespace-nowrap tabular-nums">
-                      {formatDecimal1(view.avgTenure)}年
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">
-                      従業員数（単体）
-                    </dt>
-                    <dd className="whitespace-nowrap tabular-nums">
-                      {formatInt(view.employees)}人
-                    </dd>
-                  </div>
-                </dl>
+                <CardFactList facts={cardFacts.profile} />
+                <CardFactList facts={cardFacts.standing} />
               </div>
 
               <div className="flex flex-col justify-center gap-6">
@@ -640,5 +576,34 @@ export function CompanyDetail({
         )}
       </footer>
     </div>
+  );
+}
+
+/**
+ * 平均年収カードの1段（C14・#818）。
+ *
+ * **2段とも3列の器に入れる。** 1段目は2項目しか無いが、2等分にすると従業員数が
+ * 業界内順位より右にずれ、2つの段が別々の表に見える。**太字にしない**——カードの
+ * 中で太いのは金額だけにする。
+ *
+ * **ラベルも値も1行に収める**（`whitespace-nowrap`）。カードを2カラムにしたぶん
+ * 1つあたり 110px ほどしか無く、既定のままだと「38位 /1,867社」と「従業員数（単体）」が
+ * 2行に折れていた（C3 の公開後に報告あり）。
+ */
+function CardFactList({ facts }: { facts: CardFact[] }) {
+  return (
+    <dl className="border-border grid grid-cols-3 gap-2 border-t pt-3">
+      {facts.map((fact) => (
+        <div key={fact.label}>
+          <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">{fact.label}</dt>
+          <dd className="whitespace-nowrap tabular-nums">
+            {fact.value}
+            {fact.total && (
+              <span className="text-muted-foreground text-[0.7rem]"> {fact.total}</span>
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }
