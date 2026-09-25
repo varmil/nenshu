@@ -5,12 +5,7 @@ import statsData from "../../../public/data/stats.json";
 import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
 import { formatManYen } from "@/features/ranking/lib/format";
-import {
-  formatDeviation,
-  formatDiffFromMean,
-  formatTopPercent,
-  statsForBasis,
-} from "./stats";
+import { formatDeviation, formatTopPercent, statsForBasis } from "./stats";
 import { buildCompanyView } from "./view";
 
 const companies = companiesData as CompaniesData;
@@ -47,12 +42,10 @@ describe("buildCompanyView", () => {
     expect(s.rankIndustry).toBe(1);
   });
 
-  it("AC-2: キーエンスの偏差値・上位%・平均との差", () => {
+  it("AC-2: キーエンスの偏差値・上位%", () => {
     const s = at("6861", 35);
     expect(formatDeviation(s.deviation)).toBe("149.5");
     expect(formatTopPercent(s.topPercent)).toBe("上位0.1%未満");
-    expect(formatDiffFromMean(s.diffFromMean)).toBe("＋1,562万円");
-    expect(formatManYen(s.populationMean)).toBe("616万円");
   });
 
   it("AC-2: トヨタ自動車（7203）の35歳", () => {
@@ -73,7 +66,6 @@ describe("buildCompanyView", () => {
     const s25 = at("6861", 25);
     expect(formatManYen(s25.salary)).toBe("788万円");
     expect(formatDeviation(s25.deviation)).toBe("125.7");
-    expect(formatDiffFromMean(s25.diffFromMean)).toBe("＋373万円");
 
     const s60 = at("6861", 60);
     expect(formatManYen(s60.salary)).toBe("2,213万円");
@@ -153,10 +145,12 @@ describe("buildCompanyView", () => {
     expect(raw.rankAll).toBe(3);
     expect(raw.rankIndustry).toBe(1);
 
-    // 実測値の母集団は年齢そろえ（35歳）のそれと別物。
+    // 実測値の母集団は年齢そろえ（35歳）のそれと別物。キーエンスは平均年齢が
+    // ちょうど35.0歳で金額は同じなので、偏差値の違いがそのまま母集団の違いになる。
     const at35 = statsForBasis(v, 35);
-    expect(raw.populationMean).not.toBe(at35.populationMean);
-    expect(formatManYen(raw.populationMean)).toBe("693万円");
+    expect(at35.salary).toBe(raw.salary);
+    expect(formatDeviation(raw.deviation)).toBe("124.8");
+    expect(formatDeviation(at35.deviation)).toBe("149.5");
   });
 
   it("平均年齢が高い会社は実測値と35歳そろえで順位が入れ替わる", () => {

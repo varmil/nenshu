@@ -654,6 +654,31 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);
   });
 
+  // 金額の直下は有報の値を言い直す1文。全体平均との差は置かない（位置は順位・分布が持つ）。
+  test("金額の直下に有報の平均年収と平均年齢の1文があり、年齢そろえでも変わらない", async ({
+    page,
+  }) => {
+    await page.goto("/company/7267");
+    const lead =
+      "本田技研工業株式会社の最新の有価証券報告書に基づく平均年収は 約933万円（平均年齢43.9歳）です。";
+    await expect(salaryCard(page).getByText(lead, { exact: true })).toBeVisible();
+    await expect(salaryCard(page)).not.toContainText("全体平均");
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(salaryCard(page).getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(salaryCard(page).getByText(lead, { exact: true })).toBeVisible();
+  });
+
+  // 見出しと金額の間を 4px 空ける（運営者の指示）。
+  test("見出しと金額の間が4px", async ({ page }) => {
+    await page.goto("/company/6861");
+    const label = salaryCard(page).getByText("平均年収（有価証券報告書・単体）", { exact: true });
+    const amount = salaryCard(page).getByText("2,178万円", { exact: true });
+    const labelBox = (await label.boundingBox())!;
+    const amountBox = (await amount.boundingBox())!;
+    expect(amountBox.y - (labelBox.y + labelBox.height)).toBeCloseTo(4, 0);
+  });
+
   // 横軸の目盛が「〜500」「1,200+」の形で既に同じことを言っている。
   test("分布の図の説明に両端の階級の断りが無く、両端の目盛は残る", async ({ page, request }) => {
     await page.goto("/company/6861");

@@ -36,12 +36,6 @@ export function formatDeviation(deviation: number): string {
   return deviation.toFixed(1);
 }
 
-/** 全体平均との差。符号を必ず付ける。 */
-export function formatDiffFromMean(diffYen: number): string {
-  const sign = diffYen >= 0 ? "＋" : "−";
-  return `${sign}${Math.round(Math.abs(diffYen) / 10000).toLocaleString("ja-JP")}万円`;
-}
-
 /**
  * 表示基準の現在値に対応する1件を引く。`null` は実測値（ADR-0007）。
  *

@@ -22,8 +22,8 @@ export function formatOku(yen: number): string {
 /**
  * 赤字の符号は**全角のマイナス**（spec 5. の未決事項に対する P2 の答え）。
  *
- * 画面の他の増減——全体平均との差（`formatDiffFromMean`）・推移の前年比
- * （`formatRate`）——が `＋` / `−` を使っており、ここだけ ASCII の `-` にすると
+ * 画面の他の増減——推移の前年比（`formatRate`）・年齢別の伸び——が
+ * `＋` / `−` を使っており、ここだけ ASCII の `-` にすると
  * **同じページに2種類のマイナスが並ぶ。** 和文の中では字面も揃わない。
  */
 const MINUS = "−";
