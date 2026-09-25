@@ -599,7 +599,8 @@ test.describe("AC-16 このページの出典", () => {
 
 /*
  * C14（#818・親 #817）。金額の直後は「どういう会社の金額か」（平均年齢・従業員数）、
- * その下に順位と偏差値。在籍年数はカードから外し、太字は金額だけにした。
+ * その下に全体順位と業界内順位。在籍年数はカードから外し、太字は金額だけにした。
+ * 偏差値も順位の段から外した（#831）——右の位置バーの見出しの隣に同じ値がある。
  * 値の組み立ては `lib/cardFacts.test.ts`。**カードの `dl` は中身で引く**——段の順を
  * 入れ替えたことがある（C14）。
  */
@@ -622,17 +623,20 @@ test.describe("AC-32 平均年収カード（C14）", () => {
 
   /*
    * spec AC-32。**在籍年数はカードに出さない**（「有価証券報告書の実測値」の節とレーダーの
-   * 定着の軸にある）。**太字は金額だけ**——順位と偏差値まで太いと、どれがこのカードの
+   * 定着の軸にある）。**太字は金額だけ**——順位まで太いと、どれがこのカードの
    * 答えなのかが読めない。
    */
-  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
+  test("1段目に平均年齢・従業員数、2段目に全体順位・業界内順位が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
     await page.goto("/company/6861");
 
     expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
     expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位", "年収偏差値"]);
-    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社", "124.8"]);
+    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位"]);
+    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社"]);
     await expect(salaryCard(page)).not.toContainText("在籍年数");
+    // 偏差値はカードの中で1回だけ（#831。順位の段にも置くと2回になる）。位置バーの見出しの
+    // 隣にあることは AC-13 が見る。
+    await expect(salaryCard(page).getByText(/124\.8/)).toHaveCount(1);
 
     // 上下の順（モバイルでも同じ。カードが1カラムに積まれても段の順は変わらない）。
     const dls = salaryCard(page).locator("dl");
@@ -643,7 +647,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     const weights = await salaryCard(page)
       .locator("dl dd")
       .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).fontWeight)));
-    expect(weights).toEqual([400, 400, 400, 400, 400]);
+    expect(weights).toEqual([400, 400, 400, 400]);
 
     // 見出しと金額の間は 4px（spec AC-32。運営者の指示で C15 の後に足した）。
     const label = (
@@ -653,8 +657,8 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     expect(amount.y - (label.y + label.height)).toBeCloseTo(4, 0);
   });
 
-  // 1段目が2項目・2段目が3項目なので、器を3列にそろえてある。2等分にすると
-  // 従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
+  // 2段とも同じ2列の器に入れてある。段ごとに器を変えると（C14 の頃は2段目だけ偏差値の
+  // ぶん3項目あった）従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
   test("2つの段の列の左端がそろっている", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
@@ -672,7 +676,8 @@ test.describe("AC-32 平均年収カード（C14）", () => {
   });
 
   /*
-   * **表示基準ごとに変わるもの**（金額・順位・偏差値・分布）が切替に追随すること。
+   * **表示基準ごとに変わるもの**（金額・順位・分布）が切替に追随すること。偏差値は
+   * 位置バーの見出しにあり、`company-page.spec.ts` の AC-2・AC-3 が見る。
    * 分布の階級は基準ごとに決め直している（実測値は400万円から、35歳そろえは300万円から）ので、
    * 先頭の階級の文字が変わる。変わらないもの（推移・説明文・要約と分析）は
    * `company-page.spec.ts` の AC-3。
@@ -699,12 +704,14 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     await expect(lead).toBeVisible();
 
     expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);
+    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社"]);
     expect(await firstBin.textContent()).not.toBe(before);
   });
 
-  // 110px ほどの列に収める必要がある。折り返すと「38位 /2,961社」が2行になる（報告あり）。
-  // モバイルはカードが1カラムになるが、本文の幅が狭いぶん1列あたりはほぼ同じになる。
+  // 3列だった頃は 93px（1280px）しか無く、折り返すと「38位 /2,961社」が2行になっていた
+  // （報告あり）。#831 で2列にして 143px（1280px）・155px（390px）になったが、器を狭める
+  // 変更で戻らないように残す。モバイルはカードが1カラムになるが、本文の幅が狭いぶん
+  // 1列あたりはほぼ同じになる。
   test("カードの順位と実測値が1行に収まる（1280px・390px）", async ({ page }) => {
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });
