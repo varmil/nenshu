@@ -9,7 +9,6 @@ import {
   formatBinLabel,
   formatBinTick,
   formatDeviation,
-  formatDiffFromMean,
   formatTopPercent,
   niceTicks,
   positionPercent,
@@ -73,20 +72,6 @@ describe("formatDeviation", () => {
   it("小数第1位まで", () => {
     expect(formatDeviation(58.14)).toBe("58.1");
     expect(formatDeviation(150.03)).toBe("150.0");
-  });
-});
-
-describe("formatDiffFromMean", () => {
-  it("正なら全角プラス", () => {
-    expect(formatDiffFromMean(15491370)).toBe("＋1,549万円");
-  });
-
-  it("負なら全角マイナスで、絶対値を出す", () => {
-    expect(formatDiffFromMean(-2000000)).toBe("−200万円");
-  });
-
-  it("0はプラス扱い", () => {
-    expect(formatDiffFromMean(0)).toBe("＋0万円");
   });
 });
 

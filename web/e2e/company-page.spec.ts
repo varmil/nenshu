@@ -9,7 +9,7 @@ import { collectPageRequests } from "./network";
 /**
  * 大カードの順位リスト（全体順位・業界内順位・偏差値）。
  *
- * C3 でカードは2カラムになり、全体平均との差は `dl` の外の段落に移った。C14（#818）で
+ * C3 でカードは2カラムになり、金額の直下の段落は `dl` の外にある。C14（#818）で
  * 平均年齢・従業員数の段が上に来て、順位は2つ目の `dl` になった。**何番目かでは引かず、
  * 中身で引く**——段の並びを変えるたびにこの関数が別の段を指すことになる。
  */
@@ -44,8 +44,13 @@ test.describe("企業詳細ページ", () => {
     // （上はヒューリック 2,295万円・Ｍ＆Ａキャピタルパートナーズ 2,266万円）。
     await expect(card(page).getByText("3位 /2,961社")).toBeVisible();
     await expect(card(page).getByText("1位 /193社")).toBeVisible();
-    // 全体平均との差は C3 で `dl` の外の段落に移した。
-    await expect(page.getByText("全体平均 693万円 に対して")).toBeVisible();
+    // 金額の直下は有報の値を言い直す1文。全体平均との差は置かない。
+    await expect(
+      page.getByText(
+        "株式会社キーエンスの最新の有価証券報告書に基づく平均年収は 約2,178万円（平均年齢35.0歳）です。"
+      )
+    ).toBeVisible();
+    await expect(page.getByText(/全体平均 [\d,]+万円 に対して/)).toHaveCount(0);
 
     // 実測値では「推定」の語を出さない（spec AC-9）。
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
@@ -120,9 +125,6 @@ test.describe("企業詳細ページ", () => {
     // 偏差値と同じ視界に置く順位・位置バーは残っている（単独で置かないための担保）。
     await expect(card(page).getByText("2位 /2,961社")).toBeVisible();
     await expect(page.getByText("全体2,961社の中の位置")).toBeVisible();
-
-    await expect(page.getByText("＋1,562万円")).toBeVisible();
-    await expect(page.getByText("全体平均 616万円")).toBeVisible();
   });
 
   test("AC-2: /company/7203（トヨタ）の順位", async ({ page }) => {
@@ -157,7 +159,6 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
     await expect(page.locator("dd").filter({ hasText: /^125\.7/ })).toBeVisible();
-    await expect(page.getByText("＋373万円")).toBeVisible();
     await expect(page).toHaveURL(/\/company\/6861$/);
 
     expect(requests).toHaveLength(0);

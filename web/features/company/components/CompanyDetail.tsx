@@ -18,8 +18,8 @@ import {
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
-import { buildCardFacts, type CardFact } from "../lib/cardFacts";
-import { formatDiffFromMean, statsForBasis } from "../lib/stats";
+import { buildCardFacts, buildCardLead, type CardFact } from "../lib/cardFacts";
+import { statsForBasis } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { YearlyBarChart } from "./YearlyBarChart";
@@ -151,6 +151,7 @@ export function CompanyDetail({
   usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
   const cardFacts = buildCardFacts(view, current);
+  const cardLead = buildCardLead(view);
   const isRaw = targetAge === null;
   const breadcrumb = companyBreadcrumb(view);
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
@@ -336,18 +337,17 @@ export function CompanyDetail({
                     ときは見出しが「35歳時点の推定年収」なので、**同じ語を繰り返す
                     バッジは置かない**（Issue #128）。
                   */}
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-muted-foreground mb-1 block text-sm">
                     {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
                   </span>
                   <p className="text-4xl font-bold tabular-nums">
                     {formatManYen(current.salary)}
                   </p>
-                  <p className="text-muted-foreground mt-1 mb-1 text-sm">
-                    全体平均 {formatManYen(current.populationMean)} に対して{" "}
-                    <span className="text-foreground font-medium">
-                      {formatDiffFromMean(current.diffFromMean)}
-                    </span>
-                  </p>
+                  {/*
+                    **有報の値を1文で言い直す。全体平均との差は置かない**（位置はこのカードの
+                    順位・偏差値・分布が持っている）。表示基準では変わらない（`buildCardLead`）。
+                  */}
+                  <p className="text-muted-foreground mt-1 mb-1 text-sm">{cardLead}</p>
                 </div>
 
                 {/*
