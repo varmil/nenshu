@@ -550,9 +550,19 @@ test.describe("レイアウト", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  test("節はページの先頭にある（上部カードより前）", async ({ page }) => {
+  /*
+   * P1 では本文の先頭に置いていた。**C15（#821）で平均年収カードの直後に移した**
+   * （`docs/company/spec.md` 1.21）。カードとの並びは `company-refresh.spec.ts` の
+   * AC-33 が DOM・画面の上下・生の HTML で見ている。ここはカードに見出しが無いぶん
+   * **h2 の中では先頭のまま**であることだけを見る——カードの後ろに見出しのある節を
+   * 挟むと、ここが落ちる。
+   */
+  test("節は平均年収カードより後ろで、見出しの中では先頭にある", async ({ page }) => {
     await page.goto("/company/6861");
     const headings = await page.getByRole("heading", { level: 2 }).allInnerTexts();
     expect(headings[0]).toBe("公開資料による全体像");
+
+    const cardY = (await page.getByText("平均年収（有価証券報告書・単体）").boundingBox())!.y;
+    expect((await section(page).boundingBox())!.y).toBeGreaterThan(cardY);
   });
 });

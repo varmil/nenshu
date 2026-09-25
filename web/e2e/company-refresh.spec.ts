@@ -669,6 +669,68 @@ test.describe("AC-32 平均年収カード（C14）", () => {
 });
 
 /*
+ * C15（#821・親 #820）。検索からの流入の語は「年収」「年収ランキング」で占められているので、
+ * 答えの金額を本文の先頭に置き、レーダーはその直後に回した。
+ *
+ * **カードには見出しが無い**ので、h2 の並び（AC-29）だけ見ていてもカードとレーダーの
+ * 入れ替えは検出できない。DOM の並び・画面の上下・生の HTML の3つで見る。
+ */
+test.describe("AC-33 本文の並び（C15）", () => {
+  const salaryCard = (page: Page) =>
+    page.locator('[data-slot="card"]').filter({ hasText: "平均年収（有価証券報告書・単体）" });
+  const radar = (page: Page) =>
+    page.getByRole("heading", { name: "公開資料による全体像", level: 2 }).locator("xpath=..");
+
+  test("本文の先頭が平均年収カードで、その直後にレーダー、その次に分析が来る", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/company/6861");
+
+    // カードは本文の列の最初の子で、レーダーの節はそのすぐ次の兄弟。
+    expect(await salaryCard(page).evaluate((el) => el.previousElementSibling === null)).toBe(true);
+    const card = await salaryCard(page).elementHandle();
+    expect(await radar(page).evaluate((el, c) => el.previousElementSibling === c, card)).toBe(true);
+
+    // 分析はスロット（`astro-slot`）に包まれて届くので、兄弟ではなく見出しの並びで見る。
+    const headings = await page.locator("h2").allTextContents();
+    expect(headings.indexOf("株式会社キーエンスの現状と今後")).toBe(
+      headings.indexOf("公開資料による全体像") + 1
+    );
+
+    // 入れ替えた目的そのもの。レーダーが先頭だった頃、金額は上から 954px にあった。
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    expect(amount.y + amount.height).toBeLessThanOrEqual(800);
+  });
+
+  test("390px でもカードがレーダーより上にあり、金額が最初の画面に入り、横スクロールが出ない", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/company/6861");
+
+    const cardBox = (await salaryCard(page).boundingBox())!;
+    const radarBox = (await radar(page).boundingBox())!;
+    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(radarBox.y);
+
+    // 金額が最初の画面に入る（レーダーが先頭だった頃は上から 1,139px）。
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    expect(amount.y + amount.height).toBeLessThanOrEqual(844);
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test("JS 実行前の HTML でもカードの金額がレーダーの見出しより前に出る", async ({ request }) => {
+    const html = await (await request.get("/company/6861")).text();
+    const card = html.indexOf("平均年収（有価証券報告書・単体）");
+    const overview = html.indexOf("公開資料による全体像");
+    expect(card).toBeGreaterThan(-1);
+    expect(overview).toBeGreaterThan(card);
+  });
+});
+
+/*
  * 公開後の指摘（2026-08-20）で直したもの。
  * `docs/company/company-mock-alignment/design.md` の「公開後に直したもの」に対応する。
  */
