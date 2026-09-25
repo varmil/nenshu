@@ -39,14 +39,16 @@ describe("OG画像に焼いてある母集団", () => {
 
   it("代替テキストが絵の中の文字を全部持っている", () => {
     // 絵に書いてあることをそのまま読み上げる文なので、数字が欠けたら代替にならない。
+    // 絵の中身はブランド名・見出し・数値の帯（`pipeline/brand/og.ts`）。
     for (const part of [
       "OpenReport",
+      "有価証券報告書の数値のまま、",
       `${OG_FACTS.count.toLocaleString("ja-JP")}社`,
       `${OG_FACTS.averageManYen.toLocaleString("ja-JP")}万円`,
       OG_FACTS.fiscalPeriod,
       "金融庁 EDINET",
     ]) {
-      expect(OG_IMAGE.alt).toContain(part);
+      expect(OG_IMAGE.alt, part).toContain(part);
     }
   });
 });

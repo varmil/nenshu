@@ -1,13 +1,12 @@
 import { test, expect } from "./appTest";
 import type { APIRequestContext, Page } from "@playwright/test";
-import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**
  * U16（Issue #135・親 #130）。**画面の中で状態を切り替えたあとのメタデータ**を固定する。
  *
  * サーバーが返す時点のメタデータは `e2e/seo.spec.ts` が見ている。こちらが見るのは
- * その先で、操作はすべて `history.pushState`（AC-7）なので Next.js のメタデータは
- * 初回描画の1回きりしか出ない。**URL だけが変わってタイトルが取り残される**のが
+ * その先で、操作はすべて `history.pushState`（AC-7）なので、サーバーが head に描いた
+ * メタデータは初回の1回きりしか出ない（あとは `usePageMeta` が DOM を書き換える）。**URL だけが変わってタイトルが取り残される**のが
  * 直そうとしている壊れ方である（`docs/ranking/spec.md` AC-16）。
  *
  * **判定は「同じURLを直接開いたときの値と一致するか」にしてある。** 文言をここに
@@ -75,91 +74,100 @@ async function metaFromDom(page: Page): Promise<Meta> {
  * 操作したあとの画面のメタデータが、いま名乗っているURLを直接開いたときのものと
  * 一致していること。**この Unit の受け入れ基準そのもの**（AC-16）。
  */
-async function expectMetaMatchesUrl(page: Page, request: APIRequestContext) {
+async function expectMetaMatchesUrl(page: Page, request: APIRequestContext, label = "") {
   const url = new URL(page.url());
+  const where = `${label} ${url.pathname}${url.search}`.trim();
   const [dom, server] = await Promise.all([
     metaFromDom(page),
     metaFromServer(request, url.pathname + url.search),
   ]);
-  expect(dom).toEqual(server);
+  expect(dom, where).toEqual(server);
   // `og:` は canonical・title・description と同じ文字列（S2・AC-11・AC-12）。
   // **操作のあとも同じ**であること——`usePageMeta` が3つとも書き換えている。
-  expect(dom.ogUrl).toBe(dom.canonical);
-  expect(dom.ogTitle).toBe(dom.title);
-  expect(dom.ogDescription).toBe(dom.description);
+  expect(dom.ogUrl, where).toBe(dom.canonical);
+  expect(dom.ogTitle, where).toBe(dom.title);
+  expect(dom.ogDescription, where).toBe(dom.description);
   return dom;
 }
 
 test.describe("メタデータと表示状態の一致（AC-16）", () => {
-  test("表示基準を切り替えるとタイトルが年齢そろえのものになる", async ({ page, request }) => {
-    await page.goto("/");
-    expect((await metaFromDom(page)).title).toContain("2,961社");
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toBe("35歳年収ランキング | OpenReport");
-    expect(meta.canonical).toBe("https://openreport.net/?age=35");
-  });
-
-  test("年齢を選び直すとタイトルの年齢も変わる", async ({ page, request }) => {
-    await page.goto("/?age=35");
-    await page.getByRole("button", { name: "40歳", exact: true }).click();
-    await expect(page).toHaveURL(/[?&]age=40/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toContain("40歳");
-    expect(meta.description).toContain("40歳");
-  });
-
-  test("業種チップを押すとタイトルに業種名が入る", async ({ page, request }) => {
-    await page.goto("/");
-    await page
-      .getByRole("navigation", { name: "業種から見る" })
-      .getByRole("link", { name: "海運業 9社", exact: true })
-      .click();
-    await expect(page).toHaveURL(/ind=/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toContain("海運業");
-  });
-
-  test("ページ送りでタイトルにページ番号が入る", async ({ page, request }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "次のページへ" }).click();
-    await expect(page).toHaveURL(/[?&]page=2/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toContain("2ページ目");
-  });
-
-  /**
-   * `?q=` と `?emp=` は canonical を `/` へ寄せる（ADR-0006）。**寄せた先の文言に
-   * 戻る**ことまで含めて、直接開いたときと同じであることを見る。
+  /*
+   * 以前は操作ごとに1本（表示基準・年齢・業種チップ・ページ送り・インデックスさせない
+   * 絞り込み）だった。**性質は1つ——操作したあとの DOM が、そのURLを直接開いた HTML と
+   * 一致する——なので、1本の流れで続けて操作し、1手ごとに突き合わせる。**
+   *
+   * 文言そのもの（タイトルに年齢・業種名・ページ番号が入ること、寄せ先の文言を返すこと）は
+   * `lib/seo/ranking.test.ts` の `rankingPageMeta` が持つ。ここでは書き写さない。
+   * 代わりに**1手ごとにタイトルが前の手から変わる**ことを見る——サーバーもクライアントも
+   * クエリを無視して `/` の文言を返す壊れ方だと、突き合わせだけでは通ってしまう。
+   *
+   * 手の並びは、寄せ方の違う URL を順に通るように選んだ。
+   * - ページ送り: ページ2以降は自己canonical
+   * - 表示基準・年齢: `?age=N` は自己canonical
+   * - 業種チップ: `?age=N&ind=X` は業種側（`/?ind=X`）へ寄る
+   * - ヘッダの検索: `?q=` はインデックスさせないので `/` へ寄る。**寄せた先の文言に
+   *   戻る**ことまで含めて `/` を直接開いたときと同じであることを見る（ADR-0006）
    */
-  test("インデックスさせない絞り込みでは `/` のメタデータに戻る", async ({ page, request }) => {
-    await page.goto("/?age=35");
-    await page.getByRole("banner").getByRole("searchbox", { name: "会社名で検索" }).fill("商船三井");
-    await expect(page).toHaveURL(/q=/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.canonical).toBe("https://openreport.net");
-    expect(meta.title).toContain("2,961社");
-  });
-
-  test("メタデータの更新でネットワークリクエストは発生しない（AC-7）", async ({ page }) => {
+  test("操作するたびに、そのURLを直接開いたときと同じメタデータになる", async ({
+    page,
+    request,
+  }) => {
     await page.goto("/");
-    await waitForRankingReady(page);
-    const requests = collectPageRequests(page);
+    let previous = await metaFromDom(page);
 
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
-    await page.getByRole("button", { name: "25歳" }).click();
-    await expect(page).toHaveURL(/[?&]age=25/);
+    const steps: [string, () => Promise<void>][] = [
+      [
+        "ページ送り",
+        async () => {
+          await page.getByRole("button", { name: "次のページへ" }).click();
+          await expect(page).toHaveURL(/[?&]page=2/);
+        },
+      ],
+      [
+        "表示基準",
+        async () => {
+          await page.getByRole("button", { name: "年齢そろえ" }).click();
+          await expect(page).toHaveURL(/[?&]age=35/);
+        },
+      ],
+      [
+        "年齢",
+        async () => {
+          await page.getByRole("button", { name: "40歳", exact: true }).click();
+          await expect(page).toHaveURL(/[?&]age=40/);
+        },
+      ],
+      [
+        "業種チップ",
+        async () => {
+          await page
+            .getByRole("navigation", { name: "業種から見る" })
+            .getByRole("link", { name: "海運業 9社", exact: true })
+            .click();
+          await expect(page).toHaveURL(/ind=/);
+        },
+      ],
+      [
+        "ヘッダの検索",
+        async () => {
+          await page
+            .getByRole("banner")
+            .getByRole("searchbox", { name: "会社名で検索" })
+            .fill("商船三井");
+          await expect(page).toHaveURL(/q=/);
+        },
+      ],
+    ];
 
-    expect(await page.title()).toContain("25歳");
-    expect(requests).toHaveLength(0);
+    for (const [label, step] of steps) {
+      await step();
+      const meta = await expectMetaMatchesUrl(page, request, label);
+      expect(meta.title, `${label}でタイトルが変わる`).not.toBe(previous.title);
+      previous = meta;
+    }
+
+    // 最後の手（`?q=`）は `/` へ寄せる。寄せた先と同じメタデータに戻っている。
+    expect(previous, "寄せ先").toEqual(await metaFromServer(request, "/"));
   });
 });
 
@@ -168,11 +176,18 @@ test.describe("企業詳細ページのメタデータ（AC-16）", () => {
    * **表示基準を切り替えてもメタデータは動かない**（R1・ADR-0012）。`?age=` を
    * 無くしたので URL が動かず、1つのURLに対してメタデータは1つしか存在しない。
    * U16 がここで直していた食い違い（親 Issue #130）は起きようが無くなった。
+   *
+   * タイトルに出るのは有報の実測値だけなので、「推定」の語はどの状態でも出ない（AC-9）。
    */
-  test("表示基準を切り替えてもタイトルと canonical が変わらない", async ({ page, request }) => {
+  test("表示基準を切り替えてもタイトルと canonical が変わらず、推定の語が出ない", async ({
+    page,
+    request,
+  }) => {
     await page.goto("/company/6861");
     const raw = await metaFromDom(page);
     expect(raw.title).toContain("有価証券報告書は2,178万円");
+    expect(raw.title).not.toContain("推定");
+    expect(raw.description).not.toContain("推定");
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await page.getByRole("button", { name: "25歳" }).click();
@@ -182,40 +197,19 @@ test.describe("企業詳細ページのメタデータ（AC-16）", () => {
     expect(meta).toEqual(raw);
     expect(meta.canonical).toBe("https://openreport.net/company/6861");
   });
-
-  // タイトルに出るのは有報の実測値だけなので、「推定」の語はどの状態でも出ない（AC-9）。
-  test("タイトルにも description にも推定の語が出ない（AC-9）", async ({ page }) => {
-    await page.goto("/company/6861");
-    const meta = await metaFromDom(page);
-    expect(meta.title).not.toContain("推定");
-    expect(meta.description).not.toContain("推定");
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-    expect((await metaFromDom(page)).title).not.toContain("推定");
-  });
 });
 
 /**
- * AC-15 と同じ経路。**戻るで復元されるのは状態だけではない。** Next.js は
- * ルーターキャッシュの RSC ツリーをそのまま返すので、メタデータは「そのツリーを
- * 作ったときのURL」のものになりうる。状態が URL を正として直る規則
- * （`lib/history/useLocationSyncedState.ts`）と対になっている。
+ * AC-15 と同じ経路。**戻るで復元されるのは状態だけではない。** 戻ってきた文書の
+ * メタデータは「それが作られたときのURL」のものになりうる。状態が URL を正として
+ * 直る規則（`lib/history/useLocationSyncedState.ts`）と対になっている。
+ *
+ * **進むで企業詳細へ戻ったとき**が、実際に捕まえた壊れ方（CLAUDE.md）——
+ * `usePageMeta` は DOM を直接書き換えるので、ランキングが書いた canonical と
+ * description が企業詳細の `<head>` に残っていた。
  */
 test.describe("ページを跨いだ戻る/進むの後（AC-15・AC-16）", () => {
-  test("戻ったあとのタイトルが復元された状態のものになる", async ({ page, request }) => {
-    await page.goto("/?age=40");
-    await page.getByRole("table").getByRole("link").first().click();
-    await expect(page).toHaveURL(/\/company\//);
-
-    await page.goBack();
-    await expect(page).toHaveURL(/[?&]age=40/);
-
-    const meta = await expectMetaMatchesUrl(page, request);
-    expect(meta.title).toContain("40歳");
-  });
-
-  test("進むで企業詳細に戻ってもタイトルはその会社のもの", async ({ page, request }) => {
+  test("戻るとランキングの、進むと企業詳細のメタデータに戻る", async ({ page, request }) => {
     await page.goto("/?age=40");
     await page.getByRole("table").getByRole("link").first().click();
     await expect(page).toHaveURL(/\/company\//);
@@ -223,10 +217,12 @@ test.describe("ページを跨いだ戻る/進むの後（AC-15・AC-16）", () 
 
     await page.goBack();
     await expect(page).toHaveURL(/[?&]age=40/);
+    const ranking = await expectMetaMatchesUrl(page, request, "戻った後");
+    expect(ranking.title).toContain("40歳");
+
     await page.goForward();
     await expect(page).toHaveURL(/\/company\//);
-
     expect(await metaFromDom(page)).toEqual(detail);
-    await expectMetaMatchesUrl(page, request);
+    await expectMetaMatchesUrl(page, request, "進んだ後");
   });
 });

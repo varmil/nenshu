@@ -56,7 +56,7 @@ export default defineConfig({
     画面にオーバーレイを差し込むが、その中身に `h1` が3つ入っている（`Audit`・
     `No accessibility or performance issues detected.`・`Settings`）。**E2E は dev
     サーバーに対して走る**ので、`locator("h1")` が4件に当たって strict mode で落ちる
-    （実測。`e2e/ranking-filters.spec.ts`）。テストの側を `.first()` で逃がすと、
+    （実測。いまは `e2e/ranking-refresh.spec.ts` の「モバイルの行」が strict に引いている）。テストの側を `.first()` で逃がすと、
     本物の `h1` が2つある事故を見逃す。
   */
   /*

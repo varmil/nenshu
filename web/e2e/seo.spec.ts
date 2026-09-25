@@ -1,48 +1,62 @@
-import { test, expect } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+import { test, expect } from "./appTest";
 
 /**
  * U8（Issue #53）。ADR-0006 のインデックス戦略が、実際に返るHTMLと
  * `/sitemap.xml`・`/robots.txt` の中身として出ていることを固定する。
  *
  * **単体テスト（`lib/seo/ranking.test.ts`）では足りない。** あちらが固定するのは
- * 「どのURLへ寄せるか」という判断であって、それが `<link rel="canonical">` として
- * 実際に初期HTMLに入るか、`metadataBase` が効いて絶対URLになるかは、
- * Next.js のメタデータ解決を通らないと分からない。
+ * 「どのURLへ寄せるか」という判断で、組み合わせの網羅もそちらに任せる。ここで見るのは
+ * それが `<link rel="canonical">` として実際に初期HTMLに入るか、`absoluteUrl()` が効いて
+ * 絶対URLになるか——`src/components/PageHead.astro` を通らないと分からないこと。
  */
 
 const ORIGIN = "https://openreport.net";
 const BANK = "%E9%8A%80%E8%A1%8C%E6%A5%AD";
 
-async function canonicalOf(request: import("@playwright/test").APIRequestContext, path: string) {
+/** JS を実行する前の HTML の head。クローラが読むのはこれだけ。 */
+async function headOf(request: APIRequestContext, path: string) {
   const response = await request.get(path);
-  expect(response.status()).toBe(200);
+  expect(response.status(), path).toBe(200);
   const html = await response.text();
-  const match = html.match(/<link rel="canonical" href="([^"]*)"/);
   // 属性値なので `&` は `&amp;` としてHTMLに出る。実URLに戻してから比べる。
-  return match?.[1].replaceAll("&amp;", "&") ?? null;
+  const pick = (pattern: RegExp) => html.match(pattern)?.[1].replaceAll("&amp;", "&") ?? null;
+  return {
+    title: pick(/<title>([^<]*)<\/title>/),
+    description: pick(/<meta name="description" content="([^"]*)"/),
+    canonical: pick(/<link rel="canonical" href="([^"]*)"/),
+  };
 }
 
 test.describe("検索エンジン向け導線（U8）", () => {
-  test("インデックスさせる41件は自己canonical", async ({ request }) => {
-    expect(await canonicalOf(request, "/")).toBe(ORIGIN);
-    expect(await canonicalOf(request, "/?age=35")).toBe(`${ORIGIN}/?age=35`);
-    expect(await canonicalOf(request, `/?ind=${BANK}`)).toBe(`${ORIGIN}/?ind=${BANK}`);
-    expect(await canonicalOf(request, "/about")).toBe(`${ORIGIN}/about`);
-  });
-
-  test("`?age=N&ind=X` は業種側へ寄る", async ({ request }) => {
-    expect(await canonicalOf(request, `/?age=35&ind=${BANK}`)).toBe(`${ORIGIN}/?ind=${BANK}`);
-  });
-
-  test("インデックスさせない絞り込みは `/` へ寄る", async ({ request }) => {
-    expect(await canonicalOf(request, "/?emp=1000-")).toBe(ORIGIN);
-    expect(await canonicalOf(request, "/?q=%E9%8A%80%E8%A1%8C&page=2")).toBe(ORIGIN);
-    expect(await canonicalOf(request, `/?age=35&ind=${BANK}&emp=1000-`)).toBe(ORIGIN);
-  });
-
-  test("企業ページは表示基準に関わらず素のURLへ寄る", async ({ request }) => {
-    expect(await canonicalOf(request, "/company/6861")).toBe(`${ORIGIN}/company/6861`);
-    expect(await canonicalOf(request, "/company/6861?age=35")).toBe(`${ORIGIN}/company/6861`);
+  /*
+    インデックスさせる側（自己canonical）と寄せる側を、描き方の違うページ（ランキング・
+    計算方法・企業詳細）から1つずつ。`&` を含む canonical（`?ind=X&page=2`）は、HTML の
+    属性としてエスケープされたうえで正しいURLに戻ることも見ている。
+  */
+  test("canonical が初期HTMLに絶対URLで出る", async ({ request }) => {
+    const cases: [path: string, canonical: string][] = [
+      // インデックスさせる側は自己canonical。ルートだけ末尾のスラッシュを落とす。
+      ["/", ORIGIN],
+      ["/?age=35", `${ORIGIN}/?age=35`],
+      [`/?ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
+      ["/about", `${ORIGIN}/about`],
+      ["/company/6861", `${ORIGIN}/company/6861`],
+      // ページ2以降も自己canonical。`/?page=2` は `/` の複製ではなく別の30社が並ぶので、
+      // 先頭へ寄せると他の会社への内部リンク経路（ページ2以降の中にしか無い）を細める。
+      ["/?page=2", `${ORIGIN}/?page=2`],
+      [`/?ind=${BANK}&page=2`, `${ORIGIN}/?ind=${BANK}&page=2`],
+      // `?age=N&ind=X` は業種側へ寄る。
+      [`/?age=35&ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
+      // インデックスさせない絞り込みと、総ページ数を超えたページは `/` へ寄る。
+      ["/?emp=1000-", ORIGIN],
+      ["/?page=999", ORIGIN],
+      // 企業ページは表示基準に関わらず素のURLへ（R1 で `?age=` は読まなくなった）。
+      ["/company/6861?age=35", `${ORIGIN}/company/6861`],
+    ];
+    for (const [path, canonical] of cases) {
+      expect((await headOf(request, path)).canonical, path).toBe(canonical);
+    }
   });
 
   test("sitemap.xml に 3,004 URL が載り、canonical と同じ文字列になっている", async ({
@@ -57,12 +71,13 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
 
-    expect(locs).toContain(ORIGIN);
-    expect(locs).toContain(`${ORIGIN}/about`);
-    expect(locs).toContain(`${ORIGIN}/?age=25`);
-    expect(locs).toContain(`${ORIGIN}/?age=60`);
-    expect(locs).toContain(`${ORIGIN}/?ind=${BANK}`);
-    expect(locs).toContain(`${ORIGIN}/company/6861`);
+    // **各ページが申告する canonical と1文字も違わない。** 別々に組み立てると、載せる
+    // URLと canonical が1文字ずれても気づけない（両者は `agePath()`・`industryPath()` を
+    // 共有している）。
+    for (const path of ["/", "/about", "/?age=25", "/?age=60", `/?ind=${BANK}`, "/company/6861"]) {
+      const { canonical } = await headOf(request, path);
+      expect(locs, path).toContain(canonical);
+    }
 
     // 寄せる側のURLは1つも載せない。
     expect(locs.some((loc) => loc.includes("emp="))).toBe(false);
@@ -83,32 +98,32 @@ test.describe("検索エンジン向け導線（U8）", () => {
     expect(text).not.toContain("Disallow");
   });
 
-  test("`?age=N` の title は年齢そろえ、`?ind=X` は業種名を含む", async ({ page }) => {
-    await page.goto("/?age=35");
-    await expect(page).toHaveTitle("35歳年収ランキング | OpenReport");
+  /*
+    文言の組み立ては `lib/seo/ranking.test.ts`・`lib/seo/about.test.ts`・
+    `lib/seo/company.test.ts` が見る。ここで見るのは、実データで組んだ title と
+    description が初期HTMLに入ること。
 
-    await page.goto(`/?ind=${BANK}`);
-    await expect(page).toHaveTitle("銀行業の平均年収ランキング | OpenReport");
-  });
-
-  test("`/` の title はブランド先頭のまま、有価証券報告書・社数・決算期を含む", async ({
-    page,
+    **`/` の title はブランド先頭のまま**、有価証券報告書・社数・決算期を含む。決算期は
+    末尾（S3・`docs/site-chrome/spec.md` 5.）——前に置くと、差別化要因の「有価証券報告書」が
+    SERPで見える位置から押し出される。**「有価証券報告書」は全ページの description に入れる。**
+  */
+  test("title と description が初期HTMLに出て、有価証券報告書が全ページの description に入る", async ({
+    request,
   }) => {
-    // 決算期は末尾（S3・`docs/site-chrome/spec.md` 5.）。前に置くと、差別化要因の
-    // 「有価証券報告書」がSERPで見える位置から押し出される。
-    await page.goto("/");
-    await expect(page).toHaveTitle(
-      "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】"
-    );
-  });
-
-  test("ページ2以降は自己canonical。先頭へ寄せない", async ({ request }) => {
-    // `/?page=2` は `/` の複製ではなく別の30社が並ぶ。ここを `/` へ寄せると、
-    // 1,837社への内部リンク経路（ページ2〜63の中にしか無い）を細める。
-    expect(await canonicalOf(request, "/?page=2")).toBe(`${ORIGIN}/?page=2`);
-    expect(await canonicalOf(request, `/?ind=${BANK}&page=2`)).toBe(`${ORIGIN}/?ind=${BANK}&page=2`);
-    // 総ページ数を超えたものは落とす。
-    expect(await canonicalOf(request, "/?page=999")).toBe(ORIGIN);
+    const titles: [path: string, title: string | null][] = [
+      ["/", "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】"],
+      ["/?age=35", "35歳年収ランキング | OpenReport"],
+      [`/?ind=${BANK}`, "銀行業の平均年収ランキング | OpenReport"],
+      // 文言は単体テストが持つので、ここでは出ていることだけ見る。
+      ["/about", null],
+      ["/company/6861", null],
+    ];
+    for (const [path, title] of titles) {
+      const head = await headOf(request, path);
+      if (title === null) expect(head.title, path).toBeTruthy();
+      else expect(head.title, path).toBe(title);
+      expect(head.description, path).toContain("有価証券報告書");
+    }
   });
 
   test("ページ送りが範囲外のURLへリンクしない（無限のクロール空間を作らない）", async ({
@@ -149,13 +164,5 @@ test.describe("検索エンジン向け導線（U8）", () => {
     expect(second.size).toBe(30);
     // 1社も重ならない。だからページ2は `/` の複製ではない。
     expect([...second].filter((id) => first.has(id))).toHaveLength(0);
-  });
-
-  test("有価証券報告書が全ページの description に入っている", async ({ request }) => {
-    for (const path of ["/", "/?age=35", `/?ind=${BANK}`, "/about", "/company/6861"]) {
-      const html = await (await request.get(path)).text();
-      const description = html.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? "";
-      expect(description, path).toContain("有価証券報告書");
-    }
   });
 });

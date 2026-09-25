@@ -23,17 +23,12 @@ const shown = (fact: CardFact) => (fact.total ? `${fact.value} ${fact.total}` : 
 
 /** `docs/company/spec.md` 1.4・AC-32（C14・#818）。 */
 describe("buildCardFacts", () => {
+  // 在籍年数は入れない（「有価証券報告書の実測値」の節とレーダーの定着の軸にある）。
+  // ラベルを並びごと固定しているので、足せばここで落ちる。
   it("1段目は平均年齢・従業員数、2段目は全体順位・業界内順位・年収偏差値", () => {
     const { profile, standing } = factsOf("6861", null);
     expect(profile.map((f) => f.label)).toEqual(["平均年齢", "従業員数（単体）"]);
     expect(standing.map((f) => f.label)).toEqual(["全体順位", "業界内順位", "年収偏差値"]);
-  });
-
-  // 在籍年数は「有価証券報告書の実測値」の節とレーダーの定着の軸にある。
-  it("在籍年数を入れない", () => {
-    const { profile, standing } = factsOf("6861", null);
-    const labels = [...profile, ...standing].map((f) => f.label);
-    expect(labels.some((label) => label.includes("在籍"))).toBe(false);
   });
 
   it("キーエンス（6861）の実測値", () => {

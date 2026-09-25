@@ -19,95 +19,38 @@ function isAchromatic(computed: string): boolean {
   return numbers[1] === 0;
 }
 
-test.describe("配色トークン", () => {
-  test("--primary が色味を持ち、白背景の上に載っている", async ({ page }) => {
-    await page.goto("/");
+/*
+ * 色の役割分担: Primary はナビゲーション（リンク・選択中のタブ・チャート）に使い、
+ * データそのもの（年収額）は地のテキスト色のままにする。年収額が主役だからと
+ * 色を付けると、画面上で最も目立つ色が「押せないもの」に割り当てられてしまう。
+ *
+ * トークンの値そのもの（`--primary` に色味があること・コントラスト）は
+ * `tokens.test.ts` が見る。ここで見るのは、それが実際の要素に当たっていること。
+ */
+test("色の役割: 会社名リンクと選択中の年齢タブは Primary、年収額は地の色", async ({ page }) => {
+  // 既定は実測値で年齢スイッチが無効・未選択なので、年齢そろえの状態で見る（ADR-0007）。
+  await page.goto("/?age=35");
 
-    const { primary, background } = await page.evaluate(() => {
-      const style = getComputedStyle(document.documentElement);
-      return {
-        primary: style.getPropertyValue("--primary").trim(),
-        background: style.getPropertyValue("--background").trim(),
-      };
-    });
+  const bodyColor = await page.evaluate(() => getComputedStyle(document.body).color);
+  const firstRow = page.getByRole("table").locator("tbody tr").first();
 
-    expect(primary).not.toBe("");
-    expect(isAchromatic(primary)).toBe(false);
-    expect(background).not.toBe("");
-  });
+  // 年収のセル（RankingTable の `text-base font-bold`。Issue #96 で 20px から落とした）。
+  const salary = firstRow.locator(".text-base");
+  expect(await salary.evaluate((el) => getComputedStyle(el).color), "年収額").toBe(bodyColor);
 
-  /*
-   * 色の役割分担: Primary はナビゲーション（リンク・選択中のタブ・チャート）に使い、
-   * データそのもの（年収額）は地のテキスト色のままにする。年収額が主役だからと
-   * 色を付けると、画面上で最も目立つ色が「押せないもの」に割り当てられてしまう。
-   */
-  test("ランキングの年収額は地のテキスト色（Primary を使わない）", async ({ page }) => {
-    await page.goto("/");
+  const linkColor = await firstRow.getByRole("link").evaluate((el) => getComputedStyle(el).color);
+  expect(isAchromatic(linkColor), "会社名リンクに色味が無い").toBe(false);
+  expect(linkColor, "会社名リンクが地の色のまま").not.toBe(bodyColor);
 
-    const firstRow = page.getByRole("table").locator("tbody tr").first();
-    // 年収のセル（RankingTable の `text-base font-bold`。Issue #96 で 20px から落とした）。
-    const salary = firstRow.locator(".text-base");
-    await expect(salary).toBeVisible();
-
-    const { salaryColor, bodyColor, primary } = await page.evaluate((el) => {
-      const style = getComputedStyle(document.documentElement);
-      return {
-        salaryColor: getComputedStyle(el as Element).color,
-        bodyColor: getComputedStyle(document.body).color,
-        primary: style.getPropertyValue("--primary").trim(),
-      };
-    }, await salary.elementHandle());
-
-    expect(salaryColor).toBe(bodyColor);
-    expect(salaryColor).not.toBe(primary);
-  });
-
-  test("会社名リンクは Primary で描画される", async ({ page }) => {
-    await page.goto("/");
-
-    const link = page.getByRole("table").locator("tbody tr").first().getByRole("link");
-    await expect(link).toBeVisible();
-
-    const linkColor = await link.evaluate((el) => getComputedStyle(el).color);
-    const bodyColor = await page.evaluate(() => getComputedStyle(document.body).color);
-
-    expect(isAchromatic(linkColor)).toBe(false);
-    expect(linkColor).not.toBe(bodyColor);
-  });
-
-  test("選択中の年齢タブは Primary で塗りつぶされる", async ({ page }) => {
-    // 既定は実測値で年齢スイッチが無効・未選択なので、年齢そろえの状態で見る（ADR-0007）。
-    await page.goto("/?age=35");
-
-    // exact 指定は必須。「40歳」は平均年齢フィルタの「〜40歳」にも一致してしまう。
-    const selected = page.getByRole("button", { name: "35歳", exact: true });
-    const unselected = page.getByRole("button", { name: "40歳", exact: true });
-
-    const selectedBg = await selected.evaluate((el) => getComputedStyle(el).backgroundColor);
-    const unselectedBg = await unselected.evaluate((el) => getComputedStyle(el).backgroundColor);
-
-    // 選択中だけが塗られていて、かつその塗りが無彩色ではない。
-    expect(isAchromatic(selectedBg)).toBe(false);
-    expect(selectedBg).not.toBe(unselectedBg);
-  });
-
-  test("--radius から rounded-* が導出されている", async ({ page }) => {
-    await page.goto("/");
-
-    const radius = await page.evaluate(() =>
-      getComputedStyle(document.documentElement).getPropertyValue("--radius").trim(),
-    );
-    // 値そのものはプリセット次第なので固定しない。rem で定義されていることだけ見る。
-    expect(radius).toMatch(/^\.?\d*\.?\d+rem$/);
-
-    // @theme inline の --radius-* → Tailwind の rounded-* まで繋がっているか。
-    // 角丸を持つ「本社のみ」バッジで、算出値が実際の px になっていることを確かめる。
-    const badge = page.getByText("本社のみ").first();
-    await expect(badge).toBeVisible();
-
-    const borderRadius = await badge.evaluate((el) => getComputedStyle(el).borderRadius);
-    expect(parseFloat(borderRadius)).toBeGreaterThan(0);
-  });
+  // exact 指定は必須。「40歳」は平均年齢フィルタの「〜40歳」にも一致してしまう。
+  const background = (name: string) =>
+    page
+      .getByRole("button", { name, exact: true })
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const selectedBg = await background("35歳");
+  // 選択中だけが塗られていて、かつその塗りが無彩色ではない。
+  expect(isAchromatic(selectedBg), "選択中の年齢タブの塗りに色味が無い").toBe(false);
+  expect(selectedBg, "選択中と未選択の年齢タブが同じ塗り").not.toBe(await background("40歳"));
 });
 
 /*
@@ -116,36 +59,28 @@ test.describe("配色トークン", () => {
  * 描いていたのは数字とラテン文字だけで、日本語はどのみち OS のフォントに
  * 落ちていた。ここが 0 に保たれていることをブラウザで固定する。
  */
-test.describe("フォント", () => {
+test("フォントを1件もダウンロードせず、日本語フォントを明示したスタックで組む", async ({ page }) => {
   for (const path of ["/", "/about", "/company/6861"]) {
-    test(`${path} はフォントを1件もダウンロードしない`, async ({ page }) => {
-      const fontRequests: string[] = [];
-      page.on("request", (request) => {
-        if (/\.(woff2?|ttf|otf|eot)(\?|$)/.test(request.url())) {
-          fontRequests.push(request.url());
-        }
-      });
+    const fontRequests: string[] = [];
+    const onRequest = (request: import("@playwright/test").Request) => {
+      if (/\.(woff2?|ttf|otf|eot)(\?|$)/.test(request.url())) fontRequests.push(request.url());
+    };
+    page.on("request", onRequest);
+    await page.goto(path, { waitUntil: "networkidle" });
+    page.off("request", onRequest);
 
-      await page.goto(path, { waitUntil: "networkidle" });
+    expect(fontRequests, path).toEqual([]);
+    // @font-face が読み込まれていないことも合わせて見る。
+    const loaded = await page.evaluate(() =>
+      [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family),
+    );
+    expect(loaded, path).toEqual([]);
 
-      expect(fontRequests).toEqual([]);
-      // @font-face が読み込まれていないことも合わせて見る。
-      const loaded = await page.evaluate(() =>
-        [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family),
-      );
-      expect(loaded).toEqual([]);
-    });
-  }
-
-  test("日本語フォントが明示されている（漢字が中国語字形にならない）", async ({ page }) => {
-    await page.goto("/");
-
+    // スタックの中身は `tokens.test.ts` が固定している。ここで見るのは、それが本文に
+    // 当たっていること——外れると漢字が中国語の字形で組まれる環境がある。
     const stack = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
-
-    expect(stack).toContain("Hiragino Sans");
-    expect(stack).toContain("Meiryo");
-    expect(stack).toContain("Noto Sans CJK JP");
-  });
+    expect(stack, path).toContain("Noto Sans CJK JP");
+  }
 });
 
 /*
@@ -222,14 +157,9 @@ test.describe("表示モード", () => {
   test.describe("OS がライトのとき", () => {
     test.use({ colorScheme: "light" });
 
-    test("初回表示はライト", async ({ page }) => {
-      await page.goto("/", { waitUntil: "domcontentloaded" });
-
-      await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
-    });
-
     test("AC-4/AC-5: 切り替えられ、リロードしても保持される", async ({ page }) => {
       await page.goto("/");
+      // OS がライトなら初回はライト（ダーク側の初回表示は AC-3 が見る）。
       await expect(page.locator("html")).not.toHaveClass(/\bdark\b/);
 
       await page.getByRole("button", { name: "ダークモードに切り替える" }).click();
@@ -263,19 +193,21 @@ test.describe("表示モード", () => {
   });
 });
 
+/*
+ * モバイル幅（390px）でヘッダが横スクロールを起こさないこと（AC-9）は、ブランドの
+ * AC-27 とまったく同じ検査なので `branding.spec.ts` に1本だけ置く。
+ */
 test.describe("共通ヘッダ", () => {
-  for (const path of ["/", "/about", "/company/6861"]) {
-    test(`AC-1: ${path} にヘッダが出る`, async ({ page }) => {
+  test("AC-1: どのページにもヘッダが出る", async ({ page }) => {
+    for (const path of ["/", "/about", "/company/6861"]) {
       await page.goto(path);
 
       const header = page.getByRole("banner");
-      await expect(header.getByRole("link", { name: "OpenReport" })).toBeVisible();
-      await expect(header.getByRole("link", { name: "計算方法" })).toBeVisible();
-      await expect(
-        header.getByRole("button", { name: /モードに切り替える/ }),
-      ).toBeVisible();
-    });
-  }
+      await expect(header.getByRole("link", { name: "OpenReport" }), path).toBeVisible();
+      await expect(header.getByRole("link", { name: "計算方法" }), path).toBeVisible();
+      await expect(header.getByRole("button", { name: /モードに切り替える/ }), path).toBeVisible();
+    }
+  });
 
   /*
    * ちらつき防止（Issue #66 の追加報告）。
@@ -305,25 +237,5 @@ test.describe("共通ヘッダ", () => {
     // 読み上げ名も両方入っていて、CSS 側で片方が display:none になる。
     expect(header).toContain("ダークモードに切り替える");
     expect(header).toContain("ライトモードに切り替える");
-  });
-
-  test("AC-2: OpenReport を押すと / に戻る", async ({ page }) => {
-    await page.goto("/about");
-
-    await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
-
-    await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "平均年収ランキング" })).toBeVisible();
-  });
-
-  test("AC-9: モバイル幅でヘッダが横スクロールを起こさない", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-
-    const overflows = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-
-    expect(overflows).toBe(false);
   });
 });

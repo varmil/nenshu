@@ -5,7 +5,6 @@ import {
   metricFootnote,
   OVERTIME_DEFINITION_NOTE,
   unitLabel,
-  WORKLIFE_BAR_MAX,
 } from "./worklife";
 
 const EMPTY: WorklifeRecord = {
@@ -41,27 +40,22 @@ describe("buildWorklifeView", () => {
    * 単位は**値の隣**に出す（運営者の指示）。見出し側には、単位では表せない
    * 情報（残業の期間）だけを残す——同じ単位を2か所に出さない。
    */
-  it("3指標とも値の隣に単位を持つ", () => {
+  it("単位は3指標とも値の隣に持ち、見出しには重ねない（残業は期間だけが残る）", () => {
     const view = buildWorklifeView(null);
-    expect(view.metrics.map((m) => [m.key, m.valueSuffix])).toEqual([
-      ["overtime", "h"],
-      ["paidLeave", "%"],
-      ["wageGap", "%"],
+    expect(view.metrics.map((m) => [m.key, m.unit, m.valueSuffix])).toEqual([
+      ["overtime", "月あたり", "h"],
+      ["paidLeave", "", "%"],
+      ["wageGap", "", "%"],
     ]);
-  });
-
-  it("見出しに単位を重ねない（残業は期間だけが残る）", () => {
-    const view = buildWorklifeView(null);
-    expect(view.metrics.map((m) => m.unit)).toEqual(["月あたり", "", ""]);
-    for (const m of view.metrics) expect(m.unit).not.toContain(m.valueSuffix);
-    // `時間` は値の `h` が持つので、見出しからは落ちている。
+    // `時間` は値の `h` が持つので、見出しからは落ちている（`時間 / 月` にしない）。
     expect(view.metrics[0].unit).not.toContain("時間");
   });
 
   /**
    * Issue #192。iPhone 12 Pro（横幅390px）で本文幅は358px、12px の字で29文字。
    * **文言を書き写さず長さで固定する**——書き写すと、文言を直すたびにテストも
-   * 直すことになり、そのとき何も守らない。
+   * 直すことになり、そのとき何も守らない。実際に1行に収まることは
+   * `e2e/company-worklife.spec.ts` が高さで見ている。
    */
   it("掲載なしの1文は390pxで1行に収まる長さに収める", () => {
     for (const m of buildWorklifeView(null).metrics) {
@@ -71,7 +65,12 @@ describe("buildWorklifeView", () => {
     }
   });
 
-  it("AC-6 全体値を先に置き、区分は登録順のまま", () => {
+  /*
+   * AC-6・AC-6b。区分は**会社が登録した順・名前のまま**（spec 2.2b）。三菱商事の
+   * 区分は値が単調でない（14.1 → 3.3 → 3.2 → 5.6）ので、昇順・降順のどちらに
+   * 並べ替えても落ちる。
+   */
+  it("AC-6 全体値を先に置き、区分は登録順のまま（値の大小で並べ替えない）", () => {
     const view = buildWorklifeView(
       record({
         overtimeAll: 10.5,
@@ -79,6 +78,8 @@ describe("buildWorklifeView", () => {
         overtimeUnits: [
           { unit: "総合職", value: 14.1 },
           { unit: "一般職", value: 3.3 },
+          { unit: "嘱託その他", value: 3.2 },
+          { unit: "派遣社員", value: 5.6 },
         ],
       })
     );
@@ -86,6 +87,8 @@ describe("buildWorklifeView", () => {
       ["全体", 10.5],
       ["総合職", 14.1],
       ["一般職", 3.3],
+      ["嘱託その他", 3.2],
+      ["派遣社員", 5.6],
     ]);
   });
 
@@ -111,26 +114,17 @@ describe("buildWorklifeView", () => {
     expect(rows.slice(1).every((r) => r.scope === undefined)).toBe(true);
   });
 
-  it("有給の全体値は範囲を持たない（原典に対応する語が無い）", () => {
-    const view = buildWorklifeView(record({ paidLeaveAll: 73.1 }));
-    const [row] = metric(view, "paidLeave").rows;
-    expect(row.label).toBe("全体");
-    expect(row.scope).toBeUndefined();
-  });
-
-  it("AC-6b 値の大小で並べ替えない（会社が主たる区分を先に置いている）", () => {
-    const view = buildWorklifeView(
-      record({
-        overtimeUnits: [
-          { unit: "営業・管理系", value: 10.7 },
-          { unit: "技術系", value: 28.1 },
-        ],
-      })
-    );
-    expect(metric(view, "overtime").rows.map((r) => r.label)).toEqual([
-      "営業・管理系",
-      "技術系",
-    ]);
+  /*
+   * 有給の全体値には原典に対応する語が無く、残業も範囲が空の会社がある。
+   * **島の props に直列化されるので、空文字も運ばない**（キーごと持たない）。
+   */
+  it("範囲が空なら持たない（有給の全体値・範囲の無い残業）", () => {
+    const view = buildWorklifeView(record({ overtimeAll: 12, paidLeaveAll: 73.1 }));
+    for (const key of ["overtime", "paidLeave"]) {
+      const [row] = metric(view, key).rows;
+      expect(row.label).toBe("全体");
+      expect("scope" in row, key).toBe(false);
+    }
   });
 
   it("値が null の区分は行にしない（欠測と 0 を分ける）", () => {
@@ -152,7 +146,6 @@ describe("buildWorklifeView", () => {
     const row = metric(view, "paidLeave").rows[0];
     expect(row.value).toBe(103);
     expect(row.ratio).toBe(1);
-    expect(WORKLIFE_BAR_MAX).toBe(100);
   });
 
   it("AC-8 賃金の差異は3行・バーを描かず、定義を添える", () => {
@@ -170,30 +163,28 @@ describe("buildWorklifeView", () => {
     for (const row of wageGap.rows) expect(row.ratio).toBeNull();
   });
 
-  it("全労働者だけが会社全体の値で、うち正規・うち非正規は内訳として弱める", () => {
-    const view = buildWorklifeView(
-      record({ wageGapAll: 67, wageGapRegular: 66.8, wageGapNonRegular: 59.7 })
-    );
-    // **太字が3つ並ぶと、どれが会社全体の値なのかが読み取れない**（Issue 191）。
-    expect(metric(view, "wageGap").rows.map((r) => r.subordinate === true)).toEqual([
-      false,
-      true,
-      true,
-    ]);
-  });
-
-  it("残業・有給の行は内訳ではない（全体値も区分も対等に並べる）", () => {
+  /*
+   * **太字が3つ並ぶと、どれが会社全体の値なのかが読み取れない**（Issue 191）。
+   * 一方、残業・有給の全体値と区分は対等に並べる——片方を弱めるのは spec 2.2b の
+   * 「代表を選ばない」に反する。
+   */
+  it("内訳として弱めるのは賃金の差異の うち正規・うち非正規 だけ", () => {
     const view = buildWorklifeView(
       record({
         overtimeAll: 20.3,
         overtimeScope: "対象正社員",
         overtimeUnits: [{ unit: "総合職", value: 26 }],
+        wageGapAll: 67,
+        wageGapRegular: 66.8,
+        wageGapNonRegular: 59.7,
       })
     );
-    // spec 2.2b の「代表を選ばない」は、見た目の強弱を付けないことでもある。
-    for (const row of metric(view, "overtime").rows) {
-      expect(row.subordinate).toBeUndefined();
-    }
+    expect(metric(view, "wageGap").rows.map((r) => r.subordinate === true)).toEqual([
+      false,
+      true,
+      true,
+    ]);
+    for (const row of metric(view, "overtime").rows) expect(row.subordinate).toBeUndefined();
   });
 
   it("非正規が `-`（欠測）の会社は、その行だけ落ちる", () => {
@@ -201,18 +192,16 @@ describe("buildWorklifeView", () => {
     expect(metric(view, "wageGap").rows.map((r) => r.label)).toEqual(["全労働者"]);
   });
 
-  it("節に「推定」「実測値」の語を持ち込まない（AC-9・glossary）", () => {
+  /*
+   * AC-9・glossary。「実測値」は有報の平均年間給与を指す語で衝突する。
+   * 定義の注記（Issue #224）も、補正しないと決めたぶん推定の体裁を帯びない書き方にする。
+   */
+  it("ビューにも定義の注記にも「推定」「実測値」の語を持ち込まない", () => {
     const view = buildWorklifeView(record({ overtimeAll: 20.3, overtimeScope: "対象正社員" }));
-    const text = JSON.stringify(view);
-    expect(text).not.toContain("推定");
-    expect(text).not.toContain("実測値");
-  });
-
-  it("公表する範囲が空なら範囲を持たない（空文字も運ばない）", () => {
-    const view = buildWorklifeView(record({ overtimeAll: 12 }));
-    const [row] = metric(view, "overtime").rows;
-    expect(row.label).toBe("全体");
-    expect("scope" in row).toBe(false);
+    for (const text of [JSON.stringify(view), OVERTIME_DEFINITION_NOTE]) {
+      expect(text).not.toContain("推定");
+      expect(text).not.toContain("実測値");
+    }
   });
 });
 
@@ -222,7 +211,8 @@ describe("buildWorklifeView", () => {
  * **数値は補正しない。定義を明示する。** 女性活躍データベースの値は法定労働時間
  * を起点に数えるので、所定労働時間が8時間より短い会社（三菱商事は1日7時間15分）
  * では自社公表値より構造的に小さく出る。**所定労働時間はどの一次情報にも無い**
- * ので、補正すると推定値になる。
+ * ので、補正すると推定値になる。注記の中身と、値の並びの下に1つだけ出ることは
+ * `e2e/company-worklife.spec.ts` が画面で見ている。
  */
 describe("平均残業時間の定義の注記（Issue 224）", () => {
   it("注記は残業だけが持つ（有給・賃金の差異には付けない）", () => {
@@ -235,55 +225,17 @@ describe("平均残業時間の定義の注記（Issue 224）", () => {
    * **島の props は HTML の属性に直列化される**ので、指標ごとに固定の110字を
    * ビューに持たせると同じ文が props と本文の2か所に出る（実測 +490 B／ページ）。
    * 会社ごとに変わる値ではないので、描画側で `metricFootnote` から引く。
+   * 行にも持たせない——行が持つと区分5件の会社で同じ3文が5回並ぶ。
    */
   it("ビューは注記を運ばない（props に載せない）", () => {
-    const view = buildWorklifeView(
-      record({ overtimeAll: 10.5, overtimeScope: "その他" })
-    );
-    expect(JSON.stringify(view)).not.toContain("法定労働時間");
-  });
-
-  it("算式の起点（法定労働時間）と除外規定が読める", () => {
-    for (const word of ["法定労働時間", "1日8時間", "週40時間"]) {
-      expect(OVERTIME_DEFINITION_NOTE).toContain(word);
-    }
-    expect(OVERTIME_DEFINITION_NOTE).toContain(
-      "管理職・事業場外みなし労働の適用者は算入されません"
-    );
-  });
-
-  /*
-   * **注記は指標に1つ。行には持たせない。** 行が持つと区分5件の会社で同じ3文が
-   * 5回並び、区分によって定義が違うように見える（描画側も `rows` の外に置く）。
-   */
-  it("区分がいくつあっても注記は1つ", () => {
     const view = buildWorklifeView(
       record({
         overtimeAll: 10.5,
         overtimeScope: "その他",
-        overtimeUnits: [
-          { unit: "総合職", value: 14.1 },
-          { unit: "一般職", value: 3.3 },
-          { unit: "嘱託その他", value: 3.2 },
-          { unit: "派遣社員", value: 5.6 },
-        ],
+        overtimeUnits: [{ unit: "総合職", value: 14.1 }],
       })
     );
-    const overtime = metric(view, "overtime");
-    expect(overtime.rows).toHaveLength(5);
-    // **注記は指標に1つ。行は持たない**——行が持つと同じ3文が5回並ぶ。
-    for (const row of overtime.rows) {
-      expect(JSON.stringify(row)).not.toContain("法定労働時間");
-    }
-  });
-
-  /*
-   * **「推定」の語を持ち込まない**（AC-9）。補正しないと決めたぶん、注記が
-   * 推定の体裁を帯びる書き方にならないこと。
-   */
-  it("注記に「推定」「実測値」の語が無い", () => {
-    expect(OVERTIME_DEFINITION_NOTE).not.toContain("推定");
-    expect(OVERTIME_DEFINITION_NOTE).not.toContain("実測値");
+    expect(JSON.stringify(view)).not.toContain("法定労働時間");
   });
 });
 
@@ -292,20 +244,20 @@ describe("平均残業時間の定義の注記（Issue 224）", () => {
  * **節の行の名前と同じ関数を通す。** ずれると断りと節を突き合わせられない。
  */
 describe("unitLabel", () => {
-  it("区分名はそのまま、名前の無い区分は「全体」", () => {
+  it("区分名はそのまま、名前の無い区分は「全体」。節の行も同じ名前になる", () => {
     expect(unitLabel("正社員")).toBe("正社員");
     expect(unitLabel("")).toBe("全体");
-  });
-
-  it("節の行の名前と一致する", () => {
-    const view = buildWorklifeView({
-      ...EMPTY,
-      paidLeaveUnits: [
-        { unit: "", value: 63.7 },
-        { unit: "契約社員", value: 70 },
-      ],
-    });
-    const rows = view.metrics.find((m) => m.key === "paidLeave")!.rows;
-    expect(rows.map((r) => r.label)).toEqual([unitLabel(""), unitLabel("契約社員")]);
+    const view = buildWorklifeView(
+      record({
+        paidLeaveUnits: [
+          { unit: "", value: 63.7 },
+          { unit: "契約社員", value: 70 },
+        ],
+      })
+    );
+    expect(metric(view, "paidLeave").rows.map((r) => r.label)).toEqual([
+      unitLabel(""),
+      unitLabel("契約社員"),
+    ]);
   });
 });

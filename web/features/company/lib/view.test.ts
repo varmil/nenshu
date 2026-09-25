@@ -5,12 +5,7 @@ import statsData from "../../../public/data/stats.json";
 import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
 import { formatManYen } from "@/features/ranking/lib/format";
-import {
-  formatDeviation,
-  formatDiffFromMean,
-  formatTopPercent,
-  statsForBasis,
-} from "./stats";
+import { formatDeviation, formatDiffFromMean, statsForBasis } from "./stats";
 import { buildCompanyView } from "./view";
 
 const companies = companiesData as CompaniesData;
@@ -27,7 +22,13 @@ function at(id: string, age: TargetAge | null) {
   return statsForBasis(view(id), age);
 }
 
-/** `docs/company/spec.md` AC-1〜AC-6 の数値をそのまま固定する。 */
+/**
+ * `docs/company/spec.md` AC-1〜AC-6 の数値をそのまま固定する。**E2E（`e2e/company-page.spec.ts`）は
+ * キーエンスの数値で操作が画面に届くことだけを見ており、トヨタ・みずほ銀行・三菱商事の値は
+ * ここだけが持つ。** spec の本文は拡大前（1,867社）の数値のままなので、ここが実データの正。
+ *
+ * 上位◯%は画面に出さない（2026-08-20・運営者の判断）ので固定しない。
+ */
 describe("buildCompanyView", () => {
   it("AC-1: キーエンス（6861）の35歳", () => {
     const v = view("6861");
@@ -47,15 +48,15 @@ describe("buildCompanyView", () => {
     expect(s.rankIndustry).toBe(1);
   });
 
-  it("AC-2: キーエンスの偏差値・上位%・平均との差", () => {
+  it("AC-2: キーエンスの偏差値・平均との差", () => {
     const s = at("6861", 35);
     expect(formatDeviation(s.deviation)).toBe("149.5");
-    expect(formatTopPercent(s.topPercent)).toBe("上位0.1%未満");
     expect(formatDiffFromMean(s.diffFromMean)).toBe("＋1,562万円");
     expect(formatManYen(s.populationMean)).toBe("616万円");
   });
 
-  it("AC-2: トヨタ自動車（7203）の35歳", () => {
+  // 実測値と年齢そろえで母集団が別なので、同じ会社でも順位が動く（平均年齢が高めのトヨタ）。
+  it("AC-2: トヨタ自動車（7203）の35歳と実測値", () => {
     const v = view("7203");
     expect(v.name).toBe("トヨタ自動車株式会社");
     expect(v.tse33).toBe("輸送用機器");
@@ -64,9 +65,13 @@ describe("buildCompanyView", () => {
     const s = statsForBasis(v, 35);
     expect(formatManYen(s.salary)).toBe("859万円");
     expect(s.rankAll).toBe(169);
-    expect(formatTopPercent(s.topPercent)).toBe("上位5.7%");
     expect(s.rankIndustry).toBe(2);
     expect(formatDeviation(s.deviation)).toBe("65.5");
+
+    const raw = statsForBasis(v, null);
+    expect(formatManYen(raw.salary)).toBe("1,006万円");
+    expect(raw.rankAll).toBe(162);
+    expect(raw.rankIndustry).toBe(2);
   });
 
   it("AC-3: キーエンスの25歳と60歳", () => {
@@ -105,7 +110,6 @@ describe("buildCompanyView", () => {
     const s = statsForBasis(v, 35);
     expect(formatManYen(s.salary)).toBe("755万円");
     expect(s.rankAll).toBe(383);
-    expect(formatTopPercent(s.topPercent)).toBe("上位12.9%");
     expect(s.rankIndustry).toBe(17);
     expect(formatDeviation(s.deviation)).toBe("58.9");
   });

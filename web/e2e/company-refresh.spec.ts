@@ -1,110 +1,144 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
-import { collectPageRequests } from "./network";
 
 /**
- * C2（Issue #83）で足したもの——この会社の要点・水準が近い会社・分布・年齢別の表と
- * ±20%・10年推移（timeseries の T1）・この数字の作り方（C12 で「このページの出典」に
- * 作り替えた）——の E2E。
+ * C2（Issue #83）で足した節——水準が近い会社・分布・年齢別の表と ±20%・10年推移
+ * （timeseries の T1・T2）・このページの出典（C12 で「この数字の作り方」から作り替えた）
+ * ——と、C3 以降の見た目の手直しの E2E。
  *
- * C1 で作った数値と表示基準の切替は `company-page.spec.ts` にある。
+ * C1 で作った表示基準の切替・URL・履歴・初期 HTML は `company-page.spec.ts` にある。
+ * **表示基準を切り替えても変わらない節**（推移・説明文・要約と分析・稼ぐ力）は、
+ * そちらの AC-3 がまとめて1本で見ている。
  */
 
 /*
- * 「この会社の要点」は C11（#799）で外した。カードの数値を文にした繰り返しで、
- * サイドバーを画面より高くしていた。**生の HTML でも見る**——ハイドレーション後の
- * DOM だけだと、サーバーが描いてクライアントが消す形でも通ってしまう。
+ * 節の並び（アートボード 4b・6b・6e・8a / 8b）。**全部の見出しを1本で並べて見る。**
+ * 以前は C2 の2巡目（推移は実測値の後ろ）・P2（稼ぐ力は推移の直後）・C10（分析は
+ * カードの直後、要約は稼ぐ力の後ろ、出典は要約の後ろ）が別々のファイルで隣り合う2つずつを
+ * 見ていた。全体を並べれば、どれか1つがずれても落ちる。
  */
-test.describe("AC-11 この会社の要点（削除）", () => {
-  test("見出しも箇条書きも出ない", async ({ page, request }) => {
+test.describe("節の並び", () => {
+  test("見出しが決めた順に並び、分析は平均年収カードの直後にある", async ({ page }) => {
     await page.goto("/company/6861");
-    await expect(page.getByRole("heading", { name: "電気機器で水準が近い会社" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "この会社の要点" })).toHaveCount(0);
 
-    const html = await (await request.get("/company/6861")).text();
-    expect(html).not.toContain("この会社の要点");
+    expect(await page.locator("h2").allTextContents()).toEqual([
+      "公開資料による全体像",
+      "株式会社キーエンスの現状と今後",
+      "残業・有給・男女の賃金の差異",
+      "年齢別の推定年収",
+      "有価証券報告書の実測値（2026年3月期）",
+      "平均年収推移（過去10年間）",
+      "稼ぐ力の推移（過去10年間）",
+      "株式会社キーエンスの有価証券報告書の要約",
+      "このページの出典",
+      // サイドバーは DOM では本文の後ろ。
+      "電気機器で水準が近い会社",
+    ]);
+
+    // 平均年収カードには見出しが無いので、金額のラベルで位置を取る。
+    const cardY = (await page.getByText("平均年収（有価証券報告書・単体）").boundingBox())!.y;
+    const analysisY = (await page.getByTestId("company-analysis").boundingBox())!.y;
+    expect(analysisY).toBeGreaterThan(cardY);
   });
 });
 
 test.describe("AC-12 水準が近い会社", () => {
-  test("同業種の10社が企業詳細へのリンクとして並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = page.getByRole("heading", { name: "電気機器で水準が近い会社" }).locator("xpath=../ul");
-    await expect(section.getByRole("listitem")).toHaveCount(10);
-    await expect(section.getByRole("link").first()).toHaveAttribute("href", /^\/company\//);
-  });
-
-  test("自分自身が含まれない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = page.getByRole("heading", { name: "電気機器で水準が近い会社" }).locator("xpath=../ul");
-    await expect(section).not.toContainText("株式会社キーエンス");
-  });
-
-  test("表示基準の切替でページ遷移が発生しない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const requests = collectPageRequests(page);
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-    expect(requests).toHaveLength(0);
-  });
-
   /*
-   * 10社に増やした（Issue #195）ぶん、節が縦に伸びる。行の構造は5社の頃と同じなので
-   * 横には広がらないはずだが、器（PCは316pxの右カラム）が変わっていないことを
-   * モバイル幅で固定しておく。社名は `truncate` で切れる前提。
+   * **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと社名が切れる。
+   * キーエンスの10社にはバッジを持つ会社が3社（キオクシア・ソニー・SCREEN）入っているので、
+   * 出していれば落ちる。自分を含まないこと・10社に満たない業種は `lib/neighbors.test.ts`。
    */
-  test("10行に増えても390pxで横スクロールを起こさない", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
+  test("同業種の10社が企業詳細へのリンクとして並び、業界順位・平均年齢と業種一覧への導線が付く", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
-    const section = page.locator("section", { hasText: "電気機器で水準が近い会社" });
-    await expect(section.getByRole("listitem")).toHaveCount(10);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-  });
+    const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
 
-  // 空運業は6社しかない（E2 で母集団を広げた後）。上限に届かない業種では
-  // 自分を除いた社数だけ並ぶ。
-  test("10社に満たない業種ではその社数だけ並ぶ", async ({ page }) => {
-    await page.goto("/company/9202");
-    const section = page.getByRole("heading", { name: "空運業で水準が近い会社" }).locator("xpath=../ul");
-    await expect(section.getByRole("listitem")).toHaveCount(5);
+    await expect(neighbors.getByRole("listitem")).toHaveCount(10);
+    await expect(neighbors.locator("ul").getByRole("link").first()).toHaveAttribute(
+      "href",
+      /^\/company\//
+    );
+    await expect(neighbors.locator("ul")).not.toContainText("株式会社キーエンス");
+    await expect(neighbors.getByText("業界2位・平均40.1歳")).toBeVisible();
+    await expect(neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })).toHaveAttribute(
+      "href",
+      /^\/\?ind=/
+    );
+    await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
   });
 });
 
+/*
+ * 分布の図（spec 1.13・C3 のモック・C14）。**表示基準で階級が変わること**は
+ * 「AC-32 平均年収カード」の切替のテストが見ている。
+ */
 test.describe("AC-13 分布の中での位置", () => {
-  test("中位の印と9ビンのヒストグラムが出る", async ({ page }) => {
+  const figure = (page: Page) => page.locator('[data-slot="card"]').first().locator("figure");
+
+  test("位置バーは順位で両端を書き、9階級のヒストグラムは社数を目で読める形で出す", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
+
+    // 位置バー。**金額ではなく順位から出す**ので、両端も順位で書く。
+    await expect(figure(page)).toContainText("全体2,961社の中の位置");
+    await expect(figure(page)).toContainText("偏差値 124.8");
+    await expect(figure(page)).toContainText("2,961位");
+    await expect(figure(page)).toContainText("1位");
     await expect(page.getByText(/中位 [\d,]+万円/)).toBeVisible();
-    // 読み上げ用の一覧がヒストグラムの正。9階級ぶんある。
+
+    // 読み上げ用の一覧がヒストグラムの正。9階級ぶんあり、その会社の階級に印が付く。
     const bins = page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li");
     await expect(bins).toHaveCount(9);
     await expect(bins.filter({ hasText: "株式会社キーエンスはここ" })).toHaveCount(1);
+    // sr-only の一覧とは別に、棒の上にも社数が出ている。
+    await expect(figure(page).getByText("327", { exact: true })).toBeVisible();
+
+    /*
+     * 両端の階級は外側を吸収する。**それは横軸の目盛（「〜500」「1,200+」）が言っている**ので、
+     * 図の説明に同じ断りを重ねない（C14・spec AC-32）。
+     */
+    await expect(figure(page).getByText("〜500", { exact: true })).toBeVisible();
+    await expect(figure(page).getByText("1,200+", { exact: true })).toBeVisible();
+    await expect(figure(page).locator("figcaption")).not.toContainText("両端の階級");
   });
 
-  test("表示基準を切り替えると階級が変わる", async ({ page }) => {
+  // ラベルが折り返すと軸の高さが階級ごとに変わり、棒の下端が揃わなくなる（公開後に報告あり）。
+  test("ヒストグラムの棒の幅が揃い、目盛が1行に収まる", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
-    const bins = () => page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li");
-    const before = await bins().first().textContent();
 
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await page.getByRole("button", { name: "25歳" }).click();
-    const after = await bins().first().textContent();
-    expect(after).not.toBe(before);
+    const { widths, lines } = await figure(page).evaluate((el) => ({
+      widths: [...el.querySelectorAll('[role="presentation"] > div')].map(
+        (n) => Math.round(n.getBoundingClientRect().width * 10) / 10
+      ),
+      lines: [...el.querySelectorAll('[role="presentation"] > div > span:last-child')].map(
+        (n) => n.getClientRects().length
+      ),
+    }));
+    expect(widths).toHaveLength(9);
+    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
+    for (const count of lines) expect(count).toBe(1);
   });
 });
 
+/** 年齢別の節（見出しの親）。推移の表（T2）も同じページに居るので、表はこの中で引く。 */
+const curveSection = (page: Page) =>
+  page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
+
 test.describe("AC-14 年齢別の表と推定範囲", () => {
-  test("8行の表があり、推定範囲が ±20% になっている", async ({ page }) => {
+  /*
+   * **信頼区間ではない旨は1か所だけ**——表・説明文・チャートは1つの `section` に縦に続くので、
+   * 表の caption にも同じ文を置くと一度の視界に断りが2つ並ぶ（Issue #95 で表の caption を
+   * 外した）。**帯だけを見ると信頼区間に見える**ので、図の側からは外さない。
+   * `/about` 側の断りは `company-page.spec.ts` の「/about への導線」が見ている。
+   */
+  test("8行の表で推定範囲は ±20%、信頼区間ではない旨はチャートにだけ書き、縦軸は丸い目盛", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
-    // 推移の表（T2）も同じページに居るので、年齢別の節に絞る。
-    const rows = page
-      .getByRole("heading", { name: "年齢別の推定年収" })
-      .locator("xpath=..")
-      .getByRole("table")
-      .locator("tbody tr");
+    const rows = curveSection(page).getByRole("table").locator("tbody tr");
     await expect(rows).toHaveCount(8);
 
     const cells = rows.first().locator("td");
@@ -112,567 +146,100 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
     const range = (await cells.nth(2).textContent())!.replace(/[^0-9〜]/g, "").split("〜");
     expect(Number(range[0])).toBe(Math.round(salary * 0.8));
     expect(Number(range[1])).toBe(Math.round(salary * 1.2));
-  });
 
-  /*
-   * ここを信頼区間として書いたら、この基準を逆向きに壊す。**ただし1か所だけ**——
-   * 表・説明文・チャートは1つの `section` に縦に続くので、表の caption にも同じ文を
-   * 置くと一度の視界に断りが2つ並ぶ（Issue #95 で表の caption を外した）。
-   */
-  test("信頼区間ではない旨が年齢別のチャートにある", async ({ page }) => {
-    await page.goto("/company/6861");
     await expect(page.getByText("統計的な信頼区間ではありません")).toHaveCount(1);
-    const figcaption = page.locator("figcaption", { hasText: "統計的な信頼区間ではありません" });
-    await expect(figcaption).toBeVisible();
-    // 表の側には残っていない（同じ断りを2つ描かない）。
-    await expect(page.getByRole("table").locator("caption")).toHaveCount(0);
-  });
-
-  test("/about にも同じ断りがある", async ({ page }) => {
-    await page.goto("/about");
-    await expect(page.getByText(/信頼区間ではありません/)).toBeVisible();
-  });
-});
-
-/*
- * 推移の節の当たり判定は**表の行**に寄せてある（T2・Issue #138）。T1 の頃はグラフが
- * 持っていた `ul.sr-only` を見ていたが、同じ10件を読み上げる経路を2つ置かないために
- * 落とした——AC-10 は表が担う。
- */
-const historySection = (page: Page) =>
-  page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
-
-/** 推移の表の各行を「年 / 金額 / 前年比 / 基準年比」の4セルで読む。 */
-async function historyRows(page: Page): Promise<string[][]> {
-  return historySection(page)
-    .locator("tbody tr")
-    .evaluateAll((rows) =>
-      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
-    );
-}
-
-test.describe("T1 平均年収推移（10年）", () => {
-  test("AC-6: 10年ぶんの棒と年ラベル、金額、増減の文が出る", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = historySection(page);
-    const rows = await historyRows(page);
-    expect(rows).toHaveLength(10);
-    expect(rows[0][0]).toBe("2017年");
-    expect(rows[9][0]).toBe("2026年");
-    await expect(section).toContainText(/9年で [＋−][\d,]+万円/);
-    // 棒と年のラベルはグラフ側に残っている。
-    await expect(section.getByText("2026", { exact: true })).toBeVisible();
-  });
-
-  /*
-   * AC-8。年齢そろえを選んでも過去の有報に載った数字は変わらない。ここが動いたら
-   * 「表示基準ごとに別物」と「基準と独立」を取り違えている。
-   */
-  test("AC-8: 表示基準を切り替えても推移の値が変わらない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const before = await historyRows(page);
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-    expect(await historyRows(page)).toEqual(before);
-  });
-
-  test("AC-9: 実測値・提出会社単体であることが書かれている", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = historySection(page);
-    await expect(section).toContainText("実測値");
-    await expect(section).toContainText("提出会社単体");
-  });
-
-  test("AC-7: 欠損のある年は「なし」と出て、年のラベルは残る", async ({ page }) => {
-    // 2117 は2023・2024の値を持たない。棒は描かれず、年のラベルだけが残る。
-    await page.goto("/company/2117");
-    const section = historySection(page);
-    await expect(section.getByText("なし", { exact: true })).toHaveCount(2);
-    await expect(section.getByText("2023", { exact: true })).toBeVisible();
-    await expect(section.getByText("2024", { exact: true })).toBeVisible();
-  });
-
-  /*
-   * E4（#176）。母集団を広げた E2（#173）で新しく入った1,094社は、しばらく推移を
-   * 1年ぶんも持っていなかった（節ごと出ない状態）。**その1,094社でも節が出る**
-   * ことをここで固定する。ヒューリックは実測値の上位で、10年すべて埋まっている。
-   */
-  test("AC-6: E4 で入った会社でも10年ぶんの推移が出る（ヒューリック）", async ({ page }) => {
-    await page.goto("/company/3003");
-    const rows = await historyRows(page);
-    expect(rows).toHaveLength(10);
-    expect(rows[0][0]).toBe("2017年");
-    expect(rows[9][0]).toBe("2026年");
-    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
-  });
-
-  /*
-   * **右端が空く会社が221社ある。** 取得の窓を直近12か月に広げた（ADR-0011）ので、
-   * 決算期が3月でない会社の最新の有報は2025年の提出になる——2026年を持たないのが
-   * 正しい。**AC-7 の「途中が欠ける」（2117）とは別の欠け方**で、右端だけに出る。
-   */
-  test("AC-7: 決算期が3月でない会社は2026年の枠が空く（ファーストリテイリング・8月期）", async ({
-    page,
-  }) => {
-    await page.goto("/company/9983");
-    const section = historySection(page);
-    const rows = await historyRows(page);
-    expect(rows).toHaveLength(10);
-    // 2017〜2025は埋まり、2026だけが空く。
-    for (const row of rows.slice(0, 9)) expect(row[1]).toMatch(/^[\d,]+万円$/);
-    expect(rows[9][0]).toBe("2026年");
-    expect(rows[9][1]).toBe("データなし");
-    // 年のラベルはグラフ側にも残る（棒は描かれない）。
-    await expect(section.getByText("2026", { exact: true })).toBeVisible();
-  });
-});
-
-/*
- * T2 推移の表（Issue #138・`docs/timeseries/spec.md` 2.5）。グラフと同じ10年ぶんを
- * 数表でも出す。**前年比は直前の年に値があるときだけ**、**累積の基準はその会社で
- * 最初に値のある年**——欠損の扱いがこの表の正しさのほぼ全部になる。
- */
-test.describe("T2 推移の表", () => {
-  test("AC-12: 10行の表に年度・金額・前年比・基準年比が並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    const rows = await historyRows(page);
-    expect(rows).toHaveLength(10);
-
-    // 基準年（＝最初に値のある年）の行は前年比も累積も空。
-    expect(rows[0]).toEqual(["2017年", "1,862万円", "", ""]);
-    expect(rows[1][2]).toMatch(/^[＋−±][\d.]+%$/);
-    expect(rows[1][3]).toMatch(/^[＋−±][\d.]+%$/);
-    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
-
-    // 見出しは基準年を名乗る。「昇給率」とは呼ばない（会社の平均が動いた幅であって
-    // 個人の昇給ではない）。
-    const section = historySection(page);
-    await expect(section.getByRole("columnheader", { name: "2017年比" })).toBeVisible();
-    await expect(section.getByRole("columnheader", { name: "前年比" })).toBeVisible();
-    await expect(section.getByRole("columnheader", { name: /昇給率/ })).toHaveCount(0);
-    await expect(section).toContainText("個人の昇給率ではありません");
-  });
-
-  test("AC-13: 飛び年をまたぐ前年比は出さない", async ({ page }) => {
-    // 2117 は2023・2024が欠損。2025年は「前年比」を持たないが、累積は基準年からなので出る。
-    await page.goto("/company/2117");
-    const rows = await historyRows(page);
-    const byYear = new Map(rows.map((row) => [row[0], row]));
-
-    expect(byYear.get("2023年")![1]).toBe("データなし");
-    expect(byYear.get("2023年")![2]).toBe("");
-    expect(byYear.get("2023年")![3]).toBe("");
-    expect(byYear.get("2025年")![1]).toMatch(/^[\d,]+万円$/);
-    expect(byYear.get("2025年")![2]).toBe("");
-    expect(byYear.get("2025年")![3]).toMatch(/^[＋−±][\d.]+%$/);
-    expect(byYear.get("2026年")![2]).toMatch(/^[＋−±][\d.]+%$/);
-  });
-
-  test("AC-13: 2017年が無い会社は最初に値のある年が基準になる", async ({ page }) => {
-    // 3447 は2017年の値を持たない。固定の2017年基準だと累積の列が丸ごと空になる。
-    await page.goto("/company/3447");
-    const section = historySection(page);
-    await expect(section.getByRole("columnheader", { name: "2018年比" })).toBeVisible();
-
-    const rows = await historyRows(page);
-    expect(rows[0][1]).toBe("データなし");
-    expect(rows[1][2]).toBe("");
-    expect(rows[1][3]).toBe("");
-    expect(rows[2][3]).toMatch(/^[＋−±][\d.]+%$/);
-  });
-
-  test("AC-14: 390px で表が横スクロールを起こさない", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 800 });
-    await page.goto("/company/6861");
-
-    const overflow = await historySection(page)
-      .locator("table")
-      .evaluate((el) => {
-        const container = el.parentElement!;
-        return {
-          table: el.scrollWidth - container.clientWidth,
-          doc: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        };
-      });
-    expect(overflow.table).toBeLessThanOrEqual(0);
-    expect(overflow.doc).toBeLessThanOrEqual(0);
-  });
-
-  /*
-   * 並びは **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は逆に表が先なので、
-   * 片方を直したつもりでもう片方が付いてくる事故をここで止める。
-   */
-  test("推移は チャート → 表 → 説明文 の順に並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = historySection(page);
-
-    const chart = (await section.locator("figure").boundingBox())!;
-    const table = (await section.getByRole("table").boundingBox())!;
-    const summary = (await section.getByText(/9年で [＋−]/).boundingBox())!;
-    expect(chart.y).toBeLessThan(table.y);
-    expect(table.y).toBeLessThan(summary.y);
-  });
-
-  test("AC-10: 表がグラフの読み上げ一覧を置き換えている", async ({ page }) => {
-    await page.goto("/company/6861");
-    // 同じ10件を読み上げる経路を2つ置かない。
-    await expect(historySection(page).locator("ul.sr-only")).toHaveCount(0);
-    await expect(historySection(page).getByRole("table")).toHaveCount(1);
-  });
-});
-
-test.describe("AC-15 レイアウト", () => {
-  test("PC は2カラムで、サイドバーがスクロールしても残る", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/company/6861");
-
-    const aside = page.locator("aside");
-    const before = await aside.boundingBox();
-    expect(before!.x).toBeGreaterThan(640);
-
-    await page.evaluate(() => window.scrollTo(0, 1500));
-    await page.waitForTimeout(200);
-    const after = await aside.boundingBox();
-    expect(after!.y).toBeGreaterThan(before!.y - 1500);
-  });
-
-  /*
-   * サイドバーは `md:sticky md:top-4` で画面に貼り付く。**画面より高いと、はみ出した
-   * 下端は本文を最後まで下ろすまで見えない**（C11・#799 の前は 6861 で 964px あった）。
-   * 水準が近い会社は最大10社なので、10社そろう 6861 で見る。
-   */
-  test("PC ではサイドバーが画面の高さに収まり、最後の1社まで見える", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/company/6861");
-
-    const aside = await page.locator("aside").boundingBox();
-    expect(aside!.height).toBeLessThanOrEqual(800 - 16);
-
-    await page.evaluate(() => window.scrollTo(0, 1500));
-    await page.waitForTimeout(200);
-    const last = page
-      .getByRole("heading", { name: "電気機器で水準が近い会社" })
-      .locator("xpath=../ul")
-      .getByRole("listitem")
-      .last();
-    await expect(last).toBeInViewport();
-  });
-
-  test("390px では1カラムで、横スクロールが発生しない", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 800 });
-    await page.goto("/company/6861");
-
-    const aside = await page.locator("aside").boundingBox();
-    expect(aside!.x).toBeLessThan(64);
-
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-  });
-});
-
-/*
- * C12（Issue #805）で「この数字の作り方」（年齢補正の3ステップ）から作り替えた。ページに
- * 出ているデータを加工の度合いで6区分に分け、区分ごとに該当するものと出典を並べる。
- */
-test.describe("AC-16 このページの出典", () => {
-  const sources = (page: Page) => page.getByTestId("company-sources");
-  const row = (page: Page, label: string) =>
-    sources(page).locator("dl > div", { has: page.locator("dt", { hasText: label }) });
-
-  test("6区分が該当するものと出典を添えて並び、一次情報へのリンクがある", async ({ page }) => {
-    await page.goto("/company/6861");
-
-    await expect(page.getByRole("heading", { name: "この数字の作り方" })).toHaveCount(0);
-    await expect(sources(page).getByRole("heading", { name: "このページの出典", level: 2 })).toBeVisible();
-    await expect(sources(page).locator("dt")).toHaveText([
-      "実測値",
-      "計算値",
-      "推定値",
-      "自己申告値",
-      "AIの要約",
-      "AIの評価",
-    ]);
-
-    // 有報はトップではなく、その会社の書類の閲覧ページへ（C13・#814）。行き先の書類 ID は
-    // `e2e/company-filing.spec.ts` が見ている。
-    await expect(sources(page).getByRole("link", { name: "有価証券報告書" })).toHaveAttribute(
-      "href",
-      /^https:\/\/disclosure2\.edinet-fsa\.go\.jp\/WZEK0040\.aspx\?S[0-9A-Z]{7},,$/
-    );
-    await expect(sources(page).getByRole("link", { name: "賃金構造基本統計調査" })).toHaveAttribute(
-      "href",
-      "https://www.mhlw.go.jp/toukei/list/chinginkouzou.html"
-    );
     await expect(
-      sources(page).getByRole("link", { name: "女性の活躍推進企業データベース" })
-    ).toHaveAttribute("href", "https://positive-ryouritsu.mhlw.go.jp/positivedb/");
+      page.locator("figcaption", { hasText: "統計的な信頼区間ではありません" })
+    ).toBeVisible();
+    await expect(page.getByRole("table").locator("caption")).toHaveCount(0);
 
-    // キーエンスは説明文・推移・要約と分析をすべて持つ。
-    await expect(row(page, "実測値")).toContainText("平均年収とその推移");
-    await expect(row(page, "計算値")).toContainText("稼ぐ力");
-    await expect(row(page, "AIの要約")).toContainText("社名の下の説明文");
-    await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
-    await expect(row(page, "AIの評価")).toContainText("現状と今後");
-  });
-
-  test("本文の末尾（要約の節の次）にあり、JS 実行前の HTML にもある", async ({ page, request }) => {
-    await page.goto("/company/6861");
-    const headings = await page.locator("h2").allTextContents();
-    expect(headings.findIndex((h) => h.startsWith("このページの出典"))).toBe(
-      headings.findIndex((h) => h.endsWith("有価証券報告書の要約")) + 1
-    );
-
-    const html = await (await request.get("/company/6861")).text();
-    expect(html).toContain("このページの出典");
-    expect(html).not.toContain("この数字の作り方");
-  });
-
-  test("説明文の無い会社では、AIの要約に説明文を挙げない", async ({ page }) => {
-    // 三菱地所は説明文を持たない178社の1つ（要約と分析はある）。
-    await page.goto("/company/8802");
-    await expect(row(page, "AIの要約")).not.toContainText("説明文");
-    await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
-  });
-
-  test("年齢補正の手順は年齢別の節の1行にあり、フッタに出典の行は無い", async ({ page }) => {
-    await page.goto("/company/6861");
-    const curve = page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
-    await expect(curve).toContainText("賃金構造基本統計調査");
-    await expect(curve.getByRole("link", { name: "計算方法" })).toHaveAttribute("href", "/about");
-    await expect(page.getByText(/^出典: /)).toHaveCount(0);
-  });
-
-  test("PC でもモバイルでも、作り替える前の3ステップより低い", async ({ page }) => {
-    // 3ステップは PC（1280×800）で 260px、モバイル（390×844）で 580px あった（変更前の実測）。
-    for (const [viewport, before] of [
-      [{ width: 1280, height: 800 }, 260],
-      [{ width: 390, height: 844 }, 580],
-    ] as const) {
-      await page.setViewportSize(viewport);
-      await page.goto("/company/6861");
-      const box = await sources(page).boundingBox();
-      expect(box!.height).toBeLessThan(before);
-    }
-  });
-});
-
-test.describe("パンくずと見出し", () => {
-  test("パンくずの末尾が社名で、リンクではない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const nav = page.getByRole("navigation").first();
-    await expect(nav).toContainText("株式会社キーエンス");
-    await expect(nav.getByRole("link", { name: "株式会社キーエンス" })).toHaveCount(0);
-  });
-
-  test("h1 の直下に業界内順位と全体順位が出る", async ({ page }) => {
-    await page.goto("/company/6861");
-    // モックの言い回し。上位◯%は添えない（運営者の指示）。
-    await expect(page.getByText("電気機器 ・業界193社中1位 ・全体2,961社中3位")).toBeVisible();
-  });
-});
-
-/*
- * C3（Issue #89）でモックに合わせ直した見た目。**機能ではなく形**を固定する。
- * 変えるときは `docs/company/company-mock-alignment/design.md` の対照表も直すこと。
- */
-test.describe("C3 モックとの一致", () => {
-  test("上部カードは2カラムで、左に金額、右に位置バーと分布が並ぶ", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/company/6861");
-
-    // カードの中の金額。P1（#167）のレーダーが同じ額を図と指標リストにも
-    // 出すので、ページ全体から探すとそちらを掴む。
-    const card = page.locator('[data-slot="card"]').first();
-    const amount = card.getByText("2,178万円", { exact: true }).first();
-    const distribution = card.locator("figure").first();
-    const amountBox = (await amount.boundingBox())!;
-    const figureBox = (await distribution.boundingBox())!;
-
-    // 右にいる（左端が金額より右）かつ、縦にはほぼ同じ高さから始まる。
-    expect(figureBox.x).toBeGreaterThan(amountBox.x + amountBox.width);
-    expect(Math.abs(figureBox.y - amountBox.y)).toBeLessThan(220);
-  });
-
-  test("位置バーの両端が順位で書かれている", async ({ page }) => {
-    await page.goto("/company/6861");
-    const figure = page.locator("figure").first();
-    await expect(figure).toContainText("2,961位");
-    await expect(figure).toContainText("1位");
-    await expect(figure).toContainText("中位");
-  });
-
-  test("ヒストグラムの各階級に社数が出る", async ({ page }) => {
-    await page.goto("/company/6861");
-    // 9本ぶんの数字が棒の上に出ている（sr-only の一覧とは別に、目で読める形で）。
-    const figure = page.locator("figure").first();
-    await expect(figure.getByText("327", { exact: true })).toBeVisible();
+    // 目盛の値そのものは `lib/stats.test.ts` の `niceTicks`。ここは描かれていることだけ。
+    const svg = page.locator("svg").filter({ hasText: "（万円）" });
+    await expect(svg.getByText("1,000", { exact: true })).toBeVisible();
   });
 
   test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
     await page.goto("/company/6861");
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
-    const table = page
-      .getByRole("heading", { name: "年齢別の推定年収" })
-      .locator("xpath=..")
-      .getByRole("table");
-    const summary = page.getByText("推定年収を年齢別に見ると");
-    const chart = page.getByText("年齢別の推定年収の推移", { exact: true });
-
-    const tableBox = (await table.boundingBox())!;
-    const summaryBox = (await summary.boundingBox())!;
-    const chartBox = (await chart.boundingBox())!;
-    expect(tableBox.y).toBeLessThan(summaryBox.y);
-    expect(summaryBox.y).toBeLessThan(chartBox.y);
+    const table = (await curveSection(page).getByRole("table").boundingBox())!;
+    const summary = (await page.getByText("推定年収を年齢別に見ると").boundingBox())!;
+    const chart = (await page.getByText("年齢別の推定年収の推移", { exact: true }).boundingBox())!;
+    expect(table.y).toBeLessThan(summary.y);
+    expect(summary.y).toBeLessThan(chart.y);
   });
 
-  // 説明文は数値から機械的に導ける事実だけ（spec 1.11 と同じ線）。
-  test("説明文が最高水準の年齢と伸びの最大区間を述べる", async ({ page }) => {
+  /*
+   * C4（Issue #146）。文言の組み立ては `lib/highlights.test.ts` が全社で固定している
+   * （到達年齢が表の万円の値で判定されていることも含む）。ここは**描かれた DOM から読み直して**
+   * 文と表が食い違わないことと、3文が1つの段落に続くこと（運営者の指示。1文ずつ `<p>` に
+   * 分けると、同じ8点の話が3つの話題に見える）を見る。
+   *
+   * 段落は「年齢別に見ると」で引く——**節の最初の `p` ではない**（C12・#805 で見出しの直下に
+   * 年齢補正の1行が入った）。
+   */
+  test("C4 AC-14: 説明文は到達年齢から始まる3文の1段落で、到達年齢の行は表でもその金額以上", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    // C4 で到達年齢の文が1文目に入り、最高水準は2文目になった（#146）。
-    await expect(page.getByText("最も高い水準は55歳の2,699万円")).toBeVisible();
-    await expect(page.getByText("25歳から30歳の伸びが最も大きく")).toBeVisible();
-    /*
-     * 末尾（60歳）が下がる会社だが、下がる理由は書かない（Issue #95）。補正の
-     * 仕組みの説明であって、この会社の数値から導ける事実ではないため。
-     */
-    await expect(page.getByText("定年前後")).toHaveCount(0);
+    const paragraph = curveSection(page).locator("p", { hasText: "年齢別に見ると" });
+    await expect(paragraph).toHaveCount(1);
+
+    const text = (await paragraph.textContent())!;
+    expect(text).toContain(
+      "株式会社キーエンスの推定年収を年齢別に見ると、30歳で1,200万円、35歳で2,000万円、50歳で2,500万円に達します。"
+    );
+    expect(text).toContain("に達します。最も高い水準は");
+    expect(text).toContain("です。5歳刻みで比べると");
+
+    const pairs = [...text.matchAll(/(\d+)歳で([\d,]+)万円/g)];
+    expect(pairs.length).toBeGreaterThan(0);
+    for (const [, age, manYen] of pairs) {
+      const row = curveSection(page).getByRole("row").filter({ hasText: `${age}歳` }).first();
+      const shown = Number((await row.locator("td").nth(1).textContent())!.replace(/[^0-9]/g, ""));
+      expect(shown, `${age}歳`).toBeGreaterThanOrEqual(Number(manYen.replace(/,/g, "")));
+    }
   });
 
-  test("チャートの縦軸が丸い目盛になっている", async ({ page }) => {
-    await page.goto("/company/6861");
-    const svg = page.locator("svg").filter({ hasText: "（万円）" });
-    // C2 は 422 / 1,430 / 2,439 / 3,448 というデータ由来の端数を出していた。
-    await expect(svg.getByText("1,000", { exact: true })).toBeVisible();
-    await expect(svg.getByText("3,000", { exact: true })).toBeVisible();
+  /*
+   * 年齢別の表の列幅（2026-08-20 の指摘）。年齢の列に `w-36`（144px）を敷いていたため、
+   * 狭い器では「25歳」の3文字に必要な倍近くを取り、右の2列——とくに
+   * 「1,190万円〜1,785万円」が入る推定範囲——が痩せていた。**器の幅で切る**（`@container`）
+   * ので、ビューポート幅ではなくサイドバーを含めた実際の器で確かめる——**768px でも
+   * サイドバーがあると器は 396px しかない**。360px はモバイルの最狭。
+   */
+  test("器が狭いとき（360px・768px）年齢の列は内容ぶんに絞り、推定範囲が1行に収まる", async ({
+    page,
+  }) => {
+    for (const width of [360, 768]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/company/6861");
+
+      const { age, range, container, overflow } = await page
+        .getByRole("table")
+        .filter({ hasText: "推定範囲" })
+        .first()
+        .evaluate((table) => {
+          const th = [...table.querySelectorAll("th")];
+          return {
+            age: th[0].getBoundingClientRect().width,
+            range: th[2].getBoundingClientRect().width,
+            container: (table.parentElement as HTMLElement).clientWidth,
+            // `whitespace-nowrap` なので、溢れれば scrollWidth が伸びる。
+            overflow: Math.max(
+              ...[...table.querySelectorAll("td")].map((n) => n.scrollWidth - n.clientWidth)
+            ),
+          };
+        });
+      // @md 未満であることの確認（前提が崩れたら気づく）。
+      expect(container, `${width}px`).toBeLessThan(448);
+      expect(age, `${width}px`).toBeLessThanOrEqual(72);
+      expect(range, `${width}px`).toBeGreaterThan(age * 2);
+      expect(overflow, `${width}px`).toBeLessThanOrEqual(0);
+    }
   });
 
-  test("推移の横軸は4桁の西暦", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = page.locator("section", { hasText: "平均年収推移（過去10年間）" });
-    await expect(section.getByText("2017", { exact: true })).toBeVisible();
-    await expect(section.getByText("2026", { exact: true })).toBeVisible();
-  });
-
-  test("水準が近い会社に業界順位と平均年齢、業種一覧への導線が付く", async ({ page }) => {
-    await page.goto("/company/6861");
-    const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
-    await expect(neighbors.getByText("業界2位・平均40.1歳")).toBeVisible();
-    await expect(
-      neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })
-    ).toHaveAttribute("href", /^\/\?ind=/);
-  });
-
-  test("見せ方の帯にラベルと説明文が付いている", async ({ page }) => {
-    await page.goto("/company/6861");
-    // **`exact` が要る。** W1（#150）が足した節の説明文が「上の『見せ方』とは
-    // 関係なく」と本文で帯を参照しており、部分一致だと2要素に当たる。
-    await expect(page.getByText("見せ方", { exact: true })).toBeVisible();
-    // 平均年齢はカードの中にも出ているので、帯のヒントには繰り返さない（Issue #128）。
-    await expect(page.getByText("有価証券報告書の数値そのまま", { exact: true })).toBeVisible();
-    // 実測値でも年齢スイッチは残る（AC-11）。
-    await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
-  });
-});
-
-/*
- * C14（#818・親 #817）。金額の直後は「どういう会社の金額か」（平均年齢・従業員数）、
- * その下に順位と偏差値。在籍年数はカードから外し、太字は金額だけにした。
- */
-test.describe("AC-32 平均年収カード（C14）", () => {
-  const salaryCard = (page: Page) => page.locator('[data-slot="card"]').first();
-  const texts = (page: Page, row: number, cell: "dt" | "dd") =>
-    salaryCard(page).locator("dl").nth(row).locator(cell).allTextContents();
-
-  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-
-    expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
-    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位", "年収偏差値"]);
-    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社", "124.8"]);
-
-    // 上下の順（モバイルでも同じ。カードが1カラムに積まれても段の順は変わらない）。
-    const dls = salaryCard(page).locator("dl");
-    const first = (await dls.nth(0).boundingBox())!;
-    const second = (await dls.nth(1).boundingBox())!;
-    expect(first.y + first.height).toBeLessThanOrEqual(second.y);
-  });
-
-  test("カードの中に在籍年数が無く、実測値の節には残る", async ({ page }) => {
-    await page.goto("/company/6861");
-    await expect(salaryCard(page)).not.toContainText("在籍年数");
-    await expect(salaryCard(page)).not.toContainText("11.3年");
-
-    const rawFacts = page.locator("section", {
-      has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }),
-    });
-    await expect(rawFacts.getByText("11.3年", { exact: true })).toBeVisible();
-  });
-
-  // 1段目が2項目・2段目が3項目なので、器を3列にそろえてある。2等分にすると
-  // 従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
-  test("2つの段の列の左端がそろっている", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/company/6861");
-
-    const lefts = async (row: number) =>
-      salaryCard(page)
-        .locator("dl")
-        .nth(row)
-        .locator("dt")
-        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
-    const [age, employees] = await lefts(0);
-    const [rankAll, rankIndustry] = await lefts(1);
-    expect(Math.abs(age - rankAll)).toBeLessThanOrEqual(1);
-    expect(Math.abs(employees - rankIndustry)).toBeLessThanOrEqual(1);
-  });
-
-  test("太字は金額だけで、順位と偏差値は通常の太さ", async ({ page }) => {
-    await page.goto("/company/6861");
-
-    const amount = salaryCard(page).getByText("2,178万円", { exact: true });
-    expect(Number(await amount.evaluate((el) => getComputedStyle(el).fontWeight))).toBe(700);
-
-    const weights = await salaryCard(page)
-      .locator("dl dd")
-      .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).fontWeight)));
-    expect(weights).toHaveLength(5);
-    for (const weight of weights) expect(weight).toBe(400);
-  });
-
-  test("年齢そろえに切り替えると2段目だけが変わる", async ({ page }) => {
-    await page.goto("/company/6861");
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-
-    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);
-  });
-
-  // 横軸の目盛が「〜500」「1,200+」の形で既に同じことを言っている。
-  test("分布の図の説明に両端の階級の断りが無く、両端の目盛は残る", async ({ page, request }) => {
-    await page.goto("/company/6861");
-    const figure = salaryCard(page).locator("figure");
-    await expect(figure.locator("figcaption")).toContainText("の帯（");
-    await expect(figure.locator("figcaption")).not.toContainText("両端の階級");
-    await expect(figure.getByText("〜500", { exact: true })).toBeVisible();
-    await expect(figure.getByText("1,200+", { exact: true })).toBeVisible();
-
-    const html = await (await request.get("/company/6861")).text();
-    expect(html).not.toContain("両端の階級");
-  });
-});
-
-/*
- * 公開後の指摘（2026-08-20）で直したもの。
- * `docs/company/company-mock-alignment/design.md` の「公開後に直したもの」に対応する。
- */
-test.describe("公開後の手直し", () => {
+  // 端数で1pxはみ出すと、表だけが縦スクロールする小窓になる（CLAUDE.md・公開後に報告あり）。
   test("年齢別の表の器が縦スクロールを持たない", async ({ page }) => {
     await page.goto("/company/6861");
     const overflowY = await page
@@ -682,97 +249,10 @@ test.describe("公開後の手直し", () => {
     expect(["visible", "hidden", "clip"]).toContain(overflowY);
   });
 
-  // 110px ほどの列に収める必要がある。折り返すと「38位 /2,961社」が2行になる（報告あり）。
-  // モバイルはカードが1カラムになるが、本文の幅が狭いぶん1列あたりはほぼ同じになる。
-  for (const width of [1280, 390]) {
-    test(`カードの順位と実測値が1行に収まる（${width}px）`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto("/company/8725");
-
-      const cardLists = page.locator('[data-slot="card"] dl');
-      await expect(cardLists).toHaveCount(2);
-      for (const dl of [cardLists.nth(0), cardLists.nth(1)]) {
-        const overflow = await dl.evaluate((el) =>
-          [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
-        );
-        for (const value of overflow) expect(value).toBeLessThanOrEqual(0);
-      }
-    });
-  }
-
-  test("位置バーに見出しと偏差値が出る", async ({ page }) => {
-    await page.goto("/company/6861");
-    const figure = page.locator("figure").first();
-    await expect(figure).toContainText("全体2,961社の中の位置");
-    await expect(figure).toContainText("偏差値 124.8");
-  });
-
-  // ラベルが折り返すと軸の高さが階級ごとに変わり、棒の下端が揃わなくなる（報告あり）。
-  test("ヒストグラムの棒の幅が揃い、目盛が1行に収まる", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/company/6861");
-
-    const widths = await page
-      .locator("figure")
-      .first()
-      .evaluate((el) =>
-        [...el.querySelectorAll('[role="presentation"] > div')].map(
-          (n) => Math.round(n.getBoundingClientRect().width * 10) / 10
-        )
-      );
-    expect(widths).toHaveLength(9);
-    expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
-
-    const lines = await page
-      .locator("figure")
-      .first()
-      .evaluate((el) =>
-        [...el.querySelectorAll('[role="presentation"] > div > span:last-child')].map(
-          (n) => n.getClientRects().length
-        )
-      );
-    for (const count of lines) expect(count).toBe(1);
-  });
-
-  test("水準が近い会社に「本社のみ」バッジを出さない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const neighbors = page.locator("section", { hasText: "電気機器で水準が近い会社" });
-    await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
-  });
-});
-
-/*
- * 公開後の指摘（2巡目）。チャートまわりの3点。
- *
- * - 折れ線の文字がPCで大きすぎた（viewBoxの拡大に文字も乗るため実効20px）
- * - 推移の節が「有価証券報告書の実測値」より上にあった（アートボード 4b では下）
- * - どちらのチャートも縦が薄かった
- */
-test.describe("公開後の手直し（2巡目・チャート）", () => {
-  test("推移の節は「有価証券報告書の実測値」より後ろにある", async ({ page }) => {
-    await page.goto("/company/6861");
-    const headings = await page.evaluate(() =>
-      [...document.querySelectorAll("h2")].map((h) => h.textContent?.trim() ?? "")
-    );
-    // 見出しには決算期が付く（S3・Issue #134）ので前方一致で探す。
-    const raw = headings.findIndex((h) => h.startsWith("有価証券報告書の実測値"));
-    const history = headings.indexOf("平均年収推移（過去10年間）");
-    expect(raw).toBeGreaterThanOrEqual(0);
-    expect(history).toBeGreaterThan(raw);
-  });
-
-  // 表示基準と独立であることは値で担保する（AC-8）。断り書きは節の説明から外した。
-  test("推移の説明は出典だけで、表示基準の断りを重ねない", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = page.locator("section", { hasText: "平均年収推移（過去10年間）" });
-    await expect(section).toContainText("実測値（提出会社単体）");
-    await expect(section.getByText("年齢そろえ")).toHaveCount(0);
-    await expect(section).toContainText("横軸は報告書の提出年です。");
-  });
-
   /*
-   * 文字の大きさは**器の幅**で決まる。SVGはviewBoxごと拡大縮小するので、
-   * user unit をそのまま読んでも実効の大きさは分からない——倍率を掛けて測る。
+   * 文字の大きさは**器の幅**で決まる（公開後の2巡目）。SVG は viewBox ごと拡大縮小するので、
+   * user unit で書いた文字も同じ倍率で伸びる——22 のままだと PC で実効20px、PC に合わせて
+   * 13 と書くと 375px 幅で実効6px。倍率を掛けて測る。
    */
   test("折れ線の文字はPCで本文と同じ水準に収まり、モバイルでも読める大きさが残る", async ({
     page,
@@ -802,14 +282,123 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
     expect(sp.max).toBeLessThanOrEqual(12.5);
     expect(sp.min).toBeGreaterThanOrEqual(8.5);
   });
+});
+
+/*
+ * 推移の節の当たり判定は**表の行**に寄せてある（T2・Issue #138）。T1 の頃はグラフが
+ * 持っていた `ul.sr-only` を見ていたが、同じ10件を読み上げる経路を2つ置かないために
+ * 落とした——AC-10 は表が担う。
+ */
+const historySection = (page: Page) =>
+  page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
+
+/** 推移の表の各行を「年 / 金額 / 前年比 / 基準年比」の4セルで読む。 */
+async function historyRows(page: Page): Promise<string[][]> {
+  return historySection(page)
+    .locator("tbody tr")
+    .evaluateAll((rows) =>
+      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+    );
+}
+
+/*
+ * T1（10年推移）と T2（推移の表・`docs/timeseries/spec.md` 2.5）。**前年比は直前の年に
+ * 値があるときだけ**、**累積の基準はその会社で最初に値のある年**——欠損の扱いがこの表の
+ * 正しさのほぼ全部になる。規則そのものは `lib/historyTable.test.ts` が全社で固定しており、
+ * ここは実ページでそう描かれることを見る。表示基準と独立であること（T1 AC-8）は
+ * `company-page.spec.ts` の AC-3。
+ */
+test.describe("T1・T2 平均年収推移", () => {
+  test("10年ぶんの図と表（年度・金額・前年比・基準年比）に、出典と増減・最高値の文が付く", async ({
+    page,
+  }) => {
+    await page.goto("/company/6861");
+    const section = historySection(page);
+
+    const rows = await historyRows(page);
+    expect(rows).toHaveLength(10);
+    // 基準年（＝最初に値のある年）の行は前年比も累積も空。
+    expect(rows[0]).toEqual(["2017年", "1,862万円", "", ""]);
+    expect(rows[9][0]).toBe("2026年");
+    expect(rows[1][2]).toMatch(/^[＋−±][\d.]+%$/);
+    expect(rows[1][3]).toMatch(/^[＋−±][\d.]+%$/);
+    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
+
+    // 見出しは基準年を名乗る。**「昇給率」とは呼ばない**（会社の平均が動いた幅であって
+    // 個人の昇給ではない）。
+    await expect(section.getByRole("columnheader", { name: "2017年比" })).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: "前年比" })).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: /昇給率/ })).toHaveCount(0);
+    await expect(section).toContainText("個人の昇給率ではありません");
+
+    // 読み上げは表が担う（AC-10）。同じ10件を読み上げる経路を2つ置かない。
+    await expect(section.locator("ul.sr-only")).toHaveCount(0);
+    await expect(section.getByRole("table")).toHaveCount(1);
+    // 棒と年のラベルはグラフ側に残る（4桁の西暦）。
+    await expect(section.getByText("2017", { exact: true })).toBeVisible();
+    await expect(section.getByText("2026", { exact: true })).toBeVisible();
+
+    // 説明は出典だけ（AC-9）。表示基準と独立であることは値で担保するので、断りを重ねない。
+    await expect(section).toContainText("実測値（提出会社単体）");
+    await expect(section).toContainText("横軸は報告書の提出年です。");
+    await expect(section.getByText("年齢そろえ")).toHaveCount(0);
+
+    // 増減の1文に、最高値の年を足す（C4・AC-17）。最新年が最高値なら出さないことは
+    // `lib/highlights.test.ts` の `buildHistoryPeak`。
+    await expect(section).toContainText(/9年で [＋−][\d,]+万円/);
+    await expect(section).toContainText("この10年で最も高かったのは2023年の2,279万円です。");
+  });
+
+  /*
+   * 並びは **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は逆に表が先なので、
+   * 片方を直したつもりでもう片方が付いてくる事故をここで止める。
+   */
+  test("推移は チャート → 表 → 説明文 の順に並ぶ", async ({ page }) => {
+    await page.goto("/company/6861");
+    const section = historySection(page);
+
+    const chart = (await section.locator("figure").boundingBox())!;
+    const table = (await section.getByRole("table").boundingBox())!;
+    const summary = (await section.getByText(/9年で [＋−]/).boundingBox())!;
+    expect(chart.y).toBeLessThan(table.y);
+    expect(table.y).toBeLessThan(summary.y);
+  });
+
+  /*
+   * 欠け方は2通り。**2117 は途中が欠ける**（2023・2024）——棒は描かれず年のラベルだけが残り、
+   * 欠損をまたぐ2025年は前年比を出さない（累積は基準年からなので出す）。**3447 は先頭が欠ける**
+   * （2017年が無い）——固定の2017年基準だと累積の列が丸ごと空になるので、最初に値のある年が
+   * 基準になる。
+   */
+  test("T1 AC-7・T2 AC-13: 欠損のある年は「なし」で、前年比は飛び年をまたがず、基準年は最初に値のある年", async ({
+    page,
+  }) => {
+    await page.goto("/company/2117");
+    const section = historySection(page);
+    await expect(section.getByText("なし", { exact: true })).toHaveCount(2);
+    await expect(section.getByText("2023", { exact: true })).toBeVisible();
+    await expect(section.getByText("2024", { exact: true })).toBeVisible();
+
+    const byYear = new Map((await historyRows(page)).map((row) => [row[0], row]));
+    expect(byYear.get("2023年")).toEqual(["2023年", "データなし", "", ""]);
+    expect(byYear.get("2025年")![1]).toMatch(/^[\d,]+万円$/);
+    expect(byYear.get("2025年")![2]).toBe("");
+    expect(byYear.get("2025年")![3]).toMatch(/^[＋−±][\d.]+%$/);
+    expect(byYear.get("2026年")![2]).toMatch(/^[＋−±][\d.]+%$/);
+
+    await page.goto("/company/3447");
+    await expect(historySection(page).getByRole("columnheader", { name: "2018年比" })).toBeVisible();
+    const rows = await historyRows(page);
+    expect(rows[0][1]).toBe("データなし");
+    expect(rows[1].slice(2)).toEqual(["", ""]);
+    expect(rows[2][3]).toMatch(/^[＋−±][\d.]+%$/);
+  });
 
   test("推移の棒はPCで高さを持ち、年のラベルが棒と揃う", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
     // 稼ぐ力の推移（P2）が同じ `YearlyBarChart` を使うので、節で絞ってから figure を取る。
-    const figure = page
-      .locator("section", { hasText: "平均年収推移（過去10年間）" })
-      .locator("figure");
+    const figure = historySection(page).locator("figure");
 
     const bars = figure.locator('[role="presentation"]').first();
     expect((await bars.boundingBox())!.height).toBeGreaterThanOrEqual(120);
@@ -828,161 +417,246 @@ test.describe("公開後の手直し（2巡目・チャート）", () => {
   });
 });
 
-/*
- * 年齢別の表の列幅（2026-08-20 の指摘）。年齢の列に `w-36`（144px）を敷いていたため、
- * 狭い器では「25歳」の3文字に必要な倍近くを取り、右の2列——とくに
- * 「1,190万円〜1,785万円」が入る推定範囲——が痩せていた。**器の幅で切る**（`@container`）
- * ので、ビューポート幅ではなくサイドバーを含めた実際の器で確かめる——768px でも
- * サイドバーがあると器は 396px しかない。
- */
-test.describe("年齢別の表の列幅", () => {
-  const columns = (page: import("@playwright/test").Page) =>
-    page
-      .getByRole("table")
-      .filter({ hasText: "推定範囲" })
-      .first()
-      .evaluate((table) => {
-        const th = [...table.querySelectorAll("th")];
-        return {
-          age: th[0].getBoundingClientRect().width,
-          range: th[2].getBoundingClientRect().width,
-          container: (table.parentElement as HTMLElement).clientWidth,
-          // 折り返さずに収まっているか（`whitespace-nowrap` なので溢れれば scrollWidth が伸びる）。
-          overflow: Math.max(
-            ...[...table.querySelectorAll("td")].map((n) => n.scrollWidth - n.clientWidth)
-          ),
-        };
-      });
-
-  for (const width of [360, 375, 768]) {
-    test(`器が狭いとき（${width}px）年齢の列は内容ぶんに絞る`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await page.goto("/company/6861");
-
-      const { age, range, container, overflow } = await columns(page);
-      expect(container).toBeLessThan(448); // @md 未満であることの確認（前提が崩れたら気づく）
-      expect(age).toBeLessThanOrEqual(72);
-      expect(range).toBeGreaterThan(age * 2);
-      expect(overflow).toBeLessThanOrEqual(0);
-    });
-  }
-
-  test("器が広ければ元の幅に戻る", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
+test.describe("AC-15 レイアウト", () => {
+  /*
+   * サイドバーは `md:sticky md:top-4` で画面に貼り付く。**画面より高いと、はみ出した
+   * 下端は本文を最後まで下ろすまで見えない**（C11・#799 の前は 6861 で 964px あった）。
+   * 水準が近い会社は最大10社なので、10社そろう 6861 で見る。
+   *
+   * **サイドバーは「水準が近い会社」の1枚だけ**——高さを押し上げていた「この会社の要点」
+   * （AC-11）は C11 で外した。生の HTML に無いことは `company-page.spec.ts` の AC-10 が見る。
+   */
+  test("PC は2カラムで、サイドバーは画面の高さに収まり、スクロールしても最後の1社まで見える", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/company/6861");
 
-    const { age, container } = await columns(page);
-    expect(container).toBeGreaterThanOrEqual(448);
-    expect(age).toBe(144);
+    const aside = page.locator("aside");
+    expect(await aside.locator("h2").allTextContents()).toEqual(["電気機器で水準が近い会社"]);
+    const before = (await aside.boundingBox())!;
+    expect(before.x).toBeGreaterThan(640);
+    expect(before.height).toBeLessThanOrEqual(800 - 16);
+
+    await page.evaluate(() => window.scrollTo(0, 1500));
+    await page.waitForTimeout(200);
+    const after = (await aside.boundingBox())!;
+    expect(after.y).toBeGreaterThan(before.y - 1500);
+    await expect(aside.getByRole("listitem").last()).toBeInViewport();
+  });
+
+  /*
+   * モバイル幅で文書が横にはみ出さないこと。**節ごとに書いていた同じ検査を1本にまとめた**
+   * （C1・C2 の AC-15・近傍10社・推移の表・C4 の説明文・C7 の説明文・C10・C13・P2）。
+   * 幅は最も狭い 375px に寄せ、各節が最も長くなる会社を並べる。
+   *
+   * - 6861: 全節がそろう（レーダー・近傍10社・推移と稼ぐ力の表・説明文・有報への帯）。
+   *   **外さないこと**——`company-radar.spec.ts` はキーエンスの横スクロール検査をここに任せて消した
+   * - 9413: 社名が長く、年齢別の説明文が最も長くなる（C4）
+   * - 8031: 分析に参照した資料が並ぶ（C10）
+   */
+  test("375px では1カラムで、どの会社でも横スクロールが発生しない", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    for (const id of ["6861", "9413", "8031"]) {
+      await page.goto(`/company/${id}`);
+      await expect(page.getByRole("heading", { level: 1 }), id).toBeVisible();
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+      );
+      expect(overflow, id).toBeLessThanOrEqual(0);
+      expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
+
+      // 推移の表は器の中で横に送る作りではない（T2 AC-14）。器ごと収まっていること。
+      const table = await historySection(page)
+        .locator("table")
+        .evaluate((el) => el.scrollWidth - el.parentElement!.clientWidth);
+      expect(table, `${id} 推移の表`).toBeLessThanOrEqual(0);
+    }
   });
 });
 
 /*
- * C4（Issue #146・親 #145）。3つの節に、数値から機械的に導ける地の文を置いた。
- *
- * - 年齢別: 到達年齢（「30歳で600万円、35歳で700万円…に達します」）
- * - 実測値: 4項目を1文にした地の文
- * - 推移: 最高値の年（最新年が最高値でない会社だけ）
+ * C12（Issue #805）で「この数字の作り方」（年齢補正の3ステップ）から作り替えた。ページに
+ * 出ているデータを加工の度合いで6区分に分け、区分ごとに該当するものと出典を並べる。
+ * 行の組み立ては `lib/sources.test.ts`、節の有無による出し分け（説明文の無い会社）は
+ * `company-summary.spec.ts`、有報のリンク先の書類は `company-filing.spec.ts`。
  */
-test.describe("C4 説明文の強化", () => {
-  const curveSummary = (page: Page) =>
-    page.getByRole("heading", { name: "年齢別の推定年収" }).locator("xpath=..");
-  /*
-   * 説明文の段落。**節の最初の `p` ではない**——C12（#805）で見出しの直下に年齢補正の
-   * 1行が入った。「年齢別に見ると」は到達年齢の文にも、それが無い会社で書き出しを引き継ぐ
-   * 最高水準の文にも入る。
-   */
-  const curveParagraph = (page: Page) =>
-    curveSummary(page).locator("p", { hasText: "年齢別に見ると" });
+test.describe("AC-16 このページの出典", () => {
+  const sources = (page: Page) => page.getByTestId("company-sources");
+  const row = (page: Page, label: string) =>
+    sources(page).locator("dl > div", { has: page.locator("dt", { hasText: label }) });
 
-  test("AC-14: 年齢別の説明文が到達年齢を述べる", async ({ page }) => {
+  test("6区分が該当するものと出典を添えて並び、一次情報へのリンクがある", async ({ page }) => {
     await page.goto("/company/6861");
-    await expect(curveSummary(page)).toContainText(
-      "株式会社キーエンスの推定年収を年齢別に見ると、30歳で1,200万円、35歳で2,000万円、50歳で2,500万円に達します。"
+
+    await expect(sources(page).getByRole("heading", { name: "このページの出典", level: 2 })).toBeVisible();
+    await expect(sources(page).locator("dt")).toHaveText([
+      "実測値",
+      "計算値",
+      "推定値",
+      "自己申告値",
+      "AIの要約",
+      "AIの評価",
+    ]);
+    await expect(sources(page).getByRole("link", { name: "賃金構造基本統計調査" })).toHaveAttribute(
+      "href",
+      "https://www.mhlw.go.jp/toukei/list/chinginkouzou.html"
     );
+    await expect(
+      sources(page).getByRole("link", { name: "女性の活躍推進企業データベース" })
+    ).toHaveAttribute("href", "https://positive-ryouritsu.mhlw.go.jp/positivedb/");
+
+    // キーエンスは説明文・推移・要約と分析をすべて持つ（節の有無がページから渡っている）。
+    await expect(row(page, "実測値")).toContainText("平均年収とその推移");
+    await expect(row(page, "計算値")).toContainText("稼ぐ力");
+    await expect(row(page, "AIの要約")).toContainText("社名の下の説明文");
+    await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
+    await expect(row(page, "AIの評価")).toContainText("現状と今後");
   });
 
-  /*
-   * **文の金額と表の金額が食い違わないこと。** 判定を円のまま行うと、表が「600万円」と
-   * 描いている行を文が数えない（`toManYen` に寄せた理由）。表の同じ年齢の行を引いて確かめる。
-   */
-  test("AC-14: 到達年齢の行は表でもその金額以上になっている", async ({ page }) => {
-    await page.goto("/company/9020");
-    const section = curveSummary(page);
-    const sentence = (await curveParagraph(page).textContent())!;
-    const pairs = [...sentence.matchAll(/(\d+)歳で([\d,]+)万円/g)];
-    expect(pairs.length).toBeGreaterThan(0);
+  test("年齢補正の手順は年齢別の節の1行にあり、フッタに出典の行は無い", async ({ page }) => {
+    await page.goto("/company/6861");
+    await expect(curveSection(page)).toContainText("賃金構造基本統計調査");
+    await expect(curveSection(page).getByRole("link", { name: "計算方法" })).toHaveAttribute(
+      "href",
+      "/about"
+    );
+    await expect(page.getByText(/^出典: /)).toHaveCount(0);
+  });
 
-    for (const [, age, manYen] of pairs) {
-      const row = section.getByRole("row").filter({ hasText: `${age}歳` }).first();
-      const shown = Number((await row.locator("td").nth(1).textContent())!.replace(/[^0-9]/g, ""));
-      expect(shown).toBeGreaterThanOrEqual(Number(manYen.replace(/,/g, "")));
+  test("PC でもモバイルでも、作り替える前の3ステップより低い", async ({ page }) => {
+    // 3ステップは PC（1280×800）で 260px、モバイル（390×844）で 580px あった（変更前の実測）。
+    for (const [viewport, before] of [
+      [{ width: 1280, height: 800 }, 260],
+      [{ width: 390, height: 844 }, 580],
+    ] as const) {
+      await page.setViewportSize(viewport);
+      await page.goto("/company/6861");
+      const box = await sources(page).boundingBox();
+      expect(box!.height, `${viewport.width}px`).toBeLessThan(before);
     }
   });
+});
 
-  // 8点の推定カーブは表示基準に依らないので、説明文も変わらない。
-  test("AC-14: 表示基準を切り替えても年齢別の説明文は変わらない", async ({ page }) => {
+/*
+ * C14（#818・親 #817）。金額の直後は「どういう会社の金額か」（平均年齢・従業員数）、
+ * その下に順位と偏差値。在籍年数はカードから外し、太字は金額だけにした。
+ * 値の組み立ては `lib/cardFacts.test.ts`。**カードの `dl` は中身で引く**——段の順を
+ * 入れ替えたことがある（C14）。
+ */
+test.describe("AC-32 平均年収カード（C14）", () => {
+  const salaryCard = (page: Page) => page.locator('[data-slot="card"]').first();
+  const texts = (page: Page, row: number, cell: "dt" | "dd") =>
+    salaryCard(page).locator("dl").nth(row).locator(cell).allTextContents();
+
+  test("上部カードは2カラムで、左に金額、右に位置バーと分布が並ぶ", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
-    const first = curveParagraph(page);
-    const before = await first.textContent();
 
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
-    expect(await first.textContent()).toBe(before);
+    // P1（#167）のレーダーが同じ額を図と指標リストにも出すので、カードの中で引く。
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    const figure = (await salaryCard(page).locator("figure").boundingBox())!;
+    // 右にいる（左端が金額より右）かつ、縦にはほぼ同じ高さから始まる。
+    expect(figure.x).toBeGreaterThan(amount.x + amount.width);
+    expect(Math.abs(figure.y - amount.y)).toBeLessThan(220);
   });
 
   /*
-   * 3文は1つの段落として続ける（運営者の指示）。1文ずつ `<p>` に分けると、
-   * どれも同じ8点の話なのに3つの話題が並んでいるように見える。
+   * spec AC-32。**在籍年数はカードに出さない**（「有価証券報告書の実測値」の節とレーダーの
+   * 定着の軸にある）。**太字は金額だけ**——順位と偏差値まで太いと、どれがこのカードの
+   * 答えなのかが読めない。
    */
-  test("AC-14: 説明文の3文は1つの段落に続く", async ({ page }) => {
+  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並び、太字は金額だけ", async ({ page }) => {
     await page.goto("/company/6861");
-    const paragraph = curveSummary(page).locator("p", { hasText: "に達します" });
-    await expect(paragraph).toHaveCount(1);
-    const text = (await paragraph.textContent())!;
-    expect(text).toContain("に達します。最も高い水準は");
-    expect(text).toContain("です。5歳刻みで比べると");
+
+    expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
+    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
+    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位", "年収偏差値"]);
+    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社", "124.8"]);
+    await expect(salaryCard(page)).not.toContainText("在籍年数");
+
+    // 上下の順（モバイルでも同じ。カードが1カラムに積まれても段の順は変わらない）。
+    const dls = salaryCard(page).locator("dl");
+    const first = (await dls.nth(0).boundingBox())!;
+    const second = (await dls.nth(1).boundingBox())!;
+    expect(first.y + first.height).toBeLessThanOrEqual(second.y);
+
+    const weights = await salaryCard(page)
+      .locator("dl dd")
+      .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).fontWeight)));
+    expect(weights).toEqual([400, 400, 400, 400, 400]);
   });
 
+  // 1段目が2項目・2段目が3項目なので、器を3列にそろえてある。2等分にすると
+  // 従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
+  test("2つの段の列の左端がそろっている", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/company/6861");
+
+    const lefts = async (row: number) =>
+      salaryCard(page)
+        .locator("dl")
+        .nth(row)
+        .locator("dt")
+        .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
+    const [age, employees] = await lefts(0);
+    const [rankAll, rankIndustry] = await lefts(1);
+    expect(Math.abs(age - rankAll)).toBeLessThanOrEqual(1);
+    expect(Math.abs(employees - rankIndustry)).toBeLessThanOrEqual(1);
+  });
+
+  /*
+   * **表示基準ごとに変わるもの**（金額・順位・偏差値・分布）が切替に追随すること。
+   * 分布の階級は基準ごとに決め直している（実測値は400万円から、35歳そろえは300万円から）ので、
+   * 先頭の階級の文字が変わる。変わらないもの（推移・説明文・要約と分析）は
+   * `company-page.spec.ts` の AC-3。
+   */
+  test("年齢そろえに切り替えると、金額の見出しと2段目と分布の階級が変わり、1段目は変わらない", async ({
+    page,
+  }) => {
+    await page.goto("/company/6861");
+    const firstBin = page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li").first();
+    const before = await firstBin.textContent();
+
+    await page.getByRole("button", { name: "年齢そろえ" }).click();
+    await expect(salaryCard(page).getByText("35歳時点の推定年収")).toBeVisible();
+    await expect(salaryCard(page).getByText("2,178万円", { exact: true })).toBeVisible();
+
+    expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
+    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);
+    expect(await firstBin.textContent()).not.toBe(before);
+  });
+
+  // 110px ほどの列に収める必要がある。折り返すと「38位 /2,961社」が2行になる（報告あり）。
+  // モバイルはカードが1カラムになるが、本文の幅が狭いぶん1列あたりはほぼ同じになる。
+  test("カードの順位と実測値が1行に収まる（1280px・390px）", async ({ page }) => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/company/8725");
+
+      const cardLists = page.locator('[data-slot="card"] dl');
+      await expect(cardLists).toHaveCount(2);
+      const overflow = await cardLists.evaluateAll((lists) =>
+        lists.flatMap((el) =>
+          [...el.querySelectorAll("dt, dd")].map((n) => n.scrollWidth - n.clientWidth)
+        )
+      );
+      expect(Math.max(...overflow), `${width}px`).toBeLessThanOrEqual(0);
+    }
+  });
+});
+
+/*
+ * C4（Issue #146・親 #145）。実測値の4項目を1文にした地の文（spec AC-17）。文言の組み立ては
+ * `lib/highlights.test.ts`（決算期と「推定」を書かないことも、文全体の一致で固定している）。
+ * 決算期が画面に2回までであることは `data-period.spec.ts`。
+ */
+test.describe("C4 実測値の地の文", () => {
   test("AC-17: 実測値の節に4項目を述べる地の文がある", async ({ page }) => {
     await page.goto("/company/6861");
     const section = page.locator("section", { hasText: "有価証券報告書の実測値" });
     await expect(section).toContainText(
       "有価証券報告書によると、株式会社キーエンスの平均年収は2,178万円、平均年齢は35.0歳、平均勤続年数は11.3年、従業員数は3,306人です。"
     );
-    // 決算期は見出しが持っている（S3）。地の文には重ねない。
-    await expect(section.getByText(/\d+年\d+月期/)).toHaveCount(1);
-  });
-
-  test("AC-17: 推移の説明に最高値の年が入る", async ({ page }) => {
-    // キーエンスの最高値は2023年（最新の2026年ではない）。
-    await page.goto("/company/6861");
-    await expect(historySection(page)).toContainText(
-      "この10年で最も高かったのは2023年の2,279万円です。"
-    );
-  });
-
-  // 最新年が最高値の会社では書かない（増減の1文が同じ数字を出しているため）。
-  test("AC-17: 最新年が最高値なら最高値の文を出さない", async ({ page }) => {
-    await page.goto("/company/9020");
-    await expect(historySection(page).getByText("最も高かったのは")).toHaveCount(0);
-  });
-
-  // 説明文はサーバーが出す。クライアントの描画待ちにしない（spec 2. SEO）。
-  test("説明文は初期HTMLに入っている", async ({ request }) => {
-    const html = await (await request.get("/company/6861")).text();
-    expect(html).toContain("30歳で1,200万円");
-    expect(html).toContain("平均勤続年数は11.3年");
-  });
-
-  test("390px で説明文が横スクロールを起こさない", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    // 社名の長い会社（文が最も長くなる）。
-    await page.goto("/company/9413");
-    await expect(curveParagraph(page)).toContainText("に達します");
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

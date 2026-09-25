@@ -216,7 +216,7 @@ spec 1.18 と AC-22 は文言まで指定していたので、そちらも直し
 | | |
 | --- | --- |
 | Unit | `features/company/lib/summary.test.ts`（8件）。**空の器を出さないこと**が本体で、空文字・空白だけ・`null`・`undefined` の4つを `null` に倒す。出典の1行に決算期が入らないことも固定する |
-| E2E | `e2e/company-summary.spec.ts`（11件）。**説明文のある会社と無い会社の両方**——片方だけだと「出さない」ことが通らない。PC / モバイルの左端と行長も固定する。既存の `e2e/data-period.spec.ts` も守り手になる（決算期の重複） |
+| E2E | `e2e/company-summary.spec.ts`（4件）。**説明文のある会社と無い会社の両方**——片方だけだと「出さない」ことが通らない。PC / モバイルの左端と行長も固定する。既存の `e2e/data-period.spec.ts` も守り手になる（決算期の重複） |
 
 E2E で**位置を DOM の順序で固定する**（`compareDocumentPosition`）。位置を見ないと、
 節がページのどこか別の場所に出ていても通ってしまう。

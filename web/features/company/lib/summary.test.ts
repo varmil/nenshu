@@ -28,11 +28,8 @@ describe("buildSummaryView", () => {
   });
 });
 
+// 文言そのものは画面で見ている（`e2e/company-summary.spec.ts` の AC-22）。
 describe("SUMMARY_SOURCE", () => {
-  it("何を原文にしたかを述べる", () => {
-    expect(SUMMARY_SOURCE).toBe("有価証券報告書「事業の内容」をもとに要約");
-  });
-
   /**
    * **決算期を含めない**（S3・Issue #134・`docs/site-chrome/spec.md` 5.1）。
    * 同じ画面の「有価証券報告書の実測値（2026年3月期）」の見出しと重なり、

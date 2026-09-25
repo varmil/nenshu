@@ -170,6 +170,6 @@ props には直列化しない。**props で渡すと同じ文章が HTML の属
 - `lib/analysis.test.ts`（web）: 対で `null`（AC-28）・出典の書式・実データで全社が両方を持つこと・
   一言が本文の書き出しに繰り返されないこと
 - `scripts/lib/analysis.test.ts`（pipeline）: 重複の落とし方（かぎ括弧の違いを含む）・出典の検査・対で落とす
-- `e2e/company-analysis.spec.ts`: 並び・断りが分析だけに1回・面の有無・/about への導線・出典のリンク
+- `e2e/company-analysis.spec.ts`: 断りが分析だけに1回・面の有無・/about への導線・出典のリンク・生の HTML に1回ずつ。並びは `company-refresh.spec.ts` の「節の並び」、`/about` 側の行き先は `company-page.spec.ts` が見る
   （`href`・`target`・`rel`・ドメインと参照日）・資料が無い会社・伊藤忠の重複・生の HTML に1回ずつ
   （props に入らない）・表示基準で変わらずリクエストも起きない・`/` に入らない・390px で横に溢れない

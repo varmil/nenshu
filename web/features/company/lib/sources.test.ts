@@ -68,14 +68,9 @@ describe("buildSourceRows（C12・AC-16）", () => {
 
   /*
    * 既存の規則との突き合わせ。**文言を直したときにここで気づけるようにする**——E2E でも
-   * 見ているが、落ちたときに原因が遠い。
+   * 見ているが、落ちたときに原因が遠い。区分名に「推定」を単独で置かない（AC-9）ことは、
+   * 先頭のテストが区分名を並びごと固定しているので改めて見ない。
    */
-  it("「推定」を単独の語として置かない（AC-9）", () => {
-    for (const row of buildSourceRows(ALL)) {
-      expect(row.label).not.toBe("推定");
-    }
-  });
-
   it("分析の断り（「AIが書いた評価」）を繰り返さない（AC-29）", () => {
     for (const row of buildSourceRows(ALL)) {
       expect(`${row.label}${row.covers}${text(row.source)}`).not.toContain("AIが書いた評価");

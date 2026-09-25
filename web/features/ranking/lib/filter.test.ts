@@ -51,36 +51,27 @@ describe("分類関数（spec.md §1.5 の区分件数を固定する）", () =>
   });
 });
 
+/*
+ * 業種（AC-3）と検索の結合（AC-6）は `rank.test.ts` が `buildRankedCompanies` を通して
+ * 見ている。ここでは状態からスイッチ系の絞り込みが効くことを見る。
+ */
 describe("matchesFilters", () => {
-  it("AC-3: 業種で「海運業」を選ぶと9社になる", () => {
-    const state = stateFor({ industry: "海運業" });
-    const matched = companies.rows.filter((row) => matchesFilters(row, companies.industries, state));
-    expect(matched).toHaveLength(9);
-  });
+  const matched = (overrides: Partial<RankingState>) =>
+    companies.rows.filter((row) => matchesFilters(row, companies.industries, stateFor(overrides)));
 
   it("AC-4: 従業員数で「1,000人以上」を選ぶと803社になる", () => {
-    const state = stateFor({ employeeSize: "1000plus" });
-    const matched = companies.rows.filter((row) => matchesFilters(row, companies.industries, state));
-    expect(matched).toHaveLength(803);
+    expect(matched({ employeeSize: "1000plus" })).toHaveLength(803);
   });
 
   it("AC-5: 業種と平均年齢を重ねると、業種のみより件数が減る", () => {
-    const industryOnly = companies.rows.filter((row) =>
-      matchesFilters(row, companies.industries, stateFor({ industry: "情報・通信業" }))
-    );
-    const combined = companies.rows.filter((row) =>
-      matchesFilters(
-        row,
-        companies.industries,
-        stateFor({ industry: "情報・通信業", avgAgeBucket: "under40" })
-      )
-    );
+    const industryOnly = matched({ industry: "情報・通信業" });
+    const combined = matched({ industry: "情報・通信業", avgAgeBucket: "under40" });
     expect(combined.length).toBeLessThan(industryOnly.length);
     expect(combined.length).toBeGreaterThan(0);
-  });
-
-  it("フィルタなし（すべてnull）では全社が一致する", () => {
-    const matched = companies.rows.filter((row) => matchesFilters(row, companies.industries, stateFor({})));
-    expect(matched).toHaveLength(companies.rows.length);
+    // 両方の条件を満たす会社だけが残る。
+    for (const row of combined) {
+      expect(companies.industries[row[2]]).toBe("情報・通信業");
+      expect(classifyAvgAgeBucket(row[4])).toBe("under40");
+    }
   });
 });
