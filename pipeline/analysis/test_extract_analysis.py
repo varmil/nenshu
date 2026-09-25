@@ -1,7 +1,7 @@
 """`extract_analysis.py` の単体テスト。EDINET には触らない（合成した ZIP をキャッシュに置く）。
 
   cd pipeline && npm test
-  python3 -m unittest discover -s summary -t summary -p 'test_*.py'
+  python3 -m unittest discover -s analysis -t analysis -p 'test_*.py'
 """
 
 import io
@@ -105,13 +105,10 @@ class Extract(unittest.TestCase):
         ])
         self.assertEqual(extract_analysis.extract(ROW)[0]["truncated"], "mdna")
 
-    def test_切らないのが既定(self):
-        _write(edinet.CACHE, ROW["doc_id"], [_row(MDNA, "あ" * 5000)])
-        self.assertEqual(extract_analysis.extract(ROW)[0]["mdna_len"], 5000)
-
-    def test_max_charsで切れる(self):
+    def test_既定は切らずmax_charsを渡したときだけ切る(self):
         # 切る長さを決めるのは C9（ADR-0015 決定2）。C8 は切る手段だけ持つ。
         _write(edinet.CACHE, ROW["doc_id"], [_row(MDNA, "あ" * 5000)])
+        self.assertEqual(extract_analysis.extract(ROW)[0]["mdna_len"], 5000)
         rec, _ = extract_analysis.extract(ROW, max_chars=1500)
         self.assertEqual(rec["mdna_len"], 1500)
         self.assertEqual(rec["mdna_sha1"], extract_analysis.hashlib.sha1(

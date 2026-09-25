@@ -144,7 +144,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **推定式はADR-0005の2点モデル**（`web/features/ranking/lib/salary.ts`）。目標年齢が平均年齢より下では、その会社の賃金カーブが「22歳＝業種平均の水準」と「平均年齢＝実測の平均年間給与」の2点を通ると置いて間を業種カーブの形で結ぶ。平均年齢より上はADR-0003の倍率一定のまま。Issue #42（若年側の過大推定）はこれで解消した（キーエンス25歳 1,642万→788万）。**カーブは`curves.json`に千円で入っているので、`curveValuesInYen`で円に揃えてから`estimateSalary`に渡すこと**——旧式は比しか取らないので揃えなくても合っていた。経緯と却下案（標準労働者カーブは効果が小さく60歳側が悪化する）は`docs/ranking/estimation-model/design.md`とADR-0005にある。
 
-**Python側（`pipeline/salary/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
+**Python側（`pipeline/salary/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
 
 **Bolt 2 に着手中（企業詳細ページと公開URL戦略）。Inceptionは完了。**
 
@@ -294,7 +294,7 @@ Unit の実装を終えたら、次の順で進める。
 - **236列は位置で読む。見出しに重複がある**（`-女性(%)` が5回など）ので名前で引くと最後の列に倒れる。**読む前に全236列を完全一致で検証して落とす**（`pipeline/worklife/positivedb.ts`）
 - **注釈・説明は改行・カンマ・引用符を含む**（716社）。`pipeline/scripts/lib/csv.ts` の `split(",")` では読めないので `pipeline/worklife/csv.ts` に RFC 4180 の読み書きがある
 - **負の残業時間は全体値と区分別の両方に入っていた**（ビジネスエンジニアリング1社の2箇所）。着手前の調査は全体値しか見ておらず、実装して初めて出た
-- **`pipeline/salary35/` は `pipeline/salary/` に改名した**（W0）。35歳が既定だった頃の名前で、ADR-0007 以降は実態と合っていなかった。**ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す**（`salary/` は EDINET と e-Stat の2ソースを使うので、ソース名では切れない）。**CSV の `salary35` 列は改名していない**——「35歳時点の推定年収」を正しく指しており、`build-data.test.ts` が Python と TypeScript の一致を全1,867社で固定しているため
+- **`pipeline/salary35/` は `pipeline/salary/` に改名した**（W0）。35歳が既定だった頃の名前で、ADR-0007 以降は実態と合っていなかった。**ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す**（`salary/` は EDINET と e-Stat の2ソースを使うので、ソース名では切れない）。**CSV の `salary35` 列は改名していない**——「35歳時点の推定年収」を正しく指しており、`build-data.test.ts` が Python と TypeScript の一致を全社で固定しているため
 
 **稼ぐ力（一人当たり経常利益）は `performance` 施策**（`docs/performance/`）。**レーダーチャートの軸を決める親 Issue #154 が「賃金差を外し、稼ぐ力を入れる」と決めた**ので、その軸のためのデータを作る施策として新しく立てた（`market-data`（#55）に寄せない理由は intent.md）。**P0（取り込み・Issue #155）・P1（レーダー表示・Issue #167）は実装済み**（`docs/performance/profit-per-employee/`・`docs/performance/company-radar/`）。**P2（稼ぐ力の推移・Issue #168）も実装済み**（`docs/performance/profit-trend/`）。**E6（#182）で母集団の拡大に追随させた**（1,865社 → 2,959社 = 99.9%）。
 
@@ -590,5 +590,5 @@ Unit の実装を終えたら、次の順で進める。
 
 - **島に React が取り付く前のクリックはどこにも届かない。** SSR したボタンは最初から DOM にあるので Playwright の自動待機は素通りし、`click()` は成功したように見えて何も起きない。**F1 の1巡目はこれで27件落ちた**
 - **`waitUntil` を明示した `goto`／`reload` では待たない**——ハイドレーション前の HTML を見るテスト（`e2e/theme.spec.ts` のちらつき防止）は、待った時点でその瞬間を過ぎる。そこから続けて操作するなら `waitForHydration(page)` を明示的に呼ぶ
-- **ページ間の遷移を見るときは `click()` が返るのを待てない。** 素の HTML 取得になったので `click()` も `expect(locator)` も**新しい文書が届くまで返らず**、戻ってきた時点では次のページに入れ替わっている。前のページで起きたことを見たいときは、**クリックの前にページ内で記録を始めて `exposeFunction` で受け取る**（`e2e/navigation-progress.spec.ts`）
+- **ページ間の遷移を見るときは `click()` が返るのを待てない。** 素の HTML 取得になったので `click()` も `expect(locator)` も**新しい文書が届くまで返らず**、戻ってきた時点では次のページに入れ替わっている。前のページで起きたことを見たいときは、**クリックの前にページ内で記録を始めて `exposeFunction` で受け取る**（`docs/framework/astro-cutover/design.md`。そこに出てくる `navigation-progress.spec.ts` は F2・#210 で指示器ごと消した）
 - **`astro dev` の開発ツールバーは切ってある**（`astro.config.mjs` の `devToolbar`）。オーバーレイが `h1` を3つ持ち込むので `locator("h1")` が strict mode で落ちる

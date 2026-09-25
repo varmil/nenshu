@@ -180,7 +180,7 @@ Workers 無料枠の CPU は 10ms/リクエストで、実際に超えたこと�
 | 何を | どこで |
 | --- | --- |
 | hex がトークンと一致する（AC-26） | `web/lib/brand/colors.test.ts` |
-| 倍率と中央寄せ・セーフゾーンの上限 | `pipeline/brand/symbol.test.ts` |
+| 倍率と中央寄せ・メディアクエリと地の矩形の出し分け | `pipeline/brand/symbol.test.ts` |
 | `.ico` の器（ヘッダ・オフセット・256の表し方） | `pipeline/brand/ico.test.ts` |
 | 焼いた実物の寸法・透過の有無・manifest・`_headers`・旧ファビコンが無いこと（AC-21〜AC-24） | `web/lib/brand/assets.test.ts` |
 | HTML に参照が出る・全部 200 で返る・ヘッダの色（ライト/ダーク）・390px（AC-21〜AC-27） | `web/e2e/branding.spec.ts` |
