@@ -18,7 +18,7 @@ import { collectPageRequests } from "./network";
 const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAHE,,";
 
 /**
- * 大カードの順位の段（全体順位・業界内順位・偏差値）。**何番目かでは引かず、中身で引く**
+ * 大カードの順位の段（全体順位・業界内順位）。**何番目かでは引かず、中身で引く**
  * ——C14（#818）で段の並びを変えた。**カードの中に限る**——P1（#167）のレーダーの
  * 指標リストも `dl`。
  */
@@ -108,7 +108,7 @@ test.describe("企業詳細ページ", () => {
   });
 
   /*
-   * **表示基準と年齢の切替を1本で見る。** 変わるのは推定年収まわり（金額・偏差値・平均との差）
+   * **表示基準と年齢の切替を1本で見る。** 変わるのは推定年収まわり（金額・順位・偏差値）
    * だけで、**基準と独立な節は1文字も動かず、ネットワークも URL も動かない**。
    *
    * 以前は「変わらない」を節ごとに別のテストで確かめていた（説明文 C7 AC-23・要約と分析
@@ -130,7 +130,7 @@ test.describe("企業詳細ページ", () => {
     await page.getByRole("button", { name: "25歳" }).click();
     await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
-    await expect(card(page).locator("dd").filter({ hasText: /^125\.7$/ })).toBeVisible();
+    await expect(page.getByText("偏差値 125.7", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "60歳" }).click();
     await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute("aria-pressed", "true");
@@ -145,6 +145,7 @@ test.describe("企業詳細ページ", () => {
    * **上位◯%も、100を超えうる理由の注記も、このページには置かない**（運営者の判断。
    * 2026-08-20 の `d041d01`）。水準は同じ視界にある順位と位置バーで読ませる——
    * **偏差値だけが単独で置かれた画面を作らない**線（glossary）はこれで保たれている。
+   * **偏差値は位置バーの見出しの隣に出す**（#831 でカードの順位の段から外した）。
    * 注記そのものはランキングの表・カードの脚注と `/about` に残っており、そちらは
    * `e2e/ranking-refresh.spec.ts` と `e2e/about.spec.ts` が持つ。
    */
@@ -152,8 +153,7 @@ test.describe("企業詳細ページ", () => {
     await page.goto("/company/6861");
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
-    await expect(card(page).getByText("年収偏差値")).toBeVisible();
-    await expect(card(page).locator("dd").filter({ hasText: /^149\.5$/ })).toBeVisible();
+    await expect(page.getByText("偏差値 149.5", { exact: true })).toBeVisible();
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
     await expect(page.getByText("偏差値は100を超えることがあります")).toHaveCount(0);
     await expect(page.getByText(/偏差値は分布が右に裾を引くため/)).toHaveCount(0);

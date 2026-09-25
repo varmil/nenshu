@@ -28,9 +28,10 @@ export function SalaryDistributionChart({
     <figure className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         {/*
-          帯が何の帯かを言う見出し（アートボード 5b）。カードの左側にある偏差値と
-          同じ値をここにも置くのは、**帯の右端＝偏差値の大きさ**という対応を
-          その場で見せるため。
+          帯が何の帯かを言う見出し（アートボード 5b）。偏差値を帯の見出しの隣に置くのは、
+          **帯の右端＝偏差値の大きさ**という対応をその場で見せるため。**カードの中で偏差値が
+          出るのはここだけ**——左の順位の段にも置いていたが、同じ値が1枚のカードに2回
+          並ぶので外した（#831）。
         */}
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-xs font-semibold">
