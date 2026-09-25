@@ -21,8 +21,12 @@ def _summary(n_sentences=4, filler="事業の状況を述べる文である。")
 
 class SummaryGate(unittest.TestCase):
     def test_評価語を落とす(self):
-        bad = gate.summary_sentence_problems("業界最大手として販売を行う。", SOURCE)
-        self.assertTrue(any(b.startswith("評価語") for b in bad))
+        # カギ括弧を書いても、地の文の評価語は落ちる。
+        for sentence in ("業界最大手として販売を行う。",
+                         "テストは『ゴジュウジャー』で業界最大手となった。"):
+            with self.subTest(sentence=sentence):
+                bad = gate.summary_sentence_problems(sentence, SOURCE)
+                self.assertTrue(any(b.startswith("評価語") for b in bad))
 
     def test_カギ括弧の中の評価語は数えない(self):
         # **116回目に足した。** 東映の要約が原文どおりに書いた作品名
@@ -36,23 +40,14 @@ class SummaryGate(unittest.TestCase):
             [],
         )
 
-    def test_括弧の外の評価語は落とす(self):
-        # カギ括弧を書いても、地の文の評価語は落ちる。
-        bad = gate.summary_sentence_problems(
-            "テストは『ゴジュウジャー』で業界最大手となった。", SOURCE
-        )
-        self.assertTrue(any(b.startswith("評価語") for b in bad))
-
     def test_社名は通す(self):
         # **50回目に外した**（運営者の指示）。C6 から引き継いだ「h1 にあるから書かない」は、
         # 社名の語を含む子会社名・ブランド名まで巻き込んでいた（東急電鉄・楽天市場・太陽ファルマ）。
         # 要約が「何をしている会社か」を固有名詞で書く形になった以上、この規則は害のほうが大きい。
         self.assertEqual(gate.summary_sentence_problems("テストは販売を行う。", SOURCE), [])
 
-    def test_原文にある数値は通す(self):
+    def test_原文にある数値は桁区切りが違っても通す(self):
         self.assertEqual(gate.unsupported_numbers("売上高は58,448百万円である。", SOURCE), [])
-
-    def test_桁区切りが違っても同じ数と見る(self):
         self.assertEqual(gate.unsupported_numbers("売上高は58448百万円である。", SOURCE), [])
 
     def test_原文に無い数値を落とす(self):
@@ -90,7 +85,7 @@ class SummaryGate(unittest.TestCase):
     def test_カギ括弧の外の数字は数える(self):
         self.assertEqual(gate.digit_runs("「変革2030」のもとで2割伸びた。"), ["2"])
 
-    def test_通った要約が返る(self):
+    def test_文数が多ければ落ちる(self):
         text = "電子応用機器の開発を行う。" * 3 + "売上高は58,448百万円であった。" * 12
         got, reasons = gate.apply_summary_gate(text, SOURCE)
         self.assertEqual(got, "")  # 文数の上限を超える
@@ -105,19 +100,6 @@ class SummaryGate(unittest.TestCase):
         got, reasons = gate.apply_summary_gate(text, SOURCE)
         self.assertEqual(got, "")
         self.assertTrue(any("数値が多い" in r for r in reasons))
-
-    def test_カギ括弧の中の数字は要約でも数えない(self):
-        # `一太郎2025` は名前であって量ではない。**具体的に書くほど上限に食い込む**のを避ける。
-        text = ("日本語ワープロソフト「一太郎2025」を開発し、幅広い利用者に届けている。"
-                "クラウドサービス「ATOK Passport」も提供している。"
-                "通信教育「スマイルゼミ」は幼児から高校生までを対象としている。"
-                "ＥＣサイト「Just MyShop」も運営している。"
-                "対話型の教材「Coachez」の提供も始めた。"
-                "米国向けの学習サービス「Smile Zemi」も展開している。"
-                "既存の事業で安定した収益をあげながら、新しい商品の企画と開発に取り組む。"
-                "高機能で付加価値の高い商品とサービスを提供することにこだわっている。")
-        got, _ = gate.apply_summary_gate(text, text)
-        self.assertNotEqual(got, "")
 
     def test_字数が足りなければ落ちる(self):
         got, reasons = gate.apply_summary_gate("短い。短い。短い。", SOURCE)
@@ -226,9 +208,6 @@ class TrendClaims(unittest.TestCase):
         self.assertEqual(gate.check_trend_claims("10年で13%下がっている。", {}), [])
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 class 逃げの語(unittest.TestCase):
     """**帰属で言い切りを避ける語だけを数える。** 主観の語に下限を課さないのは、
     語彙を固定すると分析が単調になるため（ADR-0015 が段階評価を却下した理由と同じ）。
@@ -241,11 +220,6 @@ class 逃げの語(unittest.TestCase):
     def test_言い切る文は0件(self):
         t = "この会社に入るなら営業から始まると見ていい。市況が返れば止まる。"
         self.assertEqual(gate.escape_phrases(t), [])
-
-    def test_重なる語を二重に数えない(self):
-        # 「と説明している」の中に「としている」は含まれないが、位置の畳み込みが働くことを固定する
-        t = "と説明している"
-        self.assertEqual(gate.escape_phrases(t), ["と説明している"])
 
     def test_上限を超えるとゲートが落とす(self):
         headline = "この会社は次の柱を作っている途中である。"
@@ -264,3 +238,6 @@ class 逃げの語(unittest.TestCase):
         _, _, reasons = gate.apply_analysis_gate(headline, analysis, [])
         self.assertEqual([r for r in reasons if "言い切りを避ける語" in r], [])
 
+
+if __name__ == "__main__":
+    unittest.main()

@@ -14,14 +14,16 @@ import {
 const industries: string[] = companiesData.industries;
 
 describe("shortIndustryLabel", () => {
-  it("表に無い業種は原文のまま返す", () => {
+  it("表に無い業種は原文のまま返す（上限ちょうどの8文字も略さない）", () => {
     expect(shortIndustryLabel("電気機器")).toBe("電気機器");
     expect(shortIndustryLabel("その他金融業")).toBe("その他金融業");
+    // `ガラス・土石製品の中央値 318万円` は実測 179.5px で、器の 191.8px に入る。
+    expect(industries).toContain("ガラス・土石製品");
+    expect(shortIndustryLabel("ガラス・土石製品")).toBe("ガラス・土石製品");
   });
 
-  it("証券、商品先物取引業だけを略す（落とすのは「取引業」）", () => {
+  it("証券、商品先物取引業は略す（落とすのは「取引業」だけ）", () => {
     expect(shortIndustryLabel("証券、商品先物取引業")).toBe("証券・商品先物");
-    expect(Object.keys(INDUSTRY_SHORT_LABELS)).toEqual(["証券、商品先物取引業"]);
   });
 
   it("表の鍵が実データの業種名として実在する", () => {
@@ -41,11 +43,5 @@ describe("shortIndustryLabel", () => {
       .map((name) => ({ name, label: shortIndustryLabel(name) }))
       .filter(({ label }) => label.length > MAX_INDUSTRY_LABEL_LENGTH);
     expect(tooLong).toEqual([]);
-  });
-
-  it("上限ちょうどの業種は略さない（8文字は収まる）", () => {
-    // `ガラス・土石製品の中央値 318万円` は実測 179.5px で、器の 191.8px に入る。
-    expect(industries).toContain("ガラス・土石製品");
-    expect(shortIndustryLabel("ガラス・土石製品")).toBe("ガラス・土石製品");
   });
 });

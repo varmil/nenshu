@@ -32,17 +32,13 @@ function estimate(id: string, targetAge: number) {
 }
 
 describe("estimateSalary", () => {
-  // AC-1: 1位に「株式会社キーエンス」が推定年収2,178万円で表示される（35歳時点）
-  it("キーエンスの35歳時点の推定年収が2,178万円（spec.md AC-1）", () => {
-    expect(Math.round(estimate("6861", 35) / 10000)).toBe(2178);
-  });
-
   // AC-2: 年齢スイッチで25歳を選ぶとキーエンスの推定年収が788万円に変わる。
   // 旧式（ADR-0003）では1,642万円で、これが Issue #42 の症状そのものだった。
   it("キーエンスの25歳時点の推定年収が788万円（spec.md AC-2）", () => {
     expect(Math.round(estimate("6861", 25) / 10000)).toBe(788);
   });
 
+  // キーエンスは平均年齢がちょうど35.0歳なので、35歳そろえでも2,178万円のまま（CLAUDE.md）。
   it("平均年齢=目標年齢のとき、推定年収は平均年間給与と一致する", () => {
     const { avgSalary, avgAge } = argsFor("6861");
     expect(estimate("6861", avgAge)).toBe(avgSalary);

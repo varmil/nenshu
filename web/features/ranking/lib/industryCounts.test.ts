@@ -10,18 +10,10 @@ const companies: CompaniesData = JSON.parse(
 const row = (tse33Idx: number): CompanyRow => ["id", "名前", tse33Idx, 0, 40, 10, 6_000_000, 100, 0, 0];
 
 describe("industryCounts", () => {
-  it("`industries` と同じ並びで、同じ長さの配列を返す", () => {
+  it("`industries` と同じ並び・同じ長さで、合計が掲載社数と一致する（海運業は9社）", () => {
     const counts = industryCounts(companies);
     expect(counts).toHaveLength(companies.industries.length);
-  });
-
-  it("合計が掲載社数と一致する", () => {
-    const counts = industryCounts(companies);
     expect(counts.reduce((a, b) => a + b, 0)).toBe(companies.rows.length);
-  });
-
-  it("海運業は9社", () => {
-    const counts = industryCounts(companies);
     expect(counts[companies.industries.indexOf("海運業")]).toBe(9);
   });
 

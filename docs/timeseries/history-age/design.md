@@ -9,7 +9,7 @@
 pipeline/scripts/
   lib/csv.ts             parseSalaryHistoryCsv が avg_age 列も読む（空欄は null）
   build-data.ts          buildHistory が ageById を出す。gzip の上限 150KB → 180KB
-  build-data.test.ts     AC-15（null の位置・companies.json との一致・帯）と AC-5 の上限
+  build-data.test.ts     AC-15（null の位置と帯・companies.json との一致）
 web/features/company/
   types.ts               SalaryHistory に ages
   lib/pageData.ts        historyFor が ageById から1社ぶんを抜く
@@ -111,7 +111,8 @@ web/e2e/company-refresh.spec.ts  T2 の当たり判定を寄せ替え、AC-16 �
 
 ## 検証
 
-- パイプライン: `build-data.test.ts` の AC-15 を3件（null の位置が `byId` と一致・採用書類の年で `companies.json` と全社一致・20〜70歳の帯）、AC-5 を180KBに
-- Unit: `features/company/lib/historyTable.test.ts`（13件）。平均年齢を丸めずに載せる・平均年収の無い年は持たない・全社で平均年収と平均年齢の有無が揃う・キーエンスの2026年が `companies.json` と一致・`historyBaseYear` が表の見出しと同じ年
-- E2E: `e2e/company-refresh.spec.ts` の `T2・T3 推移の表`。AC-12（列の並び・前年比の列が無い・説明の文言）、AC-13（2117 の欠損年・3447 の基準年と説明）、AC-16（6861 と 9983 でカードと最新年の行が同じ文字列）。AC-8（表示基準の切替で表が変わらない）は表の全セルを比べるので、平均年齢も自動的に入る
+- パイプライン: `build-data.test.ts` の AC-15 を2件（null の位置が `byId` と一致し20〜70歳に入る・採用書類の年で `companies.json` と全社一致）。gzip の上限は `buildData` 自身が例外で検めるので、テストには写していない
+- Unit: `features/company/lib/historyTable.test.ts`。平均年齢を丸めずに載せ、平均年収の無い年は持たない・欠損年は平均年齢も累積も空・`historyBaseYear` が表の見出しと同じ年
+- E2E: `e2e/company-refresh.spec.ts` の `T1・T2・T3 平均年収推移`。6861 で列の並び（`年度 / 平均年収 / 平均年齢 / 2017年比`）と説明の文言、2117・3447 で欠損年と基準年、**T3 AC-16 で 6861 と 9983 のカードと最新年の行が同じ文字列**。表示基準の切替で表が変わらないこと（AC-8）は `company-page.spec.ts` の AC-3 が節の全文を比べるので、平均年齢もそこに入る。390px の横スクロール（AC-14）は `AC-15 レイアウト` の 375px のループ
+- **前年比の列が「無いこと」だけを見るテストは書いていない**（CLAUDE.md「テストは足す前に…」）。列の見出しを4つそのまま比べているので、前年比が戻れば落ちる
 - 1280px / 390px、ライト / ダークで表を撮って見た（6861・2117）

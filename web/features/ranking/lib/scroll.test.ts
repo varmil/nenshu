@@ -2,15 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { scrollToPageTop } from "./scroll";
 
 describe("scrollToPageTop", () => {
-  it("ページ最上部（0,0）へ戻す", () => {
+  it("ページ最上部（0,0）へ、アニメーションを付けずに戻す", () => {
     const scrollTo = vi.fn();
     scrollToPageTop({ scrollTo } as unknown as Window);
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0 });
-  });
-
-  it("アニメーションは付けない（既定の一瞬で戻す挙動）", () => {
-    const scrollTo = vi.fn();
-    scrollToPageTop({ scrollTo } as unknown as Window);
+    // `behavior` を付けない（既定の一瞬で戻す挙動）。
     expect(scrollTo.mock.calls[0][0]).not.toHaveProperty("behavior");
   });
 

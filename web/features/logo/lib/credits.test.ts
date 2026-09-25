@@ -21,24 +21,17 @@ describe("ロゴの帰属表示", () => {
     "3": entry({ src: "header", from: "https://example.co.jp/logo.svg" }),
   };
 
-  it("帰属が要るものだけを出す", () => {
-    const credits = attributionCredits(rows, byId);
-    expect(credits).toHaveLength(1);
-    expect(credits[0]).toEqual({
-      id: "1",
-      name: "あ株式会社",
-      license: "CC BY-SA 4.0",
-      author: "作者A",
-      from: "https://commons.wikimedia.org/wiki/File:X.svg",
-    });
-  });
-
-  it("パブリックドメインは並べない（本当に帰属が要るものが埋もれる）", () => {
-    expect(attributionCredits(rows, byId).map((c) => c.id)).not.toContain("2");
-  });
-
-  it("公式サイト由来は帰属表示の対象にしない", () => {
-    expect(attributionCredits(rows, byId).map((c) => c.id)).not.toContain("3");
+  it("帰属が要るものだけを出す（パブリックドメインと公式サイト由来は並べない）", () => {
+    // パブリックドメインまで並べると、本当に帰属が要るものが埋もれる。
+    expect(attributionCredits(rows, byId)).toEqual([
+      {
+        id: "1",
+        name: "あ株式会社",
+        license: "CC BY-SA 4.0",
+        author: "作者A",
+        from: "https://commons.wikimedia.org/wiki/File:X.svg",
+      },
+    ]);
   });
 
   it("社名で並べる", () => {

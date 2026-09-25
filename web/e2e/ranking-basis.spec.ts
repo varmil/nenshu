@@ -1,14 +1,23 @@
 import { test, expect } from "./appTest";
-import { collectPageRequests, waitForRankingReady } from "./network";
 
 /**
  * 表示基準（実測値 / 年齢そろえ）の切替。ADR-0007。
  *
  * 既定は実測値で、URL に `age` が無い状態がそれを表す。`docs/ranking/spec.md`
  * AC-1・AC-2・AC-9・AC-11。数値は 2026-06 版データの実測値。
+ *
+ * `/?ind=銀行業`（`age` なし）が実測値で開くこと（AC-7）と、JS 実行前の HTML が
+ * 実測値で並んでいることは `ranking-url-sync.spec.ts` に、切替でネットワークが
+ * 起きないことは同じファイルの流れにまとめてある。
  */
 test.describe("表示基準の切替", () => {
-  test("AC-1: クエリ無しの / は有報の実測値そのままで並ぶ", async ({ page }) => {
+  /*
+   * AC-1 と AC-9 の実測値側。**実測値では「推定」の語を1つも出さない**（バッジも
+   * 断り書きも）——有報そのままの数字に推定の体裁を被せない。
+   */
+  test("AC-1・AC-9: クエリ無しの / は有報の実測値そのままで並び、「推定」の語が出ない", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "平均年収ランキング", level: 1 })).toBeVisible();
@@ -24,10 +33,6 @@ test.describe("表示基準の切替", () => {
     const firstRow = table.locator("tbody tr").first();
     await expect(firstRow).toContainText("ヒューリック株式会社");
     await expect(firstRow).toContainText("2,295万円");
-  });
-
-  test("AC-9: 実測値では「推定」の語が画面に出ない", async ({ page }) => {
-    await page.goto("/");
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("推定年収（35歳）")).toHaveCount(0);
@@ -37,8 +42,15 @@ test.describe("表示基準の切替", () => {
     ).toBeVisible();
   });
 
-  // 実測値では平均年齢の高い会社が上位に来る。これが「年齢そろえ」を用意する理由。
-  test("AC-2: 年齢そろえに切り替えると35歳の推定に変わり、並びも変わる", async ({ page }) => {
+  /*
+   * 実測値では平均年齢の高い会社が上位に来る。これが「年齢そろえ」を用意する理由。
+   *
+   * **1位は基準ごとに違う。** 実測値はヒューリック（平均39.0歳）、25歳・35歳では
+   * 平均32.4歳のＭ＆Ａキャピタルパートナーズが上に来る（E2 で母集団を広げた後）。
+   */
+  test("AC-2: 年齢そろえに切り替えると35歳の推定に変わり、年齢スイッチで25歳を選べる", async ({
+    page,
+  }) => {
     await page.goto("/");
     const table = page.getByRole("table");
     const rawOrder = await table.locator("tbody tr td:nth-child(2)").allInnerTexts();
@@ -46,30 +58,33 @@ test.describe("表示基準の切替", () => {
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
     await expect(page).toHaveURL(/[?&]age=35/);
+    await expect(page.getByRole("button", { name: "年齢そろえ" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     await expect(page.getByRole("heading", { name: "35歳年収ランキング", level: 1 })).toBeVisible();
     await expect(table.getByRole("columnheader", { name: /推定年収（35歳）/ })).toBeVisible();
 
     const ageOrder = await table.locator("tbody tr td:nth-child(2)").allInnerTexts();
     expect(ageOrder).not.toEqual(rawOrder);
-  });
 
-  // **1位は基準ごとに違う。** 実測値はヒューリック（平均39.0歳）、25歳・35歳では
-  // 平均32.4歳のＭ＆Ａキャピタルパートナーズが上に来る（E2 で母集団を広げた後）。
-  test("AC-2: 年齢そろえで25歳を選ぶと1位が1,028万円になる", async ({ page }) => {
-    await page.goto("/?age=35");
-    await page.getByRole("button", { name: "25歳" }).click();
+    // AC-11 の裏側: 年齢そろえにすると年齢スイッチが有効になる。
+    const age25 = page.getByRole("button", { name: "25歳" });
+    await expect(age25).toBeEnabled();
+    await age25.click();
 
     await expect(page).toHaveURL(/[?&]age=25/);
-    const firstRow = page.getByRole("table").locator("tbody tr").first();
+    const firstRow = table.locator("tbody tr").first();
     await expect(firstRow).toContainText("Ｍ＆Ａキャピタルパートナーズ株式会社");
     await expect(firstRow).toContainText("1,028万円");
   });
 
   // 消すと「年齢そろえ」で何が使えるようになるかが分からなくなるので、
-  // 無効にしたうえで表示は残す（ADR-0007）。
+  // 無効にしたうえで表示は残す（ADR-0007）。使えないことはヒントでも示す。
   test("AC-11: 実測値では年齢スイッチが無効だが表示は残る", async ({ page }) => {
     await page.goto("/");
 
+    await expect(page.getByText("「年齢そろえ」のときだけ使います")).toBeVisible();
     const age45 = page.getByRole("button", { name: "45歳" });
     await expect(age45).toBeVisible();
     await expect(age45).toBeDisabled();
@@ -79,80 +94,35 @@ test.describe("表示基準の切替", () => {
     await expect(page.getByRole("heading", { name: "平均年収ランキング", level: 1 })).toBeVisible();
   });
 
-  test("AC-11: 年齢そろえにすると年齢スイッチが有効になる", async ({ page }) => {
-    await page.goto("/?age=35");
-    await expect(page.getByRole("button", { name: "45歳" })).toBeEnabled();
-    await expect(page.getByRole("button", { name: "年齢そろえ" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-  });
-
-  test("AC-7: /?ind=銀行業（ageなし）は実測値のまま銀行業82社になる", async ({ page }) => {
-    await page.goto("/?ind=銀行業");
-
-    await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
-    await expect(page.getByRole("combobox", { name: "業種" })).toContainText("銀行業");
-    // 1ページはPAGE_SIZE=30件（Issue #103）なので、82社であることは件数表示で見る。
-    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
-    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(30);
-  });
-
-  // 生のHTTPレスポンス＝クローラーが見るHTML。既定が実測値になっていることを
-  // ハイドレーション前の段階で固定する。
-  test("SSR: JS実行前のHTMLが既に実測値で並んでいる", async ({ request }) => {
-    const response = await request.get("/");
-    expect(response.status()).toBe(200);
-    const html = await response.text();
-
-    expect(html).toContain("平均年収ランキング");
-    expect(html).toContain("平均年収（有報）");
-    expect(html).not.toContain("35歳時点の推定年収");
-  });
-
-  test("切替でネットワークリクエストが発生しない", async ({ page }) => {
-    await page.goto("/");
-
-    await waitForRankingReady(page);
-    const requests = collectPageRequests(page);
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
-    await page.getByRole("button", { name: "実測値" }).click();
-    await expect(page).toHaveURL(/\/$/);
-
-    expect(requests).toHaveLength(0);
-  });
-
-  test("モバイル幅でも切替できて横スクロールが発生しない", async ({ page }) => {
+  /*
+   * モバイルでは表（`hidden md:block`）ではなく行の一覧が出る。U13 でカードの枠を
+   * 外したので、行は `md:hidden` の一覧の中の div になった。
+   *
+   * **行には表示基準の語を置かない**（Issue #128）。以前は年齢そろえのときだけ
+   * 「推定」の一語を添えていたが、30行ぶん同じ語が繰り返されていた。推定である
+   * ことは帯のヒントと一覧の脚注が持つ（AC-9）ので、その2つが出ていることと対で見る。
+   * 横スクロールは `ranking-refresh.spec.ts` がこの状態（`/?age=35`）も含めて見ている。
+   */
+  test("モバイル幅でも切替でき、行には「推定」の語を置かず、帯と脚注が推定を示す", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/");
 
-    // モバイルでは表（`hidden md:block`）ではなく行の一覧が出る。
-    // U13 でカードの枠を外したので、行は `md:hidden` の一覧の中の div になった。
-    // **行には表示基準の語を置かない**（Issue #128）。以前は年齢そろえのときだけ
-    // 「推定」の一語を添えていたが、30行ぶん同じ語が繰り返されていた。推定である
-    // ことは帯と一覧の脚注が持つ（AC-9 は下の行で見ている）。
-    const firstRow = page.locator("div.md\\:hidden > div").first();
-    await expect(firstRow).toContainText("2,295万円");
-    await expect(firstRow).not.toContainText("推定");
+    const rows = page.locator("div.md\\:hidden > div");
+    await expect(rows.first()).toContainText("2,295万円");
+    await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);
-    await expect(firstRow).not.toContainText("推定");
+    await expect(rows.first()).not.toContainText("推定");
+    await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("業種の賃金カーブで補正した推定値です。")).toBeVisible();
     // 同じ文言が表の caption（PC・ここでは非表示）にもあるので、一覧の側を指す。
     await expect(
       page.locator("div.md\\:hidden").getByText("推定年収は年齢補正後の推定値です", {
         exact: false,
       })
     ).toBeVisible();
-
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

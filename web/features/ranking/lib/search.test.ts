@@ -6,28 +6,20 @@ import type { CompaniesData } from "../types";
 const companies = companiesData as CompaniesData;
 
 describe("matchesQuery", () => {
-  it("AC-6: 「商船三井」で「株式会社　商船三井」が引ける（全角スペース入り）", () => {
-    expect(matchesQuery("株式会社　商船三井", "商船三井")).toBe(true);
-  });
-
-  it("AC-6: 「ｷｰｴﾝｽ」で「株式会社キーエンス」が引ける（半角カナ→全角カナ）", () => {
-    expect(matchesQuery("株式会社キーエンス", "ｷｰｴﾝｽ")).toBe(true);
-  });
-
-  it("大文字小文字を区別しない", () => {
-    expect(matchesQuery("ABC株式会社", "abc")).toBe(true);
-  });
-
-  it("全角英数を半角として照合する", () => {
-    expect(matchesQuery("ＡＢＣ株式会社", "abc")).toBe(true);
-  });
-
-  it("空クエリは常に一致する", () => {
-    expect(matchesQuery("株式会社キーエンス", "")).toBe(true);
-  });
-
-  it("該当しない語では一致しない", () => {
-    expect(matchesQuery("株式会社キーエンス", "存在しない会社名")).toBe(false);
+  it.each([
+    // AC-6（全角スペース入りの社名）
+    ["株式会社　商船三井", "商船三井", true],
+    // AC-6（半角カナ→全角カナ）
+    ["株式会社キーエンス", "ｷｰｴﾝｽ", true],
+    // 大文字小文字を区別しない
+    ["ABC株式会社", "abc", true],
+    // 全角英数を半角として照合する
+    ["ＡＢＣ株式会社", "abc", true],
+    // 空クエリは常に一致する
+    ["株式会社キーエンス", "", true],
+    ["株式会社キーエンス", "存在しない会社名", false],
+  ])("「%s」を「%s」で引くと %s", (name, query, expected) => {
+    expect(matchesQuery(name, query)).toBe(expected);
   });
 });
 

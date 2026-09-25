@@ -61,11 +61,7 @@ describe("ogSvg", () => {
     expect(svg).not.toContain("<text");
   });
 
-  it("版面からはみ出さない", () => {
-    expect(ogOverflow(facts)).toBeNull();
-  });
-
-  it("いま焼いてある値でもはみ出さない", () => {
+  it("いま焼いてある値で版面からはみ出さない", () => {
     // 版面を触ったとき、手で書いた見本ではなく**実際に載っている値**で確かめる。
     expect(ogOverflow(OG_FACTS)).toBeNull();
   });

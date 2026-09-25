@@ -119,7 +119,7 @@ industryMedian: (number | null)[]   companies.industries と同じ並びの33件
 | `pipeline/data/performance_history.csv` | 中間成果物（9,305行）。コミットする |
 | `pipeline/scripts/lib/csv.ts` | `employeesConsolidated` の追加と `parsePerformanceHistoryCsv` |
 | `pipeline/scripts/build-data.ts` | `buildPerformance()`。gzip 上限32KB |
-| `pipeline/scripts/build-data.test.ts` | AC-1〜AC-4 |
+| `pipeline/scripts/build-data.test.ts` | AC-1〜AC-3（AC-4 の gzip 上限は `buildData` 自身が検めて落ちる） |
 
 ## 踏んだもの
 

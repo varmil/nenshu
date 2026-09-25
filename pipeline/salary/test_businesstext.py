@@ -32,18 +32,14 @@ class ToPlainText(unittest.TestCase):
         # 逆順にすると原文にあった「<p>」という表記まで消える。
         self.assertEqual(bt.to_plain_text("記号は &lt;p&gt; です。"), "記号は <p> です。")
 
-    def test_全角空白は段落の切れ目として改行になる(self):
+    def test_全角空白を含む並びは段落の切れ目として1つの改行になる(self):
         self.assertEqual(bt.to_plain_text("３【事業の内容】　当社は、"), "３【事業の内容】\n当社は、")
-
-    def test_半角の連続空白は1つに畳む(self):
-        # 欧文の社名の中の空白は改行にしない（`Lasertec U.S.A., Inc.`）。
-        self.assertEqual(bt.to_plain_text("Lasertec  U.S.A., Inc."), "Lasertec U.S.A., Inc.")
-
-    def test_全角を含む並びは改行になる(self):
         self.assertEqual(bt.to_plain_text("です。 　なお、"), "です。\nなお、")
         self.assertEqual(bt.to_plain_text("です。　　　　なお、"), "です。\nなお、")
 
-    def test_NBSPも空白として畳む(self):
+    def test_半角の連続空白とNBSPは1つに畳む(self):
+        # 欧文の社名の中の空白は改行にしない（`Lasertec U.S.A., Inc.`）。
+        self.assertEqual(bt.to_plain_text("Lasertec  U.S.A., Inc."), "Lasertec U.S.A., Inc.")
         self.assertEqual(bt.to_plain_text("当社  は"), "当社 は")
 
     def test_行の前後の空白と空行を落とす(self):

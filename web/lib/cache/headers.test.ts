@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { BROWSER_CACHE_CONTROL, EDGE_CACHE_CONTROL, pageCacheHeaders } from "./headers";
+import { pageCacheHeaders } from "./headers";
 
 /**
  * キャッシュ規則（ADR-0004）。**F1（#209・ADR-0014）で受け持ちが2つに割れた**
@@ -27,19 +27,12 @@ function headersFor(path: string): Record<string, string> {
 }
 
 describe("pageCacheHeaders（`/` の実行時ヘッダ）", () => {
-  it("ブラウザ1時間・エッジ24時間（ADR-0004）", () => {
+  it("ブラウザ1時間・エッジ24時間で、エッジは期限切れ後も1週間は古いものを返す（ADR-0004）", () => {
     expect(pageCacheHeaders()).toEqual({
-      "Cache-Control": BROWSER_CACHE_CONTROL,
-      "Cloudflare-CDN-Cache-Control": EDGE_CACHE_CONTROL,
+      // ブラウザ向けを 0 にしない（デプロイ直後の全画面エラーの対処にならない）。
+      "Cache-Control": "public, max-age=3600",
+      "Cloudflare-CDN-Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
     });
-  });
-
-  it("ブラウザ向けを 0 にしない（ADR-0004。デプロイ直後の全画面エラーの対処にならない）", () => {
-    expect(BROWSER_CACHE_CONTROL).toBe("public, max-age=3600");
-  });
-
-  it("エッジは24時間持たせ、期限切れ後も1週間は古いものを返す", () => {
-    expect(EDGE_CACHE_CONTROL).toBe("public, s-maxage=86400, stale-while-revalidate=604800");
   });
 });
 
@@ -57,19 +50,14 @@ describe("public/_headers（事前生成したページ）", () => {
   /**
    * **`/` は `_headers` に書かない。** あちらは実行時に描くので
    * `src/pages/index.astro` が付ける。両方に書くと、片方だけ直した状態になる。
+   * **`/_astro/*` も書かない。** `@astrojs/cloudflare` がビルド時に足すので、
+   * 書くと同じパスの規則が2つ並ぶ。
    */
-  it("`/` のブロックは `_headers` に無い", () => {
-    const lines = readFileSync(HEADERS_FILE, "utf8").split("\n");
-    expect(lines.some((line) => line.trim() === "/")).toBe(false);
-  });
-
-  /**
-   * **`/_astro/*` は `@astrojs/cloudflare` がビルド時に足す。** ここに書くと
-   * 同じパスの規則が2つ並ぶ。
-   */
-  it("`/_astro/*` は手で書かない（アダプタが足す）", () => {
+  it("`/` と `/_astro/*` のブロックは `_headers` に無い", () => {
     const lines = readFileSync(HEADERS_FILE, "utf8").split("\n");
     // 規則として書かれていないことを見る（コメントで言及するのは構わない）。
-    expect(lines.some((line) => line.trim() === "/_astro/*")).toBe(false);
+    for (const path of ["/", "/_astro/*"]) {
+      expect(lines.some((line) => line.trim() === path), path).toBe(false);
+    }
   });
 });

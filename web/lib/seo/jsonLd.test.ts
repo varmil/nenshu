@@ -4,18 +4,15 @@ import { breadcrumbJsonLd, jsonLdText, webSiteJsonLd } from "./jsonLd";
 describe("WebSite（AC-15）", () => {
   it("サイト名と `/` のURLだけを持つ", () => {
     // **鍵を増やすときは、その値が画面に出ていることを確かめてから。**
-    // 画面に無い主張を構造化データにしない（spec 4.4）。
+    // 画面に無い主張を構造化データにしない（spec 4.4）。完全一致で見るので、
+    // サイトリンク検索ボックス（`potentialAction`）を足しても落ちる——ヘッダに
+    // 検索欄はあるが、Google はこの機能を終了している。
     expect(webSiteJsonLd()).toEqual({
       "@context": "https://schema.org",
       "@type": "WebSite",
       name: "OpenReport",
       url: "https://openreport.net",
     });
-  });
-
-  it("サイトリンク検索ボックスを出さない", () => {
-    // ヘッダに検索欄はあるが、Google はこの機能を終了している。
-    expect(webSiteJsonLd()).not.toHaveProperty("potentialAction");
   });
 });
 

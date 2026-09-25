@@ -75,6 +75,11 @@ Astro、React、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
 - `package.json`（ルート・`pipeline/`・`web/` それぞれ）を変更したら、その場で `npm install` を実行して対応する `package-lock.json` を更新し、同じコミット・同じPRに含める。ロックファイルが `package.json` とずれた状態でマージしない。
 - **`web/` のロックファイルを更新したら、ローカルのnpmバージョンではなく `npx npm@10.9.2 ci`（Cloudflareのビルド環境が使うバージョン。変わっていたらビルドログの `Detected the following tools` 行で確認）で `npm ci` が通ることを確認する。** ローカルのnpmが新しいと、optionalDependencies（`@emnapi/*` 等）の解決がnpmバージョン間で微妙に異なり、ローカルでは通るのにCloudflareの `npm ci` だけ「lock fileとずれている」で失敗することがある（実際に2回発生した）。**このルールは `web/` に限る。** Cloudflareがビルドするのは `web/` だけで、ルートと `pipeline/` はCIの対象外のため、ローカルのnpmで `npm ci` が通ることの確認で足りる。
 - **見た目（レイアウト・レスポンシブ・キーボード操作等）または機能に変更があるときは、Unitテスト（統合テスト含む）とE2Eテスト（`web/e2e/`, `npm run test:e2e`）の両方を書き、リポジトリに残す。** その場限りの動作確認で済ませない。ロジックの正しさはUnitテストで固定し、実際にブラウザでどう描画・動作するか（型チェック・Unitテストでは検出できない領域）はE2Eで固定する。U3でこの運用により実際にモバイル幅の横スクロールバグを検出できた（`docs/ranking/ranking-filters/design.md`参照）。既存のE2Eファイル（例: `web/e2e/ranking-filters.spec.ts`）に該当する変更なら新規ファイルを増やさずそこに追記してよい。
+  - **テストは足す前に、同じ性質を見ているものが無いか探す**（2026-09-25 に E2E を約450件から171件に、web のユニットを約570件から447件に整理した。増えていたのはほとんどが重複と写しだった）。
+    - **横断的な検査は既存の1本に足す。節ごと・画面ごとに書き足さない。** 横スクロール（ランキングは `e2e/ranking-refresh.spec.ts` の 390/360px のループ、企業詳細は `e2e/company-refresh.spec.ts` の AC-15 の 375px のループ）・操作でネットワークが起きないこと（`e2e/ranking-url-sync.spec.ts` の操作を続ける流れ）・JS 実行前の HTML（企業詳細は `e2e/company-page.spec.ts` の AC-10）・表示基準から独立な節（同 AC-3）は、**最悪ケースの会社・状態を配列に足す**
+    - **E2E で状態遷移の組み合わせを網羅しない。** 規則はユニットで固定し、E2E は「操作が画面・URL に届く」流れを1本持てば足りる
+    - **CSS の値を写さない**（font-size が 16px・バーが 3px・器が 68×48 等）。E2E が固定するのは実際の崩れ——横スクロール・切り詰め・折り返し・重なり・列のずれ・縦に潰れる——で、値の写しは意匠を変えるたびに落ちるだけで何も守らない
+    - **外した機能が「出ないこと」だけを見るテストは書かない。** 不在が spec の規則であるもの（実測値で「推定」を出さない・決算期は1画面に1回 等）は別
 - **Claude Code on the web のセッションは `.claude/hooks/session-start.sh` が整える。** コンテナは毎回まっさらでクローンされるので、これが無いと `node_modules` が無い状態から始まる。中身は3つのワークスペースの `npm ci` と、`PLAYWRIGHT_CHROMIUM_PATH` を `$CLAUDE_ENV_FILE` に書くこと。**`$CLAUDE_CODE_REMOTE` で囲ってあるのでローカルでは何もしない。** 依存を足したりコマンドを増やしたらこのフックも直す
   - **`npm install` ではなく `npm ci`。** lock を書き換えないので、セッション開始時点で作業ツリーが汚れない（上の2つの約束と同じ理由）
   - **ルートの `npm ci` が husky の `prepare` を走らせ、`.husky/pre-commit`（lint-staged → lint・typecheck・vitest）を有効にする。** これが無いと web セッションのコミットだけがゲートを素通りする（実際に素通りしていた）
@@ -144,7 +149,7 @@ Unit の実装を終えたら、次の順で進める。
 
 **推定式はADR-0005の2点モデル**（`web/features/ranking/lib/salary.ts`）。目標年齢が平均年齢より下では、その会社の賃金カーブが「22歳＝業種平均の水準」と「平均年齢＝実測の平均年間給与」の2点を通ると置いて間を業種カーブの形で結ぶ。平均年齢より上はADR-0003の倍率一定のまま。Issue #42（若年側の過大推定）はこれで解消した（キーエンス25歳 1,642万→788万）。**カーブは`curves.json`に千円で入っているので、`curveValuesInYen`で円に揃えてから`estimateSalary`に渡すこと**——旧式は比しか取らないので揃えなくても合っていた。経緯と却下案（標準労働者カーブは効果が小さく60歳側が悪化する）は`docs/ranking/estimation-model/design.md`とADR-0005にある。
 
-**Python側（`pipeline/salary/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全1,867社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
+**Python側（`pipeline/salary/curves.py`の`estimate_salary`）も同じ式で、CSVの`salary35`列はこれで計算してある。** 両者が一致することは`pipeline/scripts/build-data.test.ts`がweb の`estimateSalary`を直接importして全社で固定している。**推定式を変えたらPython・TypeScriptの両方を直し、`cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv` でCSVの派生列を作り直してから`npm run build:data -- --out ../web/public/data`を回すこと**（EDINETから取り直す必要は無い）。Pythonの`round()`は偶数丸めでJSの`Math.round`と違うので、Python側は`floor(x+0.5)`を使う。
 
 **Bolt 2 に着手中（企業詳細ページと公開URL戦略）。Inceptionは完了。**
 
@@ -254,7 +259,7 @@ Unit の実装を終えたら、次の順で進める。
 - **存在しないパスでは Worker を起動しない**（`wrangler.jsonc` の `not_found_handling: "404-page"`）。ボットのスキャン（`/wp-admin/install.php` 等）が Worker を起こして 122ms 使っていた。**`not_found_handling` だけを書くとサイトが全部404になる**——既定で有効な `assets_navigation_prefers_asset_serving` により、ナビゲーションリクエストはアセットに一致しなくても Worker より先に `404.html` が返るため（ローカルで全滅を確認）。**だから `run_worker_first` で Worker が処理するパスを明示してある。いまは `/` の1件だけ**——ページを足すときに載せるかどうかは「サーバーで描く必要があるか」で決める（載せると Worker が起きる）
 - **404 の中身は `src/pages/404.astro`。** 置かないと Astro の既定（`lang="en"` の `404: Not Found`、共通ヘッダ無し）が出る。**ステータスは同じ 404 なので、それだけ見ていると気づけない**（`e2e/asset-routing.spec.ts` が日本語・共通ヘッダ・1種類しかないことを固定している）
 - **`astro.config.mjs`・`wrangler.jsonc` を触ったら `e2e/asset-routing.spec.ts` と `e2e/cache-headers.spec.ts` を Worker に向けて回す。** **dev サーバーには `run_worker_first` も `_headers` も効かない**ので、`E2E_BASE_URL` が無いと skip する——dev で走らせると自明に通り、守っているつもりで守っていない状態になる（Issue 183 で起きたのがそれで、そのとき E2E は311件すべて通っていた）
-- **Worker 相手の E2E で通るのは ヘッダ・SEO・404・アセットのルーティングだけ**（31件）。画面を操作する系は dev サーバーに向けて回す
+- **Worker 相手の E2E で通るのは ヘッダ・SEO・404・アセットのルーティングだけ**。画面を操作する系は dev サーバーに向けて回す
 - **`enableCacheInterception`・`prefetch-loop`・Turbopack の永続キャッシュ・`measure:prefetch` は、相手ごと無くなった**（どれも Next.js/OpenNext の設定と RSC のプリフェッチにまつわるもの。#183 の暴走は本番で `/about?_rsc=…` が毎秒128回飛んだ事故だった）
 - **一度は「ページが読むデータを減らす」方向で当てて、戻した**（#165 → #179）。cold で 1.7〜2.0ms しか稼げず、生成物と lint の規則が増えた。**残るのは `/` だけ**で、必要になったら測り直してから入れる
 - **SvelteKit も測った**（バンドルは gzip 259KiB で最小）が、**React が動かないのでコンポーネント 4,778 行が書き直しになる**——買えるものは Astro と同じ「Worker を起こす URL を 3,004 → 42 件にする」ことなので割に合わず、却下した（ADR-0014 の却下案 E）。**`@sveltejs/adapter-cloudflare` は `wrangler.jsonc` が無いと Pages モードで `_routes.json` を吐き、上限を超えた exclude を黙って捨てて全ページで Worker を起こす**（ビルドは成功する）
@@ -294,7 +299,7 @@ Unit の実装を終えたら、次の順で進める。
 - **236列は位置で読む。見出しに重複がある**（`-女性(%)` が5回など）ので名前で引くと最後の列に倒れる。**読む前に全236列を完全一致で検証して落とす**（`pipeline/worklife/positivedb.ts`）
 - **注釈・説明は改行・カンマ・引用符を含む**（716社）。`pipeline/scripts/lib/csv.ts` の `split(",")` では読めないので `pipeline/worklife/csv.ts` に RFC 4180 の読み書きがある
 - **負の残業時間は全体値と区分別の両方に入っていた**（ビジネスエンジニアリング1社の2箇所）。着手前の調査は全体値しか見ておらず、実装して初めて出た
-- **`pipeline/salary35/` は `pipeline/salary/` に改名した**（W0）。35歳が既定だった頃の名前で、ADR-0007 以降は実態と合っていなかった。**ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す**（`salary/` は EDINET と e-Stat の2ソースを使うので、ソース名では切れない）。**CSV の `salary35` 列は改名していない**——「35歳時点の推定年収」を正しく指しており、`build-data.test.ts` が Python と TypeScript の一致を全1,867社で固定しているため
+- **`pipeline/salary35/` は `pipeline/salary/` に改名した**（W0）。35歳が既定だった頃の名前で、ADR-0007 以降は実態と合っていなかった。**ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す**（`salary/` は EDINET と e-Stat の2ソースを使うので、ソース名では切れない）。**CSV の `salary35` 列は改名していない**——「35歳時点の推定年収」を正しく指しており、`build-data.test.ts` が Python と TypeScript の一致を全社で固定しているため
 
 **稼ぐ力（一人当たり経常利益）は `performance` 施策**（`docs/performance/`）。**レーダーチャートの軸を決める親 Issue #154 が「賃金差を外し、稼ぐ力を入れる」と決めた**ので、その軸のためのデータを作る施策として新しく立てた（`market-data`（#55）に寄せない理由は intent.md）。**P0（取り込み・Issue #155）・P1（レーダー表示・Issue #167）は実装済み**（`docs/performance/profit-per-employee/`・`docs/performance/company-radar/`）。**P2（稼ぐ力の推移・Issue #168）も実装済み**（`docs/performance/profit-trend/`）。**E6（#182）で母集団の拡大に追随させた**（1,865社 → 2,959社 = 99.9%）。
 
@@ -519,7 +524,7 @@ Unit の実装を終えたら、次の順で進める。
 - **`/` に `logos.json` を丸ごと渡さない**（gzip 41.5KB）。渡すのは**ロゴの有無だけ**——`companies.rows` と同じ並びの1,867文字の文字列（gzip 約250B）。**縦横比は渡さない**——器の寸法が固定で中身は `object-contain` なので、画像が届いてもレイアウトは動かない。企業詳細ページはマスクではなくその画面に出る46社ぶんのIDだけを渡す
 - **器は横長。** 表 88×50／近傍の会社 48×38／モバイルのランキング行 68×48（`size="row"`）／企業詳細 136×62。**高さはモック由来で、幅だけ広げてある**（`features/logo/components/CompanyLogo.tsx`）。**表（PC）だけは高さもモックの40pxから50pxに上げた**（運営者の指示・Issue #128。この行は器が行の高さを決めているので隣の列を削らない）。**モバイルは 48×38 に留めていた**——56px以上にすると meta 行の従業員数が丸ごと消えたため（実測）。**Issue #119 で行を4カラムにして meta から従業員数を落としたので、この制約は外れた**（削られる相手が無くなった）
 - **ダークで濃いロゴが沈むので、器に `--logo-surface` の明るい面を敷く。** 色を反転させる加工はしない（商標をそのままの形で出す）。**ダークだけ少し落としてある**——白のままだと1ページに30枚並んで眩しい。E2E は `getComputedStyle` が `lab()` を返すので、**キャンバスに描いて sRGB に開いてから**明るさを測っている
-- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。8ファイル11箇所。素の `page.on("request")` を書き足さないこと——見たいのは「操作で HTML を取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
+- **E2E の「リクエスト数0」は画像とファビコンだけ緩めた**（`e2e/network.ts` の `collectPageRequests`）。ランキングの操作はすべて `e2e/ranking-url-sync.spec.ts` の1本の流れ（操作を続けて1手ごとに0件を見る）で数えている。素の `page.on("request")` を書き足さないこと——見たいのは「操作で HTML を取り直さない」ことで、`loading="lazy"` の画像も、ブラウザが `pushState` のたびに取り直す `/favicon.ico` もこれに反しない。**ファビコンはブラウザのバージョン差**——Chromium 141 は `pushState` で取り直し、Playwright 1.62 同梱の 151 は取り直さない。緩める前は、古い Chromium しか無い環境（Claude Code web のコンテナ等）で走らせるとこの9件が毎回落ちていた
 - **`/about` の帰属表示は `attr: true` の44社だけ。** パブリックドメインの397社は並べない（本当に帰属が要るものが埋もれる）
 
 **戻る/進むは `web/lib/history/useLocationSyncedState.ts` の3規則が正**（U14・`docs/ranking/back-navigation/`、親 Issue #108・Issue #121）。ページを跨いで戻ると絞り込み・ページ番号・表示基準が消えていたのを直した。
@@ -591,11 +596,11 @@ Unit の実装を終えたら、次の順で進める。
   - **落ちた2社が新しい型になった**（1巡目は要約 8/8・分析 6/8。**書き直して 8/8 にした**）。**どちらも「材料が足りない」ではなく「言い過ぎ」で、1文を直せば通った**——直し方は材料が述べている範囲まで**主張を弱める**か、**帰属を付ける**の2つ。**型A1 内訳が書かれていない影響を切り分けたように書いた**（出前館。クーポンの会計処理の金額は原文に無い）、**型A2 材料が述べていない因果を作った**（第一建設工業。減益の理由は MD&A に書かれておらず、課題の節のコスト高は将来の見通し）。**同じ文書の別の節に A と B が載っていることは、A が B の原因だという意味ではない**
   - **30,000字は EDINET 側の打ち切りで、復元しない。** 当たったのは31社ぶん32節。**判定は 30,000 ちょうどではなく1字ぶん緩める**——`parse_csv_zip` が値を `strip()` するので30,000字目が空白だと 29,999字になり、**ちょうどで数えると20件を取りこぼす**（最初に書いたときそうなっていた）
 
-`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み（455件）。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
+`web/`にPlaywright E2E（`npm run test:e2e`）を導入済み（172件）。ブラウザ操作ツールが使えないセッションでの動作チェックはこれで代替できる（`docs/ranking/ranking-filters/design.md` 参照）。見た目・機能の変更にはUnitテストとE2Eの両方を書く運用（「開発上の約束」参照）。
 
 **画面を操作する spec は `e2e/appTest.ts` の `test` を使う。素の `@playwright/test` を使わない**（F1・#209）。`goto`／`reload` の直後に**ハイドレーションの完了**（`astro-island[ssr]` が消えるまで）と、`/` なら**全件データの到着**（E0）を待つ。
 
 - **島に React が取り付く前のクリックはどこにも届かない。** SSR したボタンは最初から DOM にあるので Playwright の自動待機は素通りし、`click()` は成功したように見えて何も起きない。**F1 の1巡目はこれで27件落ちた**
 - **`waitUntil` を明示した `goto`／`reload` では待たない**——ハイドレーション前の HTML を見るテスト（`e2e/theme.spec.ts` のちらつき防止）は、待った時点でその瞬間を過ぎる。そこから続けて操作するなら `waitForHydration(page)` を明示的に呼ぶ
-- **ページ間の遷移を見るときは `click()` が返るのを待てない。** 素の HTML 取得になったので `click()` も `expect(locator)` も**新しい文書が届くまで返らず**、戻ってきた時点では次のページに入れ替わっている。前のページで起きたことを見たいときは、**クリックの前にページ内で記録を始めて `exposeFunction` で受け取る**（`e2e/navigation-progress.spec.ts`）
+- **ページ間の遷移を見るときは `click()` が返るのを待てない。** 素の HTML 取得になったので `click()` も `expect(locator)` も**新しい文書が届くまで返らず**、戻ってきた時点では次のページに入れ替わっている。前のページで起きたことを見たいときは、**クリックの前にページ内で記録を始めて `exposeFunction` で受け取る**（`docs/framework/astro-cutover/design.md`。そこに出てくる `navigation-progress.spec.ts` は F2・#210 で指示器ごと消した）
 - **`astro dev` の開発ツールバーは切ってある**（`astro.config.mjs` の `devToolbar`）。オーバーレイが `h1` を3つ持ち込むので `locator("h1")` が strict mode で落ちる

@@ -77,13 +77,11 @@ export function makeId(row: { secCode: string; name: string; docId: string }): s
 
 Issue #1 の完了条件をそのままテストにする。
 
-1. **行数**: `companies.json.rows.length === 1867`。
-2. **salary35 の全数一致（最重要）**: 各行について `interpolate(agePoints, ANNUAL_INDUSTRY[row.industry], 35) / interpolate(agePoints, ANNUAL_INDUSTRY[row.industry], row.avgAge)` で factor を計算し、`Math.round(avgSalary * factor)` を CSV の `salary35` 列と1,867社**全件**で突き合わせる。ズレがあれば失敗させる。
-   - Python の `round()` は銀行丸め、JS の `Math.round` は四捨五入。差が出た場合はここが原因になりうる。
-3. **id の一意性**: 1,867件の `id` に重複がないこと。
-4. **補間の境界**: `interpolate` が代表年齢の範囲外（22歳未満・67歳超）で端の値に頭打ちされること。
-5. **gzip サイズ**: 実際に書き出した `companies.json` を gzip して 100KB 以内。
-6. **産業大分類の非露出**: `industries`（表示用 tse33）と `curveKeys`（内部キー）が別配列として独立していることの構造チェック。
+- **行数・id の一意性・gzip サイズは `buildData` 自身が検めて例外を投げる**（上の6・8）。テストは `beforeAll` で `buildData` を通すので、そこで落ちれば全件が落ちる。同じ定数をテストに書き写して確かめ直さない。
+1. **salary35 の全数一致（最重要）**: 各行について web の `estimateSalary`（ADR-0005 の2点モデル）を**そのまま import して**35歳時点の推定年収を再計算し、CSV の `salary35` 列（Python が計算した値）と**全社**で突き合わせる。ズレがあれば失敗させる。
+   - Python の `round()` は銀行丸め、JS の `Math.round` は四捨五入。差が出た場合はここが原因になりうる（Python 側は `floor(x + 0.5)`）。
+2. **id**: 生成物の `id` が証券コード、無ければ EDINET コード（E＋5桁）で、書類 ID 由来の id が残っていないこと。代表的な会社の id も固定する。
+3. **添字の列**: `companies.rows` が CSV と同じ並びで、業種（表示用 tse33）・産業大分類（内部キー）・決算期の添字がそれぞれ元の値を指すこと。「建設業」のように名前が一致するものがあるので、取り違えると別の業種のカーブで推定される。
 
 ## `package.json` scripts
 

@@ -28,16 +28,24 @@ async function html(request: import("@playwright/test").APIRequestContext, path:
 }
 
 test.describe("データの時点（S3・E1）", () => {
-  test("AC-17: `/` の title に決算期の幅が入る", async ({ page }) => {
-    await page.goto("/");
-    await expect(page).toHaveTitle(new RegExp(RANGE));
-  });
-
-  test("AC-18: 全ページの description に決算期が入る", async ({ request }) => {
+  /*
+   * AC-17（`/` の title）・AC-18（description）・AC-19（本文）を、同じ HTML から見る。**本文は `<body>` 以降に
+   * 絞る**——head の title・description・`og:` にも同じ幅が入っているので、HTML 全体で
+   * 探すと本文に無くても通る（以前の AC-19 はそうなっていた）。
+   *
+   * **サーバーが返す HTML に入っていること**を見る。クライアントの描画待ちにすると、
+   * クローラにも読み込みの遅い端末にも「いつのデータか」が届かない。
+   */
+  test("AC-17〜AC-19: `/` の title、ランキングと /about の description と初期HTMLの本文に決算期の幅が入る", async ({
+    request,
+  }) => {
     for (const path of ["/", "/?age=35", `/?ind=${BANK}`, "/about"]) {
-      const description =
-        (await html(request, path)).match(/<meta name="description" content="([^"]*)"/)?.[1] ?? "";
-      expect(description, path).toContain(RANGE);
+      const page = await html(request, path);
+      const description = page.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? "";
+      expect(description, `${path} description`).toContain(RANGE);
+      expect(page.slice(page.indexOf("<body")), `${path} 本文`).toContain(RANGE);
+      // title に入れるのは `/` だけ。ファセットの title は年齢・業種名のほうが情報量が高い。
+      if (path === "/") expect(page.match(/<title>([^<]*)<\/title>/)?.[1], "/ の title").toContain(RANGE);
     }
     // 企業詳細は1社ぶんなので幅ではなくその会社の決算期（E1）。
     const description =
@@ -45,14 +53,6 @@ test.describe("データの時点（S3・E1）", () => {
       "";
     expect(description).toContain(KEYENCE_PERIOD);
     expect(description).not.toContain(RANGE);
-  });
-
-  // **サーバーが返すHTMLに入っていること**を見る（AC-19）。クライアントの描画待ちに
-  // すると、クローラにも読み込みの遅い端末にも「いつのデータか」が届かない。
-  test("AC-19: `/`・`/about` の初期HTMLに幅が出る", async ({ request }) => {
-    for (const path of ["/", "/?age=35", "/about"]) {
-      expect(await html(request, path), path).toContain(RANGE);
-    }
   });
 
   test("AC-19: ランキングの決算期は1文目にある（モバイルで消えない）", async ({ page }) => {
@@ -65,23 +65,6 @@ test.describe("データの時点（S3・E1）", () => {
     // 年齢そろえでも同じ位置に残る。
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page.getByText(new RegExp(`^${RANGE}の平均年間給与を`))).toBeVisible();
-  });
-
-  // **企業詳細は幅ではなくその会社の決算期**（E1・AC-7）。母集団の幅を出すと、
-  // 3月期の会社のページに「〜4月期」が付いて、その会社の数字がいつのものか
-  // ぼやける。
-  test("AC-7: 企業詳細は会社ごとの決算期を出す", async ({ page }) => {
-    await page.goto("/company/6861");
-    await expect(
-      page.getByRole("heading", { name: `有価証券報告書の実測値（${KEYENCE_PERIOD}）` })
-    ).toBeVisible();
-
-    // 4月期の会社では別の値が出る。**同じ文字列がハードコードされていない**ことは
-    // これで初めて見える。
-    await page.goto("/company/7488");
-    await expect(
-      page.getByRole("heading", { name: `有価証券報告書の実測値（${YAGAMI_PERIOD}）` })
-    ).toBeVisible();
   });
 
   // 1画面に1回（spec 5.1）。見出しと脚注のように同じ語を重ねない——Issue #128 で
@@ -106,6 +89,10 @@ test.describe("データの時点（S3・E1）", () => {
   // 見出しと、**要約の節の説明**。要約は有報の本文を原文にした節で、見出しから離れた位置に
   // あるので、どの年度の有報を要約したのかを節の中で示す。**それ以外の場所には増やさない**
   // ——説明文（C7）の出典の1行に入れて重なったのを、この spec が一度捕まえている。
+  //
+  // **企業詳細は幅ではなくその会社の決算期**（E1・AC-7）。母集団の幅を出すと、3月期の
+  // 会社のページに「〜4月期」が付いてその会社の数字がいつのものかぼやける。4月期の会社
+  // （ヤガミ）で別の値が出ることで、**同じ文字列がハードコードされていない**ことも見える。
   test("企業詳細の決算期は実測値の見出しと要約の説明の2か所だけ", async ({ page }) => {
     for (const [path, label] of [
       ["/company/6861", KEYENCE_PERIOD],

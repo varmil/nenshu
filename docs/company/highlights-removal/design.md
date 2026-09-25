@@ -47,7 +47,7 @@ PC（1280px）
 | `web/features/company/components/CompanyDetail.tsx` | サイドバーの要点の `section` を削除 |
 | `web/features/company/lib/highlights.ts` | `buildHighlights` を削除。説明文の組み立て（`buildCurveSummary` ほか）は残る |
 | `web/features/company/lib/highlights.test.ts` | `buildHighlights` の4件を削除 |
-| `web/e2e/company-refresh.spec.ts` | AC-11 を「要点が出ない」に置き換え、AC-15 のサイドバーの高さを追加 |
+| `web/e2e/company-refresh.spec.ts` | AC-11 を「要点が出ない」に置き換え、AC-15 のサイドバーの高さを追加（後に AC-11 は AC-15 の PC のテストと `company-page.spec.ts` の AC-10 の生 HTML に畳んだ） |
 
 **三分位の判定（`features/ranking/lib/filter.ts`）は残る。** ランキングのフィルタが使っている。
 

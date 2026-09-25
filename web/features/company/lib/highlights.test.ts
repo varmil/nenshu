@@ -13,19 +13,20 @@ import {
   buildHistorySummary,
   findSalaryMilestones,
 } from "./highlights";
-import { formatManYen, toManYen } from "@/features/ranking/lib/format";
+import { toManYen } from "@/features/ranking/lib/format";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
 const stats = statsData as CompanyStatsData;
 const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
 
-describe("buildCurveSummary", () => {
-  function byAge(id: string) {
-    const view = buildCompanyView(companies, curves, stats, id)!;
-    return view.byBasis.filter((s) => s.targetAge !== null);
-  }
+/** 8年齢ぶん（実測値を除く）。 */
+function byAge(id: string) {
+  const view = buildCompanyView(companies, curves, stats, id)!;
+  return view.byBasis.filter((s) => s.targetAge !== null);
+}
 
+describe("buildCurveSummary", () => {
   it("到達年齢・最高水準・伸びが最大の5歳区間を述べる", () => {
     const sentences = buildCurveSummary(byAge("6861"), "キーエンス");
     expect(sentences).toHaveLength(3);
@@ -61,11 +62,6 @@ describe("buildCurveSummary", () => {
 });
 
 describe("findSalaryMilestones（C4・AC-14）", () => {
-  function byAge(id: string) {
-    const view = buildCompanyView(companies, curves, stats, id)!;
-    return view.byBasis.filter((s) => s.targetAge !== null);
-  }
-
   it("段に届いた年齢を若い順に並べる", () => {
     // 東日本旅客鉄道: 464 / 610 / 733 / 821 / 838 / 836 / 834 / 735（万円）
     expect(findSalaryMilestones(byAge("9020"))).toEqual([
@@ -117,28 +113,20 @@ describe("findSalaryMilestones（C4・AC-14）", () => {
 });
 
 describe("buildActualsSummary（C4・AC-17）", () => {
-  it("実測値の4項目を1文にする", () => {
+  /*
+   * **文全体の一致で固定する**ので、spec AC-17 の「決算期を書かない」（節の見出しが持っている。
+   * S3・1画面に1回）と「推定の語を出さない」（実測値そのもの）もこれで守られる。
+   */
+  it("実測値の4項目を1文にし、決算期も推定の語も書かない", () => {
     const view = buildCompanyView(companies, curves, stats, "6861")!;
-    const sentence = buildActualsSummary(view);
-    expect(sentence).toBe(
+    expect(buildActualsSummary(view)).toBe(
       "有価証券報告書によると、株式会社キーエンスの平均年収は2,178万円、平均年齢は35.0歳、平均勤続年数は11.3年、従業員数は3,306人です。"
     );
-  });
-
-  // 決算期は節の見出しが持っている（S3・Issue #134）。1画面に1回。
-  it("決算期は書かない", () => {
-    const view = buildCompanyView(companies, curves, stats, "6861")!;
-    expect(buildActualsSummary(view)).not.toContain("期");
-  });
-
-  // 実測値そのものなので、どの表示基準でも同じ文になる（推定の語も出ない）。
-  it("推定の語を出さない", () => {
-    const view = buildCompanyView(companies, curves, stats, "6861")!;
-    expect(buildActualsSummary(view)).not.toContain("推定");
   });
 });
 
 describe("buildHistoryPeak（C4）", () => {
+  // 金額は増減の1文と同じ書式（同じ節に並ぶ2文で書式が割れない）。
   it("最高値が途中の年にあればその年と金額を書く", () => {
     // キーエンスの最高値は2023年の2,279万円（最新は2026年の2,178万円）。
     const peak = buildHistoryPeak(history.years, history.byId["6861"])!;
@@ -155,12 +143,6 @@ describe("buildHistoryPeak（C4）", () => {
     expect(buildHistoryPeak([2017, 2018], [null, 5_000_000])).toBeNull();
   });
 
-  // 増減の1文と同じ丸めで書く（同じ節に並ぶ2文で金額の書式が割れない）。
-  it("金額はランキングと同じ書式", () => {
-    const values = history.byId["6861"];
-    const peak = Math.max(...values.filter((v): v is number => v !== null));
-    expect(buildHistoryPeak(history.years, values)).toContain(formatManYen(peak));
-  });
 });
 
 describe("buildHistorySummary", () => {

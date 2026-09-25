@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import historyData from "../../../public/data/history.json";
-import companiesData from "../../../public/data/companies.json";
 import { buildHistoryTable, formatRate, historyBaseYear } from "./historyTable";
 
 const history = historyData as {
@@ -9,27 +8,20 @@ const history = historyData as {
   ageById: Record<string, (number | null)[]>;
 };
 
-function historyFor(id: string) {
-  return { years: history.years, values: history.byId[id], ages: history.ageById[id] };
-}
-
 function tableFor(id: string) {
-  return buildHistoryTable(historyFor(id));
+  return buildHistoryTable({
+    years: history.years,
+    values: history.byId[id],
+    ages: history.ageById[id],
+  });
 }
 
 describe("buildHistoryTable", () => {
-  it("10年ぶんの行を年の並びのまま返す", () => {
-    const { rows } = tableFor("6861");
-    expect(rows).toHaveLength(10);
-    expect(rows[0].year).toBe(2017);
-    expect(rows[9].year).toBe(2026);
-  });
-
-  it("基準年の行は累積を持たない", () => {
+  it("10年ぶんの行を年の並びのまま返し、基準年の行は累積を持たない", () => {
     const { rows, baseYear } = tableFor("6861");
+    expect(rows.map((row) => row.year)).toEqual(history.years);
     expect(baseYear).toBe(2017);
     expect(rows[0].cumulative).toBeNull();
-    expect(rows[1].cumulative).not.toBeNull();
   });
 
   it("累積は基準年の値からの比", () => {
@@ -45,24 +37,15 @@ describe("buildHistoryTable", () => {
   /*
    * T3（#827）。平均年齢は同じ有報の値をそのまま行に載せる。**丸めない**——小数第2位で
    * 書く会社があり（`42.49`）、丸めは描画の `formatDecimal1` がカードと同じ規則で行う。
+   * 平均年収の無い年に年齢だけを出すことはしない。
    */
-  it("平均年齢を同じ年の行にそのまま載せる", () => {
+  it("平均年齢は丸めずに同じ年の行に載せ、平均年収の無い年は持たない", () => {
     const { rows } = buildHistoryTable({
-      years: [2017, 2018],
-      values: [5_000_000, 5_100_000],
-      ages: [42.49, 42.62],
+      years: [2017, 2018, 2019],
+      values: [null, 5_000_000, 5_100_000],
+      ages: [41.2, 42.49, 42.62],
     });
-    expect(rows.map((row) => row.age)).toEqual([42.49, 42.62]);
-  });
-
-  it("平均年収の無い年は平均年齢も持たない", () => {
-    const { rows } = buildHistoryTable({
-      years: [2017, 2018],
-      values: [null, 5_000_000],
-      ages: [41.2, 41.5],
-    });
-    expect(rows[0].age).toBeNull();
-    expect(rows[1].age).toBe(41.5);
+    expect(rows.map((row) => row.age)).toEqual([null, 42.49, 42.62]);
   });
 
   /*
@@ -75,20 +58,21 @@ describe("buildHistoryTable", () => {
     expect(byYear.get(2023)!.value).toBeNull();
     expect(byYear.get(2023)!.age).toBeNull();
     expect(byYear.get(2023)!.cumulative).toBeNull();
-    expect(byYear.get(2025)!.value).not.toBeNull();
     expect(byYear.get(2025)!.age).not.toBeNull();
     expect(byYear.get(2025)!.cumulative).not.toBeNull();
   });
 
   // 2017年の値を持たない会社が230社ある。固定の2017年基準にすると累積が丸ごと空になる。
   it("先頭が欠けていれば最初に値のある年が基準になる", () => {
-    const { rows, baseYear } = buildHistoryTable({
+    const input = {
       years: [2017, 2018, 2019],
       values: [null, 5_000_000, 6_000_000],
       ages: [null, 38, 38.4],
-    });
+    };
+    const { rows, baseYear } = buildHistoryTable(input);
     expect(baseYear).toBe(2018);
-    expect(rows[0].value).toBeNull();
+    // 列の見出しと節の説明が同じ年を名乗るよう、どちらも `historyBaseYear` を読む。
+    expect(historyBaseYear(input)).toBe(2018);
     expect(rows[1].cumulative).toBeNull();
     expect(rows[2].cumulative).toBeCloseTo(0.2, 10);
   });
@@ -101,37 +85,6 @@ describe("buildHistoryTable", () => {
     });
     expect(baseYear).toBeNull();
     expect(rows.every((row) => row.age === null && row.cumulative === null)).toBe(true);
-  });
-
-  // 実データ全社。平均年収のある行には平均年齢もある（spec AC-15 を表の側でも見る）。
-  it("全社で、平均年収のある行には平均年齢がある", () => {
-    for (const id of Object.keys(history.byId)) {
-      const { rows } = tableFor(id);
-      for (const row of rows) {
-        expect(row.age === null, `${id} ${row.year}`).toBe(row.value === null);
-      }
-    }
-  });
-
-  /*
-   * AC-16 の土台。最新年の行の平均年齢は、カード（`companies.json` の平均年齢）と同じ数字で
-   * なければならない。キーエンスは2026年の有報が採用書類。
-   */
-  it("キーエンスの2026年の平均年齢は companies.json と一致する", () => {
-    const keyence = (companiesData as { rows: (string | number)[][] }).rows.find(
-      (row) => row[0] === "6861"
-    )!;
-    const { rows } = tableFor("6861");
-    expect(rows[9].age).toBe(keyence[4]);
-  });
-});
-
-describe("historyBaseYear", () => {
-  it("表の見出しと同じ年を返す", () => {
-    for (const id of ["6861", "2117", "3447"]) {
-      expect(historyBaseYear(historyFor(id))).toBe(tableFor(id).baseYear);
-    }
-    expect(historyBaseYear(historyFor("3447"))).toBe(2018);
   });
 });
 

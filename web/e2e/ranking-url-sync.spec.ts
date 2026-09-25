@@ -1,64 +1,121 @@
 import { test, expect } from "./appTest";
 import { collectPageRequests, waitForRankingReady } from "./network";
 
+/**
+ * URL クエリとの同期（U5・AC-7）と、ページを跨いだ戻る/進む（U14・AC-15）。
+ *
+ * URL ⇄ 状態の変換（既定値の省略・並び順・不正値の扱い・往復）は
+ * `lib/urlState.test.ts` が固定している。ここで見るのは、ブラウザでしか分からない
+ * こと——JS 実行前の HTML・URL を直接開いたときの復元・操作でネットワークが起きない
+ * こと・履歴（戻る/進む）。
+ */
+
+/** `<table>…</table>` の中身。行数・社名はここで数える（ロゴやメタデータの文字列を拾わない）。 */
+const tableHtml = (html: string) => html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
+
+/**
+ * `<script>`・コメント・タグを落とした地の文。React は文字列の境目に `<!-- -->` を
+ * 挟むので、そのままでは「82社 中 1〜30社目」が1続きにならない。
+ */
+const visibleText = (html: string) =>
+  html
+    .replace(/<script[\s\S]*?<\/script>/g, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<[^>]+>/g, "");
+
 test.describe("URLクエリとの同期", () => {
-  test("SSR: 生HTTPリクエスト（JS実行なし）でも/?age=45&ind=銀行業のレスポンスHTMLが絞り込み済みになっている", async ({
-    request,
-  }) => {
-    // ブラウザ・JSを介さない生のHTTPリクエスト。検索エンジンのクローラーが取得する
-    // HTMLと同じものを見る。SSR化前（output:'export'）はここが常にビルド時の
-    // 初期値（絞り込みなし）になっており、この検証自体が原理的に不可能だった
-    // （`docs/ranking/ssr-migration/design.md`参照）。
-    const response = await request.get("/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
-    expect(response.status()).toBe(200);
-    const html = await response.text();
+  /*
+   * ブラウザ・JSを介さない生のHTTPリクエスト。検索エンジンのクローラーが取得する
+   * HTMLと同じものを見る。SSR化前（output:'export'）はここが常にビルド時の
+   * 初期値（絞り込みなし）になっており、この検証自体が原理的に不可能だった
+   * （`docs/ranking/ssr-migration/design.md`参照）。
+   *
+   * 以前は表示基準・ページ送り・範囲外のページのファイルごとに1本ずつ持っていた。
+   * **どの状態も同じ経路（`src/pages/index.astro` がクエリを読んで描く）なので1本に
+   * まとめ、URL ごとの期待を表にした。** `/` の上位30社が入っていて31社目以降が
+   * 入っていないこと（E0 のペイロード）は `initial-payload.spec.ts` が見ている。
+   */
+  test("SSR: JS を実行しない生の HTML が、URL の状態で描かれている", async ({ request }) => {
+    const cases: {
+      url: string;
+      /** 地の文に含まれるべき文字列。 */
+      text?: string[];
+      /** HTML 全体に含まれてはならない文字列。 */
+      notInHtml?: string[];
+      /** 表に含まれるべき／含まれてはならない社名。 */
+      inTable?: string[];
+      notInTable?: string[];
+      rows?: number;
+    }[] = [
+      // 既定は実測値（ADR-0007）。ハイドレーション前の段階で固定する。
+      {
+        url: "/",
+        text: ["平均年収ランキング", "平均年収（有報）"],
+        notInHtml: ["35歳時点の推定年収"],
+      },
+      // AC-7。銀行業は82社で、1ページは PAGE_SIZE=30件（Issue #103）。絞り込みが
+      // 効いていることは件数の表示で見る（行数は PAGE_SIZE で頭打ちのため）。
+      {
+        url: "/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD",
+        text: ["45歳年収ランキング", "82社 中 1〜30社目"],
+        rows: 30,
+      },
+      // 2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社。
+      {
+        url: "/?page=2",
+        inTable: ["ジャフコ　グループ株式会社"],
+        notInTable: ["ヒューリック株式会社"],
+      },
+      // 範囲外の page は最終ページに丸める（クラッシュしない）。
+      { url: "/?page=999999", inTable: ["株式会社ＷＯＬＶＥＳ　ＨＡＮＤ"] },
+    ];
 
-    // companies.json全件がハイドレーション用データとして<script>内にも埋め込まれる
-    // ため、単純な会社名の文字列検索では実際に描画された<table>の中身かどうかを
-    // 区別できない。<table>...</table>内のtbody行数（見た目に表示される内容）だけを
-    // 数える。AC-7どおり銀行業は82社で、1ページはPAGE_SIZE=30件（Issue #103）。
-    const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
-    const rowCount = (tableHtml.match(/<tr/g) ?? []).length - 1; // theadの1行を除く
-    expect(rowCount).toBe(30);
+    for (const c of cases) {
+      const response = await request.get(c.url);
+      expect(response.status(), c.url).toBe(200);
+      const html = await response.text();
+      const table = tableHtml(html);
+      const text = visibleText(html);
 
-    // 絞り込みが効いていることは総件数の表示で見る（行数はPAGE_SIZEで頭打ちのため）。
-    // Reactは文字列の境目に<!-- -->を挟むので、コメントとタグを落としてから読む。
-    const text = html
-      .replace(/<script[\s\S]*?<\/script>/g, "")
-      .replace(/<!--[\s\S]*?-->/g, "")
-      .replace(/<[^>]+>/g, "");
-    expect(text).toContain("82社 中 1〜30社目");
+      for (const s of c.text ?? []) expect(text, `${c.url} の地の文`).toContain(s);
+      for (const s of c.notInHtml ?? []) expect(html, `${c.url} の HTML`).not.toContain(s);
+      for (const s of c.inTable ?? []) expect(table, `${c.url} の表`).toContain(s);
+      for (const s of c.notInTable ?? []) expect(table, `${c.url} の表`).not.toContain(s);
+      if (c.rows !== undefined) {
+        const rowCount = (table.match(/<tr/g) ?? []).length - 1; // thead の1行を除く
+        expect(rowCount, `${c.url} の行数`).toBe(c.rows);
+      }
+    }
   });
 
-  test("AC-7: /?age=45&ind=銀行業 を直接開くと、45歳・銀行業82社の状態で復元される", async ({ page }) => {
-    await page.goto("/?age=45&ind=銀行業");
+  // `age` の有無が表示基準を表す（ADR-0007）。AC-7 の2つのシナリオ。
+  test("AC-7: URL を直接開くと、表示基準・年齢・業種がその状態で復元される", async ({ page }) => {
+    for (const [url, pressed, heading] of [
+      ["/?age=45&ind=銀行業", "45歳", "45歳年収ランキング"],
+      ["/?ind=銀行業", "実測値", "平均年収ランキング"],
+    ] as const) {
+      await page.goto(url);
 
-    await expect(page.getByRole("button", { name: "45歳" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("combobox", { name: "業種" })).toContainText("銀行業");
-
-    // 銀行業は82社。1ページはPAGE_SIZE=30件なので、82社であることは件数表示で見る。
-    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
-    const rows = page.getByRole("table").locator("tbody tr");
-    await expect(rows).toHaveCount(30);
+      await expect(page.getByRole("button", { name: pressed }), url).toHaveAttribute(
+        "aria-pressed",
+        "true"
+      );
+      await expect(page.getByRole("heading", { level: 1 }), url).toHaveText(heading);
+      await expect(page.getByRole("combobox", { name: "業種" }), url).toContainText("銀行業");
+      // 銀行業は82社。1ページはPAGE_SIZE=30件なので、82社であることは件数表示で見る。
+      await expect(page.getByText("82社 中 1〜30社目"), url).toBeVisible();
+      await expect(page.getByRole("table").locator("tbody tr"), url).toHaveCount(30);
+    }
   });
 
-  test("初期状態（何も操作しない）のURLは / のまま", async ({ page }) => {
-    await page.goto("/");
-    await expect(page).toHaveURL(/\/$/);
-  });
-
-  // 既定は実測値で年齢スイッチは無効なので、まず「年齢そろえ」に切り替える（ADR-0007）。
-  test("フィルタを操作するとURLにクエリが反映される", async ({ page }) => {
+  /*
+   * 実測値 ⇄ 年齢そろえ の切替も、年齢・業種と同じく履歴に積まれる。
+   * 最後の1回で「年齢そろえにしてから戻ると実測値に戻る」ことも見る。
+   */
+  test("ブラウザの戻るを押すと一つ前の絞り込み状態に戻る", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page).toHaveURL(/[?&]age=35/);
-
-    await page.getByRole("button", { name: "45歳" }).click();
-    await expect(page).toHaveURL(/[?&]age=45/);
-  });
-
-  test("ブラウザの戻るを押すと一つ前の絞り込み状態に戻る", async ({ page }) => {
-    await page.goto("/?age=35");
 
     await page.getByRole("button", { name: "45歳" }).click();
     await expect(page).toHaveURL(/[?&]age=45/);
@@ -75,15 +132,6 @@ test.describe("URLクエリとの同期", () => {
     await page.goBack();
     await expect(page).toHaveURL(/[?&]age=35/);
     await expect(page.getByRole("button", { name: "35歳" })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  // 実測値 ⇄ 年齢そろえ の切替も履歴に積まれる。
-  test("年齢そろえに切り替えたあと戻ると実測値に戻る", async ({ page }) => {
-    await page.goto("/");
-    await expect(page).toHaveURL(/\/$/);
-
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page).toHaveURL(/[?&]age=35/);
 
     await page.goBack();
     await expect(page).toHaveURL(/\/$/);
@@ -94,85 +142,181 @@ test.describe("URLクエリとの同期", () => {
     await expect(page.getByRole("button", { name: "45歳" })).toBeDisabled();
   });
 
-  test("フィルタ操作中にネットワークリクエストが発生しない", async ({ page }) => {
+  /*
+   * **操作でネットワークリクエストが発生しない**（AC-7。全件は初回に1度だけ届く・
+   * ADR-0013）。以前は表示基準・絞り込み・並び替え・向きの反転・ページ送り・業種チップ・
+   * ヘッダの検索・サイト名・メタデータの更新と、操作ごとに10本近くに散らばっていた。
+   * **1本の流れで続けて操作し、1手ごとに0件であることを見る**（どの手で起きたかが
+   * 失敗のメッセージに出る）。
+   *
+   * 取り分けて危ないのは次の3つで、どれも実体のあるリンクや form を持っている。
+   * - 業種チップ: `<a href="/?ind=…">` の左クリックを横取りしている（ADR-0006 の経路）
+   * - ヘッダの検索: `/` の上だけ `pushState`、それ以外は素の `<form action="/">`
+   * - サイト名: `/` の上ではクリックを横取りして `pushRankingReset()` を呼ぶ。
+   *   `<Link href="/">` に任せていた頃は URL だけ `/` になって表が絞り込まれたまま
+   *   だった（公開後の報告）。**`?age=35` から始める**のは、戻す先がサーバーの
+   *   初期値ではなく既定の状態であることまで見るため
+   */
+  test("操作を続けてもネットワークリクエストが1件も発生しない", async ({ page }) => {
     await page.goto("/?age=35");
-
     await waitForRankingReady(page);
     const requests = collectPageRequests(page);
 
-    await page.getByRole("button", { name: "実測値" }).click();
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await page.getByRole("button", { name: "45歳" }).click();
-    await page.getByRole("combobox", { name: "業種" }).click();
-    await page.getByRole("option", { name: "海運業", exact: true }).click();
+    const steps: [string, () => Promise<void>][] = [
+      [
+        "年齢スイッチ",
+        async () => {
+          await page.getByRole("button", { name: "45歳" }).click();
+          await expect(page).toHaveURL(/\/\?age=45$/);
+        },
+      ],
+      [
+        "表示基準（実測値へ）",
+        async () => {
+          await page.getByRole("button", { name: "実測値" }).click();
+          await expect(page).toHaveURL(/\/$/);
+        },
+      ],
+      [
+        "表示基準（年齢そろえへ）",
+        async () => {
+          await page.getByRole("button", { name: "年齢そろえ" }).click();
+          await expect(page).toHaveURL(/\/\?age=35$/);
+        },
+      ],
+      [
+        "ページ送り",
+        async () => {
+          await page.getByRole("button", { name: "次のページへ" }).click();
+          await expect(page).toHaveURL(/[?&]page=2$/);
+        },
+      ],
+      [
+        "ページ番号",
+        async () => {
+          await page.getByRole("button", { name: "4", exact: true }).click();
+          await expect(page).toHaveURL(/[?&]page=4$/);
+        },
+      ],
+      [
+        "並び替え",
+        async () => {
+          await page
+            .getByRole("group", { name: "並び替え" })
+            .getByRole("button", { name: "平均年齢 高い順" })
+            .click();
+          await expect(page).toHaveURL(/\/\?age=35&sort=age$/);
+        },
+      ],
+      [
+        "並び替えの向きの反転",
+        async () => {
+          await page
+            .getByRole("group", { name: "並び替え" })
+            .getByRole("button", { name: "平均年齢 高い順" })
+            .click();
+          await expect(page).toHaveURL(/[?&]sort=age-asc$/);
+        },
+      ],
+      [
+        "業種セレクト",
+        async () => {
+          await page.getByRole("combobox", { name: "業種" }).click();
+          await page.getByRole("option", { name: "海運業", exact: true }).click();
+          await expect(page).toHaveURL(/[?&]ind=%E6%B5%B7%E9%81%8B%E6%A5%AD/);
+        },
+      ],
+      [
+        "業種チップ",
+        async () => {
+          await page
+            .getByRole("navigation", { name: "業種から見る" })
+            .getByRole("link", { name: "銀行業 82社", exact: true })
+            .click();
+          await expect(page).toHaveURL(/[?&]ind=%E9%8A%80%E8%A1%8C%E6%A5%AD/);
+          await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+        },
+      ],
+      [
+        "従業員数のスイッチ",
+        async () => {
+          await page
+            .getByRole("group", { name: "従業員数" })
+            .getByRole("button", { name: "1,000人以上", exact: true })
+            .click();
+          await expect(page).toHaveURL(/[?&]emp=1000-/);
+        },
+      ],
+      [
+        "ヘッダの検索",
+        async () => {
+          await page
+            .getByRole("banner")
+            .getByRole("searchbox", { name: "会社名で検索" })
+            .fill("みずほ");
+          await expect(page).toHaveURL(/[?&]q=/);
+          await expect(page.getByText("2,961社 中")).toHaveCount(0);
+        },
+      ],
+      [
+        "サイト名",
+        async () => {
+          await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
+          await expect(page).toHaveURL(/\/$/);
+          await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
+          await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
+            "aria-pressed",
+            "true"
+          );
+        },
+      ],
+    ];
 
-    expect(requests).toHaveLength(0);
-  });
-
-  test("並び順は操作した順序に関係なく常に同じクエリ文字列になる（カノニカル化）", async ({ page }) => {
-    await page.goto("/?age=35");
-    await page.getByRole("combobox", { name: "業種" }).click();
-    await page.getByRole("option", { name: "海運業", exact: true }).click();
-    await page.getByRole("button", { name: "45歳" }).click();
-    const urlA = new URL(page.url()).search;
-
-    await page.goto("/?age=35");
-    await page.getByRole("button", { name: "45歳" }).click();
-    await page.getByRole("combobox", { name: "業種" }).click();
-    await page.getByRole("option", { name: "海運業", exact: true }).click();
-    const urlB = new URL(page.url()).search;
-
-    expect(urlA).toBe(urlB);
+    for (const [label, step] of steps) {
+      await step();
+      expect(requests, `${label}の後`).toEqual([]);
+    }
   });
 });
 
 /**
- * ページを跨いだ戻る/進む（Issue #108）。
+ * ページを跨いだ戻る/進む（Issue #108・AC-15）。
  *
- * 戻ったときの `RankingApp` は**サーバーが渡した初期値では作り直されない**——
- * Next.js はルーターキャッシュに載っている RSC ツリーをそのまま返すので、初期値は
- * 「そのツリーを作ったときのURL」の値になる。URL を正として読み直せているか、
- * そして**抜けていくページが行き先のURLを書き潰していないか**をここで固定する。
+ * 戻ったときの `RankingApp` は**サーバーが渡した初期値で作り直されるとは限らない**——
+ * ブラウザのキャッシュから返った HTML は「それが作られたときのURL」の値を持つ。
+ * URL を正として読み直せているか、そして**抜けていくページが行き先のURLを書き潰して
+ * いないか**をここで固定する（`lib/history/useLocationSyncedState.ts` の3規則）。
  */
 test.describe("ページを跨いだ戻る/進む", () => {
-  test("2ページ目から企業ページへ入って戻ると、2ページ目に戻る", async ({ page }) => {
-    await page.goto("/");
-    await page.getByRole("button", { name: "次のページへ" }).click();
-    await expect(page).toHaveURL(/[?&]page=2/);
-
-    const firstRow = page.getByRole("table").locator("tbody tr a[href^='/company/']").first();
-    const name = (await firstRow.textContent())?.trim();
-    await firstRow.click();
-    await expect(page).toHaveURL(/\/company\//);
-
-    await page.goBack();
-
-    await expect(page).toHaveURL(/[?&]page=2/);
-    // URL だけでなく中身も2ページ目であること（1ページ目に描き替わっていない）。
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("ランキング");
-    await expect(
-      page.getByRole("table").locator("tbody tr a[href^='/company/']").first()
-    ).toHaveText(name!);
-
-    // 進むで企業ページへ戻れる（戻った先で pushState すると進む先が消える）。
-    await page.goForward();
-    await expect(page).toHaveURL(/\/company\//);
-  });
-
-  test("絞り込んだ状態から企業ページへ入って戻ると、絞り込みが残る", async ({ page }) => {
+  /*
+   * 絞り込み（URL を直接開いて作る）とページ番号（`pushState` で作る）の両方を
+   * 持った状態で往復する。**進むで企業ページへ戻れることも見る**——戻った先で
+   * `pushState` すると進む先が消える。
+   */
+  test("絞り込んだ2ページ目から企業ページへ入って戻ると、同じ状態に戻り、進むでまた入れる", async ({
+    page,
+  }) => {
     await page.goto("/?age=35&ind=銀行業");
     await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await page.getByRole("button", { name: "次のページへ" }).click();
+    await expect(page).toHaveURL(/[?&]page=2/);
+    await expect(page.getByText("82社 中 31〜60社目")).toBeVisible();
 
-    await page.getByRole("table").locator("tbody tr a[href^='/company/']").first().click();
+    const firstLink = page.getByRole("table").locator("tbody tr a[href^='/company/']").first();
+    const name = (await firstLink.textContent())?.trim();
+    await firstLink.click();
     await expect(page).toHaveURL(/\/company\//);
 
     await page.goBack();
 
-    await expect(page).toHaveURL(/[?&]ind=/);
-    // 企業ページ側の `?age=` 同期がランキングのURLを書き潰していないこと。
-    // 書き潰すと Next.js は浅い遷移として扱い、**画面は企業ページのまま**になる。
+    await expect(page).toHaveURL(/[?&]ind=.*page=2/);
+    // URL だけでなく中身も同じ状態であること（1ページ目・既定の状態に描き替わっていない）。
     await expect(page.getByRole("heading", { level: 1 })).toContainText("35歳年収ランキング");
-    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await expect(page.getByText("82社 中 31〜60社目")).toBeVisible();
+    await expect(firstLink).toHaveText(name!);
+
+    await page.goForward();
+    await expect(page).toHaveURL(/\/company\//);
   });
 
   test("クエリの並びが正規形でないURLでも、履歴が増えず、戻ればランキングに戻る", async ({
@@ -200,6 +344,7 @@ test.describe("ページを跨いだ戻る/進む", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText("35歳年収ランキング");
   });
 
+  // push と replace の分け方は `lib/queryBroadcast.test.ts` が持つ。ここでは実際の履歴の件数を見る。
   test("検索欄に打った文字数だけ履歴が増えない", async ({ page }) => {
     await page.goto("/");
     const before = await page.evaluate(() => history.length);

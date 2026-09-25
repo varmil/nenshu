@@ -1,82 +1,74 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildSearchParams,
-  parseSearchParams,
-  rankingHref,
-  searchParamsRecordToURLSearchParams,
-  INITIAL_STATE,
-} from "./urlState";
+import { buildSearchParams, parseSearchParams, rankingHref, INITIAL_STATE } from "./urlState";
 import type { RankingState } from "../types";
 
 function stateFor(overrides: Partial<RankingState>): RankingState {
   return { ...INITIAL_STATE, ...overrides };
 }
 
+const parse = (query: string) => parseSearchParams(new URLSearchParams(query));
+
 describe("parseSearchParams", () => {
-  it("AC-7: age=45&ind=銀行業 から targetAge=45, industry=銀行業 を復元する", () => {
-    const parsed = parseSearchParams(new URLSearchParams("age=45&ind=銀行業"));
-    expect(parsed.targetAge).toBe(45);
-    expect(parsed.industry).toBe("銀行業");
+  /*
+   * 読めるものは読み、URL に無いものは返さない（呼び出し側が INITIAL_STATE に重ねる）。
+   * 並び替えは**軸だけのURLなら3軸とも降順**（既定の向き。U15 の直後に揃えた）で、
+   * 書き出さない綴りの `-desc` も読めば通る——既定を降順に揃える前に配った
+   * `?sort=age-desc` が既定の並びに倒れないため。
+   */
+  it.each<[string, Partial<RankingState>]>([
+    // AC-7
+    ["age=45&ind=銀行業", { targetAge: 45, industry: "銀行業" }],
+    [
+      "emp=1000-&ten=-13&aage=40-43",
+      { employeeSize: "1000plus", tenure: "under13", avgAgeBucket: "40to43" },
+    ],
+    ["q=商船", { query: "商船" }],
+    ["page=2", { page: 2 }],
+    ["sort=salary", { sort: { key: "salary", order: "desc" } }],
+    ["sort=age", { sort: { key: "age", order: "desc" } }],
+    ["sort=emp", { sort: { key: "employees", order: "desc" } }],
+    ["sort=age-desc", { sort: { key: "age", order: "desc" } }],
+    ["sort=emp-asc", { sort: { key: "employees", order: "asc" } }],
+    ["sort=salary-asc", { sort: { key: "salary", order: "asc" } }],
+    ["", {}],
+  ])("「%s」を復元する", (query, expected) => {
+    expect(parse(query)).toEqual(expected);
+  });
+
+  /*
+   * 不正・未知の値は無視して既定に倒す（エラー画面は出さない）。`age` が読めなければ
+   * 実測値になる（ADR-0007）。並び替えは向きだけが読めないときも軸ごと捨てる。
+   */
+  it.each([
+    "age=33",
+    "age=abc",
+    "age=999",
+    "emp=abc&ten=xyz&aage=?",
+    "page=0",
+    "page=-1",
+    "page=abc",
+    "page=1.5",
+    "sort=zzz",
+    "sort=age-zzz",
+    "sort=zzz-asc",
+    "sort=age-",
+  ])("不正な「%s」は無視する", (query) => {
+    expect(parse(query)).toEqual({});
   });
 
   // ADR-0007: `age` の有無そのものが表示基準を表す。
   it("ageが無いURLは実測値（targetAge=null）になる", () => {
     expect(INITIAL_STATE.targetAge).toBeNull();
-    const parsed = parseSearchParams(new URLSearchParams("ind=銀行業"));
-    expect(parsed.targetAge).toBeUndefined();
-    expect({ ...INITIAL_STATE, ...parsed }.targetAge).toBeNull();
-  });
-
-  it("age=35 は「年齢そろえの35歳」として復元される（実測値ではない）", () => {
-    const parsed = parseSearchParams(new URLSearchParams("age=35"));
-    expect(parsed.targetAge).toBe(35);
-  });
-
-  it("不正なageは無視され実測値に倒れる（TARGET_AGESに無い値）", () => {
-    expect({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("age=33")) }.targetAge).toBeNull();
-    expect({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("age=abc")) }.targetAge).toBeNull();
-    const parsed = parseSearchParams(new URLSearchParams("age=999"));
-    expect(parsed.targetAge).toBeUndefined();
-  });
-
-  it("不正なemp/ten/aageは無視する（未知のパターン）", () => {
-    const parsed = parseSearchParams(new URLSearchParams("emp=abc&ten=xyz&aage=?"));
-    expect(parsed.employeeSize).toBeUndefined();
-    expect(parsed.tenure).toBeUndefined();
-    expect(parsed.avgAgeBucket).toBeUndefined();
-  });
-
-  it("バケット系の範囲表記を正しく復元する", () => {
-    const parsed = parseSearchParams(new URLSearchParams("emp=1000-&ten=-13&aage=40-43"));
-    expect(parsed.employeeSize).toBe("1000plus");
-    expect(parsed.tenure).toBe("under13");
-    expect(parsed.avgAgeBucket).toBe("40to43");
-  });
-
-  it("qはそのまま復元する", () => {
-    const parsed = parseSearchParams(new URLSearchParams("q=商船"));
-    expect(parsed.query).toBe("商船");
-  });
-
-  it("空のパラメータからは何も復元しない", () => {
-    expect(parseSearchParams(new URLSearchParams(""))).toEqual({});
-  });
-
-  it("pageを正しい整数として復元する", () => {
-    expect(parseSearchParams(new URLSearchParams("page=2")).page).toBe(2);
-  });
-
-  it("不正なpage（0・負数・非数値）は無視する", () => {
-    expect(parseSearchParams(new URLSearchParams("page=0")).page).toBeUndefined();
-    expect(parseSearchParams(new URLSearchParams("page=-1")).page).toBeUndefined();
-    expect(parseSearchParams(new URLSearchParams("page=abc")).page).toBeUndefined();
-    expect(parseSearchParams(new URLSearchParams("page=1.5")).page).toBeUndefined();
+    expect(stateFor(parse("ind=銀行業")).targetAge).toBeNull();
   });
 });
 
 describe("buildSearchParams", () => {
-  it("初期値と同じ項目はクエリに出さない", () => {
+  it("初期値と同じ項目はクエリに出さない（実測値・年収が高い順・1ページ目）", () => {
     expect(buildSearchParams(INITIAL_STATE).toString()).toBe("");
+    expect(
+      buildSearchParams(stateFor({ sort: { key: "salary", order: "desc" }, page: 1 })).toString()
+    ).toBe("");
   });
 
   // ADR-0007: 35歳を既定として省いていた頃と違い、年齢そろえなら35歳でも出す。
@@ -85,202 +77,39 @@ describe("buildSearchParams", () => {
     expect(buildSearchParams(stateFor({ targetAge: 35 })).toString()).toBe("age=35");
   });
 
-  it("実測値（targetAge=null）は age を出さない", () => {
-    expect(buildSearchParams(stateFor({ targetAge: null })).has("age")).toBe(false);
-    expect(buildSearchParams(stateFor({ targetAge: null, industry: "銀行業" })).toString()).toBe(
-      "ind=%E9%8A%80%E8%A1%8C%E6%A5%AD"
-    );
+  /*
+   * 並びは age → ind → emp → ten → aage → q → sort → page に固定（カノニカル化）。
+   * フィルタを適用した順序に関係なく同じ絞り込みなら同じ文字列になる。
+   * **正規形の文字列を parse → build して同じ文字列に戻る**ことで、読み書きの対応と
+   * 並びの両方を固定する。並び替えは既定の向きなら軸だけ、逆向きなら `-asc` を足す
+   * （3軸とも既定が降順なので、書き出す綴りに `-desc` は現れない）。
+   */
+  it.each([
+    // 全項目。バケット系は範囲表記。
+    "age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&emp=300-1000&ten=17-&aage=43-&q=%E5%95%86%E8%88%B9&page=3",
+    // 実測値（age なし）
+    "ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&emp=1000-&q=%E4%B8%89%E4%BA%95&page=2",
+    "emp=-300&ten=-13&aage=-40",
+    "sort=age",
+    "sort=emp",
+    "sort=age-asc",
+    "sort=salary-asc",
+    "sort=emp-asc",
+    // sort は q の後、page の前
+    "age=35&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&sort=age&page=2",
+  ])("正規形「%s」は往復して同じ文字列に戻る", (query) => {
+    expect(buildSearchParams(stateFor(parse(query))).toString()).toBe(query);
   });
 
-  it("実測値と年齢そろえ35歳が別のURLになる", () => {
-    expect(buildSearchParams(stateFor({ targetAge: null })).toString()).not.toBe(
-      buildSearchParams(stateFor({ targetAge: 35 })).toString()
-    );
-  });
-
-  it("バケット系フィルタを範囲表記でエンコードする", () => {
-    const params = buildSearchParams(
-      stateFor({ employeeSize: "1000plus", tenure: "under13", avgAgeBucket: "40to43" })
-    );
-    expect(params.get("emp")).toBe("1000-");
-    expect(params.get("ten")).toBe("-13");
-    expect(params.get("aage")).toBe("40-43");
-  });
-
-  it("page=1（既定値）はクエリに出さない", () => {
-    expect(buildSearchParams(stateFor({ page: 1 })).has("page")).toBe(false);
-  });
-
-  it("pageが1以外なら末尾に出す", () => {
-    const params = buildSearchParams(stateFor({ industry: "銀行業", page: 2 }));
-    expect(params.toString()).toBe("ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
-  });
-
-  it("往復変換が一致する（build→parse→buildが同じ文字列になる）", () => {
-    const state = stateFor({
-      targetAge: 45,
-      industry: "銀行業",
-      employeeSize: "300to1000",
-      tenure: "17plus",
-      avgAgeBucket: "43plus",
-      query: "商船",
-      page: 3,
-    });
-    const first = buildSearchParams(state).toString();
-    const parsed = parseSearchParams(new URLSearchParams(first));
-    const second = buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString();
-    expect(second).toBe(first);
-  });
-
-  it("実測値でも往復変換が一致する", () => {
-    const state = stateFor({ targetAge: null, industry: "銀行業", query: "商船", page: 2 });
-    const first = buildSearchParams(state).toString();
-    const parsed = parseSearchParams(new URLSearchParams(first));
-    const restored = { ...INITIAL_STATE, ...parsed };
-    expect(restored.targetAge).toBeNull();
-    expect(buildSearchParams(restored).toString()).toBe(first);
-  });
-
-  it("並び順はフィルタを適用した順序に関係なく常に同じになる（カノニカル化）", () => {
+  it("オブジェクトの鍵の順序によらず同じ並びで出す", () => {
     const a = stateFor({ industry: "銀行業", employeeSize: "1000plus", query: "三井" });
-    // 同じ内容を異なる順序のオブジェクトリテラルで組み立てても、buildSearchParamsの出力順は固定。
     const b: RankingState = {
       ...INITIAL_STATE,
       query: "三井",
       employeeSize: "1000plus",
       industry: "銀行業",
     };
-    expect(buildSearchParams(a).toString()).toBe(buildSearchParams(b).toString());
-    expect(buildSearchParams(a).toString()).toBe("ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&emp=1000-&q=%E4%B8%89%E4%BA%95");
-  });
-});
-
-describe("AC-12 並び替えのURL同期", () => {
-  it("既定（年収が高い順）は sort を出さない", () => {
-    expect(buildSearchParams(stateFor({ sort: { key: "salary", order: "desc" } })).toString()).toBe("");
-  });
-
-  it("平均年齢・従業員数は sort に出す", () => {
-    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "desc" } })).toString()).toBe("sort=age");
-    expect(buildSearchParams(stateFor({ sort: { key: "employees", order: "desc" } })).toString()).toBe("sort=emp");
-  });
-
-  it("sort=emp から復元する", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toEqual({
-      key: "employees",
-      order: "desc",
-    });
-  });
-
-  it("未知の sort は無視して既定に倒れる", () => {
-    const restored = { ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams("sort=zzz")) };
-    expect(restored.sort).toEqual({ key: "salary", order: "desc" });
-  });
-
-  /*
-   * 向き（Issue #106）。**既定の向きなら軸だけ、逆向きなら `-asc` を足す。**
-   * 3軸とも既定は降順なので、URLに向きが出るのは昇順のときだけになる
-   * （`-desc` を綴る状態は無い。同じ並びに2つの綴りを作らない）。
-   */
-  it("逆向き（昇順）は sort に向きを足して出す", () => {
-    expect(buildSearchParams(stateFor({ sort: { key: "salary", order: "asc" } })).toString()).toBe(
-      "sort=salary-asc"
-    );
-    expect(buildSearchParams(stateFor({ sort: { key: "age", order: "asc" } })).toString()).toBe(
-      "sort=age-asc"
-    );
-    expect(
-      buildSearchParams(stateFor({ sort: { key: "employees", order: "asc" } })).toString()
-    ).toBe("sort=emp-asc");
-  });
-
-  it("軸だけのURLは3軸とも降順になる", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=age")).sort).toEqual({
-      key: "age",
-      order: "desc",
-    });
-    expect(parseSearchParams(new URLSearchParams("sort=emp")).sort).toEqual({
-      key: "employees",
-      order: "desc",
-    });
-    expect(parseSearchParams(new URLSearchParams("sort=salary")).sort).toEqual({
-      key: "salary",
-      order: "desc",
-    });
-  });
-
-  /*
-   * 既定を降順に揃える前に配った `?sort=age`（若い順のつもり）は、いま高い順で開く。
-   * **`-desc` を綴った古いURLも読めること**だけは残す——書き出す側は使わないが、
-   * 読む側が落とすと `?sort=age-desc` が既定の並びに倒れてしまう。
-   */
-  it("書き出さない綴り（-desc）も読めば通る", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=age-desc")).sort).toEqual({
-      key: "age",
-      order: "desc",
-    });
-  });
-
-  it("向き付きの sort から復元する", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=emp-asc")).sort).toEqual({
-      key: "employees",
-      order: "asc",
-    });
-    expect(parseSearchParams(new URLSearchParams("sort=salary-asc")).sort).toEqual({
-      key: "salary",
-      order: "asc",
-    });
-  });
-
-  // 「不正な値は既定に倒す」（parseSearchParams）。向きだけが読めないときは軸を採る。
-  it("未知の向きは無視して軸の既定の向きになる", () => {
-    expect(parseSearchParams(new URLSearchParams("sort=age-zzz")).sort).toBeUndefined();
-    expect(parseSearchParams(new URLSearchParams("sort=zzz-asc")).sort).toBeUndefined();
-    expect(parseSearchParams(new URLSearchParams("sort=age-")).sort).toBeUndefined();
-  });
-
-  it("向きを含めても往復変換が一致する", () => {
-    for (const spelling of ["sort=age-asc", "sort=salary-asc", "sort=emp-asc", "sort=emp"]) {
-      const parsed = parseSearchParams(new URLSearchParams(spelling));
-      expect(buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString()).toBe(spelling);
-    }
-  });
-
-  // sort は page の前、q の後（カノニカル化）。
-  it("sort を含めても往復変換が一致する", () => {
-    const state = stateFor({
-      targetAge: 35,
-      industry: "銀行業",
-      sort: { key: "age", order: "desc" },
-      page: 2,
-    });
-    const first = buildSearchParams(state).toString();
-    expect(first).toBe("age=35&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&sort=age&page=2");
-    const parsed = parseSearchParams(new URLSearchParams(first));
-    expect(buildSearchParams({ ...INITIAL_STATE, ...parsed }).toString()).toBe(first);
-  });
-});
-
-describe("searchParamsRecordToURLSearchParams", () => {
-  it("プレーンオブジェクトをURLSearchParamsに変換する", () => {
-    const params = searchParamsRecordToURLSearchParams({ age: "45", ind: "銀行業" });
-    expect(params.get("age")).toBe("45");
-    expect(params.get("ind")).toBe("銀行業");
-  });
-
-  it("値が配列の場合は最初の要素を使う", () => {
-    const params = searchParamsRecordToURLSearchParams({ age: ["45", "50"] });
-    expect(params.get("age")).toBe("45");
-  });
-
-  it("値がundefinedのキーは無視する", () => {
-    const params = searchParamsRecordToURLSearchParams({ age: undefined, ind: "銀行業" });
-    expect(params.has("age")).toBe(false);
-    expect(params.get("ind")).toBe("銀行業");
-  });
-
-  it("空オブジェクトからは空のURLSearchParamsになる", () => {
-    expect(searchParamsRecordToURLSearchParams({}).toString()).toBe("");
+    expect(buildSearchParams(b).toString()).toBe(buildSearchParams(a).toString());
   });
 });
 
@@ -312,6 +141,6 @@ describe("rankingHref", () => {
     const state = stateFor(overrides);
     const href = rankingHref(state);
     const search = href.startsWith("/?") ? href.slice(2) : "";
-    expect(stateFor(parseSearchParams(new URLSearchParams(search)))).toEqual(state);
+    expect(stateFor(parse(search))).toEqual(state);
   });
 });

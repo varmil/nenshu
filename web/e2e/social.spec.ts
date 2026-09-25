@@ -1,4 +1,5 @@
-import { test, expect, type APIRequestContext } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
+import { test, expect } from "./appTest";
 import { OG_IMAGE } from "../lib/brand/assets";
 
 /**
@@ -16,6 +17,13 @@ const BANK = "%E9%8A%80%E8%A1%8C%E6%A5%AD";
 
 /** インデックスさせる5種類。ファセットも含めて全部見る（AC-10）。 */
 const PAGES = ["/", "/?age=35", `/?ind=${BANK}`, "/about", "/company/6861"];
+
+/**
+ * 非正規URL（AC-11 の肝）。**両方が寄せ先を指す**こと——別々に組み立てていると、
+ * canonical だけが `/?ind=銀行業` を指して `og:url` が自分自身を指す。寄せ先そのものが
+ * 正しいかは `seo.spec.ts` が見る。
+ */
+const NON_CANONICAL = [`/?age=35&ind=${BANK}`, "/?emp=1000-", "/company/6861?age=35"];
 
 function unescapeHtml(value: string): string {
   return value
@@ -48,65 +56,37 @@ async function headOf(request: APIRequestContext, path: string) {
   };
 }
 
-test.describe("OGP（AC-10〜AC-12）", () => {
-  for (const path of PAGES) {
-    test(`${path} に og: 一式が出る`, async ({ request }) => {
+test.describe("OGP（AC-10〜AC-13）", () => {
+  /*
+    OG画像（AC-13）のうち、実体が 200 で返ることは `branding.spec.ts` の「参照先が全部
+    200 で返る」が、1200×630 で焼けていることは `lib/brand/assets.test.ts` が見る。
+    ここで見るのは、絶対URLと寸法が HTML に出ていること。
+  */
+  test("どのページにも og: 一式が出て、og:url は非正規URLでも canonical と同じ", async ({
+    request,
+  }) => {
+    for (const path of [...PAGES, ...NON_CANONICAL]) {
       const head = await headOf(request, path);
 
-      expect(head.og("site_name")).toBe("OpenReport");
-      expect(head.og("type")).toBe("website");
-      expect(head.og("locale")).toBe("ja_JP");
-      expect(head.og("image")).toBe(`${ORIGIN}${OG_IMAGE.path}`);
-      expect(head.twitterCard).toBe("summary_large_image");
+      expect(head.og("site_name"), path).toBe("OpenReport");
+      expect(head.og("type"), path).toBe("website");
+      expect(head.og("locale"), path).toBe("ja_JP");
+      expect(head.og("image"), path).toBe(`${ORIGIN}${OG_IMAGE.path}`);
+      // 寸法は `og:image:width` / `og:image:height` としても出す（カードの枠を先に決められる）。
+      expect(head.og("image:width"), path).toBe(String(OG_IMAGE.width));
+      expect(head.og("image:height"), path).toBe(String(OG_IMAGE.height));
+      expect(head.twitterCard, path).toBe("summary_large_image");
 
-      // AC-12: そのページの title・description と同じ文字列。
-      expect(head.og("title")).toBe(head.title);
-      expect(head.og("description")).toBe(head.description);
+      // AC-12: そのページの title・description と同じ文字列（両方が無くても一致して
+      // しまうので、有ることも見る）。
+      expect(head.title, path).toBeTruthy();
+      expect(head.description, path).toBeTruthy();
+      expect(head.og("title"), path).toBe(head.title);
+      expect(head.og("description"), path).toBe(head.description);
       // AC-11: canonical と同じ文字列。
-      expect(head.og("url")).toBe(head.canonical);
-    });
-  }
-
-  /**
-   * AC-11 の肝。**非正規URLで両方が寄せ先を指す**こと——別々に組み立てていると、
-   * canonical だけが `/?ind=銀行業` を指して `og:url` が自分自身を指す。
-   */
-  test("非正規URLでも og:url と canonical が同じ寄せ先を指す", async ({ request }) => {
-    const facet = await headOf(request, `/?age=35&ind=${BANK}`);
-    expect(facet.canonical).toBe(`${ORIGIN}/?ind=${BANK}`);
-    expect(facet.og("url")).toBe(facet.canonical);
-
-    const filtered = await headOf(request, "/?emp=1000-");
-    expect(filtered.canonical).toBe(ORIGIN);
-    expect(filtered.og("url")).toBe(filtered.canonical);
-
-    const company = await headOf(request, "/company/6861?age=35");
-    expect(company.canonical).toBe(`${ORIGIN}/company/6861`);
-    expect(company.og("url")).toBe(company.canonical);
-  });
-});
-
-test.describe("OG画像（AC-13）", () => {
-  test("絶対URLで、200 で返り、1200×630 である", async ({ request }) => {
-    const head = await headOf(request, "/");
-    const url = head.og("image");
-    expect(url).toBe(`${ORIGIN}${OG_IMAGE.path}`);
-    // 寸法は `og:image:width` / `og:image:height` としても出す（カードの枠を先に決められる）。
-    expect(head.og("image:width")).toBe(String(OG_IMAGE.width));
-    expect(head.og("image:height")).toBe(String(OG_IMAGE.height));
-
-    // 実体はこのサーバーが配る。オリジンは本番のものなのでパスで取りに行く。
-    const response = await request.get(OG_IMAGE.path);
-    expect(response.status()).toBe(200);
-    expect(response.headers()["content-type"]).toContain("image/png");
-
-    // PNG の IHDR から寸法を読む（`lib/brand/assets.test.ts` と同じ読み方）。
-    const png = await response.body();
-    expect(png.subarray(1, 4).toString()).toBe("PNG");
-    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([
-      OG_IMAGE.width,
-      OG_IMAGE.height,
-    ]);
+      expect(head.canonical, path).not.toBeNull();
+      expect(head.og("url"), path).toBe(head.canonical);
+    }
   });
 });
 
@@ -168,16 +148,13 @@ test.describe("構造化データ（AC-14・AC-15）", () => {
   });
 
   test("画面に出ていない値を入れない（AC-15）", async ({ request }) => {
-    const { jsonLd } = await headOf(request, "/company/6861");
+    const { html, jsonLd } = await headOf(request, "/company/6861");
     const keys = new Set(jsonLd.flatMap((data) => Object.keys(data)));
     // 金額・偏差値・順位は画面にあるが、パンくずの階層とは別の話。
     // **「機械にだけ渡す」入口を作らない**ために、鍵の集合そのものを固定する。
     expect([...keys].sort()).toEqual(["@context", "@type", "itemListElement"]);
-  });
-
-  test("Organization を出さない（spec 4.4）", async ({ request }) => {
-    // 企業ページが表すのは当該企業だが、その主体を名乗るのは我々ではない。
-    const { html } = await headOf(request, "/company/6861");
+    // Organization も出さない（spec 4.4）。企業ページが表すのは当該企業だが、
+    // その主体を名乗るのは我々ではない。
     expect(html).not.toContain('"Organization"');
   });
 });

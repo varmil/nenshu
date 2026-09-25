@@ -4,8 +4,7 @@ import { collectPageRequests, waitForRankingReady } from "./network";
 /**
  * L1 企業ロゴの表示（`docs/logo/spec.md` 2. AC-7〜AC-14）。
  *
- * ロゴを持つ会社は 1,625/2,961 で、**持たない会社がある**（E2 で母集団を広げたぶんは
- * まだ調達していない——追随は E3・#175。ADR-0008 決定3で
+ * ロゴを持つ会社は 2,536/2,961 で、**持たない会社がある**（ADR-0008 決定3で
  * 解像度の下限を外し、明るい器で空白に見える白いロゴは落とす——#156）。混在した状態が
  * 崩れないことがこの Unit の眼目なので、両方が出るページで見る。
  */
@@ -13,47 +12,34 @@ const WITH_LOGO = { id: "6861", name: "株式会社キーエンス" };
 /**
  * **ロゴを持たない会社は、到達率が上がるたびに入れ替わる。** 以前のキオクシアHD（285A）は
  * 公式サイトのURLを人が見つけて `PINNED` に足したので、ロゴを持つ側へ移った。
- * **選び直すときは「URLがどこにも無い269社」から採ること**——そこはサイトに届く手段が
+ * **選び直すときは「URLがどこにも無い271社」から採ること**——そこはサイトに届く手段が
  * 無いので当面は変わらない（日本オラクルは Wikidata に P856 が無く、gBizINFO の
  * `company_url` も null。`docs/logo/logo-pipeline/design.md`「公開後に直したもの6」）。
  */
 const WITHOUT_LOGO = { id: "4716", name: "日本オラクル株式会社", initial: "日" };
 
 test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
-  test("ロゴを持つ会社は画像が出る", async ({ page }) => {
+  test("AC-7: ロゴを持つ会社は画像が出て、器からはみ出さず、引き伸ばされていない", async ({ page }) => {
     await page.goto("/");
     const row = page.getByRole("row").filter({ hasText: WITH_LOGO.name });
-    const img = row.locator('[data-logo="image"] img');
+    const box = row.locator('[data-logo="image"]');
+    const img = box.locator("img");
     await expect(img).toHaveAttribute("src", `/logos/${WITH_LOGO.id}.webp`);
     // 実際に読めていること（壊れた画像を「出ている」と数えない）
     await expect
       .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
       .toBeGreaterThan(0);
-  });
 
-  // **検索で絞ってから見る。** E2 で母集団を広げてから、この会社は実測値の42位＝
-  // 1ページ目の外に出た（`/` の1ページ目は30件）。**母集団が動くたびに別の会社を
-  // 探し直さずに済むよう、行の在処を検索で固定する。**
-  test("ロゴを持たない会社は頭文字マークのまま", async ({ page }) => {
-    await page.goto(`/?q=${encodeURIComponent(WITHOUT_LOGO.name)}`);
-    const row = page.getByRole("row").filter({ hasText: WITHOUT_LOGO.name });
-    await expect(row.locator('[data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
-    await expect(row.locator('[data-logo="image"]')).toHaveCount(0);
-  });
-
-  test("画像は器からはみ出さず、引き伸ばされていない", async ({ page }) => {
-    await page.goto("/");
-    const box = page.locator('[data-logo="image"]').first();
     const size = await box.evaluate((el) => {
-      const img = el.querySelector("img") as HTMLImageElement;
+      const image = el.querySelector("img") as HTMLImageElement;
       const b = el.getBoundingClientRect();
-      const i = img.getBoundingClientRect();
+      const i = image.getBoundingClientRect();
       return {
         boxW: b.width,
         boxH: b.height,
         imgW: i.width,
         imgH: i.height,
-        naturalRatio: img.naturalWidth / img.naturalHeight,
+        naturalRatio: image.naturalWidth / image.naturalHeight,
         drawnRatio: i.width / i.height,
       };
     });
@@ -61,20 +47,39 @@ test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
     expect(size.imgH).toBeLessThanOrEqual(size.boxH + 0.5);
     // contain なので縦横比が変わらない
     expect(size.drawnRatio).toBeCloseTo(size.naturalRatio, 1);
-  });
 
-  test("壊れた画像・代替テキストの文字列が画面に出ない", async ({ page }) => {
-    await page.goto("/");
+    // 代替テキストは空。読み込みに失敗しても、社名の隣に同じ文字列が出ない。
     const alts = await page.locator('[data-logo="image"] img').evaluateAll((els) =>
       els.map((el) => (el as HTMLImageElement).alt),
     );
     expect(alts.length).toBeGreaterThan(0);
     expect(alts.every((alt) => alt === "")).toBe(true);
   });
+
+  // **ランキングは検索で絞ってから見る。** E2 で母集団を広げてから、この会社は実測値の
+  // 42位＝1ページ目の外に出た（`/` の1ページ目は30件）。**母集団が動くたびに別の会社を
+  // 探し直さずに済むよう、行の在処を検索で固定する。**
+  test("AC-8: ロゴを持たない会社はランキングでも企業詳細でも頭文字マーク", async ({ page }) => {
+    await page.goto(`/?q=${encodeURIComponent(WITHOUT_LOGO.name)}`);
+    const row = page.getByRole("row").filter({ hasText: WITHOUT_LOGO.name });
+    await expect(row.locator('[data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
+    await expect(row.locator('[data-logo="image"]')).toHaveCount(0);
+
+    await page.goto(`/company/${WITHOUT_LOGO.id}`);
+    await expect(page.locator('header [data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
+  });
 });
 
+/*
+  器の高さは表示箇所ごとに決めてよい（ADR-0008 決定4は「収め方」を共通にすると
+  決めているだけで、寸法は共通ではない）。ランキングの表だけモックの40pxより
+  大きい50pxにしてある（運営者の指示・Issue #128）ので、値もここで固定する。
+  高さが変わると行の高さも変わるため、CSS の一括変更で黙って戻るのを防ぐ。
+*/
 test.describe("AC-9 混在しても列が揃う", () => {
-  test("ロゴ・頭文字が混ざっても社名の開始位置と行の高さが同じ", async ({ page }) => {
+  test("ロゴ・頭文字が混ざっても社名の開始位置と行の高さが同じで、ロゴの器の高さが50pxで揃う", async ({
+    page,
+  }) => {
     await page.goto("/");
     const rows = page.getByRole("row");
     const measured = await rows.evaluateAll((els) =>
@@ -99,33 +104,15 @@ test.describe("AC-9 混在しても列が揃う", () => {
     expect(kinds).toEqual(new Set(["image", "initial"]));
     expect(new Set(measured.map((m) => m!.nameLeft)).size).toBe(1);
     expect(new Set(measured.map((m) => m!.markW)).size).toBe(1);
-    expect(new Set(measured.map((m) => m!.markH)).size).toBe(1);
+    expect([...new Set(measured.map((m) => m!.markH))]).toEqual([50]);
     expect(new Set(measured.map((m) => m!.rowH)).size).toBe(1);
-  });
-});
-
-/*
-  器の高さは表示箇所ごとに決めてよい（ADR-0008 決定4は「収め方」を共通にすると
-  決めているだけで、寸法は共通ではない）。ランキングの表だけモックの40pxより
-  大きい50pxにしてある（運営者の指示・Issue #128）ので、値をここで固定する。
-  高さが変わると行の高さも変わるため、CSS の一括変更で黙って戻るのを防ぐ。
-*/
-test.describe("ランキングの表（PC）の器", () => {
-  test("ロゴの器の高さが50pxで、ロゴの有無によらず揃う", async ({ page }) => {
-    await page.goto("/");
-    const heights = await page
-      .locator('table [data-logo="image"], table [data-logo="initial"]')
-      .evaluateAll((els) => [
-        ...new Set(els.map((el) => Math.round(el.getBoundingClientRect().height))),
-      ]);
-    expect(heights).toEqual([50]);
   });
 });
 
 test.describe("AC-10 モバイル", () => {
   test.use({ viewport: { width: 360, height: 800 } });
 
-  test("360px で横スクロールが出ず、社名が読める幅を保つ", async ({ page }) => {
+  test("360px で横スクロールが出ず、社名が読める幅を保ち、器の幅が揃う", async ({ page }) => {
     await page.goto("/");
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -140,10 +127,7 @@ test.describe("AC-10 モバイル", () => {
       return link.getBoundingClientRect().width;
     });
     expect(nameWidth).toBeGreaterThan(120);
-  });
 
-  test("モバイルでも器の幅は揃う", async ({ page }) => {
-    await page.goto("/");
     const widths = await page
       .locator('[data-logo="image"], [data-logo="initial"]')
       .evaluateAll((els) => [
@@ -158,28 +142,37 @@ test.describe("AC-10 モバイル", () => {
 });
 
 test.describe("AC-11 操作でページを取り直さない", () => {
-  test("ページ送りで文書・RSCのリクエストが発生しない（ロゴ画像は除く）", async ({ page }) => {
+  /*
+    ページ送りで行が入れ替わっても、文書を取り直さず（ロゴ画像のリクエストは除く）、
+    **ロゴがその行の会社のものであること**を見る。ロゴの有無はマスク（行1つにつき
+    1文字）で配っており、ずれると別の会社のロゴを出す（`features/logo/lib/mask.ts`）。
+  */
+  test("ページを送ると、文書を取り直さずにロゴが行と一緒に入れ替わる", async ({ page }) => {
     await page.goto("/");
     await waitForRankingReady(page);
     await page.waitForLoadState("networkidle");
+    const firstLink = page.locator("tbody tr a[href^='/company/']").first();
+    const firstHref = await firstLink.getAttribute("href");
 
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "次のページへ" }).click();
     await expect(page).toHaveURL(/[?&]page=2/);
-    await page.waitForLoadState("networkidle");
+    await expect(firstLink).not.toHaveAttribute("href", firstHref ?? "");
 
-    expect(requests).toHaveLength(0);
-  });
-
-  test("ページを送るとロゴも入れ替わる", async ({ page }) => {
-    await page.goto("/");
-    const first = await page.locator('[data-logo="image"] img').first().getAttribute("src");
-    await page.getByRole("button", { name: "次のページへ" }).click();
-    await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(page.locator('[data-logo="image"] img').first()).not.toHaveAttribute(
-      "src",
-      first ?? "",
+    const rows = await page.locator("tbody tr").evaluateAll((els) =>
+      els.map((el) => ({
+        href: el.querySelector("a[href^='/company/']")?.getAttribute("href") ?? null,
+        src: el.querySelector('[data-logo="image"] img')?.getAttribute("src") ?? null,
+      })),
     );
+    const withLogo = rows.filter((row) => row.src !== null);
+    expect(withLogo.length).toBeGreaterThan(0);
+    for (const { href, src } of withLogo) {
+      expect(src, href ?? "").toBe(`/logos/${href?.replace("/company/", "")}.webp`);
+    }
+
+    await page.waitForLoadState("networkidle");
+    expect(requests).toHaveLength(0);
   });
 });
 
@@ -209,21 +202,12 @@ test.describe("AC-12 レイアウトが動かない", () => {
 });
 
 test.describe("企業詳細ページ", () => {
-  test("見出しにロゴが出る", async ({ page }) => {
+  test("見出しと「水準が近い会社」にロゴが出る", async ({ page }) => {
     await page.goto(`/company/${WITH_LOGO.id}`);
     await expect(page.locator('header [data-logo="image"] img')).toHaveAttribute(
       "src",
       `/logos/${WITH_LOGO.id}.webp`,
     );
-  });
-
-  test("ロゴを持たない会社は頭文字マーク", async ({ page }) => {
-    await page.goto(`/company/${WITHOUT_LOGO.id}`);
-    await expect(page.locator('header [data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
-  });
-
-  test("水準が近い会社にもロゴが出る", async ({ page }) => {
-    await page.goto(`/company/${WITH_LOGO.id}`);
     const section = page.getByRole("heading", { name: /水準が近い会社/ }).locator("..");
     await expect(section.locator('[data-logo="image"] img').first()).toBeVisible();
   });

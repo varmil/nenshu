@@ -7,9 +7,9 @@ const stats = statsData as PopulationStats;
 
 describe("pickPopulationStats", () => {
   /*
-   * ランキングページのHTMLには2,961社ぶんの行が既に載っている（gzip 72KB・Issue #22）。
-   * stats.json 全体（rankAll / rankIndustry を含む）を渡すと予算を大きく超えるので、
-   * 抜いた結果に余分なフィールドが残っていないことをここで固定する。
+   * `/` の島に渡す props は HTML の属性に直列化される（ADR-0014）。stats.json 全体
+   * （rankAll / rankIndustry を含む。2,961×9 の配列2本）を渡すと初回 HTML の予算を
+   * 大きく超えるので、抜いた結果に余分なフィールドが残っていないことをここで固定する。
    */
   it("母集団の統計だけを取り出す（順位表を持ち出さない）", () => {
     const picked = pickPopulationStats(stats);

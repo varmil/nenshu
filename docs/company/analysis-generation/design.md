@@ -9,8 +9,8 @@ pipeline/analysis/
   extract_analysis.py   4節の原文を抜く（C8。同じデータセットなので summary/ から移した）
   generate.py           plan → gate → merge → clear → status。**LLM を呼ばない**
   gate.py               要約と分析の機械ゲート。**純関数だけ**
-  test_gate.py          33件
-  test_generate.py      9件（原文をどちらから読むか・対で出すか）
+  test_gate.py          要約と分析の機械ゲート
+  test_generate.py      原文をどちらから読むか・対で出すか・書き直しを採るか
   prompts/generate.md   生成エージェントが読む
   prompts/verify.md     検証エージェントが読む
   work/                 中間ファイル（gitignore）

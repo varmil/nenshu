@@ -58,8 +58,6 @@ export interface CompanyAgeStats {
   salary: number;
   rankAll: number;
   rankIndustry: number;
-  /** 全体順位 ÷ 母集団の社数 × 100。 */
-  topPercent: number;
   /** 50 + 10 ×（金額 − 平均）÷ 標準偏差。分布が右に裾を引くため100を超える。 */
   deviation: number;
   /** 母集団の中位（円）。位置バーの印に使う。 */

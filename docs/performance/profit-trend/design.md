@@ -124,4 +124,4 @@ HTML の増分（`next start` に対して測った raw サイズ。**gzip 後�
 | `web/features/company/components/YearlyBarChart.tsx` | 平均年収推移と共用（`SalaryHistoryChart` から改名） |
 | `web/features/company/components/ProfitHistoryTable.tsx` | 4列の表 |
 | `web/features/company/components/ProfitHistorySection.tsx` | 節（チャート → 表 → 説明文） |
-| `web/e2e/company-profit-history.spec.ts` | AC-10・AC-11 |
+| `web/e2e/company-profit-history.spec.ts` | AC-10（AC-11 の表示基準との独立は `company-page.spec.ts` の AC-3 が他の節とまとめて見る） |

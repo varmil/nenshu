@@ -48,15 +48,6 @@ META_MOCK = {"secCode": "12340", "edinetCode": "E00001", "filerName": "テスト
 
 
 class ParseCsvZip(unittest.TestCase):
-    def test_事業の内容は複数ファイルぶん集める(self):
-        with TemporaryDirectory() as d:
-            path = _zip(d, {
-                "XBRL_TO_CSV/jpcrp030000-asr-001.csv": [_row(BUSINESS, "３【事業の内容】　短いほう")],
-                "XBRL_TO_CSV/jpcrp030000-asr-002.csv": [_row(BUSINESS, "３【事業の内容】　こちらが長いほうの原文です。")],
-            })
-            rec = edinet.parse_csv_zip(path)
-            self.assertEqual(len(rec["business_textblocks"]), 2)
-
     def test_空の値は集めない(self):
         with TemporaryDirectory() as d:
             path = _zip(d, {"XBRL_TO_CSV/a.csv": [_row(BUSINESS, "  ")]})
@@ -87,6 +78,7 @@ class ParseCsvZip(unittest.TestCase):
             rec = edinet.parse_csv_zip(path)
             self.assertEqual(rec["business_textblocks"], ["１行目\n２行目"])
             # 改行を含む値の**後ろの行**まで読めていること（素の split では落ちる）。
+            # 後ろの行はテキストブロックに混ざらず、自分の欄に入る。
             self.assertEqual(rec["edinet_code"], "E00001")
 
     def test_既定の上限を超える値も読める(self):
@@ -96,13 +88,6 @@ class ParseCsvZip(unittest.TestCase):
         with TemporaryDirectory() as d:
             path = _zip(d, {"XBRL_TO_CSV/a.csv": [_row(BUSINESS, long)]})
             self.assertEqual(edinet.parse_csv_zip(path)["business_textblocks"], [long])
-
-    def test_テキストブロックは他の要素と混ざらない(self):
-        with TemporaryDirectory() as d:
-            path = _zip(d, {"XBRL_TO_CSV/a.csv": META + [_row(BUSINESS, "本文")]})
-            rec = edinet.parse_csv_zip(path)
-            self.assertEqual(rec["edinet_code"], "E00001")
-            self.assertEqual(rec["business_textblocks"], ["本文"])
 
 
 class ToRecord(unittest.TestCase):
@@ -114,12 +99,8 @@ class ToRecord(unittest.TestCase):
             rec = edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))
             self.assertEqual(rec["business_text"], "３【事業の内容】\n当社はＭ&Ａを行っております。")
 
-    def test_原文が無ければ空文字(self):
-        with TemporaryDirectory() as d:
-            path = _zip(d, {"XBRL_TO_CSV/a.csv": META})
-            self.assertEqual(edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))["business_text"], "")
-
     def test_複数あれば長いほうを採る(self):
+        # 事業の内容は書類の中の複数のファイルに現れる。**全ファイルぶん集めてから**選ぶ。
         with TemporaryDirectory() as d:
             path = _zip(d, {
                 "XBRL_TO_CSV/a.csv": META + [_row(BUSINESS, "短いほう")],
@@ -189,6 +170,7 @@ class AnalysisTexts(unittest.TestCase):
             path = _zip(d, {"XBRL_TO_CSV/a.csv": META + [_row(MDNA, "増収増益となりました。")]})
             rec = edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))
             self.assertNotIn("mdna", rec)
+            # 事業の内容が無い書類では空文字（4節があっても流用しない）。
             self.assertEqual(rec["business_text"], "")
 
 

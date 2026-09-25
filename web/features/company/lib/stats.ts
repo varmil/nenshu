@@ -6,29 +6,12 @@ import type { CompanyAgeStats, CompanyView, DistributionData } from "../types";
  *
  * **年収の分布は右に強く裾を引くため、この値は100を超える**（35歳時点の
  * キーエンスで150.0。対数変換しても107.4）。正規分布を前提にした指標を
- * 非正規分布に当てているので、単独で出さず必ず `topPercent` を隣に置き、
+ * 非正規分布に当てているので、単独で出さず順位と同じ視界に置き、
  * 100を超えうる理由を注記する（`docs/product/glossary.md`）。
  */
 export function deviationScore(value: number, mean: number, sd: number): number {
   if (sd <= 0) return 50;
   return 50 + (10 * (value - mean)) / sd;
-}
-
-/** 上位◯%。`全体順位 ÷ 母集団の社数 × 100`。 */
-export function topPercent(rank: number, count: number): number {
-  if (count <= 0) return 0;
-  return (rank / count) * 100;
-}
-
-/**
- * 上位◯%の表示。
- *
- * 0.1%未満は「上位0.1%未満」にする。1位は0.054%で、「上位0.1%」と丸めると
- * 2位以下と区別がつかず、「上位0.05%」と桁を増やしても読者に理由が伝わらない。
- */
-export function formatTopPercent(percent: number): string {
-  if (percent < 0.1) return "上位0.1%未満";
-  return `上位${percent.toFixed(1)}%`;
 }
 
 /** 偏差値の表示。小数第1位まで。 */

@@ -81,7 +81,7 @@ pipeline/data/ranking_unified_2026.csv の doc_id（平均年間給与を取っ�
   表の下辺に接し、左右がそろう（`e2e/company-filing.spec.ts`）
 - **JS 実行前の HTML に帯があり、`/` の HTML に書類 ID が無い**
 - **390px でも1行に収まり、押せる高さが 44px ある**
-- **出典の節の実測値の行も同じ書類へのリンク**（同上・`e2e/company-refresh.spec.ts` の AC-16）
+- **出典の節の実測値の行も同じ書類へのリンク**（同上・`e2e/company-filing.spec.ts`）
 - **全社に書類 ID があり、CSV の `doc_id` と行ごとに一致する**（`pipeline/scripts/build-data.test.ts`）。
   行がずれると別の会社の有報へ飛ばすので、並びまで見る
 - **URL の組み立て**（`features/company/lib/sources.test.ts`）
