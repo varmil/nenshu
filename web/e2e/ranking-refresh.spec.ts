@@ -291,17 +291,21 @@ test.describe("U13 モックとの一致", () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  // 業種は meta 行に出さない（運営者の指示。行が長くなって末尾が見切れていた）。
-  test("meta 行は平均年齢・在籍年数・従業員数の1行で、年齢そろえでは実測値を添える", async ({
+  /*
+   * 業種は meta 行に出さない（運営者の指示。行が長くなって末尾が見切れていた）。
+   * **年齢そろえでも同じ1行のまま**——PC の末尾に付けていた「実績 ◯万円」は冗長なので
+   * 外した（8巡目・運営者の指示）。同じ会社を両方の表示基準で開き、完全一致で見る。
+   */
+  test("meta 行は平均年齢・在籍年数・従業員数の1行で、表示基準によらず同じ中身", async ({
     page,
   }) => {
-    await page.goto("/");
-    const meta = rows(page).first().locator("td").first();
-    await expect(meta).toContainText("平均39.0歳 ・ 在籍7.0年 ・ 234人");
-    await expect(meta).not.toContainText("不動産業");
-
-    await page.goto("/?age=35");
-    await expect(rows(page).first().locator("td").first()).toContainText("実績 2,266万円");
+    for (const path of ["/?q=ヒューリック", "/?q=ヒューリック&age=35"]) {
+      await page.goto(path);
+      await expect(
+        rows(page).first().getByText("平均39.0歳 ・ 在籍7.0年 ・ 234人", { exact: true }),
+        path
+      ).toBeVisible();
+    }
   });
 
   test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
