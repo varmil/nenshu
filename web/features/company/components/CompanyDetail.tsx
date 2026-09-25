@@ -18,8 +18,8 @@ import {
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
-import { buildCardFacts, type CardFact } from "../lib/cardFacts";
-import { formatDiffFromMean, statsForBasis } from "../lib/stats";
+import { buildCardFacts, buildCardLead, type CardFact } from "../lib/cardFacts";
+import { statsForBasis } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
 import { YearlyBarChart } from "./YearlyBarChart";
@@ -151,6 +151,7 @@ export function CompanyDetail({
   usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
   const cardFacts = buildCardFacts(view, current);
+  const cardLead = buildCardLead(view);
   const isRaw = targetAge === null;
   const breadcrumb = companyBreadcrumb(view);
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
@@ -317,12 +318,10 @@ export function CompanyDetail({
       <div className="flex flex-col gap-4 md:grid md:grid-cols-[1fr_19.75rem] md:items-start md:gap-6">
         <div className="flex min-w-0 flex-col gap-12">
           {/*
-            **本文の先頭に置く**（P1、アートボード 6b）。5軸を1枚にまとめた図なので、
-            下の節（金額・働きやすさ・年齢別・推移）の要約として最初に来る。
-          */}
-          <OverviewSection axes={radarAxes} />
+            **本文の先頭に置く**（C15・#821、spec 1.21）。検索からの流入の語は「年収」
+            「年収ランキング」で占められており、読者が探している答えはこの金額になる。
+            P1 からはレーダーが先頭で、金額は PC でも最初の画面の外にあった。
 
-          {/*
             **カードは2カラム**（C3、アートボード 5b）。左が「いくらか」、右が
             「その額が母集団のどこか」。C2 は全部を縦に積んでいたため、金額と位置の
             間に順位4件が挟まり、同じことを言う数字が離れていた。
@@ -338,18 +337,17 @@ export function CompanyDetail({
                     ときは見出しが「35歳時点の推定年収」なので、**同じ語を繰り返す
                     バッジは置かない**（Issue #128）。
                   */}
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-muted-foreground mb-1 block text-sm">
                     {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
                   </span>
                   <p className="text-4xl font-bold tabular-nums">
                     {formatManYen(current.salary)}
                   </p>
-                  <p className="text-muted-foreground mt-1 mb-1 text-sm">
-                    全体平均 {formatManYen(current.populationMean)} に対して{" "}
-                    <span className="text-foreground font-medium">
-                      {formatDiffFromMean(current.diffFromMean)}
-                    </span>
-                  </p>
+                  {/*
+                    **有報の値を1文で言い直す。全体平均との差は置かない**（位置はこのカードの
+                    順位・偏差値・分布が持っている）。表示基準では変わらない（`buildCardLead`）。
+                  */}
+                  <p className="text-muted-foreground mt-1 mb-1 text-sm">{cardLead}</p>
                 </div>
 
                 {/*
@@ -375,9 +373,17 @@ export function CompanyDetail({
           </Card>
 
           {/*
-            **AI 分析は平均年収カードの直後**（C10、アートボード 8a / 8b）。「◯◯ 年収」で
+            **カードの直後に置く**（C15・#821。P1 から C14 までは本文の先頭だった）。5軸を
+            1枚にまとめた図なので、カードの金額を5軸の1本として含み、下の節（働きやすさ・
+            年齢別・推移）の要約にもなる。
+          */}
+          <OverviewSection axes={radarAxes} />
+
+          {/*
+            **AI 分析はカードとレーダーの後ろ**（C10、アートボード 8a / 8b）。「◯◯ 年収」で
             来た読者の答え（カード）を押し下げず、数字を見た直後に「この会社はいまどうなのか」
-            が続く。
+            が続く。C10 の時点ではカードの直後だったが、C15 でカードとレーダーを入れ替えた
+            ので、いまはレーダーの直後になる。
           */}
           {analysis}
 

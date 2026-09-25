@@ -63,7 +63,13 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
     await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("全体平均 693万円 に対して")).toBeVisible();
+    // 金額の直下は有報の値を言い直す1文。全体平均との差は置かない（C15・#821）。
+    await expect(
+      page.getByText(
+        "株式会社キーエンスの最新の有価証券報告書に基づく平均年収は 約2,178万円（平均年齢35.0歳）です。"
+      )
+    ).toBeVisible();
+    await expect(page.getByText(/全体平均 [\d,]+万円 に対して/)).toHaveCount(0);
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
@@ -125,7 +131,6 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
     await expect(card(page).locator("dd").filter({ hasText: /^125\.7$/ })).toBeVisible();
-    await expect(page.getByText("＋373万円")).toBeVisible();
 
     await page.getByRole("button", { name: "60歳" }).click();
     await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute("aria-pressed", "true");
@@ -256,6 +261,12 @@ test.describe("企業詳細ページ", () => {
     ] as const) {
       expect(html, label).toContain(text);
     }
+
+    // 本文の先頭は平均年収カードで、レーダーはその後ろ（C15・spec AC-33）。カードには見出しが
+    // 無いので、DOM の上下は `company-refresh.spec.ts` の「節の並び」が見る。
+    const cardAt = html.indexOf("平均年収（有価証券報告書・単体）");
+    expect(cardAt, "平均年収カード").toBeGreaterThan(-1);
+    expect(html.indexOf("公開資料による全体像"), "カード → レーダーの順").toBeGreaterThan(cardAt);
 
     /*
      * spec が外したと明記している節（AC-11・AC-16）。**生の HTML で見る**——ハイドレーション後の

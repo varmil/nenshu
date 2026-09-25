@@ -31,7 +31,11 @@ test.describe("節の中身", () => {
   }) => {
     await page.goto("/company/6861");
 
-    // **節はページの先頭**（上部カードより前）。5軸を1枚にまとめた要約なので最初に来る。
+    /*
+     * **見出しの中では先頭。** C15（#821）で平均年収カードの直後に移した（`docs/company/spec.md`
+     * 1.21）。カードには見出しが無いので、カードより後ろであることは `company-refresh.spec.ts` の
+     * AC-33 が DOM・画面の上下・生の HTML で見ている。
+     */
     const headings = await page.getByRole("heading", { level: 2 }).allInnerTexts();
     expect(headings[0]).toBe("公開資料による全体像");
 

@@ -14,11 +14,22 @@ import type { Page } from "@playwright/test";
 /*
  * 節の並び（アートボード 4b・6b・6e・8a / 8b）。**全部の見出しを1本で並べて見る。**
  * 以前は C2 の2巡目（推移は実測値の後ろ）・P2（稼ぐ力は推移の直後）・C10（分析は
- * カードの直後、要約は稼ぐ力の後ろ、出典は要約の後ろ）が別々のファイルで隣り合う2つずつを
+ * レーダーの直後、要約は稼ぐ力の後ろ、出典は要約の後ろ）が別々のファイルで隣り合う2つずつを
  * 見ていた。全体を並べれば、どれか1つがずれても落ちる。
+ *
+ * **本文の先頭は平均年収カードで、レーダーはその直後**（C15・#821・spec AC-33）。検索からの
+ * 流入の語は「年収」「年収ランキング」で占められているので、答えの金額を最初の画面に置く。
+ * **カードには見出しが無い**ので、h2 の並びだけではカードとレーダーの入れ替えを検出できない。
+ * DOM の並びと画面の上下で見る（生の HTML の並びは `company-page.spec.ts` の AC-10）。
  */
 test.describe("節の並び", () => {
-  test("見出しが決めた順に並び、分析は平均年収カードの直後にある", async ({ page }) => {
+  const salaryCard = (page: Page) =>
+    page.locator('[data-slot="card"]').filter({ hasText: "平均年収（有価証券報告書・単体）" });
+  const radar = (page: Page) =>
+    page.getByRole("heading", { name: "公開資料による全体像", level: 2 }).locator("xpath=..");
+
+  test("本文は平均年収カード → レーダー → 分析の順で始まり、見出しが決めた順に並ぶ", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/company/6861");
 
     expect(await page.locator("h2").allTextContents()).toEqual([
@@ -35,10 +46,29 @@ test.describe("節の並び", () => {
       "電気機器で水準が近い会社",
     ]);
 
-    // 平均年収カードには見出しが無いので、金額のラベルで位置を取る。
-    const cardY = (await page.getByText("平均年収（有価証券報告書・単体）").boundingBox())!.y;
-    const analysisY = (await page.getByTestId("company-analysis").boundingBox())!.y;
-    expect(analysisY).toBeGreaterThan(cardY);
+    // カードは本文の列の最初の子で、レーダーの節はそのすぐ次の兄弟。分析はスロット
+    // （`astro-slot`）に包まれて届くので、兄弟ではなく上の見出しの並びで見ている。
+    expect(await salaryCard(page).evaluate((el) => el.previousElementSibling === null)).toBe(true);
+    const card = await salaryCard(page).elementHandle();
+    expect(await radar(page).evaluate((el, c) => el.previousElementSibling === c, card)).toBe(true);
+
+    // 入れ替えた目的そのもの。レーダーが先頭だった頃、金額は上から 954px にあった。
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    expect(amount.y + amount.height).toBeLessThanOrEqual(800);
+  });
+
+  // 横スクロールは下の AC-15 のループ（375px）が見ている。
+  test("390px でもカードがレーダーより上にあり、金額が最初の画面に入る", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/company/6861");
+
+    const cardBox = (await salaryCard(page).boundingBox())!;
+    const radarBox = (await radar(page).boundingBox())!;
+    expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(radarBox.y);
+
+    // レーダーが先頭だった頃は上から 1,139px。
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    expect(amount.y + amount.height).toBeLessThanOrEqual(844);
   });
 });
 
@@ -566,7 +596,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
    * 定着の軸にある）。**太字は金額だけ**——順位と偏差値まで太いと、どれがこのカードの
    * 答えなのかが読めない。
    */
-  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並び、太字は金額だけ", async ({ page }) => {
+  test("1段目に平均年齢・従業員数、2段目に順位と偏差値が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
     await page.goto("/company/6861");
 
     expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
@@ -585,6 +615,13 @@ test.describe("AC-32 平均年収カード（C14）", () => {
       .locator("dl dd")
       .evaluateAll((els) => els.map((el) => Number(getComputedStyle(el).fontWeight)));
     expect(weights).toEqual([400, 400, 400, 400, 400]);
+
+    // 見出しと金額の間は 4px（spec AC-32。運営者の指示で C15 の後に足した）。
+    const label = (
+      await salaryCard(page).getByText("平均年収（有価証券報告書・単体）", { exact: true }).boundingBox()
+    )!;
+    const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
+    expect(amount.y - (label.y + label.height)).toBeCloseTo(4, 0);
   });
 
   // 1段目が2項目・2段目が3項目なので、器を3列にそろえてある。2等分にすると
@@ -611,16 +648,26 @@ test.describe("AC-32 平均年収カード（C14）", () => {
    * 先頭の階級の文字が変わる。変わらないもの（推移・説明文・要約と分析）は
    * `company-page.spec.ts` の AC-3。
    */
-  test("年齢そろえに切り替えると、金額の見出しと2段目と分布の階級が変わり、1段目は変わらない", async ({
+  test("年齢そろえに切り替えると、金額の見出しと2段目と分布の階級が変わり、1段目と金額直下の1文は変わらない", async ({
     page,
   }) => {
     await page.goto("/company/6861");
     const firstBin = page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li").first();
     const before = await firstBin.textContent();
+    /*
+     * 金額の直下は有報の値を言い直す1文（C15・spec 1.4）。**年齢そろえでも同じ文のまま**
+     * ——「推定」は見出しが持つ（Issue #128）。文の組み立ては `lib/cardFacts.test.ts`。
+     */
+    const lead = salaryCard(page).getByText(
+      "株式会社キーエンスの最新の有価証券報告書に基づく平均年収は 約2,178万円（平均年齢35.0歳）です。",
+      { exact: true }
+    );
+    await expect(lead).toBeVisible();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(salaryCard(page).getByText("35歳時点の推定年収")).toBeVisible();
     await expect(salaryCard(page).getByText("2,178万円", { exact: true })).toBeVisible();
+    await expect(lead).toBeVisible();
 
     expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
     expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社", "149.5"]);

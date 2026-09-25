@@ -1,6 +1,24 @@
-import { formatDecimal1, formatInt } from "@/features/ranking/lib/format";
+import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import type { CompanyAgeStats, CompanyView } from "../types";
 import { formatDeviation } from "./stats";
+
+/**
+ * 平均年収カードの金額の直下に置く1文（`docs/company/spec.md` 1.4）。
+ *
+ * **有報の平均年収と平均年齢を「◯◯の平均年収は」の形で言い直す。** 以前はここに
+ * 全体平均との差（`全体平均 693万円 に対して ＋1,486万円`）を置いていたが、母集団の
+ * 中の位置は同じカードの順位・偏差値・位置バー・分布が既に持っている。
+ *
+ * **表示基準に依らず同じ文になる。** 年齢そろえのときは金額が推定値に変わるが、
+ * この文はその元になった有報の値を示す。「推定」の語は見出しが持っているので
+ * ここには置かない（Issue #128。1画面に1回）。
+ */
+export function buildCardLead(view: CompanyView): string {
+  return (
+    `${view.name}の最新の有価証券報告書に基づく平均年収は ` +
+    `約${formatManYen(view.avgSalary)}（平均年齢${formatDecimal1(view.avgAge)}歳）です。`
+  );
+}
 
 /** 平均年収カードの1項目。`total` は順位の母数（`/2,961社`）で、値より小さく添える。 */
 export interface CardFact {

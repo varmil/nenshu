@@ -45,8 +45,6 @@ export function buildCompanyView(
       rankAll,
       rankIndustry: stats.rankIndustry[index][k],
       deviation: deviationScore(salary, mean, sd),
-      diffFromMean: salary - mean,
-      populationMean: mean,
       populationMedian: distribution.median,
       distribution,
       bin: binOf(distribution, salary),

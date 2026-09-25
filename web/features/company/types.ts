@@ -60,10 +60,6 @@ export interface CompanyAgeStats {
   rankIndustry: number;
   /** 50 + 10 ×（金額 − 平均）÷ 標準偏差。分布が右に裾を引くため100を超える。 */
   deviation: number;
-  /** 金額 − 母集団の平均（円）。 */
-  diffFromMean: number;
-  /** 母集団の平均（円）。 */
-  populationMean: number;
   /** 母集団の中位（円）。位置バーの印に使う。 */
   populationMedian: number;
   /** その表示基準の母集団の分布。ヒストグラムに使う。 */

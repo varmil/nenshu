@@ -8,7 +8,6 @@ import {
   formatBinLabel,
   formatBinTick,
   formatDeviation,
-  formatDiffFromMean,
   niceTicks,
   positionPercent,
 } from "./stats";
@@ -37,19 +36,6 @@ describe("formatDeviation", () => {
   });
 });
 
-describe("formatDiffFromMean", () => {
-  it("正なら全角プラス", () => {
-    expect(formatDiffFromMean(15491370)).toBe("＋1,549万円");
-  });
-
-  it("負なら全角マイナスで、絶対値を出す", () => {
-    expect(formatDiffFromMean(-2000000)).toBe("−200万円");
-  });
-
-  it("0はプラス扱い", () => {
-    expect(formatDiffFromMean(0)).toBe("＋0万円");
-  });
-});
 
 const stats = statsData as CompanyStatsData;
 

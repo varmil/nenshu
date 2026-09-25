@@ -4,7 +4,7 @@ import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
-import { buildCardFacts, type CardFact } from "./cardFacts";
+import { buildCardFacts, buildCardLead, type CardFact } from "./cardFacts";
 import { statsForBasis } from "./stats";
 import { buildCompanyView } from "./view";
 
@@ -50,5 +50,30 @@ describe("buildCardFacts", () => {
     const { profile, standing } = factsOf("6861", null);
     expect(profile.every((f) => f.total === undefined)).toBe(true);
     expect(standing.map((f) => f.total)).toEqual(["/2,961社", "/193社", undefined]);
+  });
+});
+
+/** `docs/company/spec.md` 1.4・AC-32。金額の直下の1文。 */
+describe("buildCardLead", () => {
+  function leadOf(id: string) {
+    const view = buildCompanyView(companies, curves, stats, id);
+    if (view === null) throw new Error(`${id} が見つからない`);
+    return buildCardLead(view);
+  }
+
+  it("有報の平均年収と平均年齢を1文で言い直す", () => {
+    expect(leadOf("7267")).toBe(
+      "本田技研工業株式会社の最新の有価証券報告書に基づく平均年収は 約933万円（平均年齢43.9歳）です。"
+    );
+    expect(leadOf("6861")).toBe(
+      "株式会社キーエンスの最新の有価証券報告書に基づく平均年収は 約2,178万円（平均年齢35.0歳）です。"
+    );
+  });
+
+  // 年齢そろえのときも同じ文を出す。「推定」は見出しが持つ（Issue #128）。
+  it("推定の語も全体平均との差も入れない", () => {
+    const lead = leadOf("6861");
+    expect(lead).not.toContain("推定");
+    expect(lead).not.toContain("全体平均");
   });
 });
