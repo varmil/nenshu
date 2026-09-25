@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 
 /**
  * C2（Issue #83）で足した節——水準が近い会社・分布・年齢別の表と ±20%・10年推移
- * （timeseries の T1・T2）・このページの出典（C12 で「この数字の作り方」から作り替えた）
+ * （timeseries の T1・T2・T3）・このページの出典（C12 で「この数字の作り方」から作り替えた）
  * ——と、C3 以降の見た目の手直しの E2E。
  *
  * C1 で作った表示基準の切替・URL・履歴・初期 HTML は `company-page.spec.ts` にある。
@@ -322,7 +322,7 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
 const historySection = (page: Page) =>
   page.getByRole("heading", { name: "平均年収推移（過去10年間）" }).locator("xpath=..");
 
-/** 推移の表の各行を「年 / 金額 / 前年比 / 基準年比」の4セルで読む。 */
+/** 推移の表の各行を「年 / 金額 / 平均年齢 / 基準年比」の4セルで読む（T3・#827 で前年比を置き換えた）。 */
 async function historyRows(page: Page): Promise<string[][]> {
   return historySection(page)
     .locator("tbody tr")
@@ -332,14 +332,16 @@ async function historyRows(page: Page): Promise<string[][]> {
 }
 
 /*
- * T1（10年推移）と T2（推移の表・`docs/timeseries/spec.md` 2.5）。**前年比は直前の年に
- * 値があるときだけ**、**累積の基準はその会社で最初に値のある年**——欠損の扱いがこの表の
- * 正しさのほぼ全部になる。規則そのものは `lib/historyTable.test.ts` が全社で固定しており、
- * ここは実ページでそう描かれることを見る。表示基準と独立であること（T1 AC-8）は
- * `company-page.spec.ts` の AC-3。
+ * T1（10年推移）と T2（推移の表・`docs/timeseries/spec.md` 2.5）。**累積の基準はその会社で
+ * 最初に値のある年**——欠損の扱いがこの表の正しさのほぼ全部になる。規則そのものは
+ * `lib/historyTable.test.ts` が固定しており、ここは実ページでそう描かれることを見る。
+ * 表示基準と独立であること（T1 AC-8）は `company-page.spec.ts` の AC-3（平均年齢も入る）。
+ *
+ * **3列目は平均年齢**（T3・#827）。T2 では前年比だった。年収の伸びが平均年齢の上昇と
+ * 一緒に起きたかを読めるように、同じ有報の平均年齢を隣に置く。
  */
-test.describe("T1・T2 平均年収推移", () => {
-  test("10年ぶんの図と表（年度・金額・前年比・基準年比）に、出典と増減・最高値の文が付く", async ({
+test.describe("T1・T2・T3 平均年収推移", () => {
+  test("10年ぶんの図と表（年度・金額・平均年齢・基準年比）に、出典と増減・最高値の文が付く", async ({
     page,
   }) => {
     await page.goto("/company/6861");
@@ -347,19 +349,26 @@ test.describe("T1・T2 平均年収推移", () => {
 
     const rows = await historyRows(page);
     expect(rows).toHaveLength(10);
-    // 基準年（＝最初に値のある年）の行は前年比も累積も空。
-    expect(rows[0]).toEqual(["2017年", "1,862万円", "", ""]);
+    // 基準年（＝最初に値のある年）の行は累積が空。平均年齢は2017年の有報の値。
+    expect(rows[0]).toEqual(["2017年", "1,862万円", "36.1歳", ""]);
     expect(rows[9][0]).toBe("2026年");
-    expect(rows[1][2]).toMatch(/^[＋−±][\d.]+%$/);
     expect(rows[1][3]).toMatch(/^[＋−±][\d.]+%$/);
-    for (const row of rows) expect(row[1]).toMatch(/^[\d,]+万円$/);
+    for (const row of rows) {
+      expect(row[1]).toMatch(/^[\d,]+万円$/);
+      expect(row[2]).toMatch(/^\d{2}\.\d歳$/);
+    }
 
-    // 見出しは基準年を名乗る。**「昇給率」とは呼ばない**（会社の平均が動いた幅であって
-    // 個人の昇給ではない）。
-    await expect(section.getByRole("columnheader", { name: "2017年比" })).toBeVisible();
-    await expect(section.getByRole("columnheader", { name: "前年比" })).toBeVisible();
-    await expect(section.getByRole("columnheader", { name: /昇給率/ })).toHaveCount(0);
-    await expect(section).toContainText("個人の昇給率ではありません");
+    // 列は4つで、累積の見出しは基準年を名乗る。**「昇給率」とは呼ばない**（会社の平均が
+    // 動いた幅であって個人の昇給ではない）。断りは累積の列に付き、同じ基準年を名乗る。
+    expect(await section.getByRole("columnheader").allTextContents()).toEqual([
+      "年度",
+      "平均年収",
+      "平均年齢",
+      "2017年比",
+    ]);
+    await expect(section).toContainText(
+      "2017年比は会社の平均が動いた幅で、個人の昇給率ではありません。"
+    );
 
     // 読み上げは表が担う（AC-10）。同じ10件を読み上げる経路を2つ置かない。
     await expect(section.locator("ul.sr-only")).toHaveCount(0);
@@ -369,7 +378,7 @@ test.describe("T1・T2 平均年収推移", () => {
     await expect(section.getByText("2026", { exact: true })).toBeVisible();
 
     // 説明は出典だけ（AC-9）。表示基準と独立であることは値で担保するので、断りを重ねない。
-    await expect(section).toContainText("実測値（提出会社単体）");
+    await expect(section).toContainText("平均年間給与と平均年齢の実測値（提出会社単体）");
     await expect(section).toContainText("横軸は報告書の提出年です。");
     await expect(section.getByText("年齢そろえ")).toHaveCount(0);
 
@@ -396,11 +405,11 @@ test.describe("T1・T2 平均年収推移", () => {
 
   /*
    * 欠け方は2通り。**2117 は途中が欠ける**（2023・2024）——棒は描かれず年のラベルだけが残り、
-   * 欠損をまたぐ2025年は前年比を出さない（累積は基準年からなので出す）。**3447 は先頭が欠ける**
-   * （2017年が無い）——固定の2017年基準だと累積の列が丸ごと空になるので、最初に値のある年が
-   * 基準になる。
+   * 欠けた年は平均年齢も空。累積は基準年からの比なので、欠損をまたいだ2025年にも出る。
+   * **3447 は先頭が欠ける**（2017年が無い）——固定の2017年基準だと累積の列が丸ごと空になるので、
+   * 最初に値のある年が基準になり、節の説明も同じ年を名乗る。
    */
-  test("T1 AC-7・T2 AC-13: 欠損のある年は「なし」で、前年比は飛び年をまたがず、基準年は最初に値のある年", async ({
+  test("T1 AC-7・T2 AC-13: 欠損のある年は「なし」で平均年齢も累積も空、基準年は最初に値のある年", async ({
     page,
   }) => {
     await page.goto("/company/2117");
@@ -412,16 +421,36 @@ test.describe("T1・T2 平均年収推移", () => {
     const byYear = new Map((await historyRows(page)).map((row) => [row[0], row]));
     expect(byYear.get("2023年")).toEqual(["2023年", "データなし", "", ""]);
     expect(byYear.get("2025年")![1]).toMatch(/^[\d,]+万円$/);
-    expect(byYear.get("2025年")![2]).toBe("");
+    expect(byYear.get("2025年")![2]).toMatch(/^\d{2}\.\d歳$/);
     expect(byYear.get("2025年")![3]).toMatch(/^[＋−±][\d.]+%$/);
-    expect(byYear.get("2026年")![2]).toMatch(/^[＋−±][\d.]+%$/);
 
     await page.goto("/company/3447");
     await expect(historySection(page).getByRole("columnheader", { name: "2018年比" })).toBeVisible();
+    await expect(historySection(page)).toContainText("2018年比は会社の平均が動いた幅で");
     const rows = await historyRows(page);
-    expect(rows[0][1]).toBe("データなし");
-    expect(rows[1].slice(2)).toEqual(["", ""]);
+    expect(rows[0]).toEqual(["2017年", "データなし", "", ""]);
+    expect(rows[1][2]).toMatch(/^\d{2}\.\d歳$/);
+    expect(rows[1][3]).toBe("");
     expect(rows[2][3]).toMatch(/^[＋−±][\d.]+%$/);
+  });
+
+  /*
+   * T3 AC-16。最新年の行とページ上部のカードは同じ有報の同じ数字。**書式が片方だけ違うと、
+   * 同じ値を別の値として読ませる**（丸めはどちらも `formatDecimal1`）。最新年が2026年の
+   * 3月期の会社と、2026年の枠が空いて2025年が最新になる8月期の会社（ファーストリテイリング）。
+   */
+  test("T3 AC-16: 最新年の行の平均年齢がカードの平均年齢と同じ文字列", async ({ page }) => {
+    for (const id of ["6861", "9983"]) {
+      await page.goto(`/company/${id}`);
+      const card = page.locator('[data-slot="card"]').first().locator("dl").first();
+      const labels = await card.locator("dt").allTextContents();
+      const values = await card.locator("dd").allTextContents();
+      const cardAge = values[labels.indexOf("平均年齢")];
+      expect(cardAge, id).toMatch(/^\d{2}\.\d歳$/);
+
+      const latest = (await historyRows(page)).filter((row) => row[1] !== "データなし").at(-1)!;
+      expect(latest[2], id).toBe(cardAge);
+    }
   });
 
   test("推移の棒はPCで高さを持ち、年のラベルが棒と揃う", async ({ page }) => {
@@ -537,7 +566,7 @@ test.describe("AC-16 このページの出典", () => {
     ).toHaveAttribute("href", "https://positive-ryouritsu.mhlw.go.jp/positivedb/");
 
     // キーエンスは説明文・推移・要約と分析をすべて持つ（節の有無がページから渡っている）。
-    await expect(row(page, "実測値")).toContainText("平均年収とその推移");
+    await expect(row(page, "実測値")).toContainText("平均年収・平均年齢とその推移");
     await expect(row(page, "計算値")).toContainText("稼ぐ力");
     await expect(row(page, "AIの要約")).toContainText("社名の下の説明文");
     await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");

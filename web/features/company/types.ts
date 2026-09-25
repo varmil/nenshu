@@ -85,6 +85,11 @@ export interface CompanyAgeStats {
 export interface SalaryHistory {
   years: number[];
   values: (number | null)[];
+  /**
+   * 同じ書類の平均年齢（歳）。T3（#827）。`values` と同じ年に値を持ち、無い年は `null`。
+   * 有報の桁のまま（`42.49` もある）で、丸めは描画で行う——カードの平均年齢と同じ扱い。
+   */
+  ages: (number | null)[];
 }
 
 /**

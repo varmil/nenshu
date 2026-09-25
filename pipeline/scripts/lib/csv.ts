@@ -80,6 +80,11 @@ export interface SalaryHistoryRow {
   edinetCode: string;
   year: number;
   avgSalary: number;
+  /**
+   * 同じ書類の平均年齢（歳）。有報に載った桁のまま（`42.49` もある）。**空欄なら `null`**
+   * ——`Number("")` は `0` になり、0歳として表に出てしまう。T3（#827）。
+   */
+  avgAge: number | null;
 }
 
 const HISTORY_HEADER = [
@@ -91,8 +96,8 @@ const HISTORY_HEADER = [
  * data/salary_history.csv の最小パーサ（T0・`docs/timeseries/spec.md` 1.3）。
  *
  * `parseUnifiedCsv` と同じ方針で、想定外の列が来たら例外で落とす。読むのは
- * `edinet_code` / `year` / `avg_salary` の3列だけ——残りは抽出の追跡用に
- * CSVには持たせてあるが、`history.json` には出さない。
+ * `edinet_code` / `year` / `avg_salary` / `avg_age` の4列だけ——残りは抽出の追跡用に
+ * CSVには持たせてあるが、`history.json` には出さない。`avg_age` は T3（#827）から読む。
  */
 export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
   const withoutBom = text.replace(/^﻿/, "");
@@ -115,6 +120,7 @@ export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
       edinetCode: cols[0],
       year: Number(cols[1]),
       avgSalary: Number(cols[2]),
+      avgAge: cols[3] === "" ? null : Number(cols[3]),
     };
   });
 }

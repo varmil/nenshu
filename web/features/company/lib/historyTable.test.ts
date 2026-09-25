@@ -1,77 +1,90 @@
 import { describe, it, expect } from "vitest";
 import historyData from "../../../public/data/history.json";
-import { buildHistoryTable, formatRate } from "./historyTable";
+import { buildHistoryTable, formatRate, historyBaseYear } from "./historyTable";
 
-const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
+const history = historyData as {
+  years: number[];
+  byId: Record<string, (number | null)[]>;
+  ageById: Record<string, (number | null)[]>;
+};
 
 function tableFor(id: string) {
-  return buildHistoryTable({ years: history.years, values: history.byId[id] });
+  return buildHistoryTable({
+    years: history.years,
+    values: history.byId[id],
+    ages: history.ageById[id],
+  });
 }
 
 describe("buildHistoryTable", () => {
-  it("10年ぶんの行を年の並びのまま返し、基準年の行は前年比も累積も持たない", () => {
+  it("10年ぶんの行を年の並びのまま返し、基準年の行は累積を持たない", () => {
     const { rows, baseYear } = tableFor("6861");
     expect(rows.map((row) => row.year)).toEqual(history.years);
     expect(baseYear).toBe(2017);
-    expect(rows[0].yoy).toBeNull();
     expect(rows[0].cumulative).toBeNull();
   });
 
-  it("前年比と累積は同じ値から出す", () => {
+  it("累積は基準年の値からの比", () => {
     const { rows } = buildHistoryTable({
       years: [2017, 2018, 2019],
       values: [1_000_000, 1_250_000, 1_100_000],
+      ages: [40, 40.5, 41],
     });
-    expect(rows[1].yoy).toBeCloseTo(0.25, 10);
     expect(rows[1].cumulative).toBeCloseTo(0.25, 10);
-    expect(rows[2].yoy).toBeCloseTo(-0.12, 10);
     expect(rows[2].cumulative).toBeCloseTo(0.1, 10);
   });
 
   /*
-   * 内部に欠損のある会社が33社ある（2117 は2023・2024が欠損）。**その次の年は前年比を
-   * 出さない**——2022年と2025年の比を「前年比」として並べると1年ぶんの動きとして読まれる。
-   * 累積は基準年からの比なので、飛んでいても意味が変わらないため出す。
+   * T3（#827）。平均年齢は同じ有報の値をそのまま行に載せる。**丸めない**——小数第2位で
+   * 書く会社があり（`42.49`）、丸めは描画の `formatDecimal1` がカードと同じ規則で行う。
+   * 平均年収の無い年に年齢だけを出すことはしない。
    */
-  it("値の無い年をまたぐと前年比は出ないが、累積は出る", () => {
+  it("平均年齢は丸めずに同じ年の行に載せ、平均年収の無い年は持たない", () => {
+    const { rows } = buildHistoryTable({
+      years: [2017, 2018, 2019],
+      values: [null, 5_000_000, 5_100_000],
+      ages: [41.2, 42.49, 42.62],
+    });
+    expect(rows.map((row) => row.age)).toEqual([null, 42.49, 42.62]);
+  });
+
+  /*
+   * 内部に欠損のある会社が33社ある（2117 は2023・2024が欠損）。累積は基準年からの比なので、
+   * 間が飛んでいても意味が変わらないため出す。
+   */
+  it("値の無い年をまたいでも累積は出る", () => {
     const { rows } = tableFor("2117");
     const byYear = new Map(rows.map((row) => [row.year, row]));
     expect(byYear.get(2023)!.value).toBeNull();
-    expect(byYear.get(2023)!.yoy).toBeNull();
+    expect(byYear.get(2023)!.age).toBeNull();
     expect(byYear.get(2023)!.cumulative).toBeNull();
-    expect(byYear.get(2025)!.value).not.toBeNull();
-    expect(byYear.get(2025)!.yoy).toBeNull();
+    expect(byYear.get(2025)!.age).not.toBeNull();
     expect(byYear.get(2025)!.cumulative).not.toBeNull();
-    expect(byYear.get(2026)!.yoy).not.toBeNull();
   });
 
   // 2017年の値を持たない会社が230社ある。固定の2017年基準にすると累積が丸ごと空になる。
   it("先頭が欠けていれば最初に値のある年が基準になる", () => {
-    const { rows, baseYear } = buildHistoryTable({
+    const input = {
       years: [2017, 2018, 2019],
       values: [null, 5_000_000, 6_000_000],
-    });
+      ages: [null, 38, 38.4],
+    };
+    const { rows, baseYear } = buildHistoryTable(input);
     expect(baseYear).toBe(2018);
-    expect(rows[0].value).toBeNull();
-    expect(rows[1].yoy).toBeNull();
+    // 列の見出しと節の説明が同じ年を名乗るよう、どちらも `historyBaseYear` を読む。
+    expect(historyBaseYear(input)).toBe(2018);
     expect(rows[1].cumulative).toBeNull();
     expect(rows[2].cumulative).toBeCloseTo(0.2, 10);
   });
 
   it("値が1つも無ければ基準年は null", () => {
-    const { rows, baseYear } = buildHistoryTable({ years: [2017, 2018], values: [null, null] });
+    const { rows, baseYear } = buildHistoryTable({
+      years: [2017, 2018],
+      values: [null, null],
+      ages: [null, null],
+    });
     expect(baseYear).toBeNull();
-    expect(rows.every((row) => row.yoy === null && row.cumulative === null)).toBe(true);
-  });
-
-  // 実データ全社。前年比が出ている行は必ず「直前の年に値がある」。
-  it("全社で、前年比が出る行の直前の年には値がある", () => {
-    for (const [id, values] of Object.entries(history.byId)) {
-      const { rows } = buildHistoryTable({ years: history.years, values });
-      rows.forEach((row, i) => {
-        if (row.yoy !== null) expect(values[i - 1], `${id} ${row.year}`).not.toBeNull();
-      });
-    }
+    expect(rows.every((row) => row.age === null && row.cumulative === null)).toBe(true);
   });
 });
 

@@ -426,6 +426,50 @@ describe("buildData", () => {
     }
   });
 
+  /*
+   * T3（#827・`docs/timeseries/spec.md` AC-15）。平均年齢は平均年収と同じ書類の同じ表から
+   * 取っているので、**null の位置が1つでもずれていたら、どちらかを別の行から拾っている。**
+   * 2017・2018年は本文の表から拾った値（`textblock.py`）なので、あり得る帯に入っていることも
+   * 全件で見る。帯は実測（25.4〜60.6歳）の外側に置いた。**隣の年との飛びは見ない**——
+   * 持株会社化で単体の従業員数が桁で変わった年は本当に10歳以上動く（オープンアップグループ
+   * 35.7 → 50.5歳）。
+   */
+  it("AC-15: ageById は byId と同じ会社・同じ年に値を持ち、20〜70歳に入っている", () => {
+    const { years, byId, ageById } = result.history;
+    expect(Object.keys(ageById)).toEqual(Object.keys(byId));
+    for (const [id, values] of Object.entries(byId)) {
+      const ages = ageById[id];
+      expect(ages.length).toBe(years.length);
+      expect(ages.map((age) => age === null), id).toEqual(values.map((value) => value === null));
+      for (const age of ages) {
+        if (age === null) continue;
+        expect(age, id).toBeGreaterThanOrEqual(20);
+        expect(age, id).toBeLessThanOrEqual(70);
+      }
+    }
+  });
+
+  it("AC-15: 採用書類の年の平均年齢が companies.json の平均年齢と一致する（全社）", () => {
+    const { years, byId, ageById } = result.history;
+    const { rows, periods } = result.companies;
+
+    // AC-3（平均年収）と同じ突き合わせ。**年は平均年収が一致した年で決める**——決算期の年と
+    // その翌年のどちらが採用書類かは、平均年収の側で既に確かめてある。
+    let covered = 0;
+    for (const row of rows) {
+      const values = byId[row[0]];
+      if (values === undefined) continue;
+      const periodYear = Number(periods[row[9]].slice(0, 4));
+      const k = [periodYear, periodYear + 1]
+        .map((year) => years.indexOf(year))
+        .find((i) => i >= 0 && values[i] === row[6]);
+      expect(k, `${row[0]} の採用書類の年が見つからない`).toBeDefined();
+      expect(ageById[row[0]][k!], `${row[0]}`).toBe(row[4]);
+      covered += 1;
+    }
+    expect(covered).toBe(2961);
+  });
+
   /**
    * 働きやすさ指標（W0・Issue #149）。**行の並びが `companies.rows` と一致すること**が
    * ここでいちばん大事な検証になる——ずれると別の会社の残業時間を出す。
