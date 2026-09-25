@@ -455,9 +455,13 @@ test.describe("U13 モックとの一致", () => {
     await expect(meta).not.toContainText("不動産業");
   });
 
-  test("年齢そろえのときは meta 行に実測値が併記される", async ({ page }) => {
+  // 年齢そろえでも meta 行に実測値を添えない（運営者の指示。冗長だった）。
+  // 行の中身が出ていることと対で見る——空のまま通らないように。
+  test("年齢そろえのときも meta 行に実測値を併記しない", async ({ page }) => {
     await page.goto("/?age=35");
-    await expect(rows(page).first().locator("td").first()).toContainText("実績 2,266万円");
+    const meta = rows(page).first().locator("td").first();
+    await expect(meta).toContainText(" ・ 在籍");
+    await expect(meta).not.toContainText("実績");
   });
 
   test("表示基準の帯にラベルと説明文が付いている", async ({ page }) => {
