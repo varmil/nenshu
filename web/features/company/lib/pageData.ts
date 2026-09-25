@@ -44,7 +44,12 @@ const stats = statsData as CompanyStatsData;
  * 1,867社ぶんを既に抱えており、ここを足す理由がない（Issue #22・timeseries spec 3.）。
  * 渡すのは当該1社ぶんの10件だけ。
  */
-const history = historyData as { years: number[]; byId: Record<string, (number | null)[]> };
+const history = historyData as {
+  years: number[];
+  byId: Record<string, (number | null)[]>;
+  /** 平均年齢（T3・#827）。`byId` と同じ会社・同じ年に値を持つ。 */
+  ageById: Record<string, (number | null)[]>;
+};
 
 /**
  * 働きやすさ指標（W1・Issue #150）。**推移と同じくここだけが import する**
@@ -104,7 +109,8 @@ function logoIdsOnPage(view: CompanyView): string[] {
 
 function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
-  return values === undefined ? null : { years: history.years, values };
+  if (values === undefined) return null;
+  return { years: history.years, values, ages: history.ageById[id] };
 }
 
 /** 稼ぐ力の推移。全年 `null` の会社はキーごと落としてあるので `undefined` になる。 */

@@ -70,8 +70,9 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
     {
       kind: "measured",
       label: "実測値",
+      // 推移の表は平均年齢も年ごとに出す（T3・#827）ので、「その推移」は2つにかかる。
       covers: presence.history
-        ? "平均年収とその推移・平均年齢・在籍年数・従業員数"
+        ? "平均年収・平均年齢とその推移・在籍年数・従業員数"
         : "平均年収・平均年齢・在籍年数・従業員数",
       /*
        * **「有価証券報告書」はその会社の書類そのものへのリンク**（C13・spec 1.20）。実測値の

@@ -19,7 +19,12 @@ import { TARGET_AGES } from "../../web/features/ranking/types";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_ROW_COUNT = 2961;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
-const HISTORY_JSON_GZIP_LIMIT_BYTES = 150 * 1024;
+// 2,961社 × 10年の平均年収と平均年齢。**T3（#827）で平均年齢を足して gzip 99.6 → 143.1KB に
+// なったので、上限を 150KB から 180KB に上げた。** 150KB は Next.js の頃に Worker バンドルへ
+// 同梱されていた時代の予算で、F1（ADR-0014）以降は `/company/[id]` をビルド時に生成するときに
+// 読まれるだけ（クライアントにも Worker バンドルにも入らない）。上限は他のデータと同じく
+// 気づくための線として、実測の 1.2 倍に置く。
+const HISTORY_JSON_GZIP_LIMIT_BYTES = 180 * 1024;
 // 実測 186.2KB（E5 で母集団に追随させた後・2,369社ぶん。注釈・説明 1,057社を同梱）。
 // **切り出しの発動条件は Worker バンドルが 3MiB に近づいたときで、このファイル単体の
 // 大きさではない**（`docs/worklife/overview.md`）——実測でバンドルは gzip 2.089MB
@@ -593,21 +598,6 @@ function median(values: readonly number[]): number {
   return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/**
- * 平均年収の10年推移（T0・`docs/timeseries/spec.md` 1.3）。
- *
- * キーは**企業ID**（証券コード／EDINETコード、ADR-0006）で `companies.json` の
- * `id` と一致する。CSV 側の主キーは `edinet_code`——証券コードは上場・廃止で
- * 変わるが EDINETコードは年をまたいで変わらないため、名寄せはあちらで行い、
- * ここで公開URLのIDに移し替える。
- *
- * **その年の有報が無ければ `null` を入れる。前後から内挿しない**（spec AC-4）。
- * 欠けていること自体を企業詳細ページで見せるため。
- *
- * 全年 `null` の会社はキーごと落とす。1,867社ぶんの空配列を配る意味がない。
- *
- * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
- */
 /** 上限の定数をそのままメッセージに出す。**手で書くと定数を動かしたとき嘘になる。** */
 function limitLabel(bytes: number): string {
   return `${bytes / 1024}KB`;
@@ -766,6 +756,28 @@ function buildAnalyses(
   return { byId };
 }
 
+/**
+ * 平均年収の10年推移（T0・`docs/timeseries/spec.md` 1.3）。
+ *
+ * キーは**企業ID**（証券コード／EDINETコード、ADR-0006）で `companies.json` の
+ * `id` と一致する。CSV 側の主キーは `edinet_code`——証券コードは上場・廃止で
+ * 変わるが EDINETコードは年をまたいで変わらないため、名寄せはあちらで行い、
+ * ここで公開URLのIDに移し替える。
+ *
+ * **その年の有報が無ければ `null` を入れる。前後から内挿しない**（spec AC-4）。
+ * 欠けていること自体を企業詳細ページで見せるため。
+ *
+ * 全年 `null` の会社はキーごと落とす。1,867社ぶんの空配列を配る意味がない。
+ *
+ * **平均年齢（`ageById`）も同じ行から取る**（T3・#827・spec AC-15）。平均年収と同じ書類の
+ * 「従業員の状況」の値なので、別のファイルに分けない——分けると片方だけの会社や年を作れる。
+ * 桁は有報のまま（`42.49` もある）で、丸めは画面で行う（`companies.json` と同じ扱い）。
+ * **平均年収があって平均年齢が無い行が来たら落ちる。** 平均年収を捨てると AC-3 の突き合わせが
+ * 黙って崩れ、空欄のまま出すと表に「◯◯万円・空欄」の行ができる。どちらも気づけないので、
+ * 来たら抽出を見直す。いまの CSV には1行も無い（平均年収のある 26,865行すべてにある）。
+ *
+ * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
+ */
 function buildHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
@@ -776,26 +788,40 @@ function buildHistory(
   const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
   const yearIndex = new Map(years.map((y, i) => [y, i]));
 
-  // edinet_code → その会社の年次配列
-  const byEdinetCode = new Map<string, (number | null)[]>();
+  // edinet_code → その会社の年次配列（平均年収と平均年齢を同じ添字で持つ）
+  type Series = { salary: (number | null)[]; age: (number | null)[] };
+  const byEdinetCode = new Map<string, Series>();
   for (const row of historyRows) {
-    let values = byEdinetCode.get(row.edinetCode);
-    if (values === undefined) {
-      values = new Array<number | null>(years.length).fill(null);
-      byEdinetCode.set(row.edinetCode, values);
+    if (row.avgAge === null) {
+      throw new Error(
+        `data/salary_history.csv の ${row.edinetCode} ${row.year}年に平均年収はあるが平均年齢がありません`
+      );
     }
-    values[yearIndex.get(row.year)!] = row.avgSalary;
+    let series = byEdinetCode.get(row.edinetCode);
+    if (series === undefined) {
+      series = {
+        salary: new Array<number | null>(years.length).fill(null),
+        age: new Array<number | null>(years.length).fill(null),
+      };
+      byEdinetCode.set(row.edinetCode, series);
+    }
+    const k = yearIndex.get(row.year)!;
+    series.salary[k] = row.avgSalary;
+    series.age[k] = row.avgAge;
   }
 
   // 企業ID に移し替える。companies.json と同じ順・同じIDで引けるようにする。
   const byId: Record<string, (number | null)[]> = {};
+  const ageById: Record<string, (number | null)[]> = {};
   rows.forEach((row, i) => {
-    const values = byEdinetCode.get(row.edinetCode);
-    if (values === undefined || values.every((v) => v === null)) return;
-    byId[companyRows[i][0] as string] = values;
+    const series = byEdinetCode.get(row.edinetCode);
+    if (series === undefined || series.salary.every((v) => v === null)) return;
+    const id = companyRows[i][0] as string;
+    byId[id] = series.salary;
+    ageById[id] = series.age;
   });
 
-  return { years, byId };
+  return { years, byId, ageById };
 }
 
 /**
