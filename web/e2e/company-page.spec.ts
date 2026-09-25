@@ -14,7 +14,7 @@ import { collectPageRequests } from "./network";
  * 中身で引く**——段の並びを変えるたびにこの関数が別の段を指すことになる。
  */
 const card = (page: import("@playwright/test").Page) =>
-  // **カードの中に限る。** P1（#167）がページの先頭にレーダーの指標リスト
+  // **カードの中に限る。** P1（#167）が本文にレーダーの指標リスト
   // （これも `dl`）を置いたので、`page.locator("dl")` ではそちらも拾う。
   page.locator('[data-slot="card"] dl').filter({ hasText: "全体順位" });
 
