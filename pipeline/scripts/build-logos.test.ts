@@ -8,7 +8,7 @@ import {
   toOrigin,
   Candidate,
 } from "./lib/logo/candidates";
-import { icoMaxSize, looksLikeSvg } from "./lib/logo/image";
+import { looksLikeSvg } from "./lib/logo/image";
 import { titleFromP154 } from "./lib/logo/commons";
 
 const BASE = "https://example.co.jp/";
@@ -211,13 +211,9 @@ describe("候補の優先順", () => {
     { source: "jsonld", url: "e" },
   ];
 
-  it("出典の確からしさを解像度より優先する", () => {
+  it("出典の確からしさを解像度より優先し、同じ出典の中では宣言サイズの大きいものが先", () => {
+    // icon の a（512px）と d（32px）は、commons・jsonld・header より後ろで a → d の順
     expect(sortCandidates(cands).map((c) => c.url)).toEqual(["c", "e", "b", "a", "d"]);
-  });
-
-  it("同じ出典の中では宣言サイズの大きいものが先", () => {
-    const icons = sortCandidates(cands).filter((c) => c.source === "icon");
-    expect(icons.map((c) => c.url)).toEqual(["a", "d"]);
   });
 
   it("同じURLは1度しか試さない", () => {
@@ -285,22 +281,6 @@ describe("sizes とURLの正規化", () => {
 });
 
 describe("画像の判定", () => {
-  it("ICO のディレクトリから最大サイズを読む（0 は 256）", () => {
-    const buf = Buffer.alloc(6 + 16 * 2);
-    buf.writeUInt16LE(0, 0);
-    buf.writeUInt16LE(1, 2);
-    buf.writeUInt16LE(2, 4);
-    buf[6] = 16;
-    buf[7] = 16;
-    buf[22] = 0;
-    buf[23] = 0;
-    expect(icoMaxSize(buf)).toEqual({ w: 256, h: 256 });
-  });
-
-  it("ICO でないものは null", () => {
-    expect(icoMaxSize(Buffer.from("<html>"))).toBeNull();
-  });
-
   it("SVG を中身で見分ける（Content-Type を信用しない）", () => {
     expect(looksLikeSvg(Buffer.from('<?xml version="1.0"?><svg xmlns="..."></svg>'))).toBe(true);
     expect(looksLikeSvg(Buffer.from("\x89PNG\r\n\x1a\n"))).toBe(false);
@@ -328,18 +308,16 @@ describe("壊れている画像の判定", () => {
       .toBuffer();
   };
 
-  it("1x1 は落とす", async () => {
+  it.each([
+    ["1x1", 1, 1, [255, 0, 0, 255], "tooTiny"],
+    ["全面が不透明な単色", 64, 64, [10, 20, 30, 255], "solidColor"],
+    ["実質透明な画像", 64, 64, [0, 0, 0, 0], "almostTransparent"],
+    ["罫線のような極端な横長", 400, 4, [1, 2, 3, 255], "extremeRatio"],
+  ] as const)("%s は落とす", async (_, w, h, rgba, reason) => {
     const { probe, reject } = await import("./lib/logo/image");
-    const buf = await png(1, 1, [255, 0, 0, 255]);
+    const buf = await png(w, h, [...rgba]);
     const p = await probe(buf);
-    expect(await reject(buf, p!)).toBe("tooTiny");
-  });
-
-  it("全面が不透明な単色は落とす", async () => {
-    const { probe, reject } = await import("./lib/logo/image");
-    const buf = await png(64, 64, [10, 20, 30, 255]);
-    const p = await probe(buf);
-    expect(await reject(buf, p!)).toBe("solidColor");
+    expect(await reject(buf, p!)).toBe(reason);
   });
 
   it("透明の上に置かれた単色のワードマークは落とさない", async () => {
@@ -364,23 +342,9 @@ describe("壊れている画像の判定", () => {
     expect(await reject(buf, p!)).toBeNull();
   });
 
-  it("実質透明な画像は落とす", async () => {
-    const { probe, reject } = await import("./lib/logo/image");
-    const buf = await png(64, 64, [0, 0, 0, 0]);
-    const p = await probe(buf);
-    expect(await reject(buf, p!)).toBe("almostTransparent");
-  });
-
   it("画像でないものは probe が null", async () => {
     const { probe } = await import("./lib/logo/image");
     expect(await probe(Buffer.from("<html>404 Not Found</html>"))).toBeNull();
-  });
-
-  it("罫線のような極端な横長は落とす", async () => {
-    const { probe, reject } = await import("./lib/logo/image");
-    const buf = await png(400, 4, [1, 2, 3, 255]);
-    const p = await probe(buf);
-    expect(await reject(buf, p!)).toBe("extremeRatio");
   });
 });
 
@@ -425,36 +389,18 @@ describe("明るい器で見えないロゴの判定（Issue #156）", () => {
       .toBuffer();
   };
 
-  it("白いワードマークは空白と見なす", async () => {
-    const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([255, 255, 255, 255]))).toBe(true);
-  });
-
-  it("黒いワードマークは残す", async () => {
-    const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([0, 0, 0, 255]))).toBe(false);
-  });
-
-  it("薄いアルファの白も空白と見なす（重ねてから見る）", async () => {
+  it.each([
+    ["白いワードマークは空白と見なす", [255, 255, 255, 255], undefined, true],
+    ["黒いワードマークは残す", [0, 0, 0, 255], undefined, false],
     // 生の RGB は白、アルファは 40。**アルファを掛けずに見ると白い画素として数えられ、
     // 掛けても白のまま**——どちらにせよ明るい器の上には何も乗らない
+    ["薄いアルファの白も空白と見なす（重ねてから見る）", [255, 255, 255, 40], undefined, true],
+    ["薄いアルファの黒は残す（重ねると灰色のインクになる）", [0, 0, 0, 160], undefined, false],
+    ["色の付いた縁を持つ白抜きロゴは残す", [255, 255, 255, 255], [200, 30, 40], false],
+    ["ほとんど白い薄い灰色も空白と見なす", [246, 246, 246, 255], undefined, true],
+  ] as const)("%s", async (_, rgba, border, blank) => {
     const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([255, 255, 255, 40]))).toBe(true);
-  });
-
-  it("薄いアルファの黒は残す（重ねると灰色のインクになる）", async () => {
-    const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([0, 0, 0, 160]))).toBe(false);
-  });
-
-  it("色の付いた縁を持つ白抜きロゴは残す", async () => {
-    const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([255, 255, 255, 255], [200, 30, 40]))).toBe(false);
-  });
-
-  it("ほとんど白い薄い灰色も空白と見なす", async () => {
-    const { blankOnLight } = await import("./lib/logo/image");
-    expect(await blankOnLight(await wordmark([246, 246, 246, 255]))).toBe(true);
+    expect(await blankOnLight(await wordmark([...rgba], border && [...border]))).toBe(blank);
   });
 });
 
@@ -619,7 +565,8 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
     expect(await icoToImage(Buffer.from("<html>"))).toBeNull();
   });
 
-  it("複数のサイズが入っていれば大きいほうを採る", async () => {
+  it("複数のサイズが入っていれば大きいほうを採る（目録の 0 は 256）", async () => {
+    // 256px は1バイトに入らないので目録では 0 と書かれる。0 のまま比べると 16px に負ける
     const sharp = (await import("sharp")).default;
     const { icoToImage, probe } = await import("./lib/logo/image");
     const small = await sharp({
@@ -628,7 +575,7 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
       .png()
       .toBuffer();
     const large = await sharp({
-      create: { width: 128, height: 128, channels: 4, background: { r: 1, g: 2, b: 3, alpha: 1 } },
+      create: { width: 256, height: 256, channels: 4, background: { r: 1, g: 2, b: 3, alpha: 1 } },
     })
       .png()
       .toBuffer();
@@ -639,10 +586,10 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
     const ico = Buffer.concat([
       head,
       dirEntry(16, 16, small.length, off1),
-      dirEntry(128, 128, large.length, off1 + small.length),
+      dirEntry(256, 256, large.length, off1 + small.length),
       small,
       large,
     ]);
-    expect((await probe((await icoToImage(ico))!))!.w).toBe(128);
+    expect((await probe((await icoToImage(ico))!))!.w).toBe(256);
   });
 });

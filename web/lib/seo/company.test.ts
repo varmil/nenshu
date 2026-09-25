@@ -22,19 +22,13 @@ describe("companyPageMeta", () => {
     const meta = companyPageMeta(keyence, PERIOD);
     expect(meta.title).toBe("株式会社キーエンスの平均年収 | 有価証券報告書は2,178万円");
     expect(meta.description).toContain("平均年間給与は2,178万円");
-    expect(meta.title).not.toContain("推定");
     expect(meta.description).not.toContain("推定");
   });
 
   /**
    * **表示基準を引数に取らない**（R1・ADR-0012）。`?age=` を無くしたので、
-   * 1つのURLに対してメタデータは1つしか存在しない。U16 が企業詳細で直していた
-   * 食い違い（親 Issue #130）は起きようが無くなった。
+   * 1つのURLに対してメタデータは1つしか存在しない（型がそれを保証する）。
    */
-  it("同じ会社なら常に同じメタデータを返す（表示基準で変わらない）", () => {
-    expect(companyPageMeta(keyence, PERIOD)).toEqual(companyPageMeta(keyence, PERIOD));
-  });
-
   it("canonical は素の `/company/[id]`（ADR-0006）", () => {
     // 配ってしまった `?age=N` のリンクの寄せ先として、canonical は変わらず必要。
     expect(companyPageMeta(keyence, PERIOD).canonical).toBe("/company/6861");
@@ -45,5 +39,4 @@ describe("companyPageMeta", () => {
     expect(meta.description).toContain("全2,961社中3位");
     expect(meta.description).toContain("電気機器");
   });
-
 });

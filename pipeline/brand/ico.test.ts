@@ -60,11 +60,8 @@ describe("buildIco", () => {
     expect(entry(ico, 0).height).toBe(0);
   });
 
-  it("空だと落ちる", () => {
+  it("空・256を超える寸法は落ちる", () => {
     expect(() => buildIco([])).toThrow();
-  });
-
-  it("256を超える寸法は落ちる", () => {
     expect(() => buildIco([{ size: 512, png: Buffer.from("x") }])).toThrow();
   });
 });

@@ -104,13 +104,12 @@ describe("tokens.css の色トークン", () => {
    * 背後のページが完全に隠れて「どこに重なっているか」が読めなくなる。
    * ダークは背景自体が暗いので、ライトと同じ薄さでは幕が掛かって見えない。
    */
-  it.each(modes)("%s: --overlay は半透明である", (_mode, tokens) => {
-    const alpha = parseOklch(tokens.overlay).alpha;
-    expect(alpha).toBeGreaterThan(0);
-    expect(alpha).toBeLessThan(1);
-  });
-
-  it("--overlay はダークのほうが濃い", () => {
+  it("--overlay は両モードで半透明で、ダークのほうが濃い", () => {
+    for (const [mode, tokens] of modes) {
+      const alpha = parseOklch(tokens.overlay).alpha;
+      expect(alpha, mode).toBeGreaterThan(0);
+      expect(alpha, mode).toBeLessThan(1);
+    }
     expect(parseOklch(dark.overlay).alpha).toBeGreaterThan(parseOklch(root.overlay).alpha);
   });
 
@@ -127,17 +126,11 @@ describe("tokens.css の色トークン", () => {
 describe("tokens.css のフォント", () => {
   const stacks = { "--font-sans": root["font-sans"], "--font-mono": root["font-mono"] };
 
-  it.each(Object.entries(stacks))("%s が定義されている", (_name, stack) => {
-    expect(stack).toBeTruthy();
-  });
-
-  it.each(Object.entries(stacks))("%s は webfont を参照しない", (_name, stack) => {
+  it.each(Object.entries(stacks))("%s は webfont を参照せず、総称ファミリーで終わる", (_name, stack) => {
     // url(...) が出てくる = ダウンロードが要るフォントを指している。
     expect(stack).not.toMatch(/url\(/);
-  });
-
-  it.each(Object.entries(stacks))("%s は総称ファミリーで終わる", (_name, stack) => {
     // 最後の砦。どれも入っていない環境で無指定に落ちないようにする。
+    // （未定義なら `trim` で落ちるので、定義されていることもここで見ている。）
     expect(stack.trim()).toMatch(/(sans-serif|serif|monospace)$/);
   });
 

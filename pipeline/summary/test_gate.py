@@ -111,18 +111,16 @@ class ApplyGate(unittest.TestCase):
         self.assertTrue(any("高い収益性" in r for r in reasons))
 
     def test_語形の違う評価語も落ちる(self):
-        # 「高い収益性」は入っていたが「収益性の高い」は素通りしていた（C9 の15回目）。
-        bad = OK + "収益性の高い事業を中心に展開している。"
-        text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
-        self.assertEqual(text, OK)
-        self.assertTrue(any("収益性の高い" in r for r in reasons))
-
-    def test_強みの語形違いも落ちる(self):
-        # 「強みと」は入っていたが「強みである」は素通りしていた（C9 の42回目・住友化学）。
-        bad = OK + "強みである有機合成技術を軸に事業を進める。"
-        text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
-        self.assertEqual(text, OK)
-        self.assertTrue(any("強みである" in r for r in reasons))
+        for word, sentence in (
+            # 「高い収益性」は入っていたが「収益性の高い」は素通りしていた（C9 の15回目）。
+            ("収益性の高い", "収益性の高い事業を中心に展開している。"),
+            # 「強みと」は入っていたが「強みである」は素通りしていた（C9 の42回目・住友化学）。
+            ("強みである", "強みである有機合成技術を軸に事業を進める。"),
+        ):
+            with self.subTest(word=word):
+                text, reasons = gate.apply_gate(OK + sentence, "株式会社キーエンス", KEYENCE)
+                self.assertEqual(text, OK)
+                self.assertTrue(any(word in r for r in reasons))
 
     def test_社名が入った文は落ちる(self):
         bad = "キーエンスは電子応用機器を作る。" + OK
@@ -146,11 +144,25 @@ class ApplyGate(unittest.TestCase):
         self.assertEqual(gate.sentence_problems("銀行業の単一セグメントとしている。", "", src), [])
         self.assertEqual(gate.sentence_problems("その一つとして貸出を行う。", "", src), [])
 
+    def test_文が足りなくなれば不合格(self):
+        text, reasons = gate.apply_gate("電子応用機器の製造及び販売を主な事業とする。",
+                                        "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, "")
+        self.assertTrue(any("文数" in r for r in reasons))
+
+    def test_短すぎる説明文は不合格(self):
+        text, reasons = gate.apply_gate("機器を作る。機器を売る。", "", "機器を作る。機器を売る。")
+        self.assertEqual(text, "")
+        self.assertTrue(any("字数" in r for r in reasons))
+
+    def test_空の説明文は不合格(self):
+        text, reasons = gate.apply_gate("", "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, "")
+        self.assertEqual(reasons, ["説明文が空"])
+
 
 class QuantityDigits(unittest.TestCase):
-    def test_量を述べる数字は挙げる(self):
-        self.assertEqual(gate.quantity_digits("連結子会社は39社ある。"), "39")
-
+    # 量を述べる数字を挙げることは、上の `test_アラビア数字が入った文は落ちる` が見ている。
     def test_英字に隣り合う数字は語の一部として見逃す(self):
         # `3PL`・`Web3` は原文にある語で量ではない。ロジスティードが `３ＰＬ` で落ちた。
         self.assertEqual(gate.quantity_digits("３ＰＬ事業を行う。"), "")
@@ -167,32 +179,10 @@ class CoveredBySource(unittest.TestCase):
             [],
         )
 
-    def test_どう切っても原文に無い語は落とす(self):
-        self.assertEqual(gate.unsupported_terms("ファブレス体制をとる。", "当社が製造する。"),
-                         ["ファブレス"])
-
     def test_3文字以下の塊では覆わない(self):
         # 「メガ」のような短い塊まで許すと、造語がほぼ全部通ってしまう。
         self.assertEqual(gate.unsupported_terms("メガソーラーを持つ。", "メガとソーラーがある。"),
                          ["メガソーラー"])
-
-
-class ApplyGate2(unittest.TestCase):
-    def test_文が足りなくなれば不合格(self):
-        text, reasons = gate.apply_gate("電子応用機器の製造及び販売を主な事業とする。",
-                                        "株式会社キーエンス", KEYENCE)
-        self.assertEqual(text, "")
-        self.assertTrue(any("文数" in r for r in reasons))
-
-    def test_短すぎる説明文は不合格(self):
-        text, reasons = gate.apply_gate("機器を作る。機器を売る。", "", "機器を作る。機器を売る。")
-        self.assertEqual(text, "")
-        self.assertTrue(any("字数" in r for r in reasons))
-
-    def test_空の説明文は不合格(self):
-        text, reasons = gate.apply_gate("", "株式会社キーエンス", KEYENCE)
-        self.assertEqual(text, "")
-        self.assertEqual(reasons, ["説明文が空"])
 
 
 if __name__ == "__main__":

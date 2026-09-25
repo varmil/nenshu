@@ -9,6 +9,7 @@
 
 import csv
 import gzip
+import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -38,7 +39,7 @@ class ReadCsv(unittest.TestCase):
                              ["E00001", "E00002"])
 
     def test_gzを展開しながら読む(self):
-        # **切った版は `.gz` で置いてある**（15.8MB。素だと56.7MB）。
+        # **切った版は `.gz` で git に置いてある**（`analysis_text_cut…_2026.csv.gz`）。
         with TemporaryDirectory() as d:
             p = Path(d) / "a.csv.gz"
             _write(p, ROWS, gzipped=True)
@@ -54,7 +55,7 @@ class SourcePath(unittest.TestCase):
         self._dir = TemporaryDirectory()
         self._saved = (generate.SOURCE, generate.CUT_SOURCE)
         generate.SOURCE = Path(self._dir.name) / "analysis_text_2026.csv"
-        generate.CUT_SOURCE = Path(self._dir.name) / "analysis_text_head1800_2026.csv.gz"
+        generate.CUT_SOURCE = Path(self._dir.name) / "analysis_text_cut_2026.csv.gz"
 
     def tearDown(self):
         generate.SOURCE, generate.CUT_SOURCE = self._saved
@@ -80,9 +81,11 @@ class SourcePath(unittest.TestCase):
 class PairOrDrop(unittest.TestCase):
     """**要約と分析は対で出す**（spec 1.19・AC-28）。"""
 
-    def test_両方あればそのまま(self):
-        got = generate.pair_or_drop("要約", "見出し", "本文", "", "")
-        self.assertEqual(got, ("要約", "見出し", "本文", "", ""))
+    def test_対になっていればそのまま(self):
+        self.assertEqual(generate.pair_or_drop("要約", "見出し", "本文", "", ""),
+                         ("要約", "見出し", "本文", "", ""))
+        self.assertEqual(generate.pair_or_drop("", "", "", "要約が空", "分析が空"),
+                         ("", "", "", "要約が空", "分析が空"))
 
     def test_分析が無ければ要約も落とす(self):
         s, h, a, sr, ar = generate.pair_or_drop("要約", "", "", "", "材料から導けない")
@@ -99,10 +102,6 @@ class PairOrDrop(unittest.TestCase):
         self.assertIn("対で落とした", ar)
         self.assertIn("原文から支持されない", ar)
 
-    def test_両方無ければそのまま(self):
-        got = generate.pair_or_drop("", "", "", "要約が空", "分析が空")
-        self.assertEqual(got, ("", "", "", "要約が空", "分析が空"))
-
 
 class PreferGated(unittest.TestCase):
     """**検証パスが読むのは `gated_*.json`** なので、書き直しはそちらに当たる。
@@ -112,32 +111,27 @@ class PreferGated(unittest.TestCase):
     2段目が見ていない文を通すことになるので、`merge` は書き直しのほうを採る。
     """
 
-    def _work(self, tmp, gen, gated):
-        work = Path(tmp)
-        (work / "gen_0001.jsonl").write_text(
-            "\n".join(__import__("json").dumps(r, ensure_ascii=False) for r in gen),
-            encoding="utf-8")
-        (work / "gated_0001.json").write_text(
-            __import__("json").dumps({"companies": gated}, ensure_ascii=False),
-            encoding="utf-8")
-        return work
+    def setUp(self):
+        self._dir = TemporaryDirectory()
+        self._saved = generate.WORK
+        generate.WORK = self.work = Path(self._dir.name)
+
+    def tearDown(self):
+        generate.WORK = self._saved
+        self._dir.cleanup()
+
+    def _write(self, gen, gated):
+        (self.work / "gen_0001.jsonl").write_text(
+            "\n".join(json.dumps(r, ensure_ascii=False) for r in gen), encoding="utf-8")
+        (self.work / "gated_0001.json").write_text(
+            json.dumps({"companies": gated}, ensure_ascii=False), encoding="utf-8")
 
     def test_書き直しを採る(self):
-        with TemporaryDirectory() as tmp:
-            work = self._work(
-                tmp,
-                [{"edinet_code": "E00001", "summary": "旧", "headline": "旧見出し",
-                  "analysis": "旧本文"}],
-                [{"edinet_code": "E00001", "summary": "新", "headline": "旧見出し",
-                  "analysis": "新本文"}])
-            old_work = generate.WORK
-            generate.WORK = work
-            try:
-                got = generate._prefer_gated([
-                    {"edinet_code": "E00001", "summary": "旧", "headline": "旧見出し",
-                     "analysis": "旧本文"}])
-            finally:
-                generate.WORK = old_work
+        old = {"edinet_code": "E00001", "summary": "旧", "headline": "旧見出し",
+               "analysis": "旧本文"}
+        self._write([old], [{"edinet_code": "E00001", "summary": "新", "headline": "旧見出し",
+                             "analysis": "新本文"}])
+        got = generate._prefer_gated([old])
         self.assertEqual(got[0]["summary"], "新")
         self.assertEqual(got[0]["analysis"], "新本文")
         self.assertEqual(got[0]["headline"], "旧見出し")
@@ -149,83 +143,25 @@ class PreferGated(unittest.TestCase):
         立てていたため）。ゲートが見るのは生成物、`merge` が見るのは検証パスが
         読んだ本文。
         """
-        import json as _json
-        with TemporaryDirectory() as tmp:
-            work = Path(tmp)
-            (work / "batch_0001.json").write_text(
-                _json.dumps({"companies": [{"edinet_code": "E00001"}]}, ensure_ascii=False),
-                encoding="utf-8")
-            (work / "gen_0001.jsonl").write_text(
-                _json.dumps({"edinet_code": "E00001", "summary": "新"}, ensure_ascii=False),
-                encoding="utf-8")
-            (work / "gated_0001.json").write_text(
-                _json.dumps({"companies": [{"edinet_code": "E00001", "summary": "古"}]},
-                            ensure_ascii=False), encoding="utf-8")
-            old_work = generate.WORK
-            generate.WORK = work
-            try:
-                plain = generate._load_generated()
-                merged = generate._load_generated(prefer_gated=True)
-            finally:
-                generate.WORK = old_work
-        self.assertEqual(plain[0]["summary"], "新")
-        self.assertEqual(merged[0]["summary"], "古")
+        (self.work / "batch_0001.json").write_text(
+            json.dumps({"companies": [{"edinet_code": "E00001"}]}, ensure_ascii=False),
+            encoding="utf-8")
+        self._write([{"edinet_code": "E00001", "summary": "新"}],
+                    [{"edinet_code": "E00001", "summary": "古"}])
+        self.assertEqual(generate._load_generated()[0]["summary"], "新")
+        self.assertEqual(generate._load_generated(prefer_gated=True)[0]["summary"], "古")
 
     def test_書き直しが無ければそのまま(self):
-        with TemporaryDirectory() as tmp:
-            old_work = generate.WORK
-            generate.WORK = Path(tmp)
-            try:
-                got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
-            finally:
-                generate.WORK = old_work
+        got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
         self.assertEqual(got[0]["summary"], "旧")
 
     def test_空の本文で上書きしない(self):
         # **機械ゲートが落とした社は `gated_*.json` に空で載る。** それで上書きすると、
         # 落ちた理由を `merge` 側で数え直せなくなる。
-        with TemporaryDirectory() as tmp:
-            work = self._work(
-                tmp,
-                [{"edinet_code": "E00001", "summary": "旧"}],
-                [{"edinet_code": "E00001", "summary": ""}])
-            old_work = generate.WORK
-            generate.WORK = work
-            try:
-                got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
-            finally:
-                generate.WORK = old_work
+        self._write([{"edinet_code": "E00001", "summary": "旧"}],
+                    [{"edinet_code": "E00001", "summary": ""}])
+        got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
         self.assertEqual(got[0]["summary"], "旧")
-
 
 if __name__ == "__main__":
     unittest.main()
-
-class 書き直しが落ちたとき(unittest.TestCase):
-    """**`plan --regenerate` は既に公開されている社を対象にする。** 新しい版が落ちた瞬間に
-    画面から要約と分析が消えるので、`merge` は**古い版を残す**（183回目、年収1位の
-    ヒューリックが検証パスの `false` で対ごと落ち、CSV の当該行が空になった）。
-
-    **新規生成なら「まだ無い」だけだが、書き直しでは「あったものが消える」**——この
-    非対称を merge が知らなかった。"""
-
-    def test_落ちた社は前の版が残る(self):
-        rows = {"E00001": {
-            "edinet_code": "E00001", "summary": "前の版の要約", "headline": "前の見出し",
-            "analysis": "前の版の分析", "summary_verdict": "ok", "analysis_verdict": "ok",
-            "summary_reason": "", "analysis_reason": "", "spec": "2",
-        }}
-        old = rows.get("E00001")
-        summary = ""  # 書き直しが落ちた
-        self.assertTrue(not summary and old and old.get("summary"))
-        # merge の分岐が「前の版を残す」側に入ることを、条件式で固定する
-        kept = dict(old)
-        self.assertEqual(kept["summary"], "前の版の要約")
-        self.assertEqual(kept["analysis"], "前の版の分析")
-
-    def test_はじめての社は落ちても残すものが無い(self):
-        rows = {}
-        old = rows.get("E00002")
-        summary = ""
-        self.assertFalse(bool(not summary and old and old.get("summary")))
-

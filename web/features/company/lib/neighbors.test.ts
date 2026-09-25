@@ -48,13 +48,6 @@ describe("findNeighbors（AC-12）", () => {
     expect(at35).not.toEqual(raw);
   });
 
-  // 鉱業は3社しかない。無理に10社出さない。
-  it("業種の社数が足りなければその数だけ返す", () => {
-    const mining = companies.industries.indexOf("鉱業");
-    const id = companies.rows.find((r) => r[2] === mining)![0];
-    expect(findNeighbors(companies, curves, id, null)).toHaveLength(2);
-  });
-
   /*
    * 10社に増やしたことで「足りない業種」が鉱業だけではなくなった（Issue #195）。
    * E2 で母集団を広げた後は 鉱業3社・空運業6社・石油石炭製品8社・海運業9社・

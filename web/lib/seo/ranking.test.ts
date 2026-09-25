@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { CompaniesData } from "@/features/ranking/types";
 import { INITIAL_STATE, buildSearchParams } from "@/features/ranking/lib/urlState";
-import { agePath, industryPath, rankingCanonical, rankingPageMeta } from "./ranking";
+import { rankingCanonical, rankingPageMeta } from "./ranking";
 
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
+/** 合成データ。社数は 1,867（1ページ30件で63ページ）。実データの社数とは関係ない。 */
 const companies = {
   meta: {
     version: "test",
@@ -76,7 +77,10 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
     expect(canonicalOf("age=33")).toBe("/");
     expect(canonicalOf("age=abc")).toBe("/");
     expect(canonicalOf("emp=xyz")).toBe("/");
+    // page の 0・負数・不正値は1ページ目に倒す。
     expect(canonicalOf("page=0")).toBe("/");
+    expect(canonicalOf("page=-3")).toBe("/");
+    expect(canonicalOf("page=abc")).toBe("/");
   });
 
   it("33件のリストに無い業種名は `/` へ寄せる（0件のページを正規URLにしない）", () => {
@@ -117,19 +121,6 @@ describe("rankingCanonical — ページ送り", () => {
     expect(canonicalOf("age=35&page=63")).toBe("/?age=35&page=63");
     expect(canonicalOf("age=35&page=64")).toBe("/?age=35");
   });
-
-  it("0・負数・不正値は1ページ目に倒す", () => {
-    expect(canonicalOf("page=0")).toBe("/");
-    expect(canonicalOf("page=-3")).toBe("/");
-    expect(canonicalOf("page=abc")).toBe("/");
-  });
-});
-
-describe("agePath / industryPath", () => {
-  it("sitemap と canonical が同じ関数を通るので文字列が一致する", () => {
-    expect(agePath(35)).toBe("/?age=35");
-    expect(industryPath("電気機器")).toBe("/?ind=%E9%9B%BB%E6%B0%97%E6%A9%9F%E5%99%A8");
-  });
 });
 
 describe("rankingPageMeta", () => {
@@ -145,48 +136,24 @@ describe("rankingPageMeta", () => {
     expect(meta.description).not.toContain("推定年収のランキング");
   });
 
-  it("有価証券報告書は全ページの description に入る", () => {
-    for (const query of ["", "age=35", "ind=銀行業", "emp=1000-", "q=キーエンス"]) {
+  // 決算期は S3（Issue #134、`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。`/` の title
+  // には上の完全一致で入っている。
+  it("有価証券報告書と決算期は全ページの description に入る", () => {
+    for (const query of ["", "age=35", "ind=銀行業", "page=2", "emp=1000-", "q=キーエンス"]) {
       const meta = rankingPageMeta(new URLSearchParams(query), companies, count);
       // `/` へ寄るURLは `/` の description を返すので、どの入力でも必ず入っている。
       expect(meta.description, query).toContain("有価証券報告書");
-    }
-  });
-
-  it("タイトルに有価証券報告書を入れるのは `/` だけ", () => {
-    // 8件・33件のファセットページは「◯歳」「業種名」に文字数を使う。
-    expect(rankingPageMeta(new URLSearchParams("age=35"), companies, count).title).not.toContain(
-      "有価証券報告書"
-    );
-    expect(rankingPageMeta(new URLSearchParams("ind=銀行業"), companies, count).title).not.toContain(
-      "有価証券報告書"
-    );
-  });
-
-  it("年齢そろえの description には推定であることを書く（AC-9）", () => {
-    const meta = rankingPageMeta(new URLSearchParams("age=35"), companies, count);
-    expect(meta.title).toBe("35歳年収ランキング | OpenReport");
-    expect(meta.description).toContain("推定");
-  });
-
-  // S3（Issue #134、`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。
-  it("決算期は `/` の title と全ページの description に入る", () => {
-    const root = rankingPageMeta(new URLSearchParams(""), companies, count);
-    expect(root.title).toContain("2026年3月期〜4月期");
-
-    for (const query of ["", "age=35", "ind=銀行業", "page=2", "emp=1000-"]) {
-      const meta = rankingPageMeta(new URLSearchParams(query), companies, count);
       expect(meta.description, query).toContain("2026年3月期〜4月期");
     }
   });
 
-  it("ファセットの title には決算期を入れない（`◯歳`・業種名に文字数を使う）", () => {
-    expect(
-      rankingPageMeta(new URLSearchParams("age=35"), companies, count).title
-    ).not.toContain("2026年3月期〜4月期");
-    expect(
-      rankingPageMeta(new URLSearchParams("ind=銀行業"), companies, count).title
-    ).not.toContain("2026年3月期〜4月期");
+  // ファセットの title は（この it と業種ページの it で）完全一致で見る。有価証券報告書も
+  // 決算期も入れず、8件・33件のファセットページは「◯歳」「業種名」に文字数を使う
+  // （入れるのは `/` だけ）。
+  it("年齢そろえの description には推定であることを書く（AC-9）", () => {
+    const meta = rankingPageMeta(new URLSearchParams("age=35"), companies, count);
+    expect(meta.title).toBe("35歳年収ランキング | OpenReport");
+    expect(meta.description).toContain("推定");
   });
 
   // 決算期は直書きせず `companies.meta` から引く（AC-20）。データを差し替えたら
@@ -235,24 +202,19 @@ describe("rankingPageMeta", () => {
  * メタデータが一致していること**がこの Unit の要なので、状態の側から引いて固定する。
  */
 describe("rankingPageMeta — 状態から引いても同じものが出る（U16）", () => {
-  const metaOf = (state: Parameters<typeof buildSearchParams>[0]) =>
-    rankingPageMeta(buildSearchParams(state), companies, count);
-
-  it("年齢そろえに切り替えた状態はその年齢のメタデータになる", () => {
-    expect(metaOf({ ...INITIAL_STATE, targetAge: 40 }).title).toBe("40歳年収ランキング | OpenReport");
-    // 35歳でも `age` を省かない（ADR-0007）。省くと実測値と同じURL・同じ文言になる。
-    expect(metaOf({ ...INITIAL_STATE, targetAge: 35 }).canonical).toBe("/?age=35");
+  it("状態から作ったURLのメタデータは、そのURLを直接開いたときと同じ", () => {
+    const cases: [state: Parameters<typeof buildSearchParams>[0], query: string][] = [
+      [{ ...INITIAL_STATE, targetAge: 40 }, "age=40"],
+      // 35歳でも `age` を省かない（ADR-0007）。省くと実測値と同じURL・同じ文言になる。
+      [{ ...INITIAL_STATE, targetAge: 35 }, "age=35"],
+      [{ ...INITIAL_STATE, industry: "銀行業" }, "ind=銀行業"],
+      // 実測値に戻した状態は `/` に戻る。
+      [INITIAL_STATE, ""],
+    ];
+    for (const [state, query] of cases) {
+      expect(rankingPageMeta(buildSearchParams(state), companies, count), query).toEqual(
+        rankingPageMeta(new URLSearchParams(query), companies, count)
+      );
+    }
   });
-
-  it("業種を選んだ状態は業種のメタデータになる", () => {
-    const meta = metaOf({ ...INITIAL_STATE, industry: "銀行業" });
-    expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
-    expect(meta.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
-  });
-
-  it("実測値に戻した状態は `/` のメタデータに戻る", () => {
-    expect(metaOf(INITIAL_STATE).canonical).toBe("/");
-    expect(metaOf(INITIAL_STATE).title).toContain("1,867社");
-  });
-
 });

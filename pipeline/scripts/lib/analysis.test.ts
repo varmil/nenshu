@@ -70,11 +70,8 @@ describe("toAnalysisRecord（AC-28）", () => {
   });
 });
 
+// 年月にすること自体は上の `toAnalysisRecord` が見ている。ここは日本時間に寄せる境目と形の検査。
 describe("generatedMonth", () => {
-  it("日本時間の年月にする", () => {
-    expect(generatedMonth("2026-09-08T06:47:16+00:00", "x")).toBe("2026-09");
-  });
-
   it("UTC の月末の夜は日本時間では翌月になる", () => {
     expect(generatedMonth("2026-08-31T20:00:00+00:00", "x")).toBe("2026-09");
     expect(generatedMonth("2026-12-31T15:00:00+00:00", "x")).toBe("2027-01");

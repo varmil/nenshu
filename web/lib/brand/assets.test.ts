@@ -2,11 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  APPLE_TOUCH_ICON,
   APP_ICONS,
   BRAND_ASSET_PATHS,
   FAVICON_ICO,
-  FAVICON_PNG,
   FAVICON_SVG,
   OG_IMAGE,
   OPAQUE_ICONS,
@@ -25,6 +23,10 @@ import { BRAND_COLOR, BRAND_COLOR_DARK, BRAND_ICON_BACKGROUND } from "./colors";
  * 見るのは**性質**（寸法・透過の有無・濃色サーフェスの分岐・manifest の中身）で、
  * 画素そのものではない。画素を固定すると、線を1本引き直すたびにテストを直すことに
  * なり、そのとき何も守らない。
+ *
+ * `BRAND_ASSET_PATHS` の成果物はどれも下のどこかで読んで中身を見るので、「置いて
+ * あるか」だけを見るテストは持たない（無ければ `read` が落ちる）。配信されて 200 で
+ * 返ることは `e2e/branding.spec.ts` が見る。
  */
 
 const publicDir = fileURLToPath(new URL("../../public/", import.meta.url));
@@ -48,24 +50,6 @@ function pngHeader(path: string): { width: number; height: number; colorType: nu
   };
 }
 
-describe("ブランドの成果物", () => {
-  it.each(BRAND_ASSET_PATHS)("%s が置いてある", (path) => {
-    expect(read(path).length).toBeGreaterThan(0);
-  });
-
-  it("`create-next-app` の既定のファビコンが消えている（AC-21）", () => {
-    /*
-      `app/favicon.ico` が残っていると、こちらが `metadata.icons` で何を指しても
-      Next.js がそれを `<link rel="icon">` として出し続ける。25,931 バイトの
-      雛形（黒い円に白い三角）が公開され続けていたのがこの Unit の発端なので、
-      「消えていること」自体を固定する。
-    */
-    expect(existsSync(fileURLToPath(new URL("../../app/favicon.ico", import.meta.url)))).toBe(
-      false,
-    );
-  });
-});
-
 describe("タブのアイコン", () => {
   it("SVG が濃色サーフェスで色を切り替える（AC-25）", () => {
     const svg = read(FAVICON_SVG).toString();
@@ -73,24 +57,23 @@ describe("タブのアイコン", () => {
     expect(svg).toContain(`@media(prefers-color-scheme:dark){.mark{stroke:${BRAND_COLOR_DARK}}}`);
   });
 
-  it.each(FAVICON_PNG)("$path が $size×$size で焼けている（AC-22）", ({ path, size }) => {
-    const { width, height } = pngHeader(path);
+  // PNG のフォールバック（AC-22）。タブに載るので透過のまま配る。
+  it.each(TRANSPARENT_ICONS)("$path が $size×$size で、透過のまま（AC-22）", ({ path, size }) => {
+    const { width, height, colorType } = pngHeader(path);
     expect([width, height]).toEqual([size, size]);
+    expect(colorType).toBe(6);
   });
 
-  it("`.ico` に 16・32・48 の3枚が入っている", () => {
+  it("`.ico` に 16・32・48 の3枚が入っていて、雛形より小さい（AC-21）", () => {
     const ico = read(FAVICON_ICO);
     expect(ico.readUInt16LE(2)).toBe(1); // 1 = アイコン
     const count = ico.readUInt16LE(4);
     expect(count).toBe(3);
     const sizes = Array.from({ length: count }, (_, i) => ico.readUInt8(6 + 16 * i));
     expect(sizes).toEqual([16, 32, 48]);
-  });
-
-  it("`.ico` が雛形より小さい", () => {
     // 25,931 バイトは create-next-app の既定（256px の PNG を抱えている）。
     // 同じ大きさに戻っていたら、差し替えたつもりで元に戻している。
-    expect(read(FAVICON_ICO).length).toBeLessThan(25_931);
+    expect(ico.length).toBeLessThan(25_931);
   });
 });
 
@@ -102,29 +85,16 @@ describe("ホーム画面のアイコン", () => {
     expect([width, height]).toEqual([size, size]);
     expect(colorType).toBe(2);
   });
-
-  it.each(TRANSPARENT_ICONS)("$path は透過のまま", ({ path }) => {
-    expect(pngHeader(path).colorType).toBe(6);
-  });
 });
 
 describe("OG画像（S2・Issue 116・AC-13）", () => {
-  it("SNS が要求する 1200×630 で焼けている", () => {
-    const { width, height } = pngHeader(OG_IMAGE.path);
+  it("SNS が要求する 1200×630 で焼けていて、透過を持たない", () => {
+    const { width, height, colorType } = pngHeader(OG_IMAGE.path);
     expect([width, height]).toEqual([OG_IMAGE.width, OG_IMAGE.height]);
-  });
-
-  it("透過を持たない", () => {
     // 地の色を敷いていないと、暗い背景に置く SNS で文字が読めなくなる。
-    expect(pngHeader(OG_IMAGE.path).colorType).toBe(2);
+    expect(colorType).toBe(2);
   });
-
-  it("代替テキストが絵の中の文字と揃っている", () => {
-    // 絵に書いてあるのはブランド名・見出し・数値の帯（`pipeline/brand/og.ts`）。
-    // **数字はデータで変わる**ので、値そのものは `ogFacts.test.ts` が突き合わせる。
-    expect(OG_IMAGE.alt).toContain("OpenReport");
-    expect(OG_IMAGE.alt).toContain("有価証券報告書の数値のまま、");
-  });
+  // 代替テキストが絵の中の文字と揃っていることは `ogFacts.test.ts` が見る。
 });
 
 describe("web app manifest（AC-24）", () => {
@@ -152,11 +122,12 @@ describe("web app manifest（AC-24）", () => {
 });
 
 describe("キャッシュ規則", () => {
-  const headers = readFileSync(`${publicDir}_headers`, "utf8");
-
-  it.each([...BRAND_ASSET_PATHS, APPLE_TOUCH_ICON.path])("%s に規則がある", (path) => {
+  it("表に載っている成果物は全部 `_headers` に規則がある", () => {
     // `_headers` は静的ファイルなので `assets.ts` を import できない。
     // 代わりに、表に載っているパスが全部書かれていることをここで見る。
-    expect(headers).toContain(`\n${path}\n`);
+    const headers = readFileSync(`${publicDir}_headers`, "utf8");
+    for (const path of BRAND_ASSET_PATHS) {
+      expect(headers, path).toContain(`\n${path}\n`);
+    }
   });
 });

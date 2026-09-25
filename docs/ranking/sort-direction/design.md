@@ -115,4 +115,5 @@ applySort(companies, { key, order })  // order === "asc" ? +1 : -1 を掛ける
 | URLの綴り・往復・U15 前のURLの意味 | `features/ranking/lib/urlState.test.ts` |
 | 6通りの並び・順位が振り直されないこと | `features/ranking/lib/rank.test.ts` |
 | 向きだけ違うURLの canonical | `lib/seo/ranking.test.ts` |
-| チップの表記・URL・行の並びが揃うこと・ネットワーク0件 | `e2e/ranking-refresh.spec.ts`（「AC-12 並び替え」に追記） |
+| チップの表記・URL・行の並びが揃うこと | `e2e/ranking-refresh.spec.ts`（「AC-12 並び替え」の1本の流れ） |
+| 並び替え・向きの反転でネットワークが起きないこと | `e2e/ranking-url-sync.spec.ts`（操作を続けて0件を見る流れの1手） |

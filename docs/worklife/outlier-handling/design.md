@@ -148,7 +148,7 @@ Issue: [#215](https://github.com/varmil/nenshu/issues/215) ／ 親: [#185](https
 
 ## テスト
 
-- **`positivedb.test.ts`** — 判定関数（`dropReasonForRate`・`isMisenteredFullRate`）の境界と、`normalizeRow` が区分の行を残すこと。実データ側は「0 以下が1件も残っていない」ことと、ソニーグループ・野村総合研究所の実際の値
+- **`positivedb.test.ts`** — 判定関数（`dropReasonForRate`・`isMisenteredFullRate`）の境界と、`normalizeRow` が区分の行を残すこと。実データ側は「0 以下が1件も残っていない」こと（会社ごとの値は下の `lib/data/worklife.test.ts` が配る JSON で固定する）
 - **`radar.test.ts`** — `representative` の `byUnit`、`buildRadarAxes` の文言が3文字に収まること
 - **`lib/data/worklife.test.ts`** — **実物の `worklife.json`** に対してソニーグループ・野村総合研究所・みずほ銀行の値を固定する
 - **`e2e/company-radar.spec.ts`** — ラクスで「区分別」が出て頂点が4つであること、ソニーグループの画面に 100.0% が出ないこと、野村総合研究所の残業が図でも節でも消えていること

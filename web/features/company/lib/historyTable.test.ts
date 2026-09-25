@@ -9,15 +9,9 @@ function tableFor(id: string) {
 }
 
 describe("buildHistoryTable", () => {
-  it("10年ぶんの行を年の並びのまま返す", () => {
-    const { rows } = tableFor("6861");
-    expect(rows).toHaveLength(10);
-    expect(rows[0].year).toBe(2017);
-    expect(rows[9].year).toBe(2026);
-  });
-
-  it("基準年の行は前年比も累積も持たない", () => {
+  it("10年ぶんの行を年の並びのまま返し、基準年の行は前年比も累積も持たない", () => {
     const { rows, baseYear } = tableFor("6861");
+    expect(rows.map((row) => row.year)).toEqual(history.years);
     expect(baseYear).toBe(2017);
     expect(rows[0].yoy).toBeNull();
     expect(rows[0].cumulative).toBeNull();

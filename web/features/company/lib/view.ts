@@ -2,7 +2,7 @@ import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/ty
 import { curveValuesInYen } from "@/features/ranking/lib/curve";
 import { estimateSalary } from "@/features/ranking/lib/salary";
 import type { CompanyAgeStats, CompanyStatsData, CompanyView } from "../types";
-import { binOf, deviationScore, topPercent } from "./stats";
+import { binOf, deviationScore } from "./stats";
 import { findNeighbors } from "./neighbors";
 
 /**
@@ -44,7 +44,6 @@ export function buildCompanyView(
       salary,
       rankAll,
       rankIndustry: stats.rankIndustry[index][k],
-      topPercent: topPercent(rankAll, stats.count),
       deviation: deviationScore(salary, mean, sd),
       populationMedian: distribution.median,
       distribution,

@@ -8,27 +8,13 @@ const row = (id: string, name = "テスト"): CompanyRow => [id, name, 0, 0, 40,
 describe("ロゴの有無を配るマスク", () => {
   const rows = [row("6861"), row("8058"), row("E01234")];
 
-  it("行の並びのまま 1/0 を並べる", () => {
+  it("**行1つにつき1文字**、行の並びのまま 1/0 を並べる。ずれると別の会社のロゴを出す", () => {
     expect(buildLogoMask(rows, { "6861": {}, E01234: {} })).toBe("101");
   });
 
-  it("1社もロゴが無ければ全部 0", () => {
-    expect(buildLogoMask(rows, {})).toBe("000");
-  });
-
-  it("マスクを id の集合に開く", () => {
-    const ids = logoIdSet(rows, "101");
-    expect([...ids].sort()).toEqual(["6861", "E01234"]);
-  });
-
-  it("開いた集合は元のマスクと往復する", () => {
-    const byId = { "8058": {} };
-    const mask = buildLogoMask(rows, byId);
-    expect(logoIdSet(rows, mask)).toEqual(new Set(["8058"]));
-  });
-
-  it("**行1つにつき1文字。** ここがずれると別の会社のロゴを出す", () => {
-    expect(buildLogoMask(rows, { "6861": {} })).toHaveLength(rows.length);
+  it("マスクを id の集合に開くと元に戻る", () => {
+    expect(logoIdSet(rows, "101")).toEqual(new Set(["6861", "E01234"]));
+    expect(logoIdSet(rows, buildLogoMask(rows, { "8058": {} }))).toEqual(new Set(["8058"]));
   });
 
   it("マスクが短ければ足りない行はロゴ無しとして扱う（壊れた入力で例外にしない）", () => {

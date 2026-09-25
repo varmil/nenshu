@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAboutFacts } from "./aboutFacts";
+import { formatManYen1 } from "./format";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
 import type { CompaniesData, CurvesData } from "../types";
@@ -82,7 +83,8 @@ describe("buildAboutFacts の式の実例", () => {
 
   it("本文に小数第1位まで出した値で計算しても、表示している推定年収と同じ万円になる", () => {
     // 万円に丸めた値どうしで引き算すると1万円ずれる。桁を1つ増やせば合う（U7で踏んだ）。
-    const man1 = (yen: number) => Number((yen / 10000).toFixed(1));
+    // 本文が出している文字列（`formatManYen1`）から読み戻して電卓を叩く。
+    const man1 = (yen: number) => Number(formatManYen1(yen).replace("万円", ""));
     const a = man1(e.curveAtAnchorAge);
     const byHand =
       a + ((man1(e.company.avgSalary) - a) * (man1(e.curveAtTargetAge) - a)) / (man1(e.curveAtAvgAge) - a);
