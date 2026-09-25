@@ -1,5 +1,5 @@
 import type { RankedCompany } from "../types";
-import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
+import { formatDecimal1, formatInt } from "../lib/format";
 
 /**
  * 社名の下に添える1行（U13、アートボード 5a）。
@@ -12,8 +12,8 @@ import { formatDecimal1, formatInt, formatManYen } from "../lib/format";
  * **どれも「この会社がどんな会社か」を言う属性で、金額のように行どうしを見比べる
  * ものではない**ので、1行にまとめて社名に寄せる。
  *
- * **年齢そろえのときだけ末尾に実測値を出す**（アートボード 4a）。補正後の数字だけを
- * 見せると、元がいくらだったのかを確かめる手段がページから消える。
+ * **年齢そろえでも実測値（`実績 ◯万円`）は添えない**（運営者の指示）。U13 ではアートボード 4a
+ * に合わせて末尾に出していたが、冗長だった。元の数字は「実測値」へ切り替えれば並ぶ。
  */
 export function CompanyMetaLine({
   company,
@@ -44,7 +44,6 @@ export function CompanyMetaLine({
       {!compact && (
         <>
           {` ・ 在籍${formatDecimal1(company.avgTenure)}年`} ・ {formatInt(company.employees)}人
-          {company.estimatedSalary !== null && ` ・ 実績 ${formatManYen(company.avgSalary)}`}
         </>
       )}
     </span>
