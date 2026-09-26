@@ -33,14 +33,15 @@ web/public/data/
 | `edinet_code` | 名寄せキー。証券コードと違い年をまたいで変わらない（ADR-0006） |
 | `year` | **書類の提出年**（決算年度ではない）。spec 2.1 の横軸に一致する |
 | `avg_salary` | 提出会社単体の平均年間給与（円・整数） |
-| `avg_age` / `employees_nonconsolidated` | 併せて取れるもの。**`avg_age` は T3（#827）で `history.json` の `ageById` に出し、推移の表に並べた**。従業員数は出していない |
+| `avg_age` / `avg_tenure` / `employees_nonconsolidated` | 併せて取れるもの。**`avg_age` は T3（#827）で `history.json` の `ageById` に出し、推移の表に並べた**。**`avg_tenure`（平均勤続年数）は T4（#835）で列を足し、`tenureById` として在籍年数の推移の節に出した**（`docs/timeseries/tenure-history/design.md`）。従業員数は出していない |
 | `source` | `tag`（XBRL要素）か `textblock`（本文の表） |
 | `period_end` / `doc_id` | 出典。1行から元の有報に戻れる |
 
 ### `web/public/data/history.json`
 
 ```
-{ "years": [2017, …, 2026], "byId": { "<企業ID>": [値 or null, …] }, "ageById": { … } }
+{ "years": [2017, …, 2026], "byId": { "<企業ID>": [値 or null, …] }, "ageById": { … },
+  "tenureById": { … }, "tenureIndustryMedian": [[…], …] }
 ```
 
 キーは `companies.json` の `id`（証券コード／EDINETコード）。値は円・整数、無い年は `null`。

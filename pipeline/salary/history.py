@@ -1,7 +1,10 @@
 """キャッシュ済みの有報CSVから、年ごとの平均年間給与を抜いて年次CSVにする。
 
 出力: pipeline/data/salary_history.csv
-  edinet_code, year, avg_salary, avg_age, employees_nonconsolidated, source, period_end, doc_id
+  edinet_code, year, avg_salary, avg_age, avg_tenure, employees_nonconsolidated, source, period_end, doc_id
+
+`avg_tenure`（平均勤続年数）は T4（#835）で足した。**抜き出す処理は T0 の時点から
+`to_record` にあり、書き出していなかっただけ**——平均年齢と同じ書類の同じ行の値になる。
 
 抽出は `edinet.parse_csv_zip` / `to_record` と `run.fix_salary_typos` をそのまま使う。
 **式も抽出ロジックも書き写さない**——写すと片方の変更を取り逃す（現行CSVを作った
@@ -36,6 +39,7 @@ COLUMNS = [
     "year",
     "avg_salary",
     "avg_age",
+    "avg_tenure",
     "employees_nonconsolidated",
     "source",
     "period_end",
@@ -65,6 +69,9 @@ def to_row(rec):
         "year": rec["year"],
         "avg_salary": math.floor(rec["avg_salary"] + 0.5),
         "avg_age": rec.get("avg_age") or "",
+        # **`or ""` にしない。** 入社1年目ばかりの会社では 0 年がありうる（`_validate` は
+        # 0 を通す）ので、偽で空欄に倒すと値を捨てることになる。
+        "avg_tenure": "" if rec.get("avg_tenure") is None else rec["avg_tenure"],
         "employees_nonconsolidated": rec.get("employees_nonconsolidated") or "",
         "source": rec.get("source") or "",
         "period_end": rec.get("period_end") or "",
@@ -102,7 +109,8 @@ def resolve_candidates(recs):
                 continue
             pick = min(cands, key=lambda v: abs(math.log(v / ref)))
             if pick != r["avg_salary"]:
-                r["avg_salary"] = pick
+                # 年齢・勤続も同じ読みに差し替える（T4・#835）。
+                edinet.adopt_salary(r, pick)
                 swapped += 1
     return swapped
 

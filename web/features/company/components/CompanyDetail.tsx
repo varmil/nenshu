@@ -16,7 +16,7 @@ import {
   formatManYen,
 } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
-import type { CompanyView, ProfitHistory, SalaryHistory } from "../types";
+import type { CompanyView, ProfitHistory, SalaryHistory, TenureHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
 import { buildCardFacts, buildCardLead, type CardFact } from "../lib/cardFacts";
 import { statsForBasis } from "../lib/stats";
@@ -26,6 +26,7 @@ import { YearlyBarChart } from "./YearlyBarChart";
 import { SalaryHistoryTable } from "./SalaryHistoryTable";
 import { historyBaseYear } from "../lib/historyTable";
 import { ProfitHistorySection } from "./ProfitHistorySection";
+import { TenureHistorySection } from "./TenureHistorySection";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { WorklifeSection } from "./WorklifeSection";
 import type { WorklifeView } from "../lib/worklife";
@@ -75,6 +76,7 @@ export function CompanyDetail({
   radar,
   worklife,
   history,
+  tenureHistory,
   profitHistory,
   summary,
   fiscalPeriod,
@@ -98,6 +100,11 @@ export function CompanyDetail({
   worklife: WorklifeView;
   /** 10年推移。取れていない会社は `null`。 */
   history: SalaryHistory | null;
+  /**
+   * 在籍年数の10年推移と業種の中央値（T4・#835）。**1年も値が無い会社は `null`** で、
+   * そのとき節ごと出さない。`byBasis` の外に置くのは推移の2つと同じ。
+   */
+  tenureHistory: TenureHistory | null;
   /**
    * 稼ぐ力の10年推移（P2・Issue #168）。取れていない会社は `null`。
    * **`byBasis` の外に置く**——年齢そろえを選んでも過去の経常利益は変わらない。
@@ -471,8 +478,16 @@ export function CompanyDetail({
           )}
 
           {/*
-            **平均年収推移の直後**（P2、アートボード 6e）。同じ10年の縦棒を並べると、
-            給与が増えた年に利益も増えたのかを目で追える。
+            **平均年収推移と稼ぐ力の推移の間**（T4・#835、モック 1b の前提）。平均年収と同じ書類の
+            同じ表の数字なので、平均年収の直後に続ける。
+          */}
+          {tenureHistory && (
+            <TenureHistorySection history={tenureHistory} name={view.name} industry={view.tse33} />
+          )}
+
+          {/*
+            **平均年収推移の後ろ**（P2、アートボード 6e）。同じ10年の縦棒を並べると、
+            給与が増えた年に利益も増えたのかを目で追える。T4 で間に在籍年数の推移が入った。
           */}
           {profitHistory && <ProfitHistorySection history={profitHistory} />}
 

@@ -52,6 +52,8 @@ export interface SourceRow {
 export interface PagePresence {
   /** 平均年収推移（過去10年間）。 */
   history: boolean;
+  /** 在籍年数推移（過去10年間）と業種の中央値（T4・#835）。平均年収推移がある会社にしか無い。 */
+  tenureHistory: boolean;
   /** 社名の下の説明文（C7。原文に事業の中身が無い会社には無い）。 */
   summary: boolean;
   /** 「有価証券報告書の要約」と「現状と今後」。**2つは対**（AC-28）なので1つで持つ。 */
@@ -71,9 +73,12 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
       kind: "measured",
       label: "実測値",
       // 推移の表は平均年齢も年ごとに出す（T3・#827）ので、「その推移」は2つにかかる。
-      covers: presence.history
-        ? "平均年収・平均年齢とその推移・在籍年数・従業員数"
-        : "平均年収・平均年齢・在籍年数・従業員数",
+      // 在籍年数の推移（T4・#835）がある会社では3つにかかる。
+      covers: presence.tenureHistory
+        ? "平均年収・平均年齢・在籍年数とその推移・従業員数"
+        : presence.history
+          ? "平均年収・平均年齢とその推移・在籍年数・従業員数"
+          : "平均年収・平均年齢・在籍年数・従業員数",
       /*
        * **「有価証券報告書」はその会社の書類そのものへのリンク**（C13・spec 1.20）。実測値の
        * 節の下辺の帯と同じ行き先で、C12 の時点では EDINET のトップだった。
@@ -91,7 +96,10 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
        */
       kind: "computed",
       label: "計算値",
-      covers: "順位・偏差値・分布・レーダー・稼ぐ力",
+      // 業種の中央値は稼ぐ力（レーダー）と在籍年数の推移（T4）の2か所に出る。
+      covers: presence.tenureHistory
+        ? "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
+        : "順位・偏差値・分布・レーダー・稼ぐ力",
       source: ["実測値・自己申告値と、有価証券報告書（連結）から計算"],
     },
     {

@@ -332,6 +332,21 @@ def parse_csv_zip(path):
     return rec
 
 
+def adopt_salary(rec, salary):
+    """読み方が割れた給与のうち `salary` を採る。**同じ読みの年齢・勤続も一緒に差し替える**
+    （T4・#835）。
+
+    `history.resolve_candidates`（10年推移）と `unified.resolve_ambiguous_salary`（その年の
+    母集団）の両方が使う。給与だけを差し替えると、勤続（と年齢）は選ばなかった読みのまま残る
+    ——`34.09.924,320,256` を「勤続9.92 / 給与432万」と選び直しても、勤続は 9.9 のまま。
+    """
+    rec["avg_salary"] = salary
+    reading = (rec.get("salary_readings") or {}).get(salary)
+    if reading is not None:
+        rec["avg_age"] = reading["avg_age"]
+        rec["avg_tenure"] = reading["avg_tenure"]
+
+
 def to_record(meta, parsed):
     def num(v):
         try:
@@ -349,6 +364,7 @@ def to_record(meta, parsed):
     # 平均年間給与をタグ付けしていない会社（持株会社傘下の事業会社に多い）は
     # 「従業員の状況」本文から拾う
     candidates = None
+    readings = None
     if not (salary and age) and parsed.get("employees_textblock"):
         import textblock
         got = textblock.parse(parsed["employees_textblock"], emp_nc)
@@ -356,6 +372,7 @@ def to_record(meta, parsed):
             # 読み方が割れた場合の他の候補。1書類の中では決められないので、
             # 年をまたいで選び直す側（history.py）に渡す。
             candidates = got.get("candidates")
+            readings = got.get("readings")
             salary = salary or got["avg_salary"]
             age = age or got["avg_age"]
             tenure = tenure or got.get("avg_tenure")
@@ -375,6 +392,9 @@ def to_record(meta, parsed):
         "employees_nonconsolidated": emp_nc,
         "employees_consolidated": emp_c,
         "salary_candidates": candidates,
+        # 候補ごとの年齢・勤続（`textblock._best`）。給与を選び直すときは `adopt_salary` で
+        # 一緒に差し替える。
+        "salary_readings": readings,
         # 会社の説明文の原文（C5・#159）。**平文にしてから持つ**——整える規則を
         # 読む側ごとに書き写さないため（`businesstext.py`）。要約は C6 が作る。
         "business_text": businesstext.pick(parsed.get("business_textblocks")),

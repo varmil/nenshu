@@ -107,8 +107,16 @@ export function estimateRange(salary: number): { low: number; high: number } {
  * 決めない**——788万〜2,699万の範囲では等分幅が 1,009万 になり、わずかに超えたせいで
  * 2,000万刻みに上がって目盛が1本しか残らなかった。候補を並べて、**本数が `count` に
  * 最も近いもの**を採る（同じなら刻みの大きいほう＝目盛の少ないほう）。
+ *
+ * `factors` で刻みの候補を絞れる。在籍年数の推移（T4）は 2.5 を外している——年の目盛に
+ * `7.5 / 12.5` が並ぶと、目盛のほうが値に見える。
  */
-export function niceTicks(low: number, high: number, count = 4): number[] {
+export function niceTicks(
+  low: number,
+  high: number,
+  count = 4,
+  factors: readonly number[] = [1, 2, 2.5, 5]
+): number[] {
   const span = high - low;
   if (!(span > 0) || count < 2) return [];
 
@@ -124,7 +132,7 @@ export function niceTicks(low: number, high: number, count = 4): number[] {
   let best: number[] = [];
   let bestScore = Number.POSITIVE_INFINITY;
   for (let e = exponent - 2; e <= exponent + 1; e++) {
-    for (const factor of [1, 2, 2.5, 5]) {
+    for (const factor of factors) {
       const step = factor * 10 ** e;
       const values = ticksFor(step);
       if (values.length < 2) continue;

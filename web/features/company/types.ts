@@ -93,6 +93,25 @@ export interface SalaryHistory {
 }
 
 /**
+ * 在籍年数の10年推移（T4・#835、`docs/timeseries/spec.md` 2.7）。
+ *
+ * **`SalaryHistory` に混ぜない。** 同じ書類の同じ行の値だが、描く節が別で、業種の中央値という
+ * 会社の外の値を一緒に持つ。**表示基準と独立**なのは推移の2つと同じなので、`byBasis` の外に置く。
+ *
+ * どちらも `years` と同じ長さ。**その年の値が無ければ `null`。内挿しない。**
+ */
+export interface TenureHistory {
+  years: number[];
+  /** 平均勤続年数（年）。有報の桁のまま（`19.42` もある）で、丸めは描画で行う。 */
+  values: (number | null)[];
+  /**
+   * いまの業種（`tse33`）の中央値（年）。**その年に値を持つ会社だけ**で数えてあり、
+   * この会社自身も入っている（`build-data.ts` の `tenureIndustryMedian`）。
+   */
+  industryMedian: (number | null)[];
+}
+
+/**
  * 稼ぐ力の10年推移（performance 施策・P2・Issue #168）。
  *
  * **表示基準と独立。** 年齢そろえを選んでも過去の経常利益は変わらないので、

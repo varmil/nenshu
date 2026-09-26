@@ -19,12 +19,13 @@ import { TARGET_AGES } from "../../web/features/ranking/types";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const EXPECTED_ROW_COUNT = 2961;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
-// 2,961社 × 10年の平均年収と平均年齢。**T3（#827）で平均年齢を足して gzip 99.6 → 143.1KB に
-// なったので、上限を 150KB から 180KB に上げた。** 150KB は Next.js の頃に Worker バンドルへ
+// 2,961社 × 10年の平均年収・平均年齢・在籍年数と、在籍年数の業種の中央値。**T3（#827）で
+// 平均年齢を足して gzip 99.6 → 143.1KB になり、上限を 150KB から 180KB に上げた。T4（#835）で
+// 在籍年数を足して 187.0KB になり、224KB に上げた。** 150KB は Next.js の頃に Worker バンドルへ
 // 同梱されていた時代の予算で、F1（ADR-0014）以降は `/company/[id]` をビルド時に生成するときに
 // 読まれるだけ（クライアントにも Worker バンドルにも入らない）。上限は他のデータと同じく
 // 気づくための線として、実測の 1.2 倍に置く。
-const HISTORY_JSON_GZIP_LIMIT_BYTES = 180 * 1024;
+const HISTORY_JSON_GZIP_LIMIT_BYTES = 224 * 1024;
 // 実測 186.2KB（E5 で母集団に追随させた後・2,369社ぶん。注釈・説明 1,057社を同梱）。
 // **切り出しの発動条件は Worker バンドルが 3MiB に近づいたときで、このファイル単体の
 // 大きさではない**（`docs/worklife/overview.md`）——実測でバンドルは gzip 2.089MB
@@ -222,7 +223,7 @@ export function buildData(outDir: string) {
   };
 
   const stats = buildStats(companies, curves);
-  const history = buildHistory(rows, companyRows);
+  const history = buildHistory(rows, companyRows, industries);
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
@@ -776,11 +777,19 @@ function buildAnalyses(
  * 黙って崩れ、空欄のまま出すと表に「◯◯万円・空欄」の行ができる。どちらも気づけないので、
  * 来たら抽出を見直す。いまの CSV には1行も無い（平均年収のある 26,865行すべてにある）。
  *
+ * **在籍年数（`tenureById`）も同じ行から取る**（T4・#835・spec AC-17）。平均年齢と同じ理由で
+ * ファイルを分けない。**平均年齢と違い、空欄を許す**——給与と年齢はタグ付けされていて勤続だけが
+ * 無い書類があり（1行）、その年は在籍年数だけが `null` になる（平均年収の無い年は両方 `null`）。
+ *
+ * **業種の中央値（`tenureIndustryMedian`）はここで1回だけ数える**（spec AC-18）。並びは
+ * `companies.industries` と同じ（`performance.json` の `industryMedian` と同じ引き方）。
+ *
  * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
  */
 function buildHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
-  companyRows: readonly (readonly (string | number)[])[]
+  companyRows: readonly (readonly (string | number)[])[],
+  industries: readonly string[]
 ) {
   const csvPath = resolve(ROOT, "data/salary_history.csv");
   const historyRows = parseSalaryHistoryCsv(readFileSync(csvPath, "utf-8"));
@@ -788,8 +797,13 @@ function buildHistory(
   const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
   const yearIndex = new Map(years.map((y, i) => [y, i]));
 
-  // edinet_code → その会社の年次配列（平均年収と平均年齢を同じ添字で持つ）
-  type Series = { salary: (number | null)[]; age: (number | null)[] };
+  // edinet_code → その会社の年次配列（平均年収・平均年齢・在籍年数を同じ添字で持つ）
+  type Series = {
+    salary: (number | null)[];
+    age: (number | null)[];
+    tenure: (number | null)[];
+  };
+  const empty = () => new Array<number | null>(years.length).fill(null);
   const byEdinetCode = new Map<string, Series>();
   for (const row of historyRows) {
     if (row.avgAge === null) {
@@ -799,30 +813,63 @@ function buildHistory(
     }
     let series = byEdinetCode.get(row.edinetCode);
     if (series === undefined) {
-      series = {
-        salary: new Array<number | null>(years.length).fill(null),
-        age: new Array<number | null>(years.length).fill(null),
-      };
+      series = { salary: empty(), age: empty(), tenure: empty() };
       byEdinetCode.set(row.edinetCode, series);
     }
     const k = yearIndex.get(row.year)!;
     series.salary[k] = row.avgSalary;
     series.age[k] = row.avgAge;
+    series.tenure[k] = row.avgTenure;
   }
 
   // 企業ID に移し替える。companies.json と同じ順・同じIDで引けるようにする。
   const byId: Record<string, (number | null)[]> = {};
   const ageById: Record<string, (number | null)[]> = {};
+  const tenureById: Record<string, (number | null)[]> = {};
+  // 業種の添字 → 年 → その年に在籍年数を持つ会社の値
+  const tenureByIndustry = industries.map(() => years.map((): number[] => []));
   rows.forEach((row, i) => {
     const series = byEdinetCode.get(row.edinetCode);
     if (series === undefined || series.salary.every((v) => v === null)) return;
     const id = companyRows[i][0] as string;
     byId[id] = series.salary;
     ageById[id] = series.age;
+    tenureById[id] = series.tenure;
+    const industry = companyRows[i][2] as number;
+    series.tenure.forEach((v, k) => {
+      if (v !== null) tenureByIndustry[industry][k].push(v);
+    });
   });
 
-  return { years, byId, ageById };
+  return {
+    years,
+    byId,
+    ageById,
+    tenureById,
+    tenureIndustryMedian: tenureByIndustry.map((byYear) =>
+      byYear.map((values) => tenureIndustryMedian(values))
+    ),
+  };
 }
+
+/**
+ * 在籍年数の業種の中央値（T4・#835・spec AC-18）。**業種はいまの業種**（`companies.json` の
+ * `tse33`）で、**その年に値を持つ会社だけ**で数える——過去の年ほど母集団が小さい。
+ *
+ * **同業が3社未満の年は出さない。** 1社なら中央値はその会社の値そのもので、2社なら2社の
+ * 平均になる。どちらも「業種の水準」とは呼べない。当たるのは空運業の2017・2018年だけ
+ * （値を持つのはアジア航測1社。日本航空のページでは、自社に値の無い年にだけ点線が出ていた）。
+ *
+ * **小数第2位で丸める。** 偶数個のときの平均が `16.349999…` のような浮動小数の端数を持つ。
+ * 画面は小数第1位で出すので、第2位まで残せば丸めの向きは変わらない。
+ */
+function tenureIndustryMedian(values: readonly number[]): number | null {
+  if (values.length < TENURE_MEDIAN_MIN_COMPANIES) return null;
+  return Math.round(median(values) * 100) / 100;
+}
+
+/** 業種の中央値を出す最少の社数（`tenureIndustryMedian`）。テストも同じ値を読む。 */
+export const TENURE_MEDIAN_MIN_COMPANIES = 3;
 
 /**
  * 働きやすさ指標（`worklife.json`）。W0・Issue #149。
