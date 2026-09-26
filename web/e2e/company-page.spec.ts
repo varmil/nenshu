@@ -18,7 +18,7 @@ import { collectPageRequests } from "./network";
 const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAHE,,";
 
 /**
- * 大カードの順位の段（全体順位・業界内順位）。**何番目かでは引かず、中身で引く**
+ * 大カードの順位の段（業界内順位・全体順位）。**何番目かでは引かず、中身で引く**
  * ——C14（#818）で段の並びを変えた。**カードの中に限る**——P1（#167）のレーダーの
  * 指標リストも `dl`。
  */

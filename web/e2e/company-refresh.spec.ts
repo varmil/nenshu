@@ -720,7 +720,7 @@ test.describe("AC-16 このページの出典", () => {
 
 /*
  * C14（#818・親 #817）。金額の直後は「どういう会社の金額か」（平均年齢・従業員数）、
- * その下に全体順位と業界内順位。在籍年数はカードから外し、太字は金額だけにした。
+ * その下に業界内順位と全体順位（業界が左）。在籍年数はカードから外し、太字は金額だけにした。
  * 偏差値も順位の段から外した（#831）——右の位置バーの見出しの隣に同じ値がある。
  * 値の組み立ては `lib/cardFacts.test.ts`。**カードの `dl` は中身で引く**——段の順を
  * 入れ替えたことがある（C14）。
@@ -747,13 +747,13 @@ test.describe("AC-32 平均年収カード（C14）", () => {
    * 定着の軸にある）。**太字は金額だけ**——順位まで太いと、どれがこのカードの
    * 答えなのかが読めない。
    */
-  test("1段目に平均年齢・従業員数、2段目に全体順位・業界内順位が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
+  test("1段目に平均年齢・従業員数、2段目に業界内順位・全体順位が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
     await page.goto("/company/6861");
 
     expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
     expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dt")).toEqual(["全体順位", "業界内順位"]);
-    expect(await texts(page, 1, "dd")).toEqual(["3位 /2,961社", "1位 /193社"]);
+    expect(await texts(page, 1, "dt")).toEqual(["業界内順位", "全体順位"]);
+    expect(await texts(page, 1, "dd")).toEqual(["1位 /193社", "3位 /2,961社"]);
     await expect(salaryCard(page)).not.toContainText("在籍年数");
     // 偏差値はカードの中で1回だけ（#831。順位の段にも置くと2回になる）。位置バーの見出しの
     // 隣にあることは AC-13 が見る。
@@ -779,7 +779,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
   });
 
   // 2段とも同じ2列の器に入れてある。段ごとに器を変えると（C14 の頃は2段目だけ偏差値の
-  // ぶん3項目あった）従業員数が業界内順位より右にずれ、2つの段が別々の表に見える。
+  // ぶん3項目あった）従業員数が全体順位より右にずれ、2つの段が別々の表に見える。
   test("2つの段の列の左端がそろっている", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/company/6861");
@@ -791,9 +791,9 @@ test.describe("AC-32 平均年収カード（C14）", () => {
         .locator("dt")
         .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().left));
     const [age, employees] = await lefts(0);
-    const [rankAll, rankIndustry] = await lefts(1);
-    expect(Math.abs(age - rankAll)).toBeLessThanOrEqual(1);
-    expect(Math.abs(employees - rankIndustry)).toBeLessThanOrEqual(1);
+    const [rankIndustry, rankAll] = await lefts(1);
+    expect(Math.abs(age - rankIndustry)).toBeLessThanOrEqual(1);
+    expect(Math.abs(employees - rankAll)).toBeLessThanOrEqual(1);
   });
 
   /*
@@ -825,7 +825,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     await expect(lead).toBeVisible();
 
     expect(await texts(page, 0, "dd")).toEqual(["35.0歳", "3,306人"]);
-    expect(await texts(page, 1, "dd")).toEqual(["2位 /2,961社", "1位 /193社"]);
+    expect(await texts(page, 1, "dd")).toEqual(["1位 /193社", "2位 /2,961社"]);
     expect(await firstBin.textContent()).not.toBe(before);
   });
 

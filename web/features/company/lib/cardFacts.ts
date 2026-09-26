@@ -31,8 +31,10 @@ export interface CardFact {
  *
  * - **1段目（`profile`）は「どういう会社の金額か」**——平均年齢と従業員数。有報の値
  *   そのままなので、表示基準を切り替えても変わらない
- * - **2段目（`standing`）は全体順位と業界内順位。** カードの右の位置バーと同じ話なので、
- *   その隣の段に置く
+ * - **2段目（`standing`）は業界内順位と全体順位。** カードの右の位置バーと同じ話なので、
+ *   その隣の段に置く。**業界内順位が左**——読者が先に知りたいのは同業の中の位置のほうで、
+ *   h1 直下の1行（`業界193社中1位 ・全体2,961社中3位`）も業界が先。全体順位は右に来て、
+ *   PC ではその右の位置バー（`全体2,961社の中の位置`）と隣り合う
  *
  * **偏差値は入れない**（#831）。同じカードの右の位置バーの見出し（`全体2,961社の中の位置`）
  * の隣に `偏差値 124.8` として出ており、ここにも置くと1枚のカードに同じ値が2回並ぶ。
@@ -56,14 +58,14 @@ export function buildCardFacts(
     ],
     standing: [
       {
-        label: "全体順位",
-        value: `${formatInt(current.rankAll)}位`,
-        total: `/${formatInt(view.totalCount)}社`,
-      },
-      {
         label: "業界内順位",
         value: `${formatInt(current.rankIndustry)}位`,
         total: `/${formatInt(view.industryCount)}社`,
+      },
+      {
+        label: "全体順位",
+        value: `${formatInt(current.rankAll)}位`,
+        total: `/${formatInt(view.totalCount)}社`,
       },
     ],
   };
