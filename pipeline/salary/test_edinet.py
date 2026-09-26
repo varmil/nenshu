@@ -174,5 +174,41 @@ class AnalysisTexts(unittest.TestCase):
             self.assertEqual(rec["business_text"], "")
 
 
+# 区切りの無いセルで給与の読みが割れる本文（`textblock._best` の docstring のコメリ2017）。
+# 「勤続9.9 / 給与2,432万」とも「勤続9.92 / 給与432万」とも読める。
+SPLIT = "従業員数（人）平均年齢（歳）平均勤続年数（年）平均年間給与（円）4,179(4,046)34.09.924,320,256"
+
+
+class AdoptSalary(unittest.TestCase):
+    """T4（#835）。給与を選び直したら、同じ読みの勤続も一緒に差し替わる。"""
+
+    def _record(self):
+        # 給与と年齢のタグを持たない書類（2019年より前）。本文の表から拾う経路に入る。
+        with TemporaryDirectory() as d:
+            path = _zip(d, {"XBRL_TO_CSV/a.csv": [
+                _row("jpdei_cor:EDINETCodeDEI", "E00001"),
+                _row("jpcrp_cor:NumberOfEmployees", "4,179", "CurrentYearInstant_NonConsolidatedMember"),
+                _row(EMPLOYEES, SPLIT),
+            ]})
+            return edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))
+
+    def test_割れた読みごとに年齢と勤続が残る(self):
+        rec = self._record()
+        self.assertEqual(rec["salary_candidates"], [24320256.0, 4320256.0])
+        self.assertEqual(rec["salary_readings"][4320256.0]["avg_tenure"], 9.92)
+        # 並び順で先に来た読み（2,432万）を採っている
+        self.assertEqual((rec["avg_salary"], rec["avg_tenure"]), (24320256.0, 9.9))
+
+    def test_給与を選び直すと勤続も同じ読みになる(self):
+        rec = self._record()
+        edinet.adopt_salary(rec, 4320256.0)
+        self.assertEqual((rec["avg_salary"], rec["avg_age"], rec["avg_tenure"]), (4320256.0, 34.0, 9.92))
+
+    def test_読みの無い記録では給与だけを差し替える(self):
+        rec = {"avg_salary": 5_000_000.0, "avg_age": 40.0, "avg_tenure": 12.0}
+        edinet.adopt_salary(rec, 500_000.0)
+        self.assertEqual(rec, {"avg_salary": 500_000.0, "avg_age": 40.0, "avg_tenure": 12.0})
+
+
 if __name__ == "__main__":
     unittest.main()

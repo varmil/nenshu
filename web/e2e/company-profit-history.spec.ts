@@ -8,7 +8,7 @@ import type { Page } from "@playwright/test";
  * 値そのものは `build-data.test.ts` と `features/company/lib/profitHistory.test.ts`
  * が固定しているので、ここは**ブラウザでどう出るか**だけを見る。
  *
- * 他所にあるもの: 節が「平均年収推移」の直後にあること（AC-10）は `company-refresh.spec.ts` の
+ * 他所にあるもの: 節が「平均年収推移」「在籍年数推移」の後ろにあること（AC-10）は `company-refresh.spec.ts` の
  * 「節の並び」、表示基準と独立であること（AC-11）は `company-page.spec.ts` の AC-3、
  * JS 実行前の HTML に入っていることは同じく AC-10、モバイルの横スクロールは
  * `company-refresh.spec.ts` の AC-15。

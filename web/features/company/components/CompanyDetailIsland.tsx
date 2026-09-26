@@ -41,6 +41,7 @@ export function CompanyDetailIsland({
         radar={data.radar}
         worklife={data.worklife}
         history={data.history}
+        tenureHistory={data.tenureHistory}
         profitHistory={data.profitHistory}
         summary={data.summary}
         fiscalPeriod={data.fiscalPeriod}

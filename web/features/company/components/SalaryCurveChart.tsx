@@ -2,6 +2,7 @@ import { formatManYen } from "@/features/ranking/lib/format";
 import type { TargetAge } from "@/features/ranking/types";
 import type { CompanyAgeStats } from "../types";
 import { ESTIMATE_RANGE_RATIO, estimateRange, niceTicks } from "../lib/stats";
+import { TEXT_TICK, TEXT_UNIT, TEXT_VALUE } from "./chartText";
 
 const WIDTH = 720;
 // 縦を厚くする（公開後の指摘）。C3 までは 720×270 で、PC では高さ 244px しか
@@ -14,29 +15,6 @@ const HEIGHT = 340;
 // 下の余白は「年齢の目盛」と「（歳）」の2行ぶん要る（C3）。1行に詰めると
 // 右端の「60」と「（歳）」が重なる（実測）。
 const PADDING = { top: 34, right: 40, bottom: 52, left: 84 };
-
-/*
- * 文字の大きさは**画面の幅ではなく器の幅で決める**（コンテナクエリ）。
- *
- * viewBox が固定なのでSVG全体が器の幅に合わせて拡大縮小し、user unit で書いた
- * 文字も同じ倍率で伸び縮みする。C3 までは一律 22 で、**PC では実効 20px** になり
- * 本文（14px）より大きい数字が並んでいた（公開後の指摘）。かといって PC に
- * 合わせて 13 と書くと、375px 幅では実効 6px になって読めない。倍率の逆数で
- * 刻んで、どの幅でも実効 10〜13px に収める。
- *
- * **`md:` のような画面幅の変種は使えない。** 同じ 768px でも、サイドバーが出る
- * 直前（器 735px）と出た直後（器 396px）で幅が倍近く違う。見ているものが器の幅で
- * ある以上、条件も器の幅で書く。
- *
- * 金額のラベルだけは点の間隔（85ユニット）に収まる必要がある。「2,213万」は
- * 約3.75em ぶんの幅なので、22 を超えると隣と重なる。
- */
-const TEXT_TICK =
-  "text-[22px] @md:text-[18px] @lg:text-[16px] @xl:text-[14px] @2xl:text-[12px]";
-const TEXT_VALUE =
-  "text-[22px] @md:text-[19px] @lg:text-[17px] @xl:text-[15.5px] @2xl:text-[13.5px]";
-const TEXT_UNIT =
-  "text-[19px] @md:text-[16px] @lg:text-[14px] @xl:text-[12.5px] @2xl:text-[11px]";
 
 /**
  * 25〜60歳の推定年収の折れ線。

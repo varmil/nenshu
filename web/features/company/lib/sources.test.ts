@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { PRIMARY_SOURCES, edinetDocumentUrl } from "@/lib/data/sources";
 import { buildSourceRows, type PagePresence, type SourceSegment } from "./sources";
 
-const ALL: PagePresence = { history: true, summary: true, analysis: true, filingDocId: "S100YAHE" };
+const ALL: PagePresence = {
+  history: true,
+  tenureHistory: true,
+  summary: true,
+  analysis: true,
+  filingDocId: "S100YAHE",
+};
 
 const text = (segments: SourceSegment[]) =>
   segments
@@ -45,9 +51,19 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("推移の無い会社では推移を挙げない", () => {
-    const measured = buildSourceRows({ ...ALL, history: false })[0];
+    const measured = buildSourceRows({ ...ALL, history: false, tenureHistory: false })[0];
     expect(measured.covers).toBe("平均年収・平均年齢・在籍年数・従業員数");
     expect(buildSourceRows(ALL)[0].covers).toContain("その推移");
+  });
+
+  it("在籍年数の推移がある会社では、在籍年数も推移にかけ、業種の中央値を計算値に挙げる（T4）", () => {
+    const [measured, computed] = buildSourceRows(ALL);
+    expect(measured.covers).toBe("平均年収・平均年齢・在籍年数とその推移・従業員数");
+    expect(computed.covers).toContain("業種の中央値");
+
+    const [measuredWithout, computedWithout] = buildSourceRows({ ...ALL, tenureHistory: false });
+    expect(measuredWithout.covers).toBe("平均年収・平均年齢とその推移・在籍年数・従業員数");
+    expect(computedWithout.covers).not.toContain("業種の中央値");
   });
 
   it("説明文の無い会社では、AIの要約に説明文を挙げない", () => {

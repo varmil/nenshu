@@ -85,10 +85,15 @@ export interface SalaryHistoryRow {
    * ——`Number("")` は `0` になり、0歳として表に出てしまう。T3（#827）。
    */
   avgAge: number | null;
+  /**
+   * 同じ書類の平均勤続年数（年）。T4（#835）。**空欄なら `null`**——平均年齢と違い、
+   * 平均年収があって勤続年数だけが無い書類がありうる（給与と年齢はタグ付けされていて勤続だけが無い書類）。
+   */
+  avgTenure: number | null;
 }
 
 const HISTORY_HEADER = [
-  "edinet_code", "year", "avg_salary", "avg_age",
+  "edinet_code", "year", "avg_salary", "avg_age", "avg_tenure",
   "employees_nonconsolidated", "source", "period_end", "doc_id",
 ];
 
@@ -96,8 +101,9 @@ const HISTORY_HEADER = [
  * data/salary_history.csv の最小パーサ（T0・`docs/timeseries/spec.md` 1.3）。
  *
  * `parseUnifiedCsv` と同じ方針で、想定外の列が来たら例外で落とす。読むのは
- * `edinet_code` / `year` / `avg_salary` / `avg_age` の4列だけ——残りは抽出の追跡用に
- * CSVには持たせてあるが、`history.json` には出さない。`avg_age` は T3（#827）から読む。
+ * `edinet_code` / `year` / `avg_salary` / `avg_age` / `avg_tenure` の5列だけ——残りは
+ * 抽出の追跡用に CSVには持たせてあるが、`history.json` には出さない。`avg_age` は
+ * T3（#827）、`avg_tenure` は T4（#835）から読む。
  */
 export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
   const withoutBom = text.replace(/^﻿/, "");
@@ -121,6 +127,7 @@ export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
       year: Number(cols[1]),
       avgSalary: Number(cols[2]),
       avgAge: cols[3] === "" ? null : Number(cols[3]),
+      avgTenure: cols[4] === "" ? null : Number(cols[4]),
     };
   });
 }

@@ -25,7 +25,7 @@ const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100
 const card = (page: Page) => page.locator('[data-slot="card"] dl').filter({ hasText: "全体順位" });
 
 /**
- * 表示基準と独立な節の中身（spec AC-23・AC-30・AC-14・timeseries AC-8・performance AC-11）。
+ * 表示基準と独立な節の中身（spec AC-23・AC-30・AC-14・timeseries AC-8・AC-22・performance AC-11）。
  * 名前つきで返すので、どれが動いたかが差分に出る。
  */
 async function independentSections(page: Page): Promise<Record<string, string | null>> {
@@ -44,6 +44,7 @@ async function independentSections(page: Page): Promise<Record<string, string | 
       .locator("section", { has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }) })
       .textContent(),
     平均年収推移: await byHeading("平均年収推移（過去10年間）"),
+    在籍年数推移: await byHeading("在籍年数推移（過去10年間）"),
     稼ぐ力の推移: await byHeading("稼ぐ力の推移（過去10年間）"),
   };
 }
@@ -256,6 +257,8 @@ test.describe("企業詳細ページ", () => {
       ["このページの出典（C12 AC-16）", "このページの出典"],
       ["有報への直リンク（C13 AC-31）", KEYENCE_DOC_URL],
       ["有報への直リンクの文言（C13 AC-31）", "この会社の有価証券報告書"],
+      ["在籍年数の推移（T4）", "在籍年数推移（過去10年間）"],
+      ["在籍年数の業種の中央値（T4）", "業種の中央値"],
       ["稼ぐ力の推移（P2）", "稼ぐ力の推移（過去10年間）"],
       ["稼ぐ力の経常利益（P2）", "億円"],
     ] as const) {

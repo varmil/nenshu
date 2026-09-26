@@ -148,7 +148,8 @@ def resolve_ambiguous_salary(rows, reference=None):
             plausible = [min(plausible or cands, key=lambda v: abs(math.log(v / ref)))]
 
         if plausible[0] != r["avg_salary"]:
-            r["avg_salary"] = plausible[0]
+            # 年齢・勤続も同じ読みに差し替える（T4・#835。`history.resolve_candidates` と同じ）。
+            edinet.adopt_salary(r, plausible[0])
             resolved += 1
     return resolved, dropped
 

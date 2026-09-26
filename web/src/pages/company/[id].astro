@@ -26,6 +26,7 @@ const analysis = companyAnalysisFor(data.view.id);
 // 「このページの出典」（C12・#805）。**ページに出ている節だけを挙げる**ので、有無はここで渡す。
 const sourceRows = buildSourceRows({
   history: data.history !== null,
+  tenureHistory: data.tenureHistory !== null,
   summary: data.summary !== null,
   analysis: analysis !== null,
   filingDocId: data.filingDocId,

@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 
 /**
  * C2（Issue #83）で足した節——水準が近い会社・分布・年齢別の表と ±20%・10年推移
- * （timeseries の T1・T2・T3）・このページの出典（C12 で「この数字の作り方」から作り替えた）
+ * （timeseries の T1・T2・T3、在籍年数の T4）・このページの出典（C12 で「この数字の作り方」から作り替えた）
  * ——と、C3 以降の見た目の手直しの E2E。
  *
  * C1 で作った表示基準の切替・URL・履歴・初期 HTML は `company-page.spec.ts` にある。
@@ -39,6 +39,7 @@ test.describe("節の並び", () => {
       "年齢別の推定年収",
       "有価証券報告書の実測値（2026年3月期）",
       "平均年収推移（過去10年間）",
+      "在籍年数推移（過去10年間）",
       "稼ぐ力の推移（過去10年間）",
       "株式会社キーエンスの有価証券報告書の要約",
       "このページの出典",
@@ -476,6 +477,112 @@ test.describe("T1・T2・T3 平均年収推移", () => {
   });
 });
 
+const tenureSection = (page: Page) =>
+  page.getByRole("heading", { name: "在籍年数推移（過去10年間）" }).locator("xpath=..");
+
+/** 在籍年数の表の各行を「年 / 在籍年数 / 基準年との差」の3セルで読む。 */
+async function tenureRows(page: Page): Promise<string[][]> {
+  return tenureSection(page)
+    .locator("tbody tr")
+    .evaluateAll((rows) =>
+      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+    );
+}
+
+/*
+ * T4（#835・`docs/timeseries/spec.md` 2.7）。在籍年数の折れ線と業種の中央値の点線、表、説明文。
+ * 差・説明文の分岐・線の切れ目・ラベルの逃がし方は `lib/tenureHistory.test.ts` が固定しており、
+ * ここは実ページでそう描かれることを見る。表示基準と独立であること（AC-22）は
+ * `company-page.spec.ts` の AC-3、390px の横スクロールは下の AC-15 のループ。
+ */
+test.describe("T4 在籍年数推移", () => {
+  test("AC-19: 折れ線と業種の中央値の点線、10行の表、説明文が チャート → 表 → 説明文 の順に並ぶ", async ({
+    page,
+  }) => {
+    await page.goto("/company/6861");
+    const section = tenureSection(page);
+
+    await expect(section).toContainText(
+      "各年の有価証券報告書に載った平均勤続年数の実測値（提出会社単体）。点線は電気機器の中央値です。"
+    );
+    await expect(section).toContainText("縦軸は0から始まりません。");
+
+    const rows = await tenureRows(page);
+    expect(rows).toHaveLength(10);
+    expect(await section.getByRole("columnheader").allTextContents()).toEqual([
+      "年度",
+      "在籍年数",
+      "2017年との差",
+    ]);
+    expect(rows[0][2]).toBe("");
+    for (const row of rows) expect(row[1]).toMatch(/^\d{1,2}\.\d年$/);
+    for (const row of rows.slice(1)) expect(row[2]).toMatch(/^[＋−±]\d+\.\d年$/);
+
+    // 図: 中央値の点線があり、各点に表と同じ値が書かれている。最新年の点の値は太字。
+    const chart = section.getByRole("img");
+    await expect(chart).toHaveAttribute("aria-label", /電気機器の中央値（点線）。中央値は2017年 [\d.]+年、/);
+    await expect(section.getByTestId("tenure-median-line")).toHaveAttribute("d", /^M/);
+    await expect(chart.locator("text", { hasText: /^業種の中央値 [\d.]+$/ })).toHaveCount(1);
+    const pointLabels = await chart.locator('text[font-weight]').allTextContents();
+    expect(pointLabels).toEqual(rows.map((row) => row[1].replace("年", "")));
+    await expect(chart.locator('text[font-weight="700"]')).toHaveText(rows[9][1].replace("年", ""));
+
+    // 説明文: 1文目は年・社名・値で閉じ、2文目は中央値との差と最初の年からの動き。
+    const summary = section.locator("p", { hasText: "2026年の株式会社キーエンスの平均勤続年数は" });
+    await expect(summary).toContainText(`単体（提出会社）で${rows[9][1]}です。電気機器の中央値（`);
+    await expect(summary).toContainText(/2017年の[\d.]+年から9年で/);
+
+    const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
+    expect((await box(section.locator("figure"))).y).toBeLessThan((await box(section.getByRole("table"))).y);
+    expect((await box(section.getByRole("table"))).y).toBeLessThan((await box(summary)).y);
+  });
+
+  /*
+   * 2117 は途中が欠け（2023・2024。平均年収の推移と同じ年）、3447 は先頭が欠ける（2017年）。
+   * 欠けた年は線をつながず、表は「データなし」で差も空、差の基準は最初に値のある年になる。
+   */
+  test("AC-20: 欠損のある年は線をつながず、表は「データなし」で差も空、基準は最初に値のある年", async ({
+    page,
+  }) => {
+    await page.goto("/company/2117");
+    const byYear = new Map((await tenureRows(page)).map((row) => [row[0], row]));
+    expect(byYear.get("2023年")).toEqual(["2023年", "データなし", ""]);
+    expect(byYear.get("2024年")).toEqual(["2024年", "データなし", ""]);
+    expect(byYear.get("2025年")![2]).toMatch(/^[＋−±]\d+\.\d年$/);
+    // 会社の線は欠けた年の前後で2本に切れる。点線（中央値）は同業に値があるのでつながる。
+    const line = tenureSection(page).getByTestId("tenure-line");
+    expect(((await line.getAttribute("d")) ?? "").match(/M/g)).toHaveLength(2);
+    const median = tenureSection(page).getByTestId("tenure-median-line");
+    expect(((await median.getAttribute("d")) ?? "").match(/M/g)).toHaveLength(1);
+
+    await page.goto("/company/3447");
+    await expect(tenureSection(page).getByRole("columnheader", { name: "2018年との差" })).toBeVisible();
+    const rows = await tenureRows(page);
+    expect(rows[0]).toEqual(["2017年", "データなし", ""]);
+    expect(rows[1][2]).toBe("");
+  });
+
+  /*
+   * 最新年の行と「有価証券報告書の実測値」の節は同じ有報の同じ数字（T3 AC-16 の平均年齢と同じ）。
+   * 3月期の会社と、2026年の枠が空いて2025年が最新になる8月期の会社。
+   */
+  test("AC-21: 最新年の行の在籍年数が、実測値の節の在籍年数と同じ文字列", async ({ page }) => {
+    for (const id of ["6861", "9983"]) {
+      await page.goto(`/company/${id}`);
+      const actuals = page.locator("section", {
+        has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }),
+      });
+      const tenure = await actuals
+        .locator("dl > div", { has: page.locator("dt", { hasText: "在籍年数" }) })
+        .locator("dd")
+        .textContent();
+      expect(tenure, id).toMatch(/^\d{1,2}\.\d年$/);
+      const latest = (await tenureRows(page)).filter((row) => row[1] !== "データなし").at(-1)!;
+      expect(latest[1], id).toBe(tenure);
+    }
+  });
+});
+
 test.describe("AC-15 レイアウト", () => {
   /*
    * サイドバーは `md:sticky md:top-4` で画面に貼り付く。**画面より高いと、はみ出した
@@ -525,11 +632,16 @@ test.describe("AC-15 レイアウト", () => {
       expect(overflow, id).toBeLessThanOrEqual(0);
       expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
 
-      // 推移の表は器の中で横に送る作りではない（T2 AC-14）。器ごと収まっていること。
-      const table = await historySection(page)
-        .locator("table")
-        .evaluate((el) => el.scrollWidth - el.parentElement!.clientWidth);
-      expect(table, `${id} 推移の表`).toBeLessThanOrEqual(0);
+      // 推移の表は器の中で横に送る作りではない（T2 AC-14・T4 AC-22）。器ごと収まっていること。
+      for (const [label, section] of [
+        ["推移の表", historySection(page)],
+        ["在籍年数の表", tenureSection(page)],
+      ] as const) {
+        const table = await section
+          .locator("table")
+          .evaluate((el) => el.scrollWidth - el.parentElement!.clientWidth);
+        expect(table, `${id} ${label}`).toBeLessThanOrEqual(0);
+      }
     }
   });
 });
@@ -566,8 +678,8 @@ test.describe("AC-16 このページの出典", () => {
     ).toHaveAttribute("href", "https://positive-ryouritsu.mhlw.go.jp/positivedb/");
 
     // キーエンスは説明文・推移・要約と分析をすべて持つ（節の有無がページから渡っている）。
-    await expect(row(page, "実測値")).toContainText("平均年収・平均年齢とその推移");
-    await expect(row(page, "計算値")).toContainText("稼ぐ力");
+    await expect(row(page, "実測値")).toContainText("平均年収・平均年齢・在籍年数とその推移");
+    await expect(row(page, "計算値")).toContainText("稼ぐ力・業種の中央値");
     await expect(row(page, "AIの要約")).toContainText("社名の下の説明文");
     await expect(row(page, "AIの要約")).toContainText("有価証券報告書の要約");
     await expect(row(page, "AIの評価")).toContainText("現状と今後");

@@ -352,6 +352,11 @@ def _best(candidates):
     どちらを採るかは**同じ会社の他の年**を見ないと決まらない。ここでは並び順で
     決め打ちし、割れたことは `candidates` に残して `history.py` が年をまたいで
     選び直す。
+
+    **候補ごとの年齢・勤続も `readings` に残す**（T4・#835）。上の2例のとおり、給与の
+    読みが変われば同じセルの勤続（と年齢）の読みも変わる。給与だけを選び直すと、
+    勤続は選ばなかったほうの読みのまま残る。同じ給与になる読みが複数あれば、
+    `DP_PAIRS` の並びで先に来たほう（＝`best` を選んだのと同じ規則）を採る。
     """
     candidates = [c for c in candidates if c]
     if not candidates:
@@ -360,6 +365,12 @@ def _best(candidates):
     others = sorted({c["avg_salary"] for c in candidates} - {best["avg_salary"]})
     if others:
         best["candidates"] = [best["avg_salary"]] + others
+        readings = {}
+        for c in candidates:
+            readings.setdefault(
+                c["avg_salary"], {"avg_age": c["avg_age"], "avg_tenure": c.get("avg_tenure")}
+            )
+        best["readings"] = readings
     return best
 
 

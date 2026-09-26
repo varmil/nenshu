@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildData, fiscalPeriodRange } from "./build-data";
+import { buildData, fiscalPeriodRange, TENURE_MEDIAN_MIN_COMPANIES } from "./build-data";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { parseUnifiedCsv, type UnifiedRow } from "./lib/csv";
@@ -468,6 +468,79 @@ describe("buildData", () => {
       covered += 1;
     }
     expect(covered).toBe(2961);
+  });
+
+  /*
+   * T4（#835・`docs/timeseries/spec.md` AC-17）。在籍年数も平均年収と同じ書類の同じ表から
+   * 取っている。**平均年齢と違い、平均年収のある年に空欄がありうる**（本文の表に勤続の列が
+   * 無い書類）ので、見るのは「平均年収の無い年は在籍年数も無い」の片向きだけ。帯は抽出側の
+   * 妥当性検査（`textblock._validate` の `0 <= 勤続 <= 年齢 - 15`）と同じ線にしてある。
+   */
+  it("AC-17: tenureById は byId と同じ会社を持ち、平均年収の無い年は在籍年数も無い", () => {
+    const { years, byId, ageById, tenureById } = result.history;
+    expect(Object.keys(tenureById)).toEqual(Object.keys(byId));
+    for (const [id, values] of Object.entries(byId)) {
+      const tenures = tenureById[id];
+      expect(tenures.length).toBe(years.length);
+      tenures.forEach((tenure, k) => {
+        if (values[k] === null) expect(tenure, `${id} ${years[k]}`).toBeNull();
+        if (tenure === null) return;
+        expect(tenure, `${id} ${years[k]}`).toBeGreaterThanOrEqual(0);
+        expect(tenure, `${id} ${years[k]}`).toBeLessThanOrEqual(ageById[id][k]! - 15);
+      });
+    }
+  });
+
+  it("AC-17: 採用書類の年の在籍年数が companies.json の在籍年数と一致する（全社）", () => {
+    const { years, byId, tenureById } = result.history;
+    const { rows, periods } = result.companies;
+
+    // AC-15（平均年齢）と同じ突き合わせ。年は平均年収が一致した年で決める。
+    let covered = 0;
+    for (const row of rows) {
+      const values = byId[row[0]];
+      if (values === undefined) continue;
+      const periodYear = Number(periods[row[9]].slice(0, 4));
+      const k = [periodYear, periodYear + 1]
+        .map((year) => years.indexOf(year))
+        .find((i) => i >= 0 && values[i] === row[6]);
+      expect(k, `${row[0]} の採用書類の年が見つからない`).toBeDefined();
+      expect(tenureById[row[0]][k!], `${row[0]}`).toBe(row[5]);
+      covered += 1;
+    }
+    expect(covered).toBe(2961);
+  });
+
+  /*
+   * T4（AC-18）。業種の中央値を**同じ式で数え直して比べない**（写しになり、同じ勘違いを
+   * すれば通る）。中央値であることの性質——その年に値を持つ同業の会社のうち、半分以上が
+   * それ以下・半分以上がそれ以上——と、値を持つ会社が3社未満なら `null` であることを見る。
+   */
+  it("AC-18: 業種の中央値は、その年に値を持つ同業の会社の真ん中にある", () => {
+    const { years, tenureById, tenureIndustryMedian } = result.history;
+    const { industries, rows } = result.companies;
+    expect(tenureIndustryMedian.length).toBe(industries.length);
+
+    industries.forEach((industry, j) => {
+      expect(tenureIndustryMedian[j].length, industry).toBe(years.length);
+      years.forEach((year, k) => {
+        const values = rows
+          .filter((row) => row[2] === j)
+          .map((row) => tenureById[row[0]]?.[k] ?? null)
+          .filter((v): v is number => v !== null);
+        const median = tenureIndustryMedian[j][k];
+        if (values.length < TENURE_MEDIAN_MIN_COMPANIES) {
+          expect(median, `${industry} ${year}`).toBeNull();
+          return;
+        }
+        expect(median, `${industry} ${year}`).not.toBeNull();
+        // 小数第2位で丸めてあるので、端では 0.005 だけ外に出うる。
+        const below = values.filter((v) => v <= median! + 0.005).length;
+        const above = values.filter((v) => v >= median! - 0.005).length;
+        expect(below * 2, `${industry} ${year}`).toBeGreaterThanOrEqual(values.length);
+        expect(above * 2, `${industry} ${year}`).toBeGreaterThanOrEqual(values.length);
+      });
+    });
   });
 
   /**

@@ -19,6 +19,7 @@ import type {
   CompanyView,
   ProfitHistory,
   SalaryHistory,
+  TenureHistory,
 } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { companyFiscalPeriodLabel } from "@/lib/data/period";
@@ -49,6 +50,10 @@ const history = historyData as {
   byId: Record<string, (number | null)[]>;
   /** 平均年齢（T3・#827）。`byId` と同じ会社・同じ年に値を持つ。 */
   ageById: Record<string, (number | null)[]>;
+  /** 在籍年数（T4・#835）。`byId` と同じ会社を持ち、平均年収の無い年は `null`。 */
+  tenureById: Record<string, (number | null)[]>;
+  /** 在籍年数の業種の中央値（T4）。`companies.industries` と同じ並び。 */
+  tenureIndustryMedian: (number | null)[][];
 };
 
 /**
@@ -111,6 +116,23 @@ function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
   if (values === undefined) return null;
   return { years: history.years, values, ages: history.ageById[id] };
+}
+
+/**
+ * 在籍年数の推移（T4・#835）。**1年も値が無ければ `null`** で、そのとき節ごと出さない
+ * ——平均年収の推移（`byId`）がある会社でも、勤続だけが取れない書類ばかりならありうる（いまは0社）。
+ *
+ * 業種の中央値は**この会社の業種の1本だけ**を渡す（33業種ぶんを props に載せない）。
+ */
+function tenureHistoryFor(id: string): TenureHistory | null {
+  const values = history.tenureById[id];
+  if (values === undefined || values.every((v) => v === null)) return null;
+  const row = companies.rows[findRowIndex(companies, id)];
+  return {
+    years: history.years,
+    values,
+    industryMedian: history.tenureIndustryMedian[row[2] as number],
+  };
 }
 
 /** 稼ぐ力の推移。全年 `null` の会社はキーごと落としてあるので `undefined` になる。 */
@@ -239,6 +261,7 @@ export interface CompanyPageData {
   radar: CompanyRadarInput;
   worklife: ReturnType<typeof buildWorklifeView>;
   history: SalaryHistory | null;
+  tenureHistory: TenureHistory | null;
   profitHistory: ProfitHistory | null;
   summary: SummaryView | null;
   fiscalPeriod: string;
@@ -263,6 +286,7 @@ export function companyPageData(id: string): CompanyPageData {
     radar: radarFor(view.id, worklifeRecord),
     worklife: buildWorklifeView(worklifeRecord),
     history: historyFor(view.id),
+    tenureHistory: tenureHistoryFor(view.id),
     profitHistory: profitHistoryFor(view.id),
     summary: buildSummaryView(summaries[view.id]),
     fiscalPeriod: fiscalPeriodFor(view.id),
