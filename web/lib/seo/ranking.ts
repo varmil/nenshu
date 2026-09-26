@@ -82,10 +82,7 @@ export function rankingCanonical(
   if (hasUnindexed) return { path: "/", targetAge: null, industry: null, page: 1 };
 
   // 33件のリスト外の業種名は、URLとしては通るがページとしては0件なので寄せる。
-  const industry =
-    state.industry !== null && companies.industries.includes(state.industry)
-      ? state.industry
-      : null;
+  const industry = listedIndustry(state.industry, companies.industries);
 
   const base =
     industry !== null
@@ -109,6 +106,53 @@ export function rankingCanonical(
     industry,
     page,
   };
+}
+
+/**
+ * 33業種のどれかなら業種名を、そうでなければ `null` を返す。`?ind=` の値は
+ * URLとしては何でも通るので、canonical・見出し・リード文はこれを通して読む。
+ */
+export function listedIndustry(
+  industry: string | null,
+  industries: readonly string[]
+): string | null {
+  return industry !== null && industries.includes(industry) ? industry : null;
+}
+
+/**
+ * ランキングの見出し（`h1`）の文言を、**折り返してよい境目で切った断片**で返す。
+ * 業種があれば `["銀行業の", "平均年収ランキング"]`、無ければ1つだけ。
+ *
+ * **ファセットページの title はこれにブランドを足した形**（`rankingPageMeta`）。
+ * 見出しと title を別々に組み立てると、片方だけ言い回しを変えたときに
+ * `/?ind=X` の h1 と title が食い違っても気づけない。
+ *
+ * **title と違い、見出しは canonical ではなく画面の状態を表す。** `?age=35&ind=銀行業`
+ * の title は寄せ先（`/?ind=銀行業`）のものだが、画面に並んでいるのは銀行業の
+ * 35歳そろえなので、見出しは `銀行業の35歳年収ランキング` と名乗る。検索エンジンが
+ * 見るのは寄せ先の `/?ind=銀行業` の見出しで、そちらは title と同じ形になる。
+ * `emp`・`q` のような寄せる絞り込みが効いていても業種は見出しに残す——業種チップや
+ * プルダウンで選んだ業種の会社だけが並んでいることは変わらないため。
+ *
+ * **33業種に無い値は見出しに出さない。** `?ind=` の値をそのまま見出しに載せると、
+ * 任意の文字列を名乗るページをURLだけで作れてしまう（canonical も同じ理由で寄せている）。
+ */
+export function rankingHeadingParts(
+  state: Pick<RankingState, "targetAge" | "industry">,
+  industries: readonly string[]
+): string[] {
+  const kind =
+    state.targetAge !== null ? `${state.targetAge}歳年収ランキング` : "平均年収ランキング";
+  const industry = listedIndustry(state.industry, industries);
+  return industry !== null ? [`${industry}の`, kind] : [kind];
+}
+
+/** `rankingHeadingParts` を1続きにしたもの。title の組み立てに使う。 */
+export function rankingHeading(
+  state: Pick<RankingState, "targetAge" | "industry">,
+  industries: readonly string[]
+): string {
+  return rankingHeadingParts(state, industries).join("");
 }
 
 /**
@@ -149,7 +193,7 @@ export function rankingPageMeta(
   if (canonical.industry !== null) {
     const count = industryCount(canonical.industry).toLocaleString("ja-JP");
     return {
-      title: `${canonical.industry}の平均年収ランキング${pageSuffix} | ${SITE_NAME}`,
+      title: `${rankingHeading(canonical, companies.industries)}${pageSuffix} | ${SITE_NAME}`,
       description:
         `${canonical.industry}${count}社の平均年収ランキング。` +
         `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値を、` +
@@ -160,7 +204,7 @@ export function rankingPageMeta(
 
   if (canonical.targetAge !== null) {
     return {
-      title: `${canonical.targetAge}歳年収ランキング${pageSuffix} | ${SITE_NAME}`,
+      title: `${rankingHeading(canonical, companies.industries)}${pageSuffix} | ${SITE_NAME}`,
       description:
         `有価証券報告書（${period}）の平均年間給与を${canonical.targetAge}歳時点に補正した推定年収のランキング。` +
         `平均年齢の違いをならしたうえで、上場・非上場${total}社を比較できる。`,
