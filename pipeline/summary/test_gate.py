@@ -144,16 +144,38 @@ class ApplyGate(unittest.TestCase):
         self.assertEqual(gate.sentence_problems("銀行業の単一セグメントとしている。", "", src), [])
         self.assertEqual(gate.sentence_problems("その一つとして貸出を行う。", "", src), [])
 
-    def test_文が足りなくなれば不合格(self):
+    def test_1文の説明文は通る(self):
+        # C16（#840）から。事業の中身が原文に1文しか無い会社（佐藤食品工業ほか）に
+        # 説明文を出すため。C6 の時点では2文に満たないので空にしていた。
         text, reasons = gate.apply_gate("電子応用機器の製造及び販売を主な事業とする。",
                                         "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, "電子応用機器の製造及び販売を主な事業とする。")
+        self.assertEqual(reasons, [])
+
+    def test_文を落として1文も残らなければ不合格(self):
+        bad = "自社工場を持たないファブレス体制をとる。"
+        text, reasons = gate.apply_gate(bad, "株式会社キーエンス", KEYENCE)
+        self.assertEqual(text, "")
+        self.assertTrue(any("ファブレス" in r for r in reasons))
+
+    def test_4文以上は不合格(self):
+        text, reasons = gate.apply_gate(OK + "北米でも販売する。", "株式会社キーエンス",
+                                        KEYENCE + "北米でも販売する。")
         self.assertEqual(text, "")
         self.assertTrue(any("文数" in r for r in reasons))
 
-    def test_短すぎる説明文は不合格(self):
-        text, reasons = gate.apply_gate("機器を作る。機器を売る。", "", "機器を作る。機器を売る。")
+    def test_業種名の言い換えにしかならない短い文は不合格(self):
+        # 下限15字の線（C16）。業種はページの別の場所に出ているので、何も足さない。
+        src = "当社グループは、化学品事業の単一セグメントで事業を展開しております。"
+        text, reasons = gate.apply_gate("化学品事業を営む。", "", src)
         self.assertEqual(text, "")
         self.assertTrue(any("字数" in r for r in reasons))
+
+    def test_下限に届く1文は通る(self):
+        # ベリテ（原文116字）。C6 では2文に足りず空にしていた回帰ケース。
+        src = "当社は、宝飾品等の小売販売及び卸売販売を行っております。"
+        text, _ = gate.apply_gate("宝飾品等の小売販売及び卸売販売を行う。", "株式会社ベリテ", src)
+        self.assertEqual(text, "宝飾品等の小売販売及び卸売販売を行う。")
 
     def test_空の説明文は不合格(self):
         text, reasons = gate.apply_gate("", "株式会社キーエンス", KEYENCE)
