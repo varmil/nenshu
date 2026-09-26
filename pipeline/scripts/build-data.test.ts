@@ -721,26 +721,32 @@ describe("buildData", () => {
       const summaryIndex = csv[0].indexOf("summary");
       const written = csv.slice(1).filter((line) => (line[summaryIndex] ?? "") !== "").length;
       expect(Object.keys(result.summaries.byId)).toHaveLength(written);
-      expect(written).toBe(2783);
+      // C6 で 2,783社、C16（#840）で落ちていた177社を回し直して 2,951社。
+      expect(written).toBe(2951);
     });
 
     /** **空文字はキーごと落とす**（`undefined` がそのまま「説明文が無い」を表す）。 */
     it("説明文の無い会社はキーごと無い", () => {
-      // 東京海上ホールディングス（8766）は C6 の目視レビューで型⑪に落ち、
-      // 原文の事業の中身が1文ぶんしかないので空が正しいと判定した会社。
-      expect(result.summaries.byId["8766"]).toBeUndefined();
+      // ENEOSホールディングス（5020）は原文に事業の中身が無く、空が正しいと spec が
+      // 名指ししている会社（AC-20）。C16 までは 8766 をここに置いていたが、あちらは
+      // 事業の中身が1文あり、1文を認めた時点で説明文が付いた。
+      expect(result.summaries.byId["5020"]).toBeUndefined();
       expect(result.summaries.byId["6861"]).toContain("電子応用機器");
     });
 
-    /** 規格（`docs/company/spec.md` 1.18）。C6 の機械ゲートが通した結果を再確認する。 */
-    it("全件が全角60〜130字に収まる", () => {
+    /** 規格（`docs/company/spec.md` 1.18）。機械ゲートが通した結果を再確認する。 */
+    it("全件が全角15〜130字・1〜3文に収まる", () => {
       for (const [id, text] of Object.entries(result.summaries.byId)) {
         const width = [...text].reduce(
           (sum, ch) => sum + (/[ -~｡-ﾟ]/.test(ch) ? 0.5 : 1),
           0
         );
-        expect(width, `${id}: ${text}`).toBeGreaterThanOrEqual(60);
+        expect(width, `${id}: ${text}`).toBeGreaterThanOrEqual(15);
         expect(width, `${id}: ${text}`).toBeLessThanOrEqual(130);
+        // 引用の中の「。」は文の区切りに数えない（`pipeline/summary/gate.py` の sentences）。
+        const sentences = text.replace(/「[^」]*」|『[^』]*』/g, "").split("。").filter(Boolean);
+        expect(sentences.length, `${id}: ${text}`).toBeGreaterThanOrEqual(1);
+        expect(sentences.length, `${id}: ${text}`).toBeLessThanOrEqual(3);
       }
     });
   });
