@@ -437,12 +437,13 @@ test.describe("順位バッジ", () => {
 });
 
 /*
- * リード文の掲載条件（運営者の指示 2026-08-27）。**従業員数の線は PC でもモバイルでも
- * 出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の持株会社が
- * 載っていないのか」が届かない。数は `meta.excluded.minEmployees` から引くので、
- * 実データの値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
+ * リード文の掲載条件（運営者の指示 2026-08-27）と金額の出どころ。**どちらも PC でも
+ * モバイルでも出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の
+ * 持株会社が載っていないのか」「何の金額か」が届かない（年齢そろえの「有価証券報告書」は
+ * 実際に PC でだけ出ていた）。数は `meta.excluded.minEmployees` から引くので、実データの
+ * 値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
  */
-test("リード文の掲載条件（従業員100人以上）は PC・モバイルの両方、どちらの表示基準でも出る", async ({
+test("リード文の掲載条件（従業員100人以上）と有価証券報告書は PC・モバイルの両方、どちらの表示基準でも出る", async ({
   page,
 }) => {
   for (const [label, width] of [
@@ -455,10 +456,11 @@ test("リード文の掲載条件（従業員100人以上）は PC・モバイ�
       ["年齢そろえ", "/?age=35"],
     ] as const) {
       await page.goto(path);
-      await expect(
-        page.getByText("従業員100人以上が対象。").first(),
-        `${label}・${basis}`
-      ).toBeVisible();
+      // `useInnerText`: 既定の `textContent` は `hidden md:inline` で消えた字も拾う。
+      const lead = page.locator("h1 + p");
+      for (const text of ["従業員100人以上が対象。", "有価証券報告書の平均年間給与"]) {
+        await expect(lead, `${label}・${basis}`).toContainText(text, { useInnerText: true });
+      }
     }
   }
 });
