@@ -529,8 +529,8 @@ test.describe("T4 在籍年数推移", () => {
     expect(pointLabels).toEqual(rows.map((row) => row[1].replace("年", "")));
     await expect(chart.locator('text[font-weight="700"]')).toHaveText(rows[9][1].replace("年", ""));
 
-    // 説明文: 1文目は年・社名・値で閉じ、2文目は中央値との差と最初の年からの動き。
-    const summary = section.locator("p", { hasText: "2026年の株式会社キーエンスの平均勤続年数は" });
+    // 説明文: 1文目は社名・値で閉じ、2文目は中央値との差と最初の年からの動き。
+    const summary = section.locator("p", { hasText: "株式会社キーエンスの平均勤続年数は、単体" });
     await expect(summary).toContainText(`単体（提出会社）で${rows[9][1]}です。電気機器の中央値（`);
     await expect(summary).toContainText(/2017年の[\d.]+年から9年で/);
 
