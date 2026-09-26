@@ -537,6 +537,15 @@ test.describe("T4 在籍年数推移", () => {
     const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
     expect((await box(section.locator("figure"))).y).toBeLessThan((await box(section.getByRole("table"))).y);
     expect((await box(section.getByRole("table"))).y).toBeLessThan((await box(summary)).y);
+
+    // 表の主は在籍年数。見出しの長い差の列のほうが広く取られていた（PC で 228px 対 327px）。
+    for (const width of [1280, 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      const [, tenure, diff] = await section
+        .getByRole("columnheader")
+        .evaluateAll((cells) => cells.map((cell) => cell.getBoundingClientRect().width));
+      expect(tenure, `${width}px`).toBeGreaterThanOrEqual(diff);
+    }
   });
 
   /*
