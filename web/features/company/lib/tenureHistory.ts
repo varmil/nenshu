@@ -61,9 +61,10 @@ export function buildTenureTable(history: TenureHistory): TenureTable {
 /**
  * 節の末尾の説明文（モック 1b の文面）。
  *
- * **1文目は社名・年・値だけで閉じる**（モックの注記。検索結果の抜粋に引かれやすい形）。
- * 時点は「2026年の」と年で書く——**決算期（`2026年3月期`）は書かない**。企業詳細で決算期を
- * 出すのは Q&A の説明（C16）と要約の説明の2か所だけ（`docs/site-chrome/spec.md` 5.1）。
+ * **1文目は社名・値だけで閉じる**（モックの注記。検索結果の抜粋に引かれやすい形）。
+ * **年は付けない**（運営者の指示。無くても意味が通じる——値は表の最新年の行と同じで、2文目が
+ * 起点の年を言う）。**決算期（`2026年3月期`）も書かない**。企業詳細で決算期を出すのは
+ * Q&A の説明（C16）と要約の説明の2か所だけ（`docs/site-chrome/spec.md` 5.1）。
  *
  * 2文目は業種の中央値との差と、最初の年からの動き。どちらかが言えなければその句だけ落とす。
  * 値が1つも無ければ `null`（節ごと出ない会社なので、ここには来ない）。
@@ -80,7 +81,7 @@ export function buildTenureSummary(
 
   const first = present[0];
   const last = present[present.length - 1];
-  const lead = `${last.year}年の${name}の平均勤続年数は、単体（提出会社）で${formatDecimal1(last.value)}年です。`;
+  const lead = `${name}の平均勤続年数は、単体（提出会社）で${formatDecimal1(last.value)}年です。`;
 
   // 中央値との差の句。後ろに動きの句が続くときの形（`cont`）と、そこで文を閉じるときの形（`end`）。
   let versus: { cont: string; end: string } | null = null;
