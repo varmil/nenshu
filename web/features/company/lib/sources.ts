@@ -52,7 +52,7 @@ export interface SourceRow {
 export interface PagePresence {
   /** 平均年収推移（過去10年間）。 */
   history: boolean;
-  /** 社名の下の説明文（C7。178社に無い）。 */
+  /** 社名の下の説明文（C7。原文に事業の中身が無い会社には無い）。 */
   summary: boolean;
   /** 「有価証券報告書の要約」と「現状と今後」。**2つは対**（AC-28）なので1つで持つ。 */
   analysis: boolean;
