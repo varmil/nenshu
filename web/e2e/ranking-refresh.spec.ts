@@ -47,6 +47,34 @@ const horizontalOverflow = (page: Page) =>
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth
   );
 
+/**
+ * 要素の文字を、描かれた行ごとの文字列にする。1字ずつの矩形の左端が前の字より左へ
+ * 戻ったところを改行と見なす——上端で分けると、和文と数字でフォントが替わる行は
+ * 同じ行でも上端がずれる。`hidden md:inline` で消えている字は数えない。
+ *
+ * **ブロック要素の `getClientRects()` は行数ではない**（折り返しても1つしか返らない）。
+ */
+const renderedLines = (locator: Locator) =>
+  locator.evaluate((el) => {
+    const lines: string[] = [];
+    let prevLeft = Infinity;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const text = node.textContent ?? "";
+      for (let i = 0; i < text.length; i++) {
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        if (range.getClientRects().length === 0) continue;
+        const { left } = range.getBoundingClientRect();
+        if (left < prevLeft) lines.push("");
+        lines[lines.length - 1] += text[i];
+        prevLeft = left;
+      }
+    }
+    return lines;
+  });
+
 test.describe("AC-12 並び替え", () => {
   /*
    * **押すとチップの表記・URL・行の並びが揃って変わる**ことを1本の流れで見る。
@@ -409,12 +437,13 @@ test.describe("順位バッジ", () => {
 });
 
 /*
- * リード文の掲載条件（運営者の指示 2026-08-27）。**従業員数の線は PC でもモバイルでも
- * 出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の持株会社が
- * 載っていないのか」が届かない。数は `meta.excluded.minEmployees` から引くので、
- * 実データの値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
+ * リード文の掲載条件（運営者の指示 2026-08-27）と金額の出どころ。**どちらも PC でも
+ * モバイルでも出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の
+ * 持株会社が載っていないのか」「何の金額か」が届かない（年齢そろえの「有価証券報告書」は
+ * 実際に PC でだけ出ていた）。数は `meta.excluded.minEmployees` から引くので、実データの
+ * 値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
  */
-test("リード文の掲載条件（従業員100人以上）は PC・モバイルの両方、どちらの表示基準でも出る", async ({
+test("リード文の掲載条件（従業員100人以上）と有価証券報告書は PC・モバイルの両方、どちらの表示基準でも出る", async ({
   page,
 }) => {
   for (const [label, width] of [
@@ -427,10 +456,11 @@ test("リード文の掲載条件（従業員100人以上）は PC・モバイ�
       ["年齢そろえ", "/?age=35"],
     ] as const) {
       await page.goto(path);
-      await expect(
-        page.getByText("従業員100人以上が対象。").first(),
-        `${label}・${basis}`
-      ).toBeVisible();
+      // `useInnerText`: 既定の `textContent` は `hidden md:inline` で消えた字も拾う。
+      const lead = page.locator("h1 + p");
+      for (const text of ["従業員100人以上が対象。", "有価証券報告書の平均年間給与"]) {
+        await expect(lead, `${label}・${basis}`).toContainText(text, { useInnerText: true });
+      }
     }
   }
 });
@@ -467,7 +497,6 @@ test.describe("モバイルの行（390px）", () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   const mobileRows = (page: Page) => page.locator("div.md\\:hidden > div");
-  const lineCount = (locator: Locator) => locator.evaluate((el) => el.getClientRects().length);
 
   /*
    * 390px で折り返すと本文が画面外へ押し出されるものを、1画面ぶんまとめて見る。
@@ -493,12 +522,15 @@ test.describe("モバイルの行（390px）", () => {
     const aboutBox = (await banner.getByRole("link", { name: "計算方法" }).boundingBox())!;
     expect(Math.abs(brandBox.y - aboutBox.y), "ヘッダが1段").toBeLessThanOrEqual(4);
 
-    expect(await lineCount(page.getByRole("heading", { level: 1 })), "見出し").toBe(1);
+    expect(await renderedLines(page.getByRole("heading", { level: 1 })), "見出し").toHaveLength(1);
     expect(
-      await lineCount(page.getByText("有価証券報告書の平均年間給与（単体）で2,961社。")),
+      (await renderedLines(page.getByText("有価証券報告書の平均年間給与（単体）で比べた2,961社。")))
+        .length,
       "説明文"
     ).toBeLessThanOrEqual(2);
-    expect(await lineCount(page.getByText("有価証券報告書の数値のまま。")), "帯のヒント").toBe(1);
+    expect(await renderedLines(page.getByText("有価証券報告書の数値のまま。")), "帯のヒント").toHaveLength(
+      1
+    );
   });
 
   /*
@@ -617,6 +649,12 @@ test.describe("モバイルの行（390px）", () => {
  * - `/?sort=emp`: 並び替えのチップが選ばれた状態（390px で「絞り込み」と並ぶ幅）
  * - `?q=ジャパンエレベーター`: 390px でも切れる長い社名（金額を16pxに落として社名の幅が
  *   広がったので、「大和証券グループ本社」では切れなくなった）。両方の表示基準で見る
+ * - `?ind=証券、商品先物取引業&age=60`: いちばん長い見出し（`証券、商品先物取引業の
+ *   60歳年収ランキング`）とリード文。業種名は33件で最長、年齢そろえは実測値より長い
+ *
+ * **リード文はどの状態でも3行まで。** 360px では業種が無くても年齢そろえで3行になる
+ * （掲載条件を両方の幅に出すと決めた代償。運営者の指示 2026-08-27）。業種で絞ると
+ * 業種名と社数のぶん長くなるが、4行にはしない。
  */
 const MOBILE_PATHS = [
   "/",
@@ -624,7 +662,9 @@ const MOBILE_PATHS = [
   "/?sort=emp",
   "/?q=ジャパンエレベーター",
   "/?q=ジャパンエレベーター&age=35",
+  "/?ind=証券、商品先物取引業&age=60",
 ];
+
 
 for (const width of [390, 360]) {
   test.describe(`モバイルの行が縮んでも数値が残る（${width}px）`, () => {
@@ -634,6 +674,20 @@ for (const width of [390, 360]) {
       for (const path of MOBILE_PATHS) {
         await page.goto(path);
         expect(await horizontalOverflow(page), `${path} の横スクロール`).toBeLessThanOrEqual(0);
+
+        expect(
+          (await renderedLines(page.locator("h1 + p"))).length,
+          `${path} のリード文`
+        ).toBeLessThanOrEqual(3);
+
+        if (path.includes("ind=")) {
+          // 業種つきの見出しは「◯◯の」の後ろでだけ折り返す（`break-keep` ＋ `<wbr>`）。
+          // 何もしないと `…ランキン` / `グ` のように語の途中で切れる。
+          expect(
+            await renderedLines(page.getByRole("heading", { level: 1 })),
+            `${path} の見出し`
+          ).toEqual(["証券、商品先物取引業の", "60歳年収ランキング"]);
+        }
 
         const row = page.locator("div.md\\:hidden > div").first();
         const rowBox = (await row.boundingBox())!;

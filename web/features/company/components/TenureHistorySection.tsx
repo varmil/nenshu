@@ -29,7 +29,7 @@ export function TenureHistorySection({
       <h2 className="text-lg font-bold">在籍年数推移（過去10年間）</h2>
       {/*
         **有報の語（平均勤続年数）で出典を書き、見出しと表は読者の語（在籍年数）にする**
-        （glossary）。実測値の節の地の文も「平均勤続年数は…」と書いている。
+        （glossary）。「年収に関するQ&A」（C16）の質問と回答も「平均勤続年数」と書いている。
       */}
       <p className="text-muted-foreground text-xs">
         各年の有価証券報告書に載った平均勤続年数の実測値（提出会社単体）。点線は{industry}の中央値です。

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
-import { rankingPageMeta } from "@/lib/seo/ranking";
+import { rankingHeadingParts, rankingPageMeta } from "@/lib/seo/ranking";
 import { useRankingState } from "../hooks/useRankingState";
 import { useCompaniesDataset } from "../hooks/useCompaniesDataset";
 import { buildSearchParams, DEFAULT_TARGET_AGE, rankingHref } from "../lib/urlState";
 import { pageRange } from "../lib/pagination";
+import { rankingLead } from "../lib/lead";
 import { populationForBasis } from "../lib/population";
 import { formatInt } from "../lib/format";
 import { fiscalPeriodLabel } from "@/lib/data/period";
@@ -94,15 +95,7 @@ export function RankingApp({
     commit({ ...state, page: nextPage });
 
   const isRaw = state.targetAge === null;
-  // データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
-  const fiscalPeriod = fiscalPeriodLabel(bootstrap.meta);
-  const total = formatInt(bootstrap.meta.count);
-  /**
-   * 掲載条件のうち**読者がいちばん取り違えるのは従業員数の線**（E2・#173 で
-   * `/about` に省いた社数を出したのと同じ理由）。数は直書きせず
-   * `meta.excluded.minEmployees` から引く（spec 1.4 と同じ扱い）。
-   */
-  const minEmployees = formatInt(bootstrap.meta.excluded.minEmployees);
+  const headingParts = rankingHeadingParts(state, bootstrap.industries);
   const basisPopulation = populationForBasis(population, state.targetAge);
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
   // 業種ごとの社数は**母集団の内訳なので絞り込みで変わらない**。サーバーが数えた
@@ -125,6 +118,20 @@ export function RankingApp({
     return (industry: string) => byIndustry.get(industry) ?? 0;
   }, [bootstrap.industries, counts]);
   usePageMeta(rankingPageMeta(buildSearchParams(state), bootstrap, countOf));
+
+  /**
+   * データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
+   * 掲載条件のうち**読者がいちばん取り違えるのは従業員数の線**（E2・#173 で
+   * `/about` に省いた社数を出したのと同じ理由）で、これも
+   * `meta.excluded.minEmployees` から引く。
+   */
+  const lead = rankingLead(state, {
+    fiscalPeriod: fiscalPeriodLabel(bootstrap.meta),
+    total: bootstrap.meta.count,
+    minEmployees: bootstrap.meta.excluded.minEmployees,
+    industries: bootstrap.industries,
+    industryCount: countOf,
+  });
 
   const filterProps = {
     state,
@@ -163,38 +170,35 @@ export function RankingApp({
           {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
           <div className="flex flex-col gap-1">
             {/* 見出しはモバイル 20px / PC 30px（アートボード 5c / 5a）。 */}
-            <h1 className="text-xl font-bold md:text-3xl">
-              {isRaw
-                ? "平均年収ランキング"
-                : `${state.targetAge}歳年収ランキング`}
+            {/*
+            **業種つきの見出しは「◯◯の」の後ろでだけ折り返す。** 390px の本文幅は
+            20px の字で17字ぶんしか無く、`ガラス・土石製品の平均年収ランキング`（18字）は
+            収まらない。何もしないと `…ランキン` / `グ` のように語の途中で切れるので、
+            `break-keep` で字の間の改行を止め、`<wbr>` で境目にだけ改行の機会を置く。
+            断片はどれも11字以下なので、`break-keep` で1行からはみ出すことはない。
+          */}
+            <h1 className="text-xl font-bold break-keep md:text-3xl">
+              {headingParts.map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && <wbr />}
+                  {part}
+                </Fragment>
+              ))}
             </h1>
             {/*
-            **PC でだけ足す文は「補足」に限る**（アートボード 5c、公開後の指摘）。
-            2文まとめて出すと 390px で3行になり、本文が下に押し出されていた。
-            同じ文を2つ書いて出し分けるのではなく、続きの1文だけを PC で足す。
+            **リード文は PC とモバイルで同じ文を出す。** 以前は年齢そろえのときだけ
+            「元になる金額は有価証券報告書の平均年間給与です。」を PC でだけ足していた
+            （アートボード 5c。2文まとめて出すと 390px で3行になるため）。その語を
+            1文目に入れたので2文目は外した。
 
-            **掲載条件（従業員100人以上）はその例外で、両方に出す**（運営者の指示
-            2026-08-27）。「有報を出している会社が全部載っている」と読まれるのを
-            防ぐ断りなので、狭い画面の読者にだけ届かないと意味が無い。**代償として
-            モバイルでは2行になる**（3行は超えないことを E2E が見ている）。
-          */}
-            {/*
+            **掲載条件（従業員100人以上）も両方に出す**（運営者の指示 2026-08-27）。
+            「有報を出している会社が全部載っている」と読まれるのを防ぐ断りなので、
+            狭い画面の読者にだけ届かないと意味が無い。**代償としてモバイルでは2〜3行に
+            なる**（年齢そろえ・長い業種名で3行。4行にならないことを E2E が見ている）。
             **データの時点は1文目に置く**（S3・`docs/site-chrome/spec.md` 5.1）。
-            モバイルは2文目を隠すので、2文目に回すと狭い画面でだけ「いつの数字か」が
-            消える。社数と同じく直書きせず `companies.meta` から引く（spec 1.4）。
+            文は `lib/lead.ts` が組む。
           */}
-            <p className="text-muted-foreground text-xs md:text-sm">
-              {isRaw ? (
-                `${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。従業員${minEmployees}人以上が対象。`
-              ) : (
-                <>
-                  {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。従業員${minEmployees}人以上が対象。`}
-                  <span className="hidden md:inline">
-                    元になる金額は有価証券報告書の平均年間給与です。
-                  </span>
-                </>
-              )}
-            </p>
+            <p className="text-muted-foreground text-xs md:text-sm">{lead}</p>
           </div>
           {/*
           表示基準と年齢は「何の列か」が分かる帯に入れる（U13、アートボード 5a）。

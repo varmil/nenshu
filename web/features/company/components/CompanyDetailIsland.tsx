@@ -17,6 +17,7 @@ export function CompanyDetailIsland({
   data,
   analysis,
   digest,
+  qa,
   sources,
 }: {
   data: CompanyPageData;
@@ -28,6 +29,12 @@ export function CompanyDetailIsland({
    */
   analysis?: ReactNode;
   digest?: ReactNode;
+  /**
+   * 「{社名}の年収に関するQ&A」（C16・Issue #838）。**同じく名前付きスロット**（`slot="qa"`）。
+   * 実測値の4項目と EDINET の帯で、表示基準でも年齢でも変わらない。書類 ID もここに閉じるので、
+   * 島の props には載らない。
+   */
+  qa?: ReactNode;
   /**
    * 「このページの出典」（C12・Issue #805）。**同じく名前付きスロット**（`slot="sources"`）。
    * 表示基準で変わらない静的な節なので、島の JS に文言を持たせない。
@@ -45,9 +52,9 @@ export function CompanyDetailIsland({
         profitHistory={data.profitHistory}
         summary={data.summary}
         fiscalPeriod={data.fiscalPeriod}
-        filingDocId={data.filingDocId}
         analysis={analysis}
         digest={digest}
+        qa={qa}
         sources={sources}
       />
     </LogoIdsProvider>

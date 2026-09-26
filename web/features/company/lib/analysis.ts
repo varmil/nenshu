@@ -110,9 +110,10 @@ export function analysisNote(asOf: string): string {
  * にする。
  *
  * **原文の決算期をここに書く**（2026-09-24・運営者の判断で S3 の「1画面に1回」を改めた。
- * `docs/site-chrome/spec.md` 5.1）。要約の節は「有価証券報告書の実測値」の見出しから
- * 離れた位置にあり、どの年度の有報を要約したのかが節の中で読めることが信頼性に効く。
- * 値は見出しと同じ `fiscalPeriod`（`pageData.ts`）で、要約の原文の書類は実測値と同じ
+ * `docs/site-chrome/spec.md` 5.1）。どの年度の有報を要約したのかが節の中で読めることが
+ * 信頼性に効く。決算期を持つもう1つの節は直後の「年収に関するQ&A」（C16・#838。C15 までは
+ * 離れた位置の「有価証券報告書の実測値」の見出し）で、それぞれが自分の節の中身の時点を言う。
+ * 値は Q&A の説明と同じ `fiscalPeriod`（`pageData.ts`）で、要約の原文の書類は実測値と同じ
  * 書類なので食い違わない（C8 が同じ `doc_id` から落としている）。
  */
 export function digestNote(fiscalPeriod: string): string {

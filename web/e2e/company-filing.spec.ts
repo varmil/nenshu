@@ -4,8 +4,9 @@ import type { Page } from "@playwright/test";
 /**
  * 有報への直リンク（C13・Issue #814、`docs/company/spec.md` 1.20・AC-31）。
  *
- * 実測値の4項目の表の下辺に、その会社の有報——4項目を取った書類そのもの——を EDINET で開く
+ * 実測値の4項目の下辺に、その会社の有報——4項目を取った書類そのもの——を EDINET で開く
  * 帯を付ける（Claude Design の案 D）。**リンク先は書類ごとの閲覧ページ**で、EDINET のトップではない。
+ * C16（#838）で4項目を Q&A に作り替えたので、帯はいま Q&A の4問の枠の下辺に付いている。
  *
  * JS 実行前の HTML にあり `/` には書類 ID が無いことは `company-page.spec.ts` の AC-10、
  * 文書の横スクロールは `company-refresh.spec.ts` の AC-15 が見ている。
@@ -16,11 +17,11 @@ import type { Page } from "@playwright/test";
 const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAHE,,";
 
 const filing = (page: Page) => page.getByTestId("company-filing");
-const actuals = (page: Page) =>
-  page.locator("section", { has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }) });
+// 4問の枠。帯はこの下辺に付く（C16 までは4セルの表の下辺だった）。
+const qaList = (page: Page) => page.getByTestId("company-qa-list");
 
 test.describe("AC-31 有報への直リンク", () => {
-  test("4項目の表の下辺に、その会社の書類を別タブで開く帯があり、出典の実測値の行も同じ書類を指す", async ({
+  test("Q&A の4問の枠の下辺に、その会社の書類を別タブで開く帯があり、出典の実測値の行も同じ書類を指す", async ({
     page,
   }) => {
     await page.goto("/company/6861");
@@ -30,11 +31,11 @@ test.describe("AC-31 有報への直リンク", () => {
     await expect(filing(page)).toHaveAttribute("target", "_blank");
     await expect(filing(page)).toContainText("この会社の有価証券報告書");
     await expect(filing(page)).toContainText("EDINETで開く");
-    // 決算期は真上の見出しが持っている（企業詳細は2か所まで・S3）。
+    // 決算期は同じ節の Q&A の説明が持っている（企業詳細は2か所まで・S3）。
     await expect(filing(page)).not.toContainText(/\d{4}年\d{1,2}月期/);
 
-    // 表とつながって見える——帯の上辺が表の下辺に接し、左右がそろう。
-    const grid = (await actuals(page).locator("dl").boundingBox())!;
+    // 4問の枠とつながって見える——帯の上辺が枠の下辺に接し、左右がそろう。
+    const grid = (await qaList(page).boundingBox())!;
     const bar = (await filing(page).boundingBox())!;
     expect(Math.abs(bar.y - (grid.y + grid.height))).toBeLessThanOrEqual(1);
     expect(Math.abs(bar.x - grid.x)).toBeLessThanOrEqual(1);

@@ -37,11 +37,13 @@ test.describe("節の並び", () => {
       "株式会社キーエンスの現状と今後",
       "残業・有給・男女の賃金の差異",
       "年齢別の推定年収",
-      "有価証券報告書の実測値（2026年3月期）",
       "平均年収推移（過去10年間）",
       "在籍年数推移（過去10年間）",
       "稼ぐ力の推移（過去10年間）",
       "株式会社キーエンスの有価証券報告書の要約",
+      // 実測値の4項目の Q&A は要約の直後・出典の直前（C16・spec AC-34）。C15 までは
+      // 「有価証券報告書の実測値（2026年3月期）」として年齢別と推移の間にあった。
+      "株式会社キーエンスの年収に関するQ&A",
       "このページの出典",
       // サイドバーは DOM では本文の後ろ。
       "電気機器で水準が近い会社",
@@ -563,18 +565,16 @@ test.describe("T4 在籍年数推移", () => {
   });
 
   /*
-   * 最新年の行と「有価証券報告書の実測値」の節は同じ有報の同じ数字（T3 AC-16 の平均年齢と同じ）。
-   * 3月期の会社と、2026年の枠が空いて2025年が最新になる8月期の会社。
+   * 最新年の行と「年収に関するQ&A」（C16）の平均勤続年数の回答は同じ有報の同じ数字（T3 AC-16 の
+   * 平均年齢と同じ）。3月期の会社と、2026年の枠が空いて2025年が最新になる8月期の会社。
    */
-  test("AC-21: 最新年の行の在籍年数が、実測値の節の在籍年数と同じ文字列", async ({ page }) => {
+  test("AC-21: 最新年の行の在籍年数が、Q&A の平均勤続年数の回答と同じ文字列", async ({ page }) => {
     for (const id of ["6861", "9983"]) {
       await page.goto(`/company/${id}`);
-      const actuals = page.locator("section", {
-        has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }),
-      });
-      const tenure = await actuals
-        .locator("dl > div", { has: page.locator("dt", { hasText: "在籍年数" }) })
-        .locator("dd")
+      const tenure = await page
+        .getByTestId("company-qa-list")
+        .locator("div", { has: page.getByRole("heading", { name: /平均勤続年数は何年ですか/ }) })
+        .locator("strong")
         .textContent();
       expect(tenure, id).toMatch(/^\d{1,2}\.\d年$/);
       const latest = (await tenureRows(page)).filter((row) => row[1] !== "データなし").at(-1)!;
@@ -734,7 +734,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
   });
 
   /*
-   * spec AC-32。**在籍年数はカードに出さない**（「有価証券報告書の実測値」の節とレーダーの
+   * spec AC-32。**在籍年数はカードに出さない**（年収に関するQ&A の平均勤続年数とレーダーの
    * 定着の軸にある）。**太字は金額だけ**——順位まで太いと、どれがこのカードの
    * 答えなのかが読めない。
    */
@@ -842,16 +842,58 @@ test.describe("AC-32 平均年収カード（C14）", () => {
 });
 
 /*
- * C4（Issue #146・親 #145）。実測値の4項目を1文にした地の文（spec AC-17）。文言の組み立ては
- * `lib/highlights.test.ts`（決算期と「推定」を書かないことも、文全体の一致で固定している）。
- * 決算期が画面に2回までであることは `data-period.spec.ts`。
+ * C16（Issue #838・親 #836）。実測値の4項目を1問ずつの質問と回答にした（spec 1.22・AC-34）。
+ * C4 の地の文（AC-17）と C1 の4セルの表を置き換えた。文言の組み立ては `lib/actualsQa.test.ts`
+ * （決算期を説明の1行にだけ置くこと・「推定」を書かないことも、文全体の一致で固定している）。
+ * 決算期が画面に2回までであることは `data-period.spec.ts`、節の位置は上の「節の並び」、
+ * JS 実行前の HTML は `company-page.spec.ts` の AC-10、表示基準で変わらないことは同じファイルの
+ * AC-3、FAQPage の JSON-LD を出さないことは `social.spec.ts` の鍵の集合が見ている。
  */
-test.describe("C4 実測値の地の文", () => {
-  test("AC-17: 実測値の節に4項目を述べる地の文がある", async ({ page }) => {
+test.describe("AC-34 年収に関するQ&A（C16）", () => {
+  test("4問が見出しとして並び、回答は開いたまま社名から始まり、太字は値だけ", async ({ page }) => {
     await page.goto("/company/6861");
-    const section = page.locator("section", { hasText: "有価証券報告書の実測値" });
-    await expect(section).toContainText(
-      "有価証券報告書によると、株式会社キーエンスの平均年収は2,178万円、平均年齢は35.0歳、平均勤続年数は11.3年、従業員数は3,306人です。"
+    const qa = page.getByTestId("company-qa");
+
+    await expect(qa.getByRole("heading", { level: 2 })).toHaveText("株式会社キーエンスの年収に関するQ&A");
+    await expect(qa).toContainText(
+      "2026年3月期の有価証券報告書の値です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
     );
+    await expect(qa.getByRole("heading", { level: 3 })).toHaveText([
+      "株式会社キーエンスの平均年収はいくらですか？",
+      "株式会社キーエンスの平均年齢は何歳ですか？",
+      "株式会社キーエンスの平均勤続年数は何年ですか？",
+      "株式会社キーエンスの従業員数は何人ですか？",
+    ]);
+    // 折りたたまない（1c は採らなかった）。4つとも開いたまま見えている。
+    const answers = page.getByTestId("company-qa-list").locator("p");
+    await expect(answers).toHaveText([
+      "株式会社キーエンスの平均年収は2,178万円です。",
+      "株式会社キーエンスの平均年齢は35.0歳です。",
+      "株式会社キーエンスの平均勤続年数は11.3年です。",
+      "株式会社キーエンスの従業員数は3,306人です（提出会社単体。連結子会社の従業員は含みません）。",
+    ]);
+    for (const answer of await answers.all()) await expect(answer).toBeVisible();
+    await expect(answers.locator("strong")).toHaveText(["2,178万円", "35.0歳", "11.3年", "3,306人"]);
+
+    // 実測値だけの節なので「推定」を置かない（AC-9）。作り替える前の節は残っていない。
+    await expect(qa).not.toContainText("推定");
+    await expect(page.getByRole("heading", { name: /有価証券報告書の実測値/ })).toHaveCount(0);
+  });
+
+  /*
+   * 390px では回答が2〜3行に折れる。**値（数字と単位）は行をまたがない**——何もしないと
+   * `38.8` / `歳`、`293` / `人` と割れていた（ジャストシステム 4686 で実測）。`strong` は
+   * インライン要素なので、行をまたぐと `getClientRects()` が行の数だけ返る。横スクロールは
+   * 上の AC-15 のループ（375px）が見ている。
+   */
+  test("390px でも回答の値が数字と単位の間で折れない", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const id of ["4686", "6861"]) {
+      await page.goto(`/company/${id}`);
+      const values = page.getByTestId("company-qa-list").locator("strong");
+      await expect(values, id).toHaveCount(4);
+      const lines = await values.evaluateAll((els) => els.map((el) => el.getClientRects().length));
+      expect(lines, id).toEqual([1, 1, 1, 1]);
+    }
   });
 });

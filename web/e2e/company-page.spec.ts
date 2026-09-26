@@ -25,7 +25,7 @@ const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100
 const card = (page: Page) => page.locator('[data-slot="card"] dl').filter({ hasText: "全体順位" });
 
 /**
- * 表示基準と独立な節の中身（spec AC-23・AC-30・AC-14・timeseries AC-8・AC-22・performance AC-11）。
+ * 表示基準と独立な節の中身（spec AC-23・AC-30・AC-14・AC-34・timeseries AC-8・AC-22・performance AC-11）。
  * 名前つきで返すので、どれが動いたかが差分に出る。
  */
 async function independentSections(page: Page): Promise<Record<string, string | null>> {
@@ -40,9 +40,7 @@ async function independentSections(page: Page): Promise<Record<string, string | 
       .locator("xpath=..")
       .locator("p", { hasText: "年齢別に見ると" })
       .textContent(),
-    実測値: await page
-      .locator("section", { has: page.getByRole("heading", { name: /^有価証券報告書の実測値/ }) })
-      .textContent(),
+    "年収に関するQ&A": await page.getByTestId("company-qa").textContent(),
     平均年収推移: await byHeading("平均年収推移（過去10年間）"),
     在籍年数推移: await byHeading("在籍年数推移（過去10年間）"),
     稼ぐ力の推移: await byHeading("稼ぐ力の推移（過去10年間）"),
@@ -114,7 +112,8 @@ test.describe("企業詳細ページ", () => {
    *
    * 以前は「変わらない」を節ごとに別のテストで確かめていた（説明文 C7 AC-23・要約と分析
    * C10 AC-30・推移 T1 AC-8・稼ぐ力 P2 AC-11・年齢別の説明文 C4 AC-14・近傍 AC-12 の
-   * ネットワーク）。どれも同じ操作の後で同じページを見ていたので、ここに寄せた。
+   * ネットワーク）。どれも同じ操作の後で同じページを見ていたので、ここに寄せた。年収に関する
+   * Q&A（C16 AC-34）も同じ並びに足した。
    * 残業・有給・男女の賃金の差異は `company-worklife.spec.ts`、レーダーは `company-radar.spec.ts`。
    */
   test("AC-3: 年齢そろえと年齢スイッチで推定年収だけが変わり、独立な節もネットワークも URL も動かない", async ({
@@ -252,7 +251,15 @@ test.describe("企業詳細ページ", () => {
       ["実測値の金額（C1）", "2,178万円"],
       ["年齢別の折れ線（C1）", "<polyline"],
       ["到達年齢の文（C4）", "30歳で1,200万円"],
-      ["実測値の文（C4）", "平均勤続年数は11.3年"],
+      // 年収に関するQ&A（C16 AC-34）。回答は値だけが `strong` なので、値を挟んだ前後で見る。
+      ["Q&A の見出し（C16）", "株式会社キーエンスの年収に関するQ&amp;A"],
+      ["Q&A の質問（C16）", "株式会社キーエンスの平均年収はいくらですか？"],
+      ["Q&A の質問（C16）", "株式会社キーエンスの平均年齢は何歳ですか？"],
+      ["Q&A の質問（C16）", "株式会社キーエンスの平均勤続年数は何年ですか？"],
+      ["Q&A の質問（C16）", "株式会社キーエンスの従業員数は何人ですか？"],
+      ["Q&A の回答の書き出し（C16）", "株式会社キーエンスの平均勤続年数は"],
+      ["Q&A の回答の値（C16）", "11.3年"],
+      ["Q&A の従業員数の断り（C16）", "です（提出会社単体。連結子会社の従業員は含みません）。"],
       ["説明文（C7 AC-21）", "電子応用機器の開発、製造及び販売を主な事業とする。"],
       ["このページの出典（C12 AC-16）", "このページの出典"],
       ["有報への直リンク（C13 AC-31）", KEYENCE_DOC_URL],
@@ -279,8 +286,8 @@ test.describe("企業詳細ページ", () => {
     expect(html, "この数字の作り方（AC-16）").not.toContain("この数字の作り方");
 
     /*
-     * **クライアントに渡すのは当該1社ぶんだけ**（AC-23）。`summaries.json` は 2,783社ぶん
-     * （gzip 261.8KB）あり、丸ごと props に載せるとページの予算を超える。他社の説明文の
+     * **クライアントに渡すのは当該1社ぶんだけ**（AC-23）。`summaries.json` は 2,951社ぶん
+     * （gzip 273.7KB）あり、丸ごと props に載せるとページの予算を超える。他社の説明文の
      * 書き出しが混じっておらず、出典の1行（説明文と対）が1回だけ。
      */
     expect(html, "他社の説明文").not.toContain("自動車の生産及び販売");

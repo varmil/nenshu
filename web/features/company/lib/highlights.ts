@@ -1,11 +1,6 @@
-import {
-  formatDecimal1,
-  formatInt,
-  formatManYen,
-  toManYen,
-} from "@/features/ranking/lib/format";
+import { formatManYen, toManYen } from "@/features/ranking/lib/format";
 import type { TargetAge } from "@/features/ranking/types";
-import type { CompanyAgeStats, CompanyView } from "../types";
+import type { CompanyAgeStats } from "../types";
 
 /**
  * 10年推移に添える増減の文（`docs/timeseries/spec.md` 2.1）。
@@ -153,28 +148,6 @@ export function buildCurveSummary(byAge: CompanyAgeStats[], name: string): strin
   }
 
   return sentences;
-}
-
-/**
- * 「有価証券報告書の実測値」の節に置く地の文（C4・spec 1.17）。
- *
- * **新しい数値は1つも出さない。** すぐ下の4セル（平均年収・平均年齢・在籍年数・
- * 従業員数）をそのまま1文にしたものである。数値は `dl` の `dd` に入っており、
- * 読み上げでも検索結果の抜粋でも「ラベルと値の対」以上には読めない——同じ内容が
- * 文としても置いてあれば、どちらの経路でも意味のある形で届く。
- *
- * **決算期はここに書かない。** 節の見出し（`有価証券報告書の実測値（2026年3月期）`）が
- * 持っている（S3・Issue #134）。1画面に1回。
- *
- * **表示基準に依らず同じ文になる。** 実測値そのものなので、年齢そろえを選んでも
- * 変わらない（推移の節と同じ扱い）。
- */
-export function buildActualsSummary(view: CompanyView): string {
-  return (
-    `有価証券報告書によると、${view.name}の平均年収は${formatManYen(view.avgSalary)}、` +
-    `平均年齢は${formatDecimal1(view.avgAge)}歳、平均勤続年数は${formatDecimal1(view.avgTenure)}年、` +
-    `従業員数は${formatInt(view.employees)}人です。`
-  );
 }
 
 /**

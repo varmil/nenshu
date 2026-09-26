@@ -84,7 +84,7 @@ export function DigestSection({
 }: {
   name: string;
   view: AnalysisView;
-  /** その会社の決算期（`2026年3月期`）。「有価証券報告書の実測値」の見出しと同じ値。 */
+  /** その会社の決算期（`2026年3月期`）。直後の「年収に関するQ&A」の説明と同じ値。 */
   fiscalPeriod: string;
 }) {
   return (
