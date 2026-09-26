@@ -399,9 +399,11 @@ export function CompanyDetail({
           <WorklifeSection view={worklife} />
 
           {/*
-            **表 → 説明文 → チャート**の順（C3、アートボード 4b）。C2 は図が先だったが、
-            8点の金額を確かめたい読者は表を、形を掴みたい読者はチャートを見る。先に
-            数値を出しておくと、図は「その形」を確かめるためだけのものになる。
+            **チャート → 表 → 説明文**の順（#846。推移の3節と同じ）。C3 から #846 までは
+            表 → 説明文 → チャートで、このページでこの節だけが逆だった。形を掴んでから
+            8点の金額を表で確かめ、説明文は図と表の両方を受けた締めとして末尾に置く。
+            **図の上に小見出しを置かない**——見出しの直下に図が来るので、見出しを言い直す
+            だけになる（推移の3節も置いていない）。
           */}
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">年齢別の推定年収</h2>
@@ -419,6 +421,7 @@ export function CompanyDetail({
               </a>
               ）
             </p>
+            <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
             <AgeSalaryTable byAge={byAge} selectedAge={targetAge} />
             {/*
               数値から機械的に導ける事実だけ（要点の箇条書きと同じ線）。**3文を1つの
@@ -427,10 +430,6 @@ export function CompanyDetail({
               任せる。和文なので句点のあとに空白は入れない（推移の説明と同じ扱い）。
             */}
             {curveSummary.length > 0 && <p className="text-sm">{curveSummary.join("")}</p>}
-            <p className="text-muted-foreground text-center text-sm font-semibold mt-4">
-              年齢別の推定年収の推移
-            </p>
-            <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
           </section>
 
           {/*
@@ -453,9 +452,9 @@ export function CompanyDetail({
                   `${historyBase}年比は会社の平均が動いた幅で、個人の昇給率ではありません。`}
               </p>
               {/*
-                **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は表が先だが、
-                推移で先に見たいのは10年ぶんの形で、値はその後に表で確かめるもの。増減の
-                1文は figure と表の両方を受けた締めなので、2つの後ろに置く。
+                **チャート → 表 → 説明文**（運営者の指示。年齢別の推定年収も #846 で同じ順に
+                そろえた）。推移で先に見たいのは10年ぶんの形で、値はその後に表で確かめるもの。
+                増減の1文は figure と表の両方を受けた締めなので、2つの後ろに置く。
               */}
               <YearlyBarChart
                 years={history.years}

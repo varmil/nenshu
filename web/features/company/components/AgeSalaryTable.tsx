@@ -16,9 +16,9 @@ import type { CompanyAgeStats } from "../types";
  * 年齢別の推定年収の表（spec 1.14）。折れ線と同じ8点を数値で読ませる。
  *
  * **断り書きはこの表には置かない（Issue #95）。** 「目安の幅であって統計的な信頼区間
- * ではない」は、同じ `section` の中にあるチャートの `figcaption` が持つ——表・説明文・
- * チャートが縦に続く1つの塊なので、表の `caption` にも同じ文を置くと、一度の視界に
- * 同じ断りが2つ並ぶ。**断り自体を消すのではない**（AC-14）ので、figcaption と
+ * ではない」は、同じ `section` の中にあるチャートの `figcaption` が持つ——チャート・表・
+ * 説明文が縦に続く1つの塊で（#846 からはこの表の直上が figcaption）、表の `caption` にも
+ * 同じ文を置くと、一度の視界に同じ断りが2つ並ぶ。**断り自体を消すのではない**（AC-14）ので、figcaption と
  * `/about` の2か所は外さない。
  */
 export function AgeSalaryTable({

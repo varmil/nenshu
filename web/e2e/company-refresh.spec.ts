@@ -1,5 +1,5 @@
 import { test, expect } from "./appTest";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 /**
  * C2（Issue #83）で足した節——水準が近い会社・分布・年齢別の表と ±20%・10年推移
@@ -72,6 +72,33 @@ test.describe("節の並び", () => {
     // レーダーが先頭だった頃は上から 1,139px。
     const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
     expect(amount.y + amount.height).toBeLessThanOrEqual(844);
+  });
+
+  /*
+   * **図のある4節は、どれも チャート → 表 → 説明文**（運営者の指示・#846）。年齢別の推定年収
+   * だけが C3 から #846 まで 表 → 説明文 → チャート で、年齢別と推移が別々のテストで逆の順を
+   * 固定していた。4節を1本で並べて見れば、どれか1つがずれても落ちる。
+   * 説明文は節の末尾の段落で、見出し直下の出典の1行と取り違えない語で引く。
+   */
+  test("図のある4節は、どれも チャート → 表 → 説明文 の順に並ぶ", async ({ page }) => {
+    await page.goto("/company/6861");
+    const sections: [string, string | RegExp][] = [
+      ["年齢別の推定年収", "年齢別に見ると"],
+      ["平均年収推移（過去10年間）", /9年で [＋−]/],
+      ["在籍年数推移（過去10年間）", "平均勤続年数は"],
+      ["稼ぐ力の推移（過去10年間）", /\d+年で[＋−±]/],
+    ];
+    const top = async (locator: Locator) => (await locator.boundingBox())!.y;
+    for (const [heading, summaryText] of sections) {
+      const section = page
+        .getByRole("heading", { name: heading, exact: true, level: 2 })
+        .locator("xpath=..");
+      const chart = await top(section.locator("figure"));
+      const table = await top(section.getByRole("table"));
+      const summary = await top(section.locator("p", { hasText: summaryText }));
+      expect(chart, heading).toBeLessThan(table);
+      expect(table, heading).toBeLessThan(summary);
+    }
   });
 });
 
@@ -162,7 +189,7 @@ const curveSection = (page: Page) =>
 
 test.describe("AC-14 年齢別の表と推定範囲", () => {
   /*
-   * **信頼区間ではない旨は1か所だけ**——表・説明文・チャートは1つの `section` に縦に続くので、
+   * **信頼区間ではない旨は1か所だけ**——チャート・表・説明文は1つの `section` に縦に続くので、
    * 表の caption にも同じ文を置くと一度の視界に断りが2つ並ぶ（Issue #95 で表の caption を
    * 外した）。**帯だけを見ると信頼区間に見える**ので、図の側からは外さない。
    * `/about` 側の断りは `company-page.spec.ts` の「/about への導線」が見ている。
@@ -189,17 +216,6 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
     // 目盛の値そのものは `lib/stats.test.ts` の `niceTicks`。ここは描かれていることだけ。
     const svg = page.locator("svg").filter({ hasText: "（万円）" });
     await expect(svg.getByText("1,000", { exact: true })).toBeVisible();
-  });
-
-  test("年齢別は 表 → 説明文 → チャート の順に並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    await page.getByRole("button", { name: "年齢そろえ" }).click();
-
-    const table = (await curveSection(page).getByRole("table").boundingBox())!;
-    const summary = (await page.getByText("推定年収を年齢別に見ると").boundingBox())!;
-    const chart = (await page.getByText("年齢別の推定年収の推移", { exact: true }).boundingBox())!;
-    expect(table.y).toBeLessThan(summary.y);
-    expect(summary.y).toBeLessThan(chart.y);
   });
 
   /*
@@ -392,21 +408,6 @@ test.describe("T1・T2・T3 平均年収推移", () => {
   });
 
   /*
-   * 並びは **チャート → 表 → 説明文**（運営者の指示）。年齢別の推定年収は逆に表が先なので、
-   * 片方を直したつもりでもう片方が付いてくる事故をここで止める。
-   */
-  test("推移は チャート → 表 → 説明文 の順に並ぶ", async ({ page }) => {
-    await page.goto("/company/6861");
-    const section = historySection(page);
-
-    const chart = (await section.locator("figure").boundingBox())!;
-    const table = (await section.getByRole("table").boundingBox())!;
-    const summary = (await section.getByText(/9年で [＋−]/).boundingBox())!;
-    expect(chart.y).toBeLessThan(table.y);
-    expect(table.y).toBeLessThan(summary.y);
-  });
-
-  /*
    * 欠け方は2通り。**2117 は途中が欠ける**（2023・2024）——棒は描かれず年のラベルだけが残り、
    * 欠けた年は平均年齢も空。累積は基準年からの比なので、欠損をまたいだ2025年にも出る。
    * **3447 は先頭が欠ける**（2017年が無い）——固定の2017年基準だと累積の列が丸ごと空になるので、
@@ -495,10 +496,11 @@ async function tenureRows(page: Page): Promise<string[][]> {
  * T4（#835・`docs/timeseries/spec.md` 2.7）。在籍年数の折れ線と業種の中央値の点線、表、説明文。
  * 差・説明文の分岐・線の切れ目・ラベルの逃がし方は `lib/tenureHistory.test.ts` が固定しており、
  * ここは実ページでそう描かれることを見る。表示基準と独立であること（AC-22）は
- * `company-page.spec.ts` の AC-3、390px の横スクロールは下の AC-15 のループ。
+ * `company-page.spec.ts` の AC-3、390px の横スクロールは下の AC-15 のループ、
+ * チャート → 表 → 説明文 の並び（AC-19）は上の「節の並び」。
  */
 test.describe("T4 在籍年数推移", () => {
-  test("AC-19: 折れ線と業種の中央値の点線、10行の表、説明文が チャート → 表 → 説明文 の順に並ぶ", async ({
+  test("AC-19: 折れ線と業種の中央値の点線、10行の表、説明文が出る", async ({
     page,
   }) => {
     await page.goto("/company/6861");
@@ -533,10 +535,6 @@ test.describe("T4 在籍年数推移", () => {
     const summary = section.locator("p", { hasText: "2026年の株式会社キーエンスの平均勤続年数は" });
     await expect(summary).toContainText(`単体（提出会社）で${rows[9][1]}です。電気機器の中央値（`);
     await expect(summary).toContainText(/2017年の[\d.]+年から9年で/);
-
-    const box = async (locator: ReturnType<Page["locator"]>) => (await locator.boundingBox())!;
-    expect((await box(section.locator("figure"))).y).toBeLessThan((await box(section.getByRole("table"))).y);
-    expect((await box(section.getByRole("table"))).y).toBeLessThan((await box(summary)).y);
 
     // 表の主は在籍年数。見出しの長い差の列のほうが広く取られていた（PC で 228px 対 327px）。
     for (const width of [1280, 375]) {
