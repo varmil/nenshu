@@ -82,10 +82,7 @@ export function rankingCanonical(
   if (hasUnindexed) return { path: "/", targetAge: null, industry: null, page: 1 };
 
   // 33件のリスト外の業種名は、URLとしては通るがページとしては0件なので寄せる。
-  const industry =
-    state.industry !== null && companies.industries.includes(state.industry)
-      ? state.industry
-      : null;
+  const industry = listedIndustry(state.industry, companies.industries);
 
   const base =
     industry !== null
@@ -112,6 +109,17 @@ export function rankingCanonical(
 }
 
 /**
+ * 33業種のどれかなら業種名を、そうでなければ `null` を返す。`?ind=` の値は
+ * URLとしては何でも通るので、canonical・見出し・リード文はこれを通して読む。
+ */
+export function listedIndustry(
+  industry: string | null,
+  industries: readonly string[]
+): string | null {
+  return industry !== null && industries.includes(industry) ? industry : null;
+}
+
+/**
  * ランキングの見出し（`h1`）の文言を、**折り返してよい境目で切った断片**で返す。
  * 業種があれば `["銀行業の", "平均年収ランキング"]`、無ければ1つだけ。
  *
@@ -135,9 +143,8 @@ export function rankingHeadingParts(
 ): string[] {
   const kind =
     state.targetAge !== null ? `${state.targetAge}歳年収ランキング` : "平均年収ランキング";
-  return state.industry !== null && industries.includes(state.industry)
-    ? [`${state.industry}の`, kind]
-    : [kind];
+  const industry = listedIndustry(state.industry, industries);
+  return industry !== null ? [`${industry}の`, kind] : [kind];
 }
 
 /** `rankingHeadingParts` を1続きにしたもの。title の組み立てに使う。 */

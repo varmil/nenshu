@@ -57,7 +57,7 @@ test.describe("URLクエリとの同期", () => {
       // 効いていることは件数の表示で見る（行数は PAGE_SIZE で頭打ちのため）。
       {
         url: "/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD",
-        text: ["銀行業の45歳年収ランキング", "82社 中 1〜30社目"],
+        text: ["銀行業の45歳年収ランキング", "45歳時点に補正した銀行業の82社。", "82社 中 1〜30社目"],
         rows: 30,
       },
       // 2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社。
@@ -235,10 +235,11 @@ test.describe("URLクエリとの同期", () => {
             .click();
           await expect(page).toHaveURL(/[?&]ind=%E9%8A%80%E8%A1%8C%E6%A5%AD/);
           await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
-          // 見出しも業種を名乗る。表示基準は年齢そろえのまま。
+          // 見出しとリード文の社数も業種を名乗る。表示基準は年齢そろえのまま。
           await expect(page.getByRole("heading", { level: 1 })).toHaveText(
             "銀行業の35歳年収ランキング"
           );
+          await expect(page.getByText("35歳時点に補正した銀行業の82社。")).toBeVisible();
         },
       ],
       [

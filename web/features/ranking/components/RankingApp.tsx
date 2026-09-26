@@ -7,6 +7,7 @@ import { useRankingState } from "../hooks/useRankingState";
 import { useCompaniesDataset } from "../hooks/useCompaniesDataset";
 import { buildSearchParams, DEFAULT_TARGET_AGE, rankingHref } from "../lib/urlState";
 import { pageRange } from "../lib/pagination";
+import { rankingLead } from "../lib/lead";
 import { populationForBasis } from "../lib/population";
 import { formatInt } from "../lib/format";
 import { fiscalPeriodLabel } from "@/lib/data/period";
@@ -95,15 +96,6 @@ export function RankingApp({
 
   const isRaw = state.targetAge === null;
   const headingParts = rankingHeadingParts(state, bootstrap.industries);
-  // データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
-  const fiscalPeriod = fiscalPeriodLabel(bootstrap.meta);
-  const total = formatInt(bootstrap.meta.count);
-  /**
-   * 掲載条件のうち**読者がいちばん取り違えるのは従業員数の線**（E2・#173 で
-   * `/about` に省いた社数を出したのと同じ理由）。数は直書きせず
-   * `meta.excluded.minEmployees` から引く（spec 1.4 と同じ扱い）。
-   */
-  const minEmployees = formatInt(bootstrap.meta.excluded.minEmployees);
   const basisPopulation = populationForBasis(population, state.targetAge);
   const range = pageRange(state.page, totalCount, PAGE_SIZE);
   // 業種ごとの社数は**母集団の内訳なので絞り込みで変わらない**。サーバーが数えた
@@ -126,6 +118,20 @@ export function RankingApp({
     return (industry: string) => byIndustry.get(industry) ?? 0;
   }, [bootstrap.industries, counts]);
   usePageMeta(rankingPageMeta(buildSearchParams(state), bootstrap, countOf));
+
+  /**
+   * データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
+   * 掲載条件のうち**読者がいちばん取り違えるのは従業員数の線**（E2・#173 で
+   * `/about` に省いた社数を出したのと同じ理由）で、これも
+   * `meta.excluded.minEmployees` から引く。
+   */
+  const lead = rankingLead(state, {
+    fiscalPeriod: fiscalPeriodLabel(bootstrap.meta),
+    total: bootstrap.meta.count,
+    minEmployees: bootstrap.meta.excluded.minEmployees,
+    industries: bootstrap.industries,
+    industryCount: countOf,
+  });
 
   const filterProps = {
     state,
@@ -187,7 +193,8 @@ export function RankingApp({
             **掲載条件（従業員100人以上）はその例外で、両方に出す**（運営者の指示
             2026-08-27）。「有報を出している会社が全部載っている」と読まれるのを
             防ぐ断りなので、狭い画面の読者にだけ届かないと意味が無い。**代償として
-            モバイルでは2行になる**（3行は超えないことを E2E が見ている）。
+            モバイルでは2〜3行になる**（360px の年齢そろえ・長い業種名で3行。4行に
+            ならないことを E2E が見ている）。文は `lib/lead.ts` が組む。
           */}
             {/*
             **データの時点は1文目に置く**（S3・`docs/site-chrome/spec.md` 5.1）。
@@ -195,15 +202,11 @@ export function RankingApp({
             消える。社数と同じく直書きせず `companies.meta` から引く（spec 1.4）。
           */}
             <p className="text-muted-foreground text-xs md:text-sm">
-              {isRaw ? (
-                `${fiscalPeriod}の有価証券報告書の平均年間給与（単体）で${total}社。従業員${minEmployees}人以上が対象。`
-              ) : (
-                <>
-                  {`${fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した${total}社。従業員${minEmployees}人以上が対象。`}
-                  <span className="hidden md:inline">
-                    元になる金額は有価証券報告書の平均年間給与です。
-                  </span>
-                </>
+              {lead}
+              {!isRaw && (
+                <span className="hidden md:inline">
+                  元になる金額は有価証券報告書の平均年間給与です。
+                </span>
               )}
             </p>
           </div>
