@@ -7,9 +7,10 @@ import { test, expect } from "./appTest";
  * **説明文のある会社と無い会社の両方を見る。** 片方だけだと「空の器を出さない」ことが
  * 通らない——出ていないものは、出す側のテストでは捕まらない。
  *
- * 無い側に **東京海上ホールディングス（8766）** を使う。C7 の目視レビューで型⑪
- * （有報の記載作法をそのまま書く）に落ち、**原文の事業の中身が1文ぶんしかないので
- * 空が正しい**と判定した会社で、`docs/company/company-summary/design.md` に記録がある。
+ * 無い側に **ENEOSホールディングス（5020）** を使う。原文は417字あるが中身は当期の
+ * 異動の説明だけで、事業の内訳は画像の事業系統図にある——**空が正しいと spec が
+ * 名指ししている会社**（AC-20）。C17（#840）までは東京海上ホールディングス（8766）を
+ * 使っていたが、あちらは原文の事業の中身が1文あり、1文を認めた時点で説明文が付いた。
  *
  * 他所にあるもの: JS 実行前の HTML に入っていること・1社ぶんだけであること（AC-21・AC-23）は
  * `company-page.spec.ts` の AC-10、表示基準で変わらないこと（AC-23）は同じく AC-3、
@@ -56,10 +57,10 @@ test.describe("会社の説明文", () => {
    * 全社にあるので、その行は要約だけになる）。
    */
   test("AC-21・AC-16: 説明文の無い会社では節ごと出ず、出典にも挙げない", async ({ page }) => {
-    await page.goto("/company/8766");
+    await page.goto("/company/5020");
 
     await expect(
-      page.getByRole("heading", { name: "東京海上ホールディングス株式会社", level: 1 })
+      page.getByRole("heading", { name: "ＥＮＥＯＳホールディングス株式会社", level: 1 })
     ).toBeVisible();
     await expect(page.getByText("をもとに要約", { exact: false })).toHaveCount(0);
     await expect(page.getByText("準備中", { exact: false })).toHaveCount(0);
