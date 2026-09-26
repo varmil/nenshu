@@ -33,14 +33,8 @@ import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
-import { FilingLink } from "./FilingLink";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
-import {
-  buildActualsSummary,
-  buildCurveSummary,
-  buildHistoryPeak,
-  buildHistorySummary,
-} from "../lib/highlights";
+import { buildCurveSummary, buildHistoryPeak, buildHistorySummary } from "../lib/highlights";
 
 /**
  * 表示基準（実測値／年齢そろえ）。**URL には出さない**（R1・ADR-0012）。
@@ -49,7 +43,7 @@ import {
  *
  * 1. **このページを事前生成するため。** `force-static` のページは `searchParams` を
  *    読めない。読めるようにすると1,867枚がまた毎リクエストの描画に戻る（Issue #118）
- * 2. **年齢そろえで変わるのは推定年収まわりだけで、ページ全体ではない。** 実測値の節も
+ * 2. **年齢そろえで変わるのは推定年収まわりだけで、ページ全体ではない。** 実測値（Q&A）も
  *    10年推移も変わらない。ページ全体にかかるパラメータとして持つと、後から項目が
  *    増えるほど「URLが指しているのは何なのか」が曖昧になる。いずれ推定年収の要素に
  *    付いたスイッチへ寄せる
@@ -84,9 +78,9 @@ export function CompanyDetail({
   profitHistory,
   summary,
   fiscalPeriod,
-  filingDocId,
   analysis,
   digest,
+  qa,
   sources,
 }: {
   view: CompanyView;
@@ -123,11 +117,6 @@ export function CompanyDetail({
    */
   fiscalPeriod: string;
   /**
-   * 実測値の4項目を取った有報の書類 ID（C13・Issue #814）。**8文字だけを props に載せ、
-   * URL は描画時に組み立てる**（`lib/data/sources.ts` の `edinetDocumentUrl`）。
-   */
-  filingDocId: string;
-  /**
    * 「{社名}の現状と今後」と「{社名}の有価証券報告書の要約」（C10・Issue #242）。
    * **静的な HTML として届く**（`CompanyDetailIsland` の名前付きスロット）。置く場所だけを
    * ここが決め、中身には触らない。**2つは対**（AC-28）で、両方あるか両方無いか。
@@ -135,8 +124,13 @@ export function CompanyDetail({
   analysis?: ReactNode;
   digest?: ReactNode;
   /**
+   * 「{社名}の年収に関するQ&A」（C16・Issue #838）。実測値の4項目と EDINET の帯。**同じく
+   * 静的な HTML として届く**——表示基準でも年齢でも変わらない。要約の後ろ・出典の前に置く。
+   */
+  qa?: ReactNode;
+  /**
    * 「このページの出典」（C12・Issue #805）。**同じく静的な HTML として届く。** 本文の
-   * 末尾（要約の後ろ）に置く。
+   * 末尾（Q&A の後ろ）に置く。
    */
   sources?: ReactNode;
 }) {
@@ -164,7 +158,6 @@ export function CompanyDetail({
   const historyPeak = history ? buildHistoryPeak(history.years, history.values) : null;
   const historyBase = history ? historyBaseYear(history) : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
-  const actualsSummary = buildActualsSummary(view);
   /*
    * レーダーの5軸（P1）。**平均年収の軸だけが表示基準に追随する**（AC-11）——
    * 残り4軸は年齢補正を通さない値なので、`radar` に確定したまま渡ってくる。
@@ -270,10 +263,11 @@ export function CompanyDetail({
             <div className="col-span-2 flex max-w-2xl flex-col gap-1 sm:col-span-1 sm:col-start-2">
               <p className="text-muted-foreground text-sm leading-relaxed">{summary.text}</p>
               {/*
-                要約であることと出典（AC-22）。**決算期を書かない**——同じ画面の
-                「有価証券報告書の実測値（2026年3月期）」の見出しと重なる（S3・#134。
-                決算期は1画面に1回）。**同じ断りも1画面に2回置かない**ので、
-                下の実測値の節にはこの文を重ねていない（Issue #128 と同じ扱い）。
+                要約であることと出典（AC-22）。**決算期を書かない**——企業詳細の決算期は
+                下の「年収に関するQ&A」の説明と要約の節の説明の2か所と決まっている（S3・#134。
+                C7 の時点では「有価証券報告書の実測値（2026年3月期）」の見出しと重なった）。
+                **同じ断りも1画面に2回置かない**ので、下の Q&A にはこの文を重ねていない
+                （Issue #128 と同じ扱い）。
               */}
               <p className="text-muted-foreground text-xs">
                 {SUMMARY_SOURCE}（
@@ -355,7 +349,7 @@ export function CompanyDetail({
                 {/*
                   **金額の下は2段**（C14・#818、spec 1.4）。1段目が「どういう会社の金額か」
                   （平均年齢・従業員数）、2段目が全体順位と業界内順位。**在籍年数はカードに
-                  出さない**（下の「有価証券報告書の実測値」とレーダーの定着の軸にある）。
+                  出さない**（下の「年収に関するQ&A」の平均勤続年数とレーダーの定着の軸にある）。
                   **偏差値も出さない**（#831）——右の位置バーの見出しの隣にある。平均年齢と
                   従業員数は下の節と重複するが、**金額の隣に無いと「35.0歳の会社の2,178万円」
                   という読み方ができない**（C3）。
@@ -432,69 +426,11 @@ export function CompanyDetail({
             <SalaryCurveChart byAge={byAge} selectedAge={targetAge} />
           </section>
 
-          <section className="flex flex-col gap-2">
-            {/*
-              **決算期はここに置く**（S3・`docs/site-chrome/spec.md` 5.1）。この節の
-              中身がその決算期の数字そのものなので、見出しに付くのがいちばん短い。
-              **画面の他の場所には重ねない**（脚注にも出すと1画面に2回になる）。
-            */}
-            <h2 className="text-lg font-bold">有価証券報告書の実測値（{fiscalPeriod}）</h2>
-            {/*
-              **下の4セルを1文にしただけの地の文**（C4・spec 1.17）。数値は増やさない。
-              `dl` に入れた数値は「ラベルと値の対」としてしか読めないので、同じ内容を
-              文としても置く。決算期は見出しが持っているのでここには書かない（1画面に1回）。
-            */}
-            <p className="text-sm">{actualsSummary}</p>
-            <p className="text-muted-foreground text-xs">
-              提出会社（単体）のもので、連結子会社の従業員は入りません。
-            </p>
-            {/*
-              罫線で仕切った4セル（アートボード 4b）。地のまま並べると、上のカードの
-              数値との境目が無く、どこからが「補正していない数字」なのかが分からない。
-              `gap-px` と背景色で1本ずつの罫線を作る（内側の罫線を各セルに書くと角で重なる）。
-            */}
-            {/*
-              **下の角は丸めない。** 直下の帯（有報への直リンク・C13）が表の枠の続きとして
-              下の角を持つ。
-            */}
-            <div className="flex flex-col">
-              <dl className="bg-border border-border grid grid-cols-2 gap-px overflow-hidden rounded-t-lg border sm:grid-cols-4">
-                <div className="bg-background p-3">
-                  <dt className="text-muted-foreground text-xs">平均年収</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatManYen(view.avgSalary)}
-                  </dd>
-                </div>
-                <div className="bg-background p-3">
-                  <dt className="text-muted-foreground text-xs">平均年齢</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatDecimal1(view.avgAge)}歳
-                  </dd>
-                </div>
-                <div className="bg-background p-3">
-                  <dt className="text-muted-foreground text-xs">在籍年数</dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatDecimal1(view.avgTenure)}年
-                  </dd>
-                </div>
-                <div className="bg-background p-3">
-                  <dt className="text-muted-foreground text-xs">
-                    従業員数（単体）
-                  </dt>
-                  <dd className="text-lg font-semibold tabular-nums">
-                    {formatInt(view.employees)}人
-                  </dd>
-                </div>
-              </dl>
-              <FilingLink docId={filingDocId} />
-            </div>
-          </section>
-
           {/*
-            **推移は「有価証券報告書の実測値」の下**（アートボード 4b）。どちらも
-            補正していない数字で、上の節が今年の1点、この節がその10年ぶんになる。
-            C2 は推定年収の節と実測値の節の間に挟んでいたため、実測の数字が
-            2か所に分かれていた。
+            **推移は年齢別の推定年収の後ろ**（アートボード 4b）。C15 までは間に「有価証券報告書の
+            実測値」（今年の1点）があり、この節がその10年ぶんだった。C16（#838）でその節を Q&A に
+            作り替えて要約の後ろへ移した——同じ金額が本文の先頭のカードにあり、推移は節の説明
+            （各年の有報の実測値）で自立している。
           */}
           {history && (
             <section className="flex flex-col gap-2">
@@ -546,6 +482,13 @@ export function CompanyDetail({
             分析と離れていることも、2つを取り違えにくくしている（AC-29）。
           */}
           {digest}
+
+          {/*
+            **要約の直後・出典の直前**（C16・#838、Claude Design の 1d）。実測値の4項目を1問ずつの
+            質問と回答にした節で、EDINET の帯（C13）が下辺に付く。金額の答えは本文の先頭のカードが
+            持っているので、ここはページ末尾のまとめになる。
+          */}
+          {qa}
 
           {/*
             **本文の末尾**（C12・#805）。ページに出ているデータを加工の度合いで6区分に分け、

@@ -85,15 +85,15 @@ test.describe("データの時点（S3・E1）", () => {
     }
   });
 
-  // **企業詳細だけは2回**（2026-09-24 に spec 5.1 を改めた）。「有価証券報告書の実測値」の
-  // 見出しと、**要約の節の説明**。要約は有報の本文を原文にした節で、見出しから離れた位置に
-  // あるので、どの年度の有報を要約したのかを節の中で示す。**それ以外の場所には増やさない**
-  // ——説明文（C7）の出典の1行に入れて重なったのを、この spec が一度捕まえている。
+  // **企業詳細だけは2回**（2026-09-24 に spec 5.1 を改めた）。「年収に関するQ&A」の説明の
+  // 1行（C16 までは「有価証券報告書の実測値」の見出し）と、**要約の節の説明**。どちらも自分の
+  // 節の中身がどの年度の有報かを示す。**それ以外の場所には増やさない**——説明文（C7）の出典の
+  // 1行に入れて重なったのを、この spec が一度捕まえている。
   //
   // **企業詳細は幅ではなくその会社の決算期**（E1・AC-7）。母集団の幅を出すと、3月期の
   // 会社のページに「〜4月期」が付いてその会社の数字がいつのものかぼやける。4月期の会社
   // （ヤガミ）で別の値が出ることで、**同じ文字列がハードコードされていない**ことも見える。
-  test("企業詳細の決算期は実測値の見出しと要約の説明の2か所だけ", async ({ page }) => {
+  test("企業詳細の決算期は Q&A の説明と要約の説明の2か所だけ", async ({ page }) => {
     for (const [path, label] of [
       ["/company/6861", KEYENCE_PERIOD],
       ["/company/7488", YAGAMI_PERIOD],
@@ -101,10 +101,7 @@ test.describe("データの時点（S3・E1）", () => {
       await page.goto(path);
       const count = (await page.locator("body").innerText()).split(label).length - 1;
       expect(count, path).toBe(2);
-      await expect(
-        page.getByRole("heading", { name: `有価証券報告書の実測値（${label}）` }),
-        path
-      ).toBeVisible();
+      await expect(page.getByTestId("company-qa"), path).toContainText(`${label}の有価証券報告書の値です。`);
       await expect(page.getByTestId("company-digest"), path).toContainText(`${label}の有価証券報告書`);
     }
   });

@@ -6,8 +6,15 @@
  */
 import Base from "@/src/layouts/Base.astro";
 import { CompanyDetailIsland } from "@/features/company/components/CompanyDetailIsland";
-import { companyAnalysisFor, companyIds, companyPageData } from "@/features/company/lib/pageData";
+import {
+  companyAnalysisFor,
+  companyFilingDocId,
+  companyIds,
+  companyPageData,
+} from "@/features/company/lib/pageData";
 import { AnalysisSection, DigestSection } from "@/features/company/components/AnalysisSections";
+import { ActualsQaSection } from "@/features/company/components/ActualsQaSection";
+import { buildActualsQa } from "@/features/company/lib/actualsQa";
 import { SourcesSection } from "@/features/company/components/SourcesSection";
 import { buildSourceRows } from "@/features/company/lib/sources";
 import { companyPageMeta } from "@/lib/seo/company";
@@ -23,12 +30,18 @@ const meta = companyPageMeta(data.view, data.fiscalPeriod);
 // 有報の要約と AI 分析（C10・#242）。**`data` に入れない**——島の props を通さず、
 // 下の名前付きスロットで静的な HTML として差し込む（`features/company/lib/analysis.ts`）。
 const analysis = companyAnalysisFor(data.view.id);
+// 実測値の4項目を取った有報（C13・#814）。Q&A の帯と出典の節の2か所が同じ書類を指す。
+// **`data` に入れない**——どちらも島の外で描くので、島の props に載せる理由が無い（C16・#838）。
+const filingDocId = companyFilingDocId(data.view.id);
+// 「{社名}の年収に関するQ&A」（C16・#838）。表示基準でも年齢でも変わらないので、C10・C12 と
+// 同じく名前付きスロットで静的な HTML として差し込む。
+const qa = buildActualsQa(data.view, data.fiscalPeriod);
 // 「このページの出典」（C12・#805）。**ページに出ている節だけを挙げる**ので、有無はここで渡す。
 const sourceRows = buildSourceRows({
   history: data.history !== null,
   summary: data.summary !== null,
   analysis: analysis !== null,
-  filingDocId: data.filingDocId,
+  filingDocId,
 });
 ---
 
@@ -46,6 +59,7 @@ const sourceRows = buildSourceRows({
   <CompanyDetailIsland data={data} client:load>
     {analysis && <AnalysisSection slot="analysis" name={data.view.name} view={analysis} />}
     {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} fiscalPeriod={data.fiscalPeriod} />}
+    <ActualsQaSection slot="qa" qa={qa} docId={filingDocId} />
     <SourcesSection slot="sources" rows={sourceRows} />
   </CompanyDetailIsland>
 </Base>
