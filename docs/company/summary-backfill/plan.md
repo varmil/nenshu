@@ -1,4 +1,4 @@
-# C16 説明文の無い会社を減らす — plan.md
+# C17 説明文の無い会社を減らす — plan.md
 
 参照: Issue [#840](https://github.com/varmil/nenshu/issues/840)（親: [#158](https://github.com/varmil/nenshu/issues/158)）, `docs/company/spec.md` 1.18（AC-19〜AC-22）, [ADR-0010](../../adr/0010-company-summary-sourcing.md), `docs/company/company-summary/design.md`（C6）
 依存: [#160](https://github.com/varmil/nenshu/issues/160)（C6）・[#161](https://github.com/varmil/nenshu/issues/161)（C7）

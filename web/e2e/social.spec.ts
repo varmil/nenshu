@@ -156,5 +156,8 @@ test.describe("構造化データ（AC-14・AC-15）", () => {
     // Organization も出さない（spec 4.4）。企業ページが表すのは当該企業だが、
     // その主体を名乗るのは我々ではない。
     expect(html).not.toContain('"Organization"');
+    // FAQPage も出さない（spec 4.4・C16）。画面には「年収に関するQ&A」があるが、Google は
+    // 2026-05-07 に FAQ のリッチリザルトを終了した（`potentialAction` と同じ扱い）。
+    expect(html).not.toContain('"FAQPage"');
   });
 });

@@ -1,4 +1,4 @@
-# C16 説明文の無い会社を減らす — design.md
+# C17 説明文の無い会社を減らす — design.md
 
 参照: Issue [#840](https://github.com/varmil/nenshu/issues/840)（親: [#158](https://github.com/varmil/nenshu/issues/158)）, `docs/company/spec.md` 1.18（AC-19〜AC-22）, [ADR-0010](../../adr/0010-company-summary-sourcing.md), `docs/company/company-summary/design.md`（C6）
 
@@ -7,7 +7,7 @@
 ```
 pipeline/summary/
   prompts/
-    generate.md        # 1文の規則と「書き直し（C16）」の節を足した
+    generate.md        # 1文の規則と「書き直し（C17）」の節を足した
     verify.md          # 1文を落とす理由にしない、書き直しでも判定は同じ、を足した
   gate.py              # 文数 1〜3・字数 全角15〜130
   generate.py          # plan --rejected / retry を足し、merge を回をまたいで読む形にした
@@ -25,7 +25,7 @@ web/public/data/
 
 ## 規格
 
-| | C6 | C16 |
+| | C6 | C17 |
 | --- | --- | --- |
 | 文数 | 2〜3 | **1〜3** |
 | 字数（全角） | 60〜130 | **15〜130** |
@@ -144,5 +144,5 @@ company_summary_2026.csv の rejected（177社）
 `company_summary_2026.csv` の列は変えていない。177社の行だけが変わる。
 
 - `verdict` / `reject_reason` — 付いた会社は `ok` と空、残った会社は `rejected` と `説明文が空`
-- `generated_at` — C16 で回した日時
-- `model` — **C16 で回した行は空**
+- `generated_at` — C17 で回した日時
+- `model` — **C17 で回した行は空**

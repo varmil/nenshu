@@ -7,7 +7,6 @@ import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
 import { buildCompanyView } from "./view";
 import {
-  buildActualsSummary,
   buildCurveSummary,
   buildHistoryPeak,
   buildHistorySummary,
@@ -109,19 +108,6 @@ describe("findSalaryMilestones（C4・AC-14）", () => {
     expect(findSalaryMilestones(ages).length).toBeGreaterThan(3);
     const sentence = buildCurveSummary(ages, "テレビ東京ホールディングス")[0];
     expect(sentence.match(/歳で/g)).toHaveLength(3);
-  });
-});
-
-describe("buildActualsSummary（C4・AC-17）", () => {
-  /*
-   * **文全体の一致で固定する**ので、spec AC-17 の「決算期を書かない」（節の見出しが持っている。
-   * S3・1画面に1回）と「推定の語を出さない」（実測値そのもの）もこれで守られる。
-   */
-  it("実測値の4項目を1文にし、決算期も推定の語も書かない", () => {
-    const view = buildCompanyView(companies, curves, stats, "6861")!;
-    expect(buildActualsSummary(view)).toBe(
-      "有価証券報告書によると、株式会社キーエンスの平均年収は2,178万円、平均年齢は35.0歳、平均勤続年数は11.3年、従業員数は3,306人です。"
-    );
   });
 });
 

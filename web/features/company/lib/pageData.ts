@@ -218,6 +218,8 @@ function requireCompanyView(id: string): CompanyView {
  * 有報の書類 ID（C13・Issue #814）。**実測値の4項目を取った書類そのもの**で、企業詳細は
  * これを EDINET の書類閲覧ページへのリンクにする。**ここだけが import する**——
  * `src/pages/index.astro` から読むとトップページの HTML が全社ぶん増える（AC-31）。
+ * **`companyPageData` には入れない**（C16・#838）。使うのは島の外で描く Q&A の帯と出典の節
+ * だけなので、島の props に載せる理由が無い（`companyFilingDocId`）。
  */
 const filings = (filingsData as { byId: Record<string, string> }).byId;
 
@@ -242,8 +244,6 @@ export interface CompanyPageData {
   profitHistory: ProfitHistory | null;
   summary: SummaryView | null;
   fiscalPeriod: string;
-  /** 実測値の4項目を取った有報の書類 ID（`S100YAHE` の形・8文字）。URL にするのは描画側。 */
-  filingDocId: string;
   logoIds: string[];
 }
 
@@ -266,9 +266,17 @@ export function companyPageData(id: string): CompanyPageData {
     profitHistory: profitHistoryFor(view.id),
     summary: buildSummaryView(summaries[view.id]),
     fiscalPeriod: fiscalPeriodFor(view.id),
-    filingDocId: requireFilingDocId(view.id),
     logoIds: logoIdsOnPage(view),
   };
+}
+
+/**
+ * 実測値の4項目を取った有報の書類 ID（C13・#814。`S100YAHE` の形・8文字）。URL にするのは描画側
+ * （`lib/data/sources.ts` の `edinetDocumentUrl`）。**`companyPageData` に入れない**——使うのは
+ * `[id].astro` が島の外で描く2つ（Q&A の帯・出典の節）だけ（C16・#838）。
+ */
+export function companyFilingDocId(id: string): string {
+  return requireFilingDocId(id);
 }
 
 /**

@@ -14,6 +14,10 @@ import { absoluteUrl, SITE_NAME, SITE_ORIGIN } from "./site";
  * **`WebSite` に `potentialAction`（サイトリンク検索ボックス）を足さない。**
  * ヘッダに検索欄はあるが、Google は 2023年にこの機能を終了しており、いま出しても
  * 何も起きない——読み手が「なぜあるのか」を辿れないマークアップだけが残る。
+ *
+ * **`FAQPage` も同じ理由で出さない**（C16・#838、spec 4.4）。企業詳細には「年収に関する
+ * Q&A」の節があるが、Google は 2026-05-07 に FAQ のリッチリザルトを終了した。必要に
+ * なったら画面と同じ配列（`features/company/lib/actualsQa.ts`）から組むこと。
  */
 
 /** JSON-LD の1件。`@context` と `@type` を必ず持つ。 */

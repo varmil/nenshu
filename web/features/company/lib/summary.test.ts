@@ -32,8 +32,9 @@ describe("buildSummaryView", () => {
 describe("SUMMARY_SOURCE", () => {
   /**
    * **決算期を含めない**（S3・Issue #134・`docs/site-chrome/spec.md` 5.1）。
-   * 同じ画面の「有価証券報告書の実測値（2026年3月期）」の見出しと重なり、
-   * 決算期が1画面に2回出る——`e2e/data-period.spec.ts` が捕まえた形。
+   * 企業詳細の決算期は「年収に関するQ&A」の説明と要約の節の説明の2か所（C16）で、入れると
+   * 3回目になる。C7 の時点では「有価証券報告書の実測値（2026年3月期）」の見出しと重なり、
+   * `e2e/data-period.spec.ts` が捕まえた。
    */
   it("決算期を含めない（1画面に1回の規則）", () => {
     expect(SUMMARY_SOURCE).not.toMatch(/\d+年\d+月期/);

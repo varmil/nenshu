@@ -145,7 +145,7 @@ class ApplyGate(unittest.TestCase):
         self.assertEqual(gate.sentence_problems("その一つとして貸出を行う。", "", src), [])
 
     def test_1文の説明文は通る(self):
-        # C16（#840）から。事業の中身が原文に1文しか無い会社（佐藤食品工業ほか）に
+        # C17（#840）から。事業の中身が原文に1文しか無い会社（佐藤食品工業ほか）に
         # 説明文を出すため。C6 の時点では2文に満たないので空にしていた。
         text, reasons = gate.apply_gate("電子応用機器の製造及び販売を主な事業とする。",
                                         "株式会社キーエンス", KEYENCE)
@@ -165,7 +165,7 @@ class ApplyGate(unittest.TestCase):
         self.assertTrue(any("文数" in r for r in reasons))
 
     def test_業種名の言い換えにしかならない短い文は不合格(self):
-        # 下限15字の線（C16）。業種はページの別の場所に出ているので、何も足さない。
+        # 下限15字の線（C17）。業種はページの別の場所に出ているので、何も足さない。
         src = "当社グループは、化学品事業の単一セグメントで事業を展開しております。"
         text, reasons = gate.apply_gate("化学品事業を営む。", "", src)
         self.assertEqual(text, "")
