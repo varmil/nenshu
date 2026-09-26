@@ -617,6 +617,8 @@ test.describe("モバイルの行（390px）", () => {
  * - `/?sort=emp`: 並び替えのチップが選ばれた状態（390px で「絞り込み」と並ぶ幅）
  * - `?q=ジャパンエレベーター`: 390px でも切れる長い社名（金額を16pxに落として社名の幅が
  *   広がったので、「大和証券グループ本社」では切れなくなった）。両方の表示基準で見る
+ * - `?ind=証券、商品先物取引業&age=60`: いちばん長い見出し（`証券、商品先物取引業の
+ *   60歳年収ランキング`）。業種名は33件で最長、年齢の見出しは実測値より1字長い
  */
 const MOBILE_PATHS = [
   "/",
@@ -624,7 +626,33 @@ const MOBILE_PATHS = [
   "/?sort=emp",
   "/?q=ジャパンエレベーター",
   "/?q=ジャパンエレベーター&age=35",
+  "/?ind=証券、商品先物取引業&age=60",
 ];
+
+/**
+ * 見出しを描かれた行ごとの文字列にする。1字ずつの矩形の左端が前の字より左へ
+ * 戻ったところを改行と見なす——上端で分けると、和文と数字でフォントが替わる行は
+ * 同じ行でも上端がずれる。
+ */
+const renderedLines = (locator: Locator) =>
+  locator.evaluate((el) => {
+    const lines: string[] = [];
+    let prevLeft = Infinity;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const text = node.textContent ?? "";
+      for (let i = 0; i < text.length; i++) {
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const { left } = range.getBoundingClientRect();
+        if (left < prevLeft) lines.push("");
+        lines[lines.length - 1] += text[i];
+        prevLeft = left;
+      }
+    }
+    return lines;
+  });
 
 for (const width of [390, 360]) {
   test.describe(`モバイルの行が縮んでも数値が残る（${width}px）`, () => {
@@ -634,6 +662,15 @@ for (const width of [390, 360]) {
       for (const path of MOBILE_PATHS) {
         await page.goto(path);
         expect(await horizontalOverflow(page), `${path} の横スクロール`).toBeLessThanOrEqual(0);
+
+        if (path.includes("ind=")) {
+          // 業種つきの見出しは「◯◯の」の後ろでだけ折り返す（`break-keep` ＋ `<wbr>`）。
+          // 何もしないと `…ランキン` / `グ` のように語の途中で切れる。
+          expect(
+            await renderedLines(page.getByRole("heading", { level: 1 })),
+            `${path} の見出し`
+          ).toEqual(["証券、商品先物取引業の", "60歳年収ランキング"]);
+        }
 
         const row = page.locator("div.md\\:hidden > div").first();
         const rowBox = (await row.boundingBox())!;

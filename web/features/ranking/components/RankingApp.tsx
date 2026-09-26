@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
-import { rankingPageMeta } from "@/lib/seo/ranking";
+import { rankingHeadingParts, rankingPageMeta } from "@/lib/seo/ranking";
 import { useRankingState } from "../hooks/useRankingState";
 import { useCompaniesDataset } from "../hooks/useCompaniesDataset";
 import { buildSearchParams, DEFAULT_TARGET_AGE, rankingHref } from "../lib/urlState";
@@ -94,6 +94,7 @@ export function RankingApp({
     commit({ ...state, page: nextPage });
 
   const isRaw = state.targetAge === null;
+  const headingParts = rankingHeadingParts(state, bootstrap.industries);
   // データの時点と掲載社数は、どちらも `meta` から引く（spec 1.4・5.3）。
   const fiscalPeriod = fiscalPeriodLabel(bootstrap.meta);
   const total = formatInt(bootstrap.meta.count);
@@ -163,10 +164,20 @@ export function RankingApp({
           {/* 「計算方法」への導線は共通ヘッダ（SiteHeader）に移した。ここでは重複させない。 */}
           <div className="flex flex-col gap-1">
             {/* 見出しはモバイル 20px / PC 30px（アートボード 5c / 5a）。 */}
-            <h1 className="text-xl font-bold md:text-3xl">
-              {isRaw
-                ? "平均年収ランキング"
-                : `${state.targetAge}歳年収ランキング`}
+            {/*
+            **業種つきの見出しは「◯◯の」の後ろでだけ折り返す。** 390px の本文幅は
+            20px の字で17字ぶんしか無く、`ガラス・土石製品の平均年収ランキング`（18字）は
+            収まらない。何もしないと `…ランキン` / `グ` のように語の途中で切れるので、
+            `break-keep` で字の間の改行を止め、`<wbr>` で境目にだけ改行の機会を置く。
+            断片はどれも11字以下なので、`break-keep` で1行からはみ出すことはない。
+          */}
+            <h1 className="text-xl font-bold break-keep md:text-3xl">
+              {headingParts.map((part, i) => (
+                <Fragment key={i}>
+                  {i > 0 && <wbr />}
+                  {part}
+                </Fragment>
+              ))}
             </h1>
             {/*
             **PC でだけ足す文は「補足」に限る**（アートボード 5c、公開後の指摘）。

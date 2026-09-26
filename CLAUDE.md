@@ -164,7 +164,7 @@ Unit の実装を終えたら、次の順で進める。
 - 実測値のとき年齢スイッチは**消さずに `disabled` にする**——消すと切り替えて何が増えるのか分からないため
 - 経緯と実測値は `docs/ranking/salary-basis/design.md` と ADR-0007 にある
 
-**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。**ドメインは `openreport.net`**（2026-08-21 取得）。canonical・sitemap の基点は `web/lib/seo/site.ts` の `SITE_ORIGIN` 1か所だけで、他の場所にオリジンを書かない。ページタイトルは `/` が `OpenReport | 年収ランキング`、`/about` が `計算方法 | OpenReport`。**`/` の `h1` は「年齢補正年収ランキング」のまま**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。
+**サイト名は OpenReport**（`docs/site-chrome/spec.md` 1、Issue #68）。**ドメインは `openreport.net`**（2026-08-21 取得）。canonical・sitemap の基点は `web/lib/seo/site.ts` の `SITE_ORIGIN` 1か所だけで、他の場所にオリジンを書かない。ページタイトルは `/` が `OpenReport | 有価証券報告書ベースの平均年収ランキング {社数}社【{決算期}】`、`/about` が `計算方法 | OpenReport`。**ランキングの `h1` にブランドは入れない**——ブランドは共通ヘッダが持ち、`h1` はページの内容を表す。`/` は `平均年収ランキング`、ファセットは **title からブランドを除いた形**（`/?ind=X` は `Xの平均年収ランキング`・`/?age=N` は `N歳年収ランキング`）で、どちらも `lib/seo/ranking.ts` の `rankingHeading` から出す。**見出しは画面の状態を、title は寄せ先を表す**——`?age=35&ind=銀行業` の見出しは `銀行業の35歳年収ランキング`、title は寄せ先の `銀行業の平均年収ランキング`。業種つきの見出しは 390px の1行に収まらないので、`break-keep` と `<wbr>` で「◯◯の」の後ろでだけ折り返す（何もしないと `…ランキン` / `グ` で切れる）。
 
 **サイト共通の外装は `site-chrome` 施策**（`docs/site-chrome/`）。全ページ共通ヘッダ（`features/navigation/components/SiteHeader.tsx`）と、ライト/ダークの切替（`features/theme/`）がここに属する。
 

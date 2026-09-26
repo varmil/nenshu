@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { CompaniesData } from "@/features/ranking/types";
-import { INITIAL_STATE, buildSearchParams } from "@/features/ranking/lib/urlState";
-import { rankingCanonical, rankingPageMeta } from "./ranking";
+import {
+  INITIAL_STATE,
+  buildSearchParams,
+  parseSearchParams,
+} from "@/features/ranking/lib/urlState";
+import {
+  rankingCanonical,
+  rankingHeading,
+  rankingHeadingParts,
+  rankingPageMeta,
+} from "./ranking";
 
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
@@ -193,6 +202,50 @@ describe("rankingPageMeta", () => {
     const meta = rankingPageMeta(new URLSearchParams("age=35&ind=銀行業"), companies, count);
     expect(meta.canonical).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
     expect(meta.title).toBe("銀行業の平均年収ランキング | OpenReport");
+  });
+});
+
+/**
+ * ランキングの `h1`。**見出しは画面の状態を、title は寄せ先を表す**——食い違ってよいのは
+ * 非正規URLだけで、インデックスさせるページではブランドを除いて同じ文字列になる。
+ */
+describe("rankingHeading", () => {
+  const heading = (query: string) =>
+    rankingHeading({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams(query)) }, INDUSTRIES);
+
+  it("業種があれば「◯◯の」を前に付ける。年齢そろえなら年齢の見出しに付く", () => {
+    expect(heading("")).toBe("平均年収ランキング");
+    expect(heading("age=35")).toBe("35歳年収ランキング");
+    expect(heading("ind=銀行業")).toBe("銀行業の平均年収ランキング");
+    // title は寄せ先（`/?ind=銀行業`）のものになるが、画面に並ぶのは銀行業の35歳そろえ。
+    expect(heading("age=35&ind=銀行業")).toBe("銀行業の35歳年収ランキング");
+    // 寄せる絞り込みが効いていても、並んでいるのは銀行業の会社だけ。
+    expect(heading("ind=銀行業&emp=1000-&q=みずほ")).toBe("銀行業の平均年収ランキング");
+  });
+
+  // `?ind=` の値をそのまま名乗ると、任意の文字列を見出しに持つページをURLだけで作れる。
+  it("33業種に無い値は見出しに出さない", () => {
+    expect(heading("ind=存在しない業種")).toBe("平均年収ランキング");
+    expect(heading("age=40&ind=存在しない業種")).toBe("40歳年収ランキング");
+  });
+
+  // 画面はこの境目にだけ `<wbr>` を置いて折り返す（`RankingApp`）。
+  it("業種名と見出しの種類の境目で断片に分ける", () => {
+    expect(rankingHeadingParts({ targetAge: null, industry: "銀行業" }, INDUSTRIES)).toEqual([
+      "銀行業の",
+      "平均年収ランキング",
+    ]);
+    expect(rankingHeadingParts({ targetAge: 60, industry: null }, INDUSTRIES)).toEqual([
+      "60歳年収ランキング",
+    ]);
+  });
+
+  it("インデックスさせるファセットページの title は、見出しにブランドを足したもの", () => {
+    for (const query of ["age=35", "ind=銀行業", "ind=海運業"]) {
+      expect(rankingPageMeta(new URLSearchParams(query), companies, count).title, query).toBe(
+        `${heading(query)} | OpenReport`
+      );
+    }
   });
 });
 
