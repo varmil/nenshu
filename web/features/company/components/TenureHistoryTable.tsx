@@ -32,7 +32,14 @@ export function TenureHistoryTable({ history }: { history: TenureHistory }) {
         <TableHeader>
           <TableRow className="bg-muted">
             <TableHead className="border-border w-14 border text-center @md:w-24">年度</TableHead>
-            <TableHead className="border-border border text-center">在籍年数</TableHead>
+            {/*
+              **在籍年数の列を半分取る。** この表の主は在籍年数で、差は補助。幅を指定しないと
+              見出しの長い「2017年との差」のほうが広く取られ、PC で 228px 対 327px になっていた。
+              半分を取れば、差の列には年度を引いた残りが回るので、差の列より狭くならない。
+              **`table-fixed` で2列を等分にはしない**——差の見出しは折り返さない（`whitespace-nowrap`）
+              ので、375px では等分の幅（約143px）に収まらず見出しがはみ出す。
+            */}
+            <TableHead className="border-border w-1/2 border text-center">在籍年数</TableHead>
             <TableHead className="border-border border text-center">
               {baseYear === null ? "差" : `${baseYear}年との差`}
             </TableHead>
