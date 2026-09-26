@@ -56,15 +56,15 @@ test.describe("データの時点（S3・E1）", () => {
   });
 
   test("AC-19: ランキングの決算期は1文目にある（モバイルで消えない）", async ({ page }) => {
-    // 2文目は `hidden md:inline` で狭い画面では消える。決算期がそちらに回ると、
-    // モバイルの読者にだけ「いつの数字か」が届かない。
+    // 長い文は2文目を `hidden md:inline` にして狭い画面で消すことがある。決算期が
+    // そちらに回ると、モバイルの読者にだけ「いつの数字か」が届かない。
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
     await expect(page.getByText(new RegExp(`^${RANGE}の有価証券報告書`))).toBeVisible();
 
     // 年齢そろえでも同じ位置に残る。
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText(new RegExp(`^${RANGE}の平均年間給与を`))).toBeVisible();
+    await expect(page.getByText(new RegExp(`^${RANGE}の有価証券報告書の平均年間給与を`))).toBeVisible();
   });
 
   // 1画面に1回（spec 5.1）。見出しと脚注のように同じ語を重ねない——Issue #128 で
