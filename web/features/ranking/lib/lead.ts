@@ -16,8 +16,13 @@ export interface RankingLeadFacts {
 }
 
 /**
- * `h1` 直下のリード文のうち、**モバイルでも出す部分**。年齢そろえのときに PC でだけ
- * 足す1文（元になる金額の説明）は含まない。
+ * `h1` 直下のリード文。PC でもモバイルでも同じ文を出す。
+ *
+ * **どちらの表示基準でも「有価証券報告書」を入れる。** 金額の出どころを示す語で、
+ * 口コミベースの数字と並んだときに読者が見分ける手がかりになる（検索結果でも本文でも
+ * 同じ。`lib/seo/ranking.ts` の description と同じ理由）。年齢そろえは以前、この語を
+ * PC でだけ足す2文目（`hidden md:inline`）に置いていて、モバイルの画面には1つも
+ * 出ていなかった。1文目に入れたので2文目は外した——同じことを2回言うことになる。
  *
  * **社数は見出しと同じ範囲を数える。** 業種で絞っていれば `銀行業の82社`、そうで
  * なければ掲載社数。見出しが `銀行業の平均年収ランキング` なのに直下が `2,961社` だと、
@@ -40,6 +45,6 @@ export function rankingLead(
   const basis =
     state.targetAge === null
       ? `${facts.fiscalPeriod}の有価証券報告書の平均年間給与（単体）で比べた`
-      : `${facts.fiscalPeriod}の平均年間給与を業種の賃金カーブで${state.targetAge}歳時点に補正した`;
+      : `${facts.fiscalPeriod}の有価証券報告書の平均年間給与を、業種の賃金カーブで${state.targetAge}歳時点に補正した`;
   return `${basis}${scope}。従業員${formatInt(facts.minEmployees)}人以上が対象。`;
 }
