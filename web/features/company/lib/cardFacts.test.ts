@@ -26,16 +26,16 @@ describe("buildCardFacts", () => {
   // 在籍年数は入れない（「年収に関するQ&A」の平均勤続年数とレーダーの定着の軸にある）。
   // 偏差値も入れない（右の位置バーの見出しの隣にある。#831）。
   // ラベルを並びごと固定しているので、足せばここで落ちる。
-  it("1段目は平均年齢・従業員数、2段目は全体順位・業界内順位", () => {
+  it("1段目は平均年齢・従業員数、2段目は業界内順位・全体順位", () => {
     const { profile, standing } = factsOf("6861", null);
     expect(profile.map((f) => f.label)).toEqual(["平均年齢", "従業員数（単体）"]);
-    expect(standing.map((f) => f.label)).toEqual(["全体順位", "業界内順位"]);
+    expect(standing.map((f) => f.label)).toEqual(["業界内順位", "全体順位"]);
   });
 
   it("キーエンス（6861）の実測値", () => {
     const { profile, standing } = factsOf("6861", null);
     expect(profile.map(shown)).toEqual(["35.0歳", "3,306人"]);
-    expect(standing.map(shown)).toEqual(["3位 /2,961社", "1位 /193社"]);
+    expect(standing.map(shown)).toEqual(["1位 /193社", "3位 /2,961社"]);
   });
 
   // 表示基準で変わるのは2段目だけ。1段目は有報の値そのもの。
@@ -43,14 +43,14 @@ describe("buildCardFacts", () => {
     const raw = factsOf("6861", null);
     const aligned = factsOf("6861", 35);
     expect(aligned.profile).toEqual(raw.profile);
-    expect(aligned.standing.map(shown)).toEqual(["2位 /2,961社", "1位 /193社"]);
+    expect(aligned.standing.map(shown)).toEqual(["1位 /193社", "2位 /2,961社"]);
   });
 
   // 母数は値より小さく添えるので、値と分けて持つ。
   it("順位だけが母数を持つ", () => {
     const { profile, standing } = factsOf("6861", null);
     expect(profile.every((f) => f.total === undefined)).toBe(true);
-    expect(standing.map((f) => f.total)).toEqual(["/2,961社", "/193社"]);
+    expect(standing.map((f) => f.total)).toEqual(["/193社", "/2,961社"]);
   });
 });
 
