@@ -86,6 +86,13 @@ class TestParse(unittest.TestCase):
         self.assertEqual(B.squash("".join(B.block_text(b) for b in bl)), B.squash(B.plain_text(NESTED_TABLE)))
         self.assertEqual(bl[2]["text"], "以上です。", "内側の表で外側の表を閉じない")
 
+    def test_paragraphs_inside_a_cell_keep_their_breaks(self):
+        # ANA は本文を1列の表の中に組んでいる。段落の区切りを落とすと1つの塊になる
+        html = "<table><tr><td><p>人財戦略の前置き。</p><p>給与は役割で決める。</p></td></tr></table>"
+        [table] = B.parse(html)
+        self.assertEqual(table["rows"], [["人財戦略の前置き。\n給与は役割で決める。"]])
+        self.assertNotIn("\n", B.render([table]), "生成AIに見せる行は1行に収める")
+
     def test_text_outside_cells_is_kept(self):
         html = "<table><caption>表の題</caption><tr><td>A</td></tr></table>"
         self.assertEqual(B.parse(html)[0]["rows"], [["表の題"], ["A"]])

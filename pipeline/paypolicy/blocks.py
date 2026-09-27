@@ -139,7 +139,10 @@ class _Parser(HTMLParser):
                 self.table.append([])
             elif tag in ("td", "th"):
                 self.cell = []
-            elif tag == "br" and self.cell is not None:
+            elif (tag == "br" or tag in _BLOCK_TAGS) and self.cell is not None:
+                # **セルの中の段落の区切りを改行で残す。** 本文を1列の表の中に組む会社がある
+                # （ANA。レイアウトのための表）。区切りを落とすと段落が1つの塊になる。
+                # 塊の数は変わらないので、判定済みの番号はそのまま使える
                 self.cell.append("\n")
             return
         if tag == "table":
@@ -170,8 +173,11 @@ class _Parser(HTMLParser):
             elif tag in ("td", "th") and self.cell is not None:
                 if not self.table:
                     self.table.append([])
-                self.table[-1].append("".join(self.cell).strip())
+                text = re.sub(r"[ \t]*\n[\s]*", "\n", "".join(self.cell)).strip()
+                self.table[-1].append(text)
                 self.cell = None
+            elif tag in _BLOCK_TAGS and self.cell is not None:
+                self.cell.append("\n")
             return
         if tag in _BLOCK_TAGS:
             self._flush()
@@ -263,7 +269,8 @@ def units(blocks):
 
 def _preview(b):
     if b["kind"] == "table":
-        return "［表］" + " / ".join(" | ".join(r) for r in b["rows"])
+        # 1行に1つの番号なので、セルの中の改行は空白にして見せる
+        return "［表］" + " / ".join(" | ".join(c.replace("\n", " ") for c in r) for r in b["rows"])
     if b["kind"] == "image":
         return f"［画像］{b['alt']}"
     if b["kind"] == "heading":
