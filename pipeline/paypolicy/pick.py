@@ -170,8 +170,8 @@ _PAY_WORDS = re.compile(r"給与|報酬|賃金")
 
 
 def reference_target(section_html):
-    """参照の会社の2回目に見せる節。**ほとんどはサステナビリティの節**（1回目の参照110社で
-    109社）で、給与に触れる文が「従業員の状況」を指していればそちらを見せる。"""
+    """参照の会社の2回目に見せる節。**ほとんどはサステナビリティの節**（1回目の参照120社で
+    119社）で、給与に触れる文が「従業員の状況」を指していればそちらを見せる。"""
     for b in B.parse(section_html):
         for sent in b.get("sentences", []):
             if _PAY_WORDS.search(sent) and _EMPLOYEES_REF.search(sent):

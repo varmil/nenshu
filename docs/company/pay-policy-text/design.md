@@ -9,7 +9,7 @@ pipeline/
   paypolicy/
     fetch.py            # XBRL 本体（type=1）を落とし、3つの節の HTML だけを cache/ に残す
     blocks.py           # 節の HTML → 塊（段落・小見出し・表・画像）と文。番号から原文を切り出す
-    pick.py             # バッチに切る・答えを確かめる・取り込む・40社と突き合わせる
+    pick.py             # バッチに切る・答えを確かめる・取り込む・原文と突き合わせる
     prompts/pick.md     # 範囲の判定の指示（エージェントが読む）
     test_blocks.py / test_fetch.py / test_pick.py
     cache/              # gitignore。{書類ID}.json（節の HTML）
@@ -31,8 +31,11 @@ ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
   → エージェント     prompts/pick.md に従って番号だけを答える → work/pick_NNNN.jsonl
   → pick.py gate    番号の形と位置を確かめ、原文から本文を組み立てる → work/gated_NNNN.json
   → pick.py merge   → data/pay_policy_2026.json
-  → pick.py plan --referenced（参照の会社だけ、サステナビリティの節で同じことをもう1回）
+  → pick.py plan --referenced（参照の会社だけ、参照先の節で同じことをもう1回）
+  → pick.py verify  AC-35 の実行ログ。社数・空の理由と、全社の本文を原文と突き合わせる
 ```
+
+**分解の規則を直したら `pick.py recut`。** データに範囲の番号（`range`）を残してあるので、答えを取り直さずにいまの規則で切り直せる。番号は塊の並びで振っているので、塊の中身の作り方（表のセルの改行など）を変えても番号は変わらない。**塊の分け方そのもの（小見出しの判定・段落のつなぎ方）を変えると番号がずれる**ので、そのときは判定から回し直す。
 
 ## 取得（`fetch.py`）
 
@@ -44,13 +47,14 @@ ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
 | --- | --- | --- |
 | `…:BasicPolicyOnHumanResourcesStrategyEmployeesEtcTextBlock` | 無作為100件で100件 | 名前が `BasicPolicyOnHumanResources…TextBlock` の要素 |
 | `…:BasicPolicyOnHumanResourcesStrategyTextBlock` | いすゞ | 同上 |
+| `…:BasicPoliciesOnHumanResourcesStrategyEmployeesEtcTextBlock`（複数形） | ケイヒン | `BasicPolicy` か `BasicPolicies` で始まる名前 |
 | 独自要素を付けず、「従業員の状況」の要素に (1) と (2) をまとめて入れる | TDK | 「従業員の状況」の中から見出し「【人材戦略に関する基本方針等】」〜「【従業員の状況】」を切り出す |
 
 **ZIP は残さない。** 1件約1.9MB で、1,925件なら約3.6GB になる。使うのは3つの節だけなので `cache/{書類ID}.json` に HTML を書いて ZIP は捨てる（1件約150KB）。
 
 - `section` — 人材戦略に関する基本方針等
 - `sustainability` — サステナビリティに関する考え方及び取組。給与の決定方針の本文をここに書く会社がある（KDDI・兼松）
-- `employees` — 従業員の状況。この Unit では使わない。持株会社の最大人員会社の表があり（spec 1.23 の対象外）、後の Unit が取り直さずに済むよう残す
+- `employees` — 従業員の状況。給与の決定方針の在りかとしてここを指す会社がある（LIXIL「（２）従業員の状況 ⑤」）。持株会社の最大人員会社の表もここにあり（spec 1.23 の対象外）、後の Unit が取り直さずに済む
 
 **ix:nonNumeric は入れ子になる。** サステナビリティの節は人的資本などの小さな節を中に持つので、閉じタグは深さを数えて対応を取る（最初の閉じタグで切ると外側が途中で切れる）。
 
@@ -92,7 +96,9 @@ ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
 
 **範囲は1つの連続した区間。** 起票前の40社では、給与の文が飛び飛びだったのは2社だけで、1社（愛媛銀行）は会社の小見出しを外したために切れていただけだった。
 
-**参照の会社は2回に分けて回す。** 全社にサステナビリティの節まで見せると読む量が数倍になる（2社で4.1万字）。1回目で `referenced` と答えた会社だけを、2回目でサステナビリティの節で回す。**2回目で見つからなければ、1回目に答えた節の中の要約に戻す**（`fallback`）。
+**参照の会社は2回に分けて回す。** 全社にサステナビリティの節まで見せると読む量が数倍になる（2社で4.1万字）。1回目で `referenced` と答えた会社だけを、2回目で参照先の節で回す。**2回目で見つからなければ、1回目に答えた節の中の要約に戻す**（`fallback`）。
+
+**参照先はほとんどがサステナビリティの節。** 1回目で参照と答えた120社のうち119社がそこを指していた。給与に触れる文が「従業員の状況」を指している会社（LIXIL）だけ、2回目に従業員の状況を見せる（`reference_target`）。
 
 `gate` が機械で落とすのは番号の矛盾だけ（形・範囲外・始まりが後ろ・節の見出しを含む・題が小見出しでない・題が始まりより後ろ）。**範囲の取り違えは機械では判定できない**ので、40社との突き合わせと目視で見る。
 
@@ -104,15 +110,18 @@ ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
 | --- | --- |
 | `doc_id` / `edinet_code` / `sec_code` / `name` / `period_end` | 母集団の CSV から |
 | `verdict` | `own` / `referenced`（2回目の前）/ `none` |
-| `source` | `section` / `sustainability`。`own` のときだけ。C19 が「どの節から取ったか」の1行に使う |
+| `source` | `section` / `sustainability` / `employees`。`own` のときだけ。C19 が「どの節から取ったか」の1行に使う |
 | `title` | 給与の決定方針そのものに会社が付けた小見出し。無ければ null。**本文（`blocks`）には入れない** |
-| `blocks` | 本文。`{kind: heading|para, text}` / `{kind: table, rows}` / `{kind: image, alt}` |
+| `blocks` | 本文。`{kind: heading|para, text}` / `{kind: table, rows}` / `{kind: image, alt}`。表のセルの中の段落の区切りは改行で残る |
+| `range` | 本文を切り出した番号（`{title, start, end}`）。`recut` が使う |
 | `chars` | 本文の字数（空白を除く） |
 | `has_table` / `has_image` | 本文に表・画像を含むか |
-| `section_sha1` / `sustainability_sha1` | 判定に使った節の HTML の SHA-1。**翌年、原文が変わった会社だけ回し直すため** |
+| `section_sha1` / `sustainability_sha1` / `employees_sha1` | 判定に使った節の HTML の SHA-1。**翌年、原文が変わった会社だけ回し直すため**。`verify` もこれで原文が変わっていないことを確かめる |
 | `referenced` / `fallback` | 参照の会社の記録 |
 | `note` | エージェントが迷った点 |
 | `picked_at` | 判定した日 |
+
+**`heading` は「句点で終わらない短い行」であって、見出しとは限らない。** 箇条書きの1項目（「・継続的な見直し」）や、箇条書きの前置きの言いさし（「当社における従業員の採用形態は、人数が多い順に」）も `heading` になる。本文の中の `heading` 1,610個のうち、ひらがなや読点で終わるものが103個あった。**C19 は `heading` を太字の小見出しとして強く描かない**ほうがよい（言いさしが見出しの顔をする）。
 
 **`title` を本文と分けて持つ。** spec 1.23 は「給与の決定方針そのものの見出しは落とす」としていたが、C19 のデザイン（Claude Design `C19 給与の決定方針.dc.html`）は引用の先頭に残している。どちらにもできるように分けておき、出すかどうかは C19 が決める。
 
