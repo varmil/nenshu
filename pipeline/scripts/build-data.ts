@@ -11,6 +11,7 @@ import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
 import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
+import { toPayPolicyRecord, type PayPolicyRecord, type PayPolicyRow } from "./lib/payPolicy";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { ranks, representativeValue } from "../../web/features/company/lib/radar";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -58,6 +59,10 @@ const ANALYSES_JSON_GZIP_LIMIT_BYTES = 2600 * 1024;
 // 実測の 1.2 倍に置く。**クライアントへは送らない**——`/company/[id]` がビルド時に
 // 1社ぶんを抜くだけ。
 const FILINGS_JSON_GZIP_LIMIT_BYTES = 20 * 1024;
+// 1,862社ぶんの給与の決定方針の原文（C19・#852）。実測 gzip 582.2KB（raw 2.57MB）の約1.2倍に置く。
+// **上限は気づくための線**で、`summaries.json`・`analyses.json` と同じく `/company/[id]` の
+// ビルド時に読まれて HTML になるだけ（`/` からは読まない・Worker バンドルにも入らない）。
+const PAY_POLICIES_JSON_GZIP_LIMIT_BYTES = 700 * 1024;
 const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
@@ -231,6 +236,7 @@ export function buildData(outDir: string) {
   const summaries = buildSummaries(rows, companyRows);
   const analyses = buildAnalyses(rows, companyRows);
   const filings = buildFilings(rows, companyRows);
+  const payPolicies = buildPayPolicies(rows, companyRows);
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -244,6 +250,7 @@ export function buildData(outDir: string) {
   const summariesPath = resolve(outDir, "summaries.json");
   const analysesPath = resolve(outDir, "analyses.json");
   const filingsPath = resolve(outDir, "filings.json");
+  const payPoliciesPath = resolve(outDir, "pay-policies.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
@@ -253,6 +260,7 @@ export function buildData(outDir: string) {
   const summariesJson = JSON.stringify(summaries);
   const analysesJson = JSON.stringify(analyses);
   const filingsJson = JSON.stringify(filings);
+  const payPoliciesJson = JSON.stringify(payPolicies);
   writeFileSync(companiesPath, companiesJson);
   writeFileSync(curvesPath, JSON.stringify(curves));
   writeFileSync(statsPath, JSON.stringify(stats));
@@ -264,6 +272,7 @@ export function buildData(outDir: string) {
   writeFileSync(summariesPath, summariesJson);
   writeFileSync(analysesPath, analysesJson);
   writeFileSync(filingsPath, filingsJson);
+  writeFileSync(payPoliciesPath, payPoliciesJson);
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -328,6 +337,13 @@ export function buildData(outDir: string) {
     );
   }
 
+  const payPoliciesGzipSize = gzipSync(payPoliciesJson).length;
+  if (payPoliciesGzipSize > PAY_POLICIES_JSON_GZIP_LIMIT_BYTES) {
+    throw new Error(
+      `pay-policies.json のgzipサイズが上限(${limitLabel(PAY_POLICIES_JSON_GZIP_LIMIT_BYTES)})を超えています: ${(payPoliciesGzipSize / 1024).toFixed(1)}KB`
+    );
+  }
+
   return {
     companiesPath,
     curvesPath,
@@ -340,6 +356,7 @@ export function buildData(outDir: string) {
     summariesPath,
     analysesPath,
     filingsPath,
+    payPoliciesPath,
     companies,
     curves,
     stats,
@@ -351,6 +368,7 @@ export function buildData(outDir: string) {
     summaries,
     analyses,
     filings,
+    payPolicies,
     gzipSize,
     historyGzipSize,
     worklifeGzipSize,
@@ -360,6 +378,7 @@ export function buildData(outDir: string) {
     summariesGzipSize,
     analysesGzipSize,
     filingsGzipSize,
+    payPoliciesGzipSize,
   };
 }
 
@@ -750,6 +769,53 @@ function buildAnalyses(
   if (matched !== byEdinetCode.size) {
     throw new Error(
       `company_analysis_2026.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+    );
+  }
+
+  return { byId };
+}
+
+/**
+ * 給与の決定方針の原文（C19・#852、`docs/company/spec.md` 1.23）。C18（#851）が有報から切り出した
+ * `data/pay_policy_2026.json` を、企業 ID の辞書にする。**本文のある会社だけ**を持ち、無い会社は
+ * キーごと落とす（節ごと出さない）。
+ *
+ * **行の配列ではなく ID の辞書**（`summaries.json` と同じ）。全社を舐める場面が無く、行がずれると
+ * 別の会社の方針を出す危険を持ち込む理由が無い。
+ */
+function buildPayPolicies(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  companyRows: readonly (readonly (string | number)[])[]
+) {
+  const source = JSON.parse(readFileSync(resolve(ROOT, "data/pay_policy_2026.json"), "utf-8")) as PayPolicyRow[];
+  const byEdinetCode = new Map(source.map((row) => [row.edinet_code, row]));
+
+  const byId: Record<string, PayPolicyRecord> = {};
+  let matched = 0;
+  rows.forEach((row, i) => {
+    const policy = byEdinetCode.get(row.edinetCode);
+    if (policy === undefined) return;
+    matched++;
+    /*
+     * **原文を切り出した書類が、いま平均年間給与を取っている書類と同じであることを確かめる。**
+     * 母集団を作り直して書類が入れ替わった会社で、古い書類の方針を新しい数字の隣に出さない。
+     * 食い違ったら C18 を回し直す（`plan` は原文の変わった会社を選ぶ）。
+     */
+    if (policy.doc_id !== row.docId) {
+      throw new Error(
+        `${row.name} の給与の決定方針は ${policy.doc_id} から取ったが、いまの書類は ${row.docId} です。` +
+          "pipeline/paypolicy で C18 を回し直すこと"
+      );
+    }
+    const record = toPayPolicyRecord(policy);
+    if (record !== null) byId[companyRows[i][0] as string] = record;
+  });
+
+  // **突合が全件当たることを確かめる**（`buildSummaries` と同じガード）。
+  if (matched !== byEdinetCode.size) {
+    throw new Error(
+      `pay_policy_2026.json の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
         "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
     );
   }
@@ -1155,6 +1221,12 @@ if (isMain) {
   console.log(
     `${result.filingsPath}: ${coverage(Object.keys(result.filings.byId).length, total)}, ` +
       `gzip ${(result.filingsGzipSize / 1024).toFixed(1)}KB`
+  );
+  // **母集団は2,961社で、改正前の様式の会社（決算期末が2026年3月31日より前）にはそもそも無い**
+  // ので、割合は他のファイルのように100%へ近づかない。翌年のデータ更新で全社が新しい様式になる。
+  console.log(
+    `${result.payPoliciesPath}: ${coverage(Object.keys(result.payPolicies.byId).length, total)}, ` +
+      `gzip ${(result.payPoliciesGzipSize / 1024).toFixed(1)}KB`
   );
 
   // ロゴだけは別のコマンドが作るので、パスではなく施策名で出す（E3・#175 で追随する）。
