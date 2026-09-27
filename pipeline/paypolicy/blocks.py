@@ -39,10 +39,49 @@ _OPEN_BRACKETS = "「『（(【［〔"
 _CLOSE_BRACKETS = "」』）)】］〕"
 
 
+# **府令の文言をそのまま見出しにする会社がある**（「②提出会社の従業員の給与（賞与を
+# 含む。）その他の給付の額及び内容の決定に関する方針」は45字）。「方針」で終わる行は
+# この長さまで小見出しとみる。パイロットでは丸藤シートパイルがこれで本文の先頭に入っていた
+POLICY_HEADING_MAX = 80
+_CLOSERS = "）)】］〕」』＞>"
+
+
 def is_heading(text):
-    """句点で終わらない短い行を小見出しとみる。"""
+    """句点で終わらない短い行を小見出しとみる。"方針" で終わる行は少し長くても小見出し。"""
     t = text.strip()
-    return 0 < len(t) <= HEADING_MAX and not t.endswith(("。", "．"))
+    if not t or t.endswith(("。", "．")):
+        return False
+    if len(t) <= HEADING_MAX:
+        return True
+    return len(t) <= POLICY_HEADING_MAX and t.rstrip(_CLOSERS).endswith("方針")
+
+
+# 文の途中で p を割る会社がある（ケル「…実現してまいり」／「ます。」、「…等級定義に基づ」／
+# 「いた能力…」。690件中62件）。前の段落が長くて句点などで終わらず、次の段落がひらがなで
+# 始まるなら、前の段落の続きとみてつなぐ。**文頭によく来る書き出しはつながない**——
+# 有報の文でひらがなから始まる文は「これ・この・その・なお・また・さらに」などに偏っていて、
+# それをつなぐと別の段落が1つになる（「…人財流出」／「これらのリスクは…」）
+_STARTERS = ("これ", "この", "ここ", "こう", "その", "それ", "そこ", "そう", "なお", "また", "まず",
+             "さらに", "あわせて", "ただし", "しかし", "したがって", "よって", "つまり", "すなわち",
+             "いずれ", "あらゆる", "いわゆる", "わが", "お客", "お取引", "かつて", "いま")
+_SENTENCE_END = ("。", "．", "！", "？", "」", "』", "）", ")", "：", ":")
+_HIRAGANA = re.compile(r"^[ぁ-ん、。]")
+
+
+def _continues(text):
+    return bool(_HIRAGANA.match(text)) and not text.startswith(_STARTERS)
+
+
+def _join_broken(blocks):
+    out = []
+    for b in blocks:
+        prev = out[-1] if out else None
+        if (prev and prev["kind"] == "para" and b["kind"] == "para"
+                and not prev["text"].endswith(_SENTENCE_END) and _continues(b["text"])):
+            prev["text"] += b["text"]
+            continue
+        out.append(b)
+    return out
 
 
 def split_sentences(text):
@@ -159,11 +198,21 @@ def parse(html):
     p.feed(html)
     p.close()
     blocks = p.blocks
+    for b in blocks:
+        if b["kind"] == "para":
+            # 段落の中の改行（br）は前後の空白ごと1つに寄せる
+            b["text"] = re.sub(r"[ \t]*\n[ \t]*", "\n", b["text"]).strip()
+    # 文の途中で割れた p は、小見出しの判定の前につなぐ（割れた前半は長く、句点で終わらない）
+    blocks = [dict(b) for b in blocks]
+    for b in blocks:
+        if b["kind"] == "para" and is_heading(b["text"]):
+            b["kind"] = "_short"
+    blocks = _join_broken(blocks)
     for i, b in enumerate(blocks):
+        if b["kind"] == "_short":
+            b["kind"] = "para"
         if b["kind"] != "para":
             continue
-        # 段落の中の改行（br）は前後の空白ごと1つに寄せる
-        b["text"] = re.sub(r"[ \t]*\n[ \t]*", "\n", b["text"]).strip()
         if i == 0 and _SECTION_TITLE.search(b["text"]):
             b["kind"] = "title"
         elif is_heading(b["text"]):

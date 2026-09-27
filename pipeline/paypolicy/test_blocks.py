@@ -63,6 +63,23 @@ class TestParse(unittest.TestCase):
         self.assertGreater(len(line), B.HEADING_MAX)
         self.assertEqual(B.parse(f"<p>{line}</p>")[0]["kind"], "para")
 
+    def test_long_policy_heading(self):
+        # 府令の文言そのままの見出し（45字）。丸藤シートパイル
+        line = "②提出会社の従業員の給与（賞与を含む。）その他の給付の額及び内容の決定に関する方針"
+        self.assertGreater(len(line), B.HEADING_MAX)
+        self.assertEqual(B.parse(f"<p>{line}</p>")[0]["kind"], "heading")
+        self.assertEqual(B.parse(f"<p>（{line}）</p>")[0]["kind"], "heading")
+
+    def test_paragraph_split_in_the_middle_of_a_sentence_is_joined(self):
+        # ケルは行ごとに p を割っている（「…実現してまいり」／「ます。」）
+        head = "当社は、従業員一人ひとりが能力を発揮できる環境を整え、持続的な成長を実現してまいり"
+        bl = B.parse(f"<p>{head}</p><p>ます。</p><p>なお、賞与は業績に連動します。</p>")
+        self.assertEqual([b["text"] for b in bl], [head + "ます。", "なお、賞与は業績に連動します。"])
+
+    def test_heading_is_not_joined_to_the_next_paragraph(self):
+        bl = B.parse("<p>④指標の活用と今後の考え方</p><p>これらの指標を通じて、組織を強くします。</p>")
+        self.assertEqual([b["kind"] for b in bl], ["heading", "para"])
+
     def test_nested_table_keeps_every_character(self):
         bl = B.parse(NESTED_TABLE)
         self.assertEqual([b["kind"] for b in bl], ["para", "table", "para"])

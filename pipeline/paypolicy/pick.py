@@ -130,10 +130,13 @@ def cmd_check(args):
 # ── plan ──────────────────────────────────────────────────────────
 
 
-def pending(referenced=False):
-    """まだ判定していない会社（原文が変わった会社を含む）。`referenced` なら参照だけの会社。"""
+def pending(referenced=False, force=False):
+    """まだ判定していない会社（原文が変わった会社を含む）。`referenced` なら参照の会社。
+
+    `force` なら判定済みの会社も選ぶ（指示を直して回し直すとき）。
+    """
     comp = companies()
-    out = read_out()
+    out = {} if force else read_out()
     rows = []
     for doc_id, r in comp.items():
         cache = cached(doc_id)
@@ -156,7 +159,9 @@ def pending(referenced=False):
 
 
 def cmd_plan(args):
-    rows = pending(referenced=args.referenced)
+    if args.referenced and args.force:
+        raise SystemExit("--referenced と --force は一緒に使えない（参照の会社は判定済みの記録から選ぶ）")
+    rows = pending(referenced=args.referenced, force=args.force)
     if args.docs:
         want = args.docs.split(",")
         rows = [x for x in rows if x[0]["doc_id"] in want]
@@ -203,8 +208,9 @@ def judge(blocks, pick, source):
         return None, f"verdict が不正: {verdict!r}"
     if source == "sustainability" and verdict == "referenced":
         return None, "参照先の節でさらに参照と答えた"
-    if verdict != "own":
+    if verdict == "none" or (verdict == "referenced" and not pick.get("start")):
         return {"verdict": verdict, "title": None, "blocks": [], "note": pick.get("note", "")}, None
+    # own と、節の中に短い要約がある referenced（要約は参照先で見つからなかったときの戻り先）
     try:
         body = B.cut(blocks, pick.get("start"), pick.get("end"))
     except ValueError as e:
@@ -302,7 +308,16 @@ def cmd_merge(args):
                             "sustainability_sha1": rec["source_sha1"], "verdict": rec["verdict"]})
                 if rec["verdict"] == "own":
                     row["source"] = "sustainability"
-            row.update({"title": rec["title"], "blocks": rec["blocks"], **stats(rec["blocks"]),
+            title, body = rec["title"], rec["blocks"]
+            if rec["source"] == "section" and rec["verdict"] == "referenced":
+                # 本文は2回目（参照先）で決める。節の中の要約は戻り先として持っておく
+                row["fallback"] = {"title": title, "blocks": body}
+                title, body = None, []
+            if rec["source"] == "sustainability" and rec["verdict"] == "none" and prev.get("fallback", {}).get("blocks"):
+                # 参照先に詳しい記載が無かった。節の中の要約を使う
+                row.update({"verdict": "own", "source": "section"})
+                title, body = prev["fallback"]["title"], prev["fallback"]["blocks"]
+            row.update({"title": title, "blocks": body, **stats(body),
                         "note": rec["note"], "picked_at": today})
             out[rec["doc_id"]] = row
             merged += 1
@@ -397,6 +412,7 @@ def main():
     p.add_argument("--referenced", action="store_true")
     p.add_argument("--pilot", action="store_true", help="AC-35 の会社を先頭に入れる")
     p.add_argument("--docs", default="", help="書類 ID をカンマ区切りで（40社の突き合わせ用）")
+    p.add_argument("--force", action="store_true", help="判定済みの会社も選ぶ（指示を直して回し直すとき）")
     p.set_defaults(fn=cmd_plan)
     sub.add_parser("gate").set_defaults(fn=cmd_gate)
     sub.add_parser("merge").set_defaults(fn=cmd_merge)
