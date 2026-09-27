@@ -4,7 +4,7 @@ import curvesData from "../../../public/data/curves.json";
 import statsData from "../../../public/data/stats.json";
 import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
 import type { CompanyStatsData } from "../types";
-import { buildCardFacts, buildCardLead, type CardFact } from "./cardFacts";
+import { buildCardFacts, buildCardLead, buildHeadingRank, type CardFact } from "./cardFacts";
 import { statsForBasis } from "./stats";
 import { buildCompanyView } from "./view";
 
@@ -76,5 +76,24 @@ describe("buildCardLead", () => {
     const lead = leadOf("6861");
     expect(lead).not.toContain("推定");
     expect(lead).not.toContain("全体平均");
+  });
+});
+
+/** `docs/company/spec.md` 1.4。h1 直下の1行。 */
+describe("buildHeadingRank", () => {
+  function headingOf(id: string, age: TargetAge | null) {
+    const view = buildCompanyView(companies, curves, stats, id);
+    if (view === null) throw new Error(`${id} が見つからない`);
+    return buildHeadingRank(view, statsForBasis(view, age));
+  }
+
+  // 全体順位と母数は置かない。両方ともカードの2段目にある。
+  it("業種と業界内順位だけを出す", () => {
+    expect(headingOf("6861", null)).toBe("電気機器 ・業界1位");
+    expect(headingOf("9432", null)).toBe("情報・通信業 ・業界20位");
+  });
+
+  it("業界内順位は表示基準で変わる", () => {
+    expect(headingOf("9432", 35)).toBe("情報・通信業 ・業界27位");
   });
 });

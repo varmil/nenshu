@@ -26,8 +26,8 @@ test.describe("会社の説明文", () => {
     await page.goto("/company/6861");
 
     await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
-    // 順位行はモックの言い回し。上位◯%は添えない（運営者の指示）。
-    await expect(page.getByText("電気機器 ・業界193社中1位 ・全体2,961社中3位")).toBeVisible();
+    // 順位行は業種と業界内順位だけ。全体順位・母数・上位◯%は添えない（運営者の指示）。
+    await expect(page.getByText("電気機器 ・業界1位", { exact: true })).toBeVisible();
     await expect(page.getByText(SUMMARY_START)).toBeVisible();
 
     /*
@@ -36,7 +36,9 @@ test.describe("会社の説明文", () => {
      */
     const order = await page.evaluate(() => {
       const h1 = document.querySelector("h1");
-      const rank = [...document.querySelectorAll("p")].find((p) => p.textContent?.includes("社中"));
+      const rank = [...document.querySelectorAll("p")].find(
+        (p) => p.textContent === "電気機器 ・業界1位"
+      );
       const summary = [...document.querySelectorAll("p")].find((p) =>
         p.textContent?.startsWith("電子応用機器")
       );

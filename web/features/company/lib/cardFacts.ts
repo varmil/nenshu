@@ -19,6 +19,19 @@ export function buildCardLead(view: CompanyView): string {
   );
 }
 
+/**
+ * h1 直下の1行（`電気機器 ・業界1位`。`docs/company/spec.md` 1.4）。
+ *
+ * **業種と業界内順位だけ。全体順位と母数は置かない**（2026-09-27・運営者の指示）。
+ * 両方の順位を母数つきで持つのはすぐ下のカードの2段目（`buildCardFacts` の `standing`）で、
+ * ここにも置くと同じ順位が1画面に2回並ぶ。
+ *
+ * 業界内順位は表示基準で変わる（`current` から取る）。
+ */
+export function buildHeadingRank(view: CompanyView, current: CompanyAgeStats): string {
+  return `${view.tse33} ・業界${formatInt(current.rankIndustry)}位`;
+}
+
 /** 平均年収カードの1項目。`total` は順位の母数（`/2,961社`）で、値より小さく添える。 */
 export interface CardFact {
   label: string;
@@ -33,8 +46,8 @@ export interface CardFact {
  *   そのままなので、表示基準を切り替えても変わらない
  * - **2段目（`standing`）は業界内順位と全体順位。** カードの右の位置バーと同じ話なので、
  *   その隣の段に置く。**業界内順位が左**——読者が先に知りたいのは同業の中の位置のほうで、
- *   h1 直下の1行（`業界193社中1位 ・全体2,961社中3位`）も業界が先。全体順位は右に来て、
- *   PC ではその右の位置バー（`全体2,961社の中の位置`）と隣り合う
+ *   h1 直下の1行（`電気機器 ・業界1位`。`buildHeadingRank`）も業界内順位を出す。全体順位は
+ *   右に来て、PC ではその右の位置バー（`全体2,961社の中の位置`）と隣り合う
  *
  * **偏差値は入れない**（#831）。同じカードの右の位置バーの見出し（`全体2,961社の中の位置`）
  * の隣に `偏差値 124.8` として出ており、ここにも置くと1枚のカードに同じ値が2回並ぶ。

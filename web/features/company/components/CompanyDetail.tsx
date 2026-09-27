@@ -12,13 +12,12 @@ import { BasisSwitch } from "@/features/ranking/components/BasisSwitch";
 import { DEFAULT_TARGET_AGE } from "@/features/ranking/lib/urlState";
 import {
   formatDecimal1,
-  formatInt,
   formatManYen,
 } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory, TenureHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
-import { buildCardFacts, buildCardLead, type CardFact } from "../lib/cardFacts";
+import { buildCardFacts, buildCardLead, buildHeadingRank, type CardFact } from "../lib/cardFacts";
 import { statsForBasis } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
@@ -152,6 +151,7 @@ export function CompanyDetail({
    */
   usePageMeta(companyPageMeta(view, fiscalPeriod));
   const current = statsForBasis(view, targetAge);
+  const headingRank = buildHeadingRank(view, current);
   const cardFacts = buildCardFacts(view, current);
   const cardLead = buildCardLead(view);
   const isRaw = targetAge === null;
@@ -246,13 +246,11 @@ export function CompanyDetail({
               {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
             </div>
             {/*
-              順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても位置が分かる。
-              **上位◯%は出さない**（運営者の指示）。モックの言い回しに揃えてある。
+              業種と業界内順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても
+              同業の中の位置が分かる。**上位◯%は出さない**（運営者の指示）。
+              **全体順位と母数も置かない**——カードの2段目が両方を母数つきで持っている（`buildHeadingRank`）。
             */}
-            <p className="text-muted-foreground text-sm">
-              {`${view.tse33} ・業界${formatInt(view.industryCount)}社中${formatInt(current.rankIndustry)}位` +
-                ` ・全体${formatInt(view.totalCount)}社中${formatInt(current.rankAll)}位`}
-            </p>
+            <p className="text-muted-foreground text-sm">{headingRank}</p>
           </div>
           {/*
             会社の説明文（C7・Issue #161、アートボード 4b・2b が3行の紹介文を描いている
