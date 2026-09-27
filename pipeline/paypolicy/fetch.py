@@ -68,8 +68,10 @@ def targets():
     return [r for r in rows if r["period_end"] >= FIRST_PERIOD_END]
 
 
-_OPEN = re.compile(r'<ix:nonNumeric\b[^>]*\bname="([^"]+)"[^>]*>')
-_TAG = re.compile(r"<(/?)ix:nonNumeric\b[^>]*>")
+_OPEN = re.compile(r'<ix:nonNumeric\b[^>]*\bname="([^"]+)"[^>]*(?<!/)>')
+# **閉じタグの無い `<ix:nonNumeric … />` がある**（無作為100件で899個。空の値に使う）。
+# 深さに数えると、節の中にあったときに閉じタグで0に戻らなくなる
+_TAG = re.compile(r"<(/?)ix:nonNumeric\b[^>]*?(/?)>")
 
 
 def _inner(html, start):
@@ -80,6 +82,8 @@ def _inner(html, start):
     """
     depth = 0
     for m in _TAG.finditer(html, start):
+        if m.group(2):
+            continue  # `<ix:nonNumeric … />`。中身を持たない
         depth += -1 if m.group(1) else 1
         if depth == 0:
             open_end = html.index(">", start) + 1
@@ -145,6 +149,15 @@ def section_from_employees(inner):
 
 
 def fetch_one(doc_id, retries=5):
+    """1件取る。**失敗は例外にせず理由の文字列で返す**——1件の読めない書類で全体を止めない
+    （1,533件目で止まったことがある）。"""
+    try:
+        return _fetch_one(doc_id, retries)
+    except Exception as e:  # noqa: BLE001
+        return doc_id, f"{type(e).__name__}: {e}"
+
+
+def _fetch_one(doc_id, retries):
     path = CACHE / f"{doc_id}.json"
     if path.exists():
         return doc_id, "cached"

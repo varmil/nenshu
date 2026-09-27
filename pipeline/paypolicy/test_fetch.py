@@ -30,6 +30,13 @@ class TestFind(unittest.TestCase):
         self.assertIn("人的資本の戦略。", inner)
         self.assertIn("内側の節の後ろの段落。", inner, "入れ子の閉じタグで外側を切らない")
 
+    def test_self_closing_tag_inside_a_block(self):
+        # `<ix:nonNumeric … />` を深さに数えると、節が閉じずに例外になっていた
+        inner = '<p>給与の方針。</p><ix:nonNumeric name="jpcrp_cor:X" contextRef="c" xsi:nil="true"/><p>続き。</p>'
+        html = f'<ix:nonNumeric name="{SECTION}" escape="true">{inner}</ix:nonNumeric><p>節の外。</p>'
+        [(name, got)] = fetch.find_blocks(html)["section"]
+        self.assertEqual(got, inner)
+
     def test_section_is_found_by_suffix(self):
         found = fetch.find_blocks(HTML)
         [(name, inner)] = found["section"]
