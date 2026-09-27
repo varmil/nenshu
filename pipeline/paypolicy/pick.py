@@ -10,6 +10,8 @@
     python3 pick.py merge                          # → ../data/pay_policy_2026.json
     python3 pick.py plan --referenced ...          # 参照だけの会社を、サステナビリティの節で回す
     python3 pick.py compare                        # 起票前に読んだ40社と突き合わせる
+    python3 pick.py verify                         # AC-35 の実行ログ（社数・空の理由・原文との突き合わせ）
+    python3 pick.py recut                          # 分解の規則を直したあと、書き出した番号から切り直す
     python3 pick.py clear                          # 次の回の前に work/ を空にする
     python3 pick.py status
 
@@ -216,7 +218,7 @@ def judge(blocks, pick, source):
     if source == "sustainability" and verdict == "referenced":
         return None, "参照先の節でさらに参照と答えた"
     if verdict == "none" or (verdict == "referenced" and not pick.get("start")):
-        return {"verdict": verdict, "title": None, "blocks": [], "note": pick.get("note", "")}, None
+        return {"verdict": verdict, "title": None, "blocks": [], "range": None, "note": pick.get("note", "")}, None
     # own と、節の中に短い要約がある referenced（要約は参照先で見つからなかったときの戻り先）
     try:
         body = B.cut(blocks, pick.get("start"), pick.get("end"))
@@ -236,7 +238,9 @@ def judge(blocks, pick, source):
         if ti >= bs:
             return None, f"title が範囲の始まりより後ろ: {pick['title']}"
         title = blocks[ti - 1]["text"]
-    return {"verdict": verdict, "title": title, "blocks": body, "note": pick.get("note", "")}, None
+    # 番号も残す。分解の規則を直したときに、答えを取り直さずに切り直せる（`recut`）
+    rng = {"title": pick.get("title") or None, "start": pick["start"], "end": pick["end"]}
+    return {"verdict": verdict, "title": title, "blocks": body, "range": rng, "note": pick.get("note", "")}, None
 
 
 def cmd_gate(args):
@@ -319,24 +323,56 @@ def cmd_merge(args):
                             "sustainability_sha1": rec["source_sha1"], "verdict": rec["verdict"]})
                 if rec["verdict"] == "own":
                     row["source"] = "sustainability"
-            title, body = rec["title"], rec["blocks"]
+            title, body, rng = rec["title"], rec["blocks"], rec.get("range")
             if rec["source"] == "section" and rec["verdict"] == "referenced":
                 # 本文は2回目（参照先）で決める。節の中の要約は戻り先として持っておく
-                row["fallback"] = {"title": title, "blocks": body}
-                title, body = None, []
+                row["fallback"] = {"title": title, "blocks": body, "range": rng}
+                title, body, rng = None, [], None
             if rec["source"] == "sustainability" and rec["verdict"] == "none" and prev.get("fallback", {}).get("blocks"):
                 # 参照先に詳しい記載が無かった。節の中の要約を使う
                 row.update({"verdict": "own", "source": "section"})
-                title, body = prev["fallback"]["title"], prev["fallback"]["blocks"]
-            row.update({"title": title, "blocks": body, **stats(body),
+                title, body, rng = prev["fallback"]["title"], prev["fallback"]["blocks"], prev["fallback"].get("range")
+            row.update({"title": title, "blocks": body, "range": rng, **stats(body),
                         "note": rec["note"], "picked_at": today})
             out[rec["doc_id"]] = row
             merged += 1
-    order = list(comp)
-    rows = sorted(out.values(), key=lambda x: order.index(x["doc_id"]) if x["doc_id"] in comp else len(order))
+    write_out(out, comp)
+    print(f"取り込み {merged}件 → {OUT.name}（{len(out)}社）")
+
+
+def write_out(out, comp):
+    """1社1行で書く（差分が会社ごとに出るように）。並びは `ranking_unified_2026.csv` のまま。"""
+    order = {d: i for i, d in enumerate(comp)}
+    rows = sorted(out.values(), key=lambda x: order.get(x["doc_id"], len(order)))
     OUT.write_text("[\n" + ",\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n]\n",
                    encoding="utf-8")
-    print(f"取り込み {merged}件 → {OUT.name}（{len(rows)}社）")
+
+
+def cmd_recut(args):
+    """書き出した番号から、いまの分解の規則で本文を切り直す。答えは取り直さない。
+
+    番号は塊の並びで振っているので、塊の中身の作り方（表のセルの改行など）を直しても変わらない。
+    **塊の分け方そのものを変えたら番号がずれるので、これでは足りない**（判定から回し直す）。
+    """
+    comp = companies()
+    out = read_out()
+    changed = 0
+    for d, row in out.items():
+        cache = cached(d)
+        for part, source in ((row, row.get("source")), (row.get("fallback"), "section")):
+            if not part or not part.get("range") or source is None:
+                continue
+            blocks = B.parse(source_html(cache, source))
+            rng = part["range"]
+            body = B.cut(blocks, rng["start"], rng["end"])
+            title = blocks[B.parse_id(rng["title"])[0] - 1]["text"] if rng["title"] else None
+            if body != part["blocks"] or title != part["title"]:
+                part.update({"blocks": body, "title": title})
+                if part is row:
+                    row.update(stats(body))
+                changed += 1
+    write_out(out, comp)
+    print(f"切り直して変わった {changed}件")
 
 
 # ── compare ───────────────────────────────────────────────────────
@@ -379,6 +415,124 @@ def cmd_compare(args):
             print(f"    40社: {want[:80]}…{want[-40:]}")
             print(f"    判定: {got[:80]}…{got[-40:]}")
     print(f"一致 {same} / 判定のほうが短い {sub} / 長い {sup} / ずれ {diff} / 未判定 {missing}")
+
+
+# ── verify ────────────────────────────────────────────────────────
+
+
+def body_mismatch(orig, body):
+    """本文が原文の塊の連続した一部かを確かめる。**合わなければ理由、合えば None。**
+
+    AC-35 の「空白を除いて1字も違わない」「段落の区切りは原文と一致する」を機械で見る。
+    `cut` の作りで保証されているが、書き出したファイルを後から直接直されても気づけるように、
+    ファイルと原文だけから確かめる。間の塊は原文の塊と完全に同じ、両端の段落だけは文の単位で
+    切れていてよい（先頭は原文の段落の後ろ寄り、末尾は前寄り）。
+    """
+    if not body:
+        return "本文が空"
+    n = len(body)
+
+    def same(o, b, edge):
+        if o["kind"] != b["kind"]:
+            return False
+        if b["kind"] != "para":
+            return o == b
+        if edge == "only":
+            return B.squash(b["text"]) in B.squash(o["text"])
+        if edge == "first":
+            return B.squash(o["text"]).endswith(B.squash(b["text"]))
+        if edge == "last":
+            return B.squash(o["text"]).startswith(B.squash(b["text"]))
+        return o["text"] == b["text"]
+
+    for i in range(len(orig) - n + 1):
+        if n == 1:
+            ok = same(orig[i], body[0], "only")
+        else:
+            ok = (same(orig[i], body[0], "first") and same(orig[i + n - 1], body[-1], "last")
+                  and all(same(orig[i + k], body[k], "mid") for k in range(1, n - 1)))
+        if ok:
+            if any(orig[i + k]["kind"] == "title" for k in range(n)):
+                return "節の見出しを含む"
+            return None
+    return "原文の連続した一部になっていない"
+
+
+# 空になった理由。AC-35 の実行ログに出す
+EMPTY_REASONS = {
+    "none": "節に給与の決定方針が無く、参照先も示していない",
+    "referenced_none": "節は参照だけで、参照先（サステナビリティの節）にも無い",
+    "referenced_no_target": "節は参照だけで、参照先の節が取れない",
+    "referenced_pending": "節は参照だけで、参照先をまだ判定していない",
+    "pending": "まだ判定していない",
+}
+
+
+def empty_reason(row):
+    if row is None:
+        return "pending"
+    if row["verdict"] == "none":
+        return "referenced_none" if row.get("referenced") else "none"
+    if row["verdict"] == "referenced":
+        return "referenced_pending"
+    return None
+
+
+def cmd_verify(args):
+    """AC-35 の実行ログ。節が取れた社数・給与の決定方針が付いた社数と、空の理由を出し、
+    付いた会社すべての本文を原文と機械で突き合わせる。**1社でも合わなければ 1 を返す。**"""
+    comp = companies()
+    out = read_out()
+    no_section = {}
+    for d in comp:
+        cache = cached(d)
+        if cache is None:
+            no_section[d] = "キャッシュが無い（書類を取れていない）"
+        elif not cache.get("section"):
+            no_section[d] = "節が見つからない"
+        elif len(cache["section"]) > 1:
+            no_section[d] = "節が2つ以上ある（どちらを採るか決めていない）"
+    print(f"対象 {len(comp)}社（決算期末 {fetch.FIRST_PERIOD_END} 以後）")
+    print(f"  節が取れた {len(comp) - len(no_section)}社 / 取れなかった {len(no_section)}社")
+    for d, why in no_section.items():
+        print(f"    {d} {comp[d]['name']}: {why}")
+
+    filled, empty, bad = {}, {}, []
+    for d in comp:
+        if d in no_section:
+            continue
+        row = out.get(d)
+        why = empty_reason(row)
+        if why is None and row["verdict"] == "referenced" and not sustainability_of(d):
+            why = "referenced_no_target"
+        if why is not None:
+            empty.setdefault(why, []).append(d)
+            continue
+        kind = row["source"] + ("（節の中の要約）" if row.get("referenced") and row["source"] == "section" else "")
+        filled[kind] = filled.get(kind, 0) + 1
+        cache = cached(d)
+        html = source_html(cache, row["source"])
+        key = "sustainability_sha1" if row["source"] == "sustainability" else "section_sha1"
+        if html is None or row.get(key) != sha1(html):
+            bad.append((d, "原文が判定したときと変わった"))
+            continue
+        why = body_mismatch(B.parse(html), row["blocks"])
+        if why:
+            bad.append((d, why))
+    print(f"  給与の決定方針が付いた {sum(filled.values())}社"
+          + "（" + " / ".join(f"{k} {v}" for k, v in filled.items()) + "）")
+    print(f"  空 {sum(len(v) for v in empty.values())}社")
+    for why, docs in empty.items():
+        print(f"    {EMPTY_REASONS[why]}: {len(docs)}社")
+    print(f"  原文との突き合わせ: 合わない {len(bad)}社")
+    for d, why in bad:
+        print(f"    {d} {comp[d]['name']}: {why}")
+    return 1 if bad else 0
+
+
+def sustainability_of(doc_id):
+    cache = cached(doc_id)
+    return cache is not None and source_html(cache, "sustainability") is not None
 
 
 # ── clear / status ────────────────────────────────────────────────
@@ -432,6 +586,8 @@ def main():
     c = sub.add_parser("compare")
     c.add_argument("-v", "--verbose", action="store_true")
     c.set_defaults(fn=cmd_compare)
+    sub.add_parser("verify").set_defaults(fn=cmd_verify)
+    sub.add_parser("recut").set_defaults(fn=cmd_recut)
     sub.add_parser("clear").set_defaults(fn=cmd_clear)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     args = ap.parse_args()

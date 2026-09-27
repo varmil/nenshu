@@ -24,6 +24,7 @@ class TestJudge(unittest.TestCase):
         rec, err = pick.judge(BLOCKS, {"verdict": "own", "title": "b4", "start": "b5s1", "end": "b5s2"}, "section")
         self.assertIsNone(err)
         self.assertEqual(rec["title"], "②従業員給与等の決定方針")
+        self.assertEqual(rec["range"], {"title": "b4", "start": "b5s1", "end": "b5s2"})
         self.assertEqual(rec["blocks"], [{"kind": "para", "text": "給与は役割に応じて決めます。賞与は業績に連動します。"}])
 
     def test_referenced_and_none_have_no_body(self):
@@ -62,6 +63,34 @@ class TestJudge(unittest.TestCase):
     def test_stats(self):
         body = [{"kind": "para", "text": "給与は 役割で決める。"}, {"kind": "table", "rows": [["a", "b"]]}]
         self.assertEqual(pick.stats(body), {"chars": 12, "has_table": True, "has_image": False})
+
+
+class TestBodyMismatch(unittest.TestCase):
+    """AC-35: 書き出した本文が原文の連続した一部で、段落の区切りが原文と一致すること。"""
+
+    def test_cut_bodies_pass(self):
+        for start, end in [("b5s1", "b5s2"), ("b5s2", "b5s2"), ("b3", "b5s1"), ("b2", "b5")]:
+            with self.subTest(start=start, end=end):
+                self.assertIsNone(pick.body_mismatch(BLOCKS, B.cut(BLOCKS, start, end)))
+
+    def test_changed_text_fails(self):
+        body = B.cut(BLOCKS, "b3", "b5")
+        body[1] = {"kind": "heading", "text": "②従業員給与の決定方針"}  # 1字落とした
+        self.assertIsNotNone(pick.body_mismatch(BLOCKS, body))
+
+    def test_merged_paragraphs_fail(self):
+        # 段落の区切りを落として2つの段落を1つにした
+        body = [{"kind": "para", "text": "人材を最も重要な資産と考えています。給与は役割に応じて決めます。"}]
+        self.assertIsNotNone(pick.body_mismatch(BLOCKS, body))
+
+    def test_skipped_block_fails(self):
+        # 間の塊（小見出し）を飛ばした。文字は全部原文にあるが連続していない
+        body = [{"kind": "para", "text": "人材を最も重要な資産と考えています。"},
+                {"kind": "para", "text": "給与は役割に応じて決めます。"}]
+        self.assertIsNotNone(pick.body_mismatch(BLOCKS, body))
+
+    def test_empty_fails(self):
+        self.assertIsNotNone(pick.body_mismatch(BLOCKS, []))
 
 
 class TestMerge(unittest.TestCase):
@@ -124,6 +153,42 @@ class TestMerge(unittest.TestCase):
         row = self._run()
         self.assertEqual((row["verdict"], row["source"]), ("own", "section"))
         self.assertEqual(row["blocks"], summary)
+
+
+class TestRecut(unittest.TestCase):
+    """分解の規則を直したあと、書き出した番号から切り直す。"""
+
+    HTML = ("<h4>（１）【人材戦略に関する基本方針等】</h4><p>②給与の決定方針</p>"
+            "<table><tr><td><p>給与は役割で決める。</p><p>賞与は業績に連動する。</p></td></tr></table>")
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = pick.OUT, pick.cached, pick.companies
+        pick.OUT = self.tmp / "out.json"
+        pick.cached = lambda d: {"section": [{"html": self.HTML}]}
+        pick.companies = lambda: {"D1": {}}
+
+    def tearDown(self):
+        import shutil
+        pick.OUT, pick.cached, pick.companies = self.saved
+        shutil.rmtree(self.tmp)
+
+    def test_stale_table_is_recut_from_the_range(self):
+        import argparse
+        import contextlib
+        import io
+        # 表のセルの中の段落の区切りを落としていた頃の本文
+        stale = [{"kind": "table", "rows": [["給与は役割で決める。賞与は業績に連動する。"]]}]
+        pick.write_out({"D1": {"doc_id": "D1", "verdict": "own", "source": "section", "title": "②給与の決定方針",
+                               "blocks": stale, "range": {"title": "b2", "start": "b3", "end": "b3"}}}, {"D1": {}})
+        with contextlib.redirect_stdout(io.StringIO()):
+            pick.cmd_recut(argparse.Namespace())
+        row = pick.read_out()["D1"]
+        self.assertEqual(row["blocks"], [{"kind": "table", "rows": [["給与は役割で決める。\n賞与は業績に連動する。"]]}])
+        self.assertEqual(row["title"], "②給与の決定方針")
+        self.assertTrue(row["has_table"])
 
 
 if __name__ == "__main__":
