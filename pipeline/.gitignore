@@ -26,3 +26,8 @@ data/analysis_text_2026.csv
 # **成果物（company_analysis_2026.csv）はコミットする。**
 analysis/work/
 summary/work/
+
+# 給与の決定方針（C18・#851）。XBRL 本体から切り出した節の HTML と、判定の中間ファイル。
+# **成果物（data/pay_policy_2026.json）はコミットする。**
+paypolicy/cache/
+paypolicy/work/
