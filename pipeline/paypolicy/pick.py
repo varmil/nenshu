@@ -234,8 +234,12 @@ def judge(blocks, pick, source):
 
 def cmd_gate(args):
     ok = ng = 0
+    only = {int(x) for x in args.batch.split(",") if x} if args.batch else None
     for bpath in sorted(WORK.glob("batch_*.json")):
         n = int(bpath.stem.split("_")[1])
+        # エージェントを並べて回すときは自分のバッチだけを見る（他の書きかけを読まない）
+        if only is not None and n not in only:
+            continue
         ppath = _batch_path("pick", n, "jsonl")
         if not ppath.exists():
             print(f"  {ppath.name} がまだ無い")
@@ -414,7 +418,9 @@ def main():
     p.add_argument("--docs", default="", help="書類 ID をカンマ区切りで（40社の突き合わせ用）")
     p.add_argument("--force", action="store_true", help="判定済みの会社も選ぶ（指示を直して回し直すとき）")
     p.set_defaults(fn=cmd_plan)
-    sub.add_parser("gate").set_defaults(fn=cmd_gate)
+    g = sub.add_parser("gate")
+    g.add_argument("--batch", default="", help="バッチ番号をカンマ区切りで（並べて回すとき）")
+    g.set_defaults(fn=cmd_gate)
     sub.add_parser("merge").set_defaults(fn=cmd_merge)
     c = sub.add_parser("compare")
     c.add_argument("-v", "--verbose", action="store_true")
