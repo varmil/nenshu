@@ -332,6 +332,44 @@ test.describe("企業詳細ページ", () => {
   });
 
   /*
+   * パンくずは常に1行で、収まらないぶんは器の中で横に送る。折り返していた頃は 2760 の
+   * 社名が 390px で2行目に落ちていた。文書が横にはみ出さないことは
+   * `company-refresh.spec.ts` の AC-15 のループが見る（9413 のパンくずも器からはみ出す）。
+   */
+  test("パンくずは社名が長くても1行に収まり、はみ出すぶんは器の中で横に送れる", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 844 });
+    await page.goto("/company/2760");
+    const nav = page.locator('nav:has([aria-current="page"])');
+
+    // 折り返すと、末尾の社名だけが下の行に落ちる。
+    const tops = await nav.evaluate((element) =>
+      [...element.children].map((child) => Math.round(child.getBoundingClientRect().top))
+    );
+    expect(new Set(tops).size).toBe(1);
+
+    // 器からはみ出している（この会社で検査が空振りしていない）。縦には送らない。
+    const size = await nav.evaluate((element) => ({
+      overflowX: element.scrollWidth - element.clientWidth,
+      overflowY: element.scrollHeight - element.clientHeight,
+    }));
+    expect(size.overflowX).toBeGreaterThan(0);
+    expect(size.overflowY).toBeLessThanOrEqual(0);
+
+    // 末尾まで送ると社名が切れずに全部見える（省略記号で切らない）。
+    await nav.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    const current = nav.locator('[aria-current="page"]');
+    await expect(current).toHaveText("東京エレクトロンデバイス株式会社");
+    const [navBox, currentBox] = [(await nav.boundingBox())!, (await current.boundingBox())!];
+    expect(currentBox.x).toBeGreaterThanOrEqual(navBox.x);
+    expect(currentBox.x + currentBox.width).toBeLessThanOrEqual(navBox.x + navBox.width);
+    expect(await current.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
+  });
+
+  /*
    * 企業詳細の断りが指す `/about` の行き先（`/about` の他の中身は `about.spec.ts`）。
    * ±20% の帯が信頼区間ではないことは**図と `/about` の2か所に書く**（CLAUDE.md）。
    * 説明文（C7）と要約・分析（C10）の作り方の節には、企業詳細からアンカーで飛ぶ。
