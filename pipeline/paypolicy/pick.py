@@ -22,14 +22,16 @@
 
 **参照だけの会社は2回に分けて回す。** 節の中で「給与の決定方針は第2 事業の状況 2 サステ
 ナビリティ…をご参照ください」とだけ書く会社がある（KDDI・兼松）。1回目で `referenced` と
-答えたら、2回目（`plan --referenced`）でサステナビリティの節を見せて同じことを答えさせる。
-全社にサステナビリティの節まで見せると、読む量が数倍になる。
+答えたら、2回目（`plan --referenced`）で参照先の節を見せて同じことを答えさせる。参照先は
+ほとんどがサステナビリティの節で、「従業員の状況」を指す会社（LIXIL）だけそちらを見せる
+（`reference_target`）。全社に参照先の節まで見せると、読む量が数倍になる。
 """
 
 import argparse
 import csv
 import hashlib
 import json
+import re
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -112,7 +114,7 @@ def cmd_check(args):
             continue
         if n > 1:
             counts["multi_section"] += 1
-        for key in ("section", "sustainability"):
+        for key in ("section", "sustainability", "employees"):
             for item in cache.get(key, []):
                 bl = B.parse(item["html"])
                 got = B.squash("".join(B.block_text(b) for b in bl))
@@ -147,9 +149,10 @@ def pending(referenced=False, force=False):
         prev = out.get(doc_id)
         if referenced:
             if prev and prev.get("verdict") == "referenced":
-                html = source_html(cache, "sustainability")
+                target = reference_target(source_html(cache, "section"))
+                html = source_html(cache, target)
                 if html is not None:
-                    rows.append((r, "sustainability", html))
+                    rows.append((r, target, html))
             continue
         html = source_html(cache, "section")
         if html is None:
@@ -158,6 +161,22 @@ def pending(referenced=False, force=False):
             continue
         rows.append((r, "section", html))
     return rows
+
+
+# 参照文が給与の決定方針の在りかとして「従業員の状況」を指しているか（LIXIL は
+# 「従業員給与等の…決定に関する方針は、『（２）従業員の状況 ⑤ …』に記載のとおりです。」）
+_EMPLOYEES_REF = re.compile(r"従業員の状況(?!等)")
+_PAY_WORDS = re.compile(r"給与|報酬|賃金")
+
+
+def reference_target(section_html):
+    """参照の会社の2回目に見せる節。**ほとんどはサステナビリティの節**（1回目の参照110社で
+    109社）で、給与に触れる文が「従業員の状況」を指していればそちらを見せる。"""
+    for b in B.parse(section_html):
+        for sent in b.get("sentences", []):
+            if _PAY_WORDS.search(sent) and _EMPLOYEES_REF.search(sent):
+                return "employees"
+    return "sustainability"
 
 
 def cmd_plan(args):
@@ -215,7 +234,7 @@ def judge(blocks, pick, source):
     verdict = pick.get("verdict")
     if verdict not in VERDICTS:
         return None, f"verdict が不正: {verdict!r}"
-    if source == "sustainability" and verdict == "referenced":
+    if source != "section" and verdict == "referenced":
         return None, "参照先の節でさらに参照と答えた"
     if verdict == "none" or (verdict == "referenced" and not pick.get("start")):
         return {"verdict": verdict, "title": None, "blocks": [], "range": None, "note": pick.get("note", "")}, None
@@ -320,15 +339,15 @@ def cmd_merge(args):
             else:
                 # 参照先で判定した結果。節の SHA-1 と、節で「参照だけ」と答えたことは残す
                 row.update({"section_sha1": prev.get("section_sha1"), "referenced": True,
-                            "sustainability_sha1": rec["source_sha1"], "verdict": rec["verdict"]})
+                            f"{rec['source']}_sha1": rec["source_sha1"], "verdict": rec["verdict"]})
                 if rec["verdict"] == "own":
-                    row["source"] = "sustainability"
+                    row["source"] = rec["source"]
             title, body, rng = rec["title"], rec["blocks"], rec.get("range")
             if rec["source"] == "section" and rec["verdict"] == "referenced":
                 # 本文は2回目（参照先）で決める。節の中の要約は戻り先として持っておく
                 row["fallback"] = {"title": title, "blocks": body, "range": rng}
                 title, body, rng = None, [], None
-            if rec["source"] == "sustainability" and rec["verdict"] == "none" and prev.get("fallback", {}).get("blocks"):
+            if rec["source"] != "section" and rec["verdict"] == "none" and prev.get("fallback", {}).get("blocks"):
                 # 参照先に詳しい記載が無かった。節の中の要約を使う
                 row.update({"verdict": "own", "source": "section"})
                 title, body, rng = prev["fallback"]["title"], prev["fallback"]["blocks"], prev["fallback"].get("range")
@@ -461,7 +480,7 @@ def body_mismatch(orig, body):
 # 空になった理由。AC-35 の実行ログに出す
 EMPTY_REASONS = {
     "none": "節に給与の決定方針が無く、参照先も示していない",
-    "referenced_none": "節は参照だけで、参照先（サステナビリティの節）にも無い",
+    "referenced_none": "節は参照だけで、参照先の節にも無い",
     "referenced_no_target": "節は参照だけで、参照先の節が取れない",
     "referenced_pending": "節は参照だけで、参照先をまだ判定していない",
     "pending": "まだ判定していない",
@@ -503,7 +522,7 @@ def cmd_verify(args):
             continue
         row = out.get(d)
         why = empty_reason(row)
-        if why is None and row["verdict"] == "referenced" and not sustainability_of(d):
+        if why == "referenced_pending" and source_html(cached(d), reference_target(source_html(cached(d), "section"))) is None:
             why = "referenced_no_target"
         if why is not None:
             empty.setdefault(why, []).append(d)
@@ -512,8 +531,7 @@ def cmd_verify(args):
         filled[kind] = filled.get(kind, 0) + 1
         cache = cached(d)
         html = source_html(cache, row["source"])
-        key = "sustainability_sha1" if row["source"] == "sustainability" else "section_sha1"
-        if html is None or row.get(key) != sha1(html):
+        if html is None or row.get(f"{row['source']}_sha1") != sha1(html):
             bad.append((d, "原文が判定したときと変わった"))
             continue
         why = body_mismatch(B.parse(html), row["blocks"])
@@ -528,11 +546,6 @@ def cmd_verify(args):
     for d, why in bad:
         print(f"    {d} {comp[d]['name']}: {why}")
     return 1 if bad else 0
-
-
-def sustainability_of(doc_id):
-    cache = cached(doc_id)
-    return cache is not None and source_html(cache, "sustainability") is not None
 
 
 # ── clear / status ────────────────────────────────────────────────

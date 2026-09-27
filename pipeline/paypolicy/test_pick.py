@@ -191,5 +191,24 @@ class TestRecut(unittest.TestCase):
         self.assertTrue(row["has_table"])
 
 
+class TestReferenceTarget(unittest.TestCase):
+    def test_sustainability_by_default(self):
+        html = "<p>人材戦略及び給与等の決定方針は「第２ 事業の状況 ２ サステナビリティ…」に記載のとおりです。</p>"
+        self.assertEqual(pick.reference_target(html), "sustainability")
+
+    def test_employees_when_the_pay_sentence_points_there(self):
+        # LIXIL
+        html = ("<h4>（１）【人材戦略に関する基本方針等】</h4>"
+                "<p>人材戦略は「第２ 事業の状況 ２ サステナビリティに関する考え方及び取組」に記載のとおりです。"
+                "また、従業員給与等の額及び内容の決定に関する方針は、「（２）従業員の状況 ⑤ 従業員給与等の額及び内容の"
+                "決定に関する方針」に記載のとおりです。</p>")
+        self.assertEqual(pick.reference_target(html), "employees")
+
+    def test_mention_of_employees_without_pay_is_ignored(self):
+        html = ("<p>給与等の決定方針はサステナビリティの節をご参照ください。</p>"
+                "<p>指標の実績は「（２）従業員の状況 ④」に記載しています。</p>")
+        self.assertEqual(pick.reference_target(html), "sustainability")
+
+
 if __name__ == "__main__":
     unittest.main()
