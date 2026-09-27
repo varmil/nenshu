@@ -11,9 +11,11 @@ import {
   companyFilingDocId,
   companyIds,
   companyPageData,
+  companyPayPolicyFor,
 } from "@/features/company/lib/pageData";
 import { AnalysisSection, DigestSection } from "@/features/company/components/AnalysisSections";
 import { ActualsQaSection } from "@/features/company/components/ActualsQaSection";
+import { PayPolicySection } from "@/features/company/components/PayPolicySection";
 import { buildActualsQa } from "@/features/company/lib/actualsQa";
 import { SourcesSection } from "@/features/company/components/SourcesSection";
 import { buildSourceRows } from "@/features/company/lib/sources";
@@ -33,6 +35,9 @@ const analysis = companyAnalysisFor(data.view.id);
 // 実測値の4項目を取った有報（C13・#814）。Q&A の帯と出典の節の2か所が同じ書類を指す。
 // **`data` に入れない**——どちらも島の外で描くので、島の props に載せる理由が無い（C16・#838）。
 const filingDocId = companyFilingDocId(data.view.id);
+// 給与の決定方針（C19・#852）。有報の原文そのもので、表示基準でも年齢でも変わらないので、
+// C10・C16 と同じく名前付きスロットで静的な HTML として差し込む。無い会社は `null`（節ごと出さない）。
+const payPolicy = companyPayPolicyFor(data.view.id, data.view.name);
 // 「{社名}の年収に関するQ&A」（C16・#838）。表示基準でも年齢でも変わらないので、C10・C12 と
 // 同じく名前付きスロットで静的な HTML として差し込む。
 const qa = buildActualsQa(data.view, data.fiscalPeriod);
@@ -42,6 +47,7 @@ const sourceRows = buildSourceRows({
   tenureHistory: data.tenureHistory !== null,
   summary: data.summary !== null,
   analysis: analysis !== null,
+  payPolicy: payPolicy !== null,
   filingDocId,
 });
 ---
@@ -60,6 +66,7 @@ const sourceRows = buildSourceRows({
   <CompanyDetailIsland data={data} client:load>
     {analysis && <AnalysisSection slot="analysis" name={data.view.name} view={analysis} />}
     {analysis && <DigestSection slot="digest" name={data.view.name} view={analysis} fiscalPeriod={data.fiscalPeriod} />}
+    {payPolicy && <PayPolicySection slot="payPolicy" view={payPolicy} docId={filingDocId} />}
     <ActualsQaSection slot="qa" qa={qa} docId={filingDocId} />
     <SourcesSection slot="sources" rows={sourceRows} />
   </CompanyDetailIsland>

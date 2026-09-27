@@ -15,16 +15,28 @@ import { edinetDocumentUrl } from "@/lib/data/sources";
  *   いる（`docs/site-chrome/spec.md` 5.1）
  * - **社名も書かない。** 真上の質問と回答に社名が並んでいるうえ、長い社名だとモバイルで1行に
  *   収まらない
+ * - **給与の決定方針の節（C19・#852）の原文の枠の下辺にも付く。** 行き先は同じ書類
+ *   （原文を切り出した書類＝平均年間給与を取った書類）
  * - 別タブで開く（読者はページの数字と書類を見比べる）。`nofollow` は付けない——公的な一次情報で、
  *   「このページの出典」のリンクと同じ扱い
  */
-export function FilingLink({ docId }: { docId: string }) {
+export function FilingLink({
+  docId,
+  testId = "company-filing",
+}: {
+  docId: string;
+  /**
+   * 給与の決定方針の節（C19）も原文の枠の下辺に同じ帯を付ける。**同じ testid を2つ置かない**——
+   * Q&A の帯を `company-filing` で引いている E2E が、節のある会社で2つに当たる。
+   */
+  testId?: string;
+}) {
   return (
     <a
       href={edinetDocumentUrl(docId)}
       target="_blank"
       rel="noreferrer"
-      data-testid="company-filing"
+      data-testid={testId}
       className="bg-muted border-border flex min-h-11 items-center justify-between gap-3 rounded-b-lg border border-t-0 px-3 py-2"
     >
       <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">

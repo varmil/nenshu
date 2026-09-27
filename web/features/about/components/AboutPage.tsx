@@ -24,6 +24,7 @@ import curvesData from "@/public/data/curves.json";
 import logosData from "@/public/data/logos.json";
 import summariesData from "@/public/data/summaries.json";
 import analysesData from "@/public/data/analyses.json";
+import payPoliciesData from "@/public/data/pay-policies.json";
 
 const companies = companiesData as CompaniesData;
 const logoEntries = logosData.byId as Record<string, LogoEntry>;
@@ -42,6 +43,8 @@ const logoCounts = creditCounts(logoEntries);
 const summaryCount = Object.keys(summariesData.byId).length;
 // 要約と分析は対で出す（C10・AC-28）ので、社数は1つで足りる。
 const analysisCount = Object.keys(analysesData.byId).length;
+// 給与の決定方針を出している社数（C19・Issue #852）。本文のある会社だけが `pay-policies.json` に入る。
+const payPolicyCount = Object.keys(payPoliciesData.byId).length;
 
 
 /**
@@ -556,6 +559,34 @@ export function AboutPage() {
           <strong>要約と分析は、両方そろった会社にだけ出します。</strong>
           どちらかが検査を通らなければ、もう片方も出しません。空欄や「準備中」も出しません。
         </p>
+      </Section>
+
+      {/*
+        給与の決定方針の抜き出し方（C19・Issue #852・spec 1.23）。企業ページの節から `#pay-policy` で
+        飛んでくる。**節の中には「生成AI」の語を置かない**（文そのものを AI が書いたように読める）ので、
+        範囲の判定に使ったことはここと「このページの出典」が言う。
+      */}
+      <Section title="給与の決定方針の抜き出し方" id="pay-policy">
+        <p>
+          企業ページの「給与の決定方針」は、その会社の
+          <strong>有価証券報告書の「人材戦略に関する基本方針等」</strong>
+          から、従業員の給与の決め方を述べた部分を抜き出したものです。{formatInt(payPolicyCount)}社に出しています。
+        </p>
+        <p>
+          この項目は、2026年3月31日以後に終わる事業年度の有価証券報告書から記載が義務になりました。
+          <strong>それより前の様式で提出した会社には項目が無いので、節ごと出していません。</strong>
+          項目があっても給与の決定方針に触れていない会社も同じです。
+        </p>
+        <p>
+          <strong>どこからどこまでが給与の決定方針かは、生成AIで判定しています。文そのものは1字も変えていません。</strong>
+          見出しを付けて書く会社もあれば、人材戦略の段落の途中に続けて書く会社もあり、機械的には切り分けられないためです。
+          AIが答えるのは範囲の始まりと終わりだけで、本文は原文から切り出します。載せている文が原文の連続した一部であることは、全社について機械で確かめています。
+        </p>
+        <ul className="ml-5 list-disc space-y-1">
+          <li>項目の中で「サステナビリティに関する考え方及び取組」など別の節を参照している会社は、参照先の節から抜き出しています</li>
+          <li>表は表のまま載せています。図は、有価証券報告書のデータに読める文字が無いため省いています</li>
+          <li>要約・言い換え・評価はしていません。会社の方針の表明を言い換えると、言い換えた側の解釈が混ざるためです</li>
+        </ul>
       </Section>
 
       <Section title="企業ロゴの出典">

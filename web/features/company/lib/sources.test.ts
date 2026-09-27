@@ -7,8 +7,11 @@ const ALL: PagePresence = {
   tenureHistory: true,
   summary: true,
   analysis: true,
+  payPolicy: true,
   filingDocId: "S100YAHE",
 };
+
+const byKind = (rows: ReturnType<typeof buildSourceRows>, kind: string) => rows.find((r) => r.kind === kind)!;
 
 const text = (segments: SourceSegment[]) =>
   segments
@@ -16,8 +19,9 @@ const text = (segments: SourceSegment[]) =>
     .join("");
 
 describe("buildSourceRows（C12・AC-16）", () => {
-  it("すべての節がある会社では6区分を決めた順に並べる", () => {
+  it("すべての節がある会社では7区分を決めた順に並べる", () => {
     expect(buildSourceRows(ALL).map((r) => r.label)).toEqual([
+      "原文",
       "実測値",
       "計算値",
       "推定値",
@@ -31,11 +35,17 @@ describe("buildSourceRows（C12・AC-16）", () => {
     const linked = buildSourceRows(ALL).flatMap((r) =>
       r.source.flatMap((s) => (typeof s === "string" ? [] : ["source" in s ? s.source : s.url]))
     );
-    expect(linked).toEqual([edinetDocumentUrl("S100YAHE"), "wageCensus", "positiveDb"]);
+    // 原文と実測値の「有価証券報告書」は、どちらもその会社の同じ書類を指す。
+    expect(linked).toEqual([
+      edinetDocumentUrl("S100YAHE"),
+      edinetDocumentUrl("S100YAHE"),
+      "wageCensus",
+      "positiveDb",
+    ]);
   });
 
   it("実測値の行の「有価証券報告書」が、渡した書類 ID の閲覧ページを指す", () => {
-    const measured = buildSourceRows({ ...ALL, filingDocId: "S100YBLA" })[0];
+    const measured = byKind(buildSourceRows({ ...ALL, filingDocId: "S100YBLA" }), "measured");
     expect(measured.source).toContainEqual({
       text: "有価証券報告書",
       url: "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YBLA,,",
@@ -51,17 +61,18 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("推移の無い会社では推移を挙げない", () => {
-    const measured = buildSourceRows({ ...ALL, history: false, tenureHistory: false })[0];
+    const measured = byKind(buildSourceRows({ ...ALL, history: false, tenureHistory: false }), "measured");
     expect(measured.covers).toBe("平均年収・平均年齢・在籍年数・従業員数");
-    expect(buildSourceRows(ALL)[0].covers).toContain("その推移");
+    expect(byKind(buildSourceRows(ALL), "measured").covers).toContain("その推移");
   });
 
   it("在籍年数の推移がある会社では、在籍年数も推移にかけ、業種の中央値を計算値に挙げる（T4）", () => {
-    const [measured, computed] = buildSourceRows(ALL);
-    expect(measured.covers).toBe("平均年収・平均年齢・在籍年数とその推移・従業員数");
-    expect(computed.covers).toContain("業種の中央値");
+    const rows = buildSourceRows(ALL);
+    expect(byKind(rows, "measured").covers).toBe("平均年収・平均年齢・在籍年数とその推移・従業員数");
+    expect(byKind(rows, "computed").covers).toContain("業種の中央値");
 
-    const [measuredWithout, computedWithout] = buildSourceRows({ ...ALL, tenureHistory: false });
+    const without = buildSourceRows({ ...ALL, tenureHistory: false });
+    const [measuredWithout, computedWithout] = [byKind(without, "measured"), byKind(without, "computed")];
     expect(measuredWithout.covers).toBe("平均年収・平均年齢とその推移・在籍年数・従業員数");
     expect(computedWithout.covers).not.toContain("業種の中央値");
   });
@@ -79,7 +90,30 @@ describe("buildSourceRows（C12・AC-16）", () => {
 
   it("AIの文章が1つも無い会社では、AIの2区分とも出さない", () => {
     const rows = buildSourceRows({ ...ALL, summary: false, analysis: false });
-    expect(rows.map((r) => r.label)).toEqual(["実測値", "計算値", "推定値", "自己申告値"]);
+    expect(rows.map((r) => r.label)).toEqual(["原文", "実測値", "計算値", "推定値", "自己申告値"]);
+  });
+
+  /*
+   * 原文（C19・#852、spec 1.15・1.23）。**範囲の判定に生成AIを使ったことは、この行と `/about`
+   * だけが言う**——給与の決定方針の節の中には「生成AI」の語を置かない。
+   */
+  it("給与の決定方針のある会社では原文を先頭に置き、有報の書類へリンクし、範囲の判定に生成AIを使ったと書く", () => {
+    const original = buildSourceRows({ ...ALL, filingDocId: "S100YBLA" })[0];
+    expect(original.kind).toBe("original");
+    expect(original.covers).toBe("給与の決定方針");
+    expect(text(original.source)).toBe("有価証券報告書の本文をそのまま（どこまでが給与の決定方針かは生成AIが判定）");
+    expect(original.source).toContainEqual({ text: "有価証券報告書", url: edinetDocumentUrl("S100YBLA") });
+  });
+
+  it("給与の決定方針の無い会社（改正前の様式・空）では原文の行を出さない", () => {
+    expect(buildSourceRows({ ...ALL, payPolicy: false }).map((r) => r.label)).toEqual([
+      "実測値",
+      "計算値",
+      "推定値",
+      "自己申告値",
+      "AIの要約",
+      "AIの評価",
+    ]);
   });
 
   /*

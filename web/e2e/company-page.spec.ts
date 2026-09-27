@@ -300,6 +300,9 @@ test.describe("企業詳細ページ", () => {
       ["EDINET の閲覧ページ（C13）", "WZEK0040"],
       ["分析の見出し（C10）", "の現状と今後"],
       ["説明文（C7）", "電子応用機器の開発"],
+      // トヨタの給与の決定方針の原文（C19・AC-36）。
+      ["給与の決定方針（C19）", "安心感醸成のため"],
+      ["給与の決定方針の見出し（C19）", "の給与の決定方針"],
     ] as const) {
       expect(top, label).not.toContain(text);
     }
@@ -385,6 +388,14 @@ test.describe("企業詳細ページ", () => {
     const analysis = page.locator("#company-analysis");
     await expect(analysis.getByRole("heading", { name: "要約と分析の作り方" })).toBeVisible();
     await expect(analysis).toContainText("具体的な数値");
+
+    // 給与の決定方針の節の「抜き出し方」から飛んでくる（C19・AC-36）。範囲の判定に生成AIを
+    // 使い、文は変えていないこと・改正前の様式の会社には無いこと。
+    const payPolicy = page.locator("#pay-policy");
+    await expect(payPolicy.getByRole("heading", { name: "給与の決定方針の抜き出し方" })).toBeVisible();
+    await expect(payPolicy).toContainText("人材戦略に関する基本方針等");
+    await expect(payPolicy).toContainText("生成AI");
+    await expect(payPolicy).toContainText("2026年3月31日");
   });
 });
 

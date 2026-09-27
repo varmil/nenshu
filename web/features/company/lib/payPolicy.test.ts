@@ -1,0 +1,100 @@
+import { describe, it, expect } from "vitest";
+import {
+  blockChars,
+  buildPayPolicyView,
+  PAY_POLICY_FOLD_OVER,
+  PAY_POLICY_OPEN_AT_LEAST,
+  type PayPolicyBlock,
+  type PayPolicyRecord,
+} from "./payPolicy";
+import payPoliciesData from "@/public/data/pay-policies.json";
+
+const payPolicies = (payPoliciesData as { byId: Record<string, PayPolicyRecord> }).byId;
+
+const para = (chars: number, ch = "あ"): PayPolicyBlock => ({ kind: "para", text: ch.repeat(chars) });
+const heading = (text: string): PayPolicyBlock => ({ kind: "heading", text });
+
+describe("buildPayPolicyView", () => {
+  it("トヨタ: 見出しは社名から始まり、会社の小見出しと出どころの節を持ち、畳まない", () => {
+    expect(buildPayPolicyView("トヨタ自動車株式会社", payPolicies["7203"])).toEqual({
+      heading: "トヨタ自動車株式会社の給与の決定方針",
+      sourceLabel: "人材戦略に関する基本方針等",
+      title: "②従業員の給与その他の給与の額及び内容の決定に関する方針",
+      open: payPolicies["7203"].blocks,
+      folded: [],
+      foldedChars: 0,
+    });
+  });
+
+  it("本文の無い会社は null（節ごと出さない）", () => {
+    expect(buildPayPolicyView("東京電力ホールディングス株式会社", payPolicies["9501"])).toBeNull();
+    expect(buildPayPolicyView("花王株式会社", payPolicies["4452"])).toBeNull();
+    expect(buildPayPolicyView("x", { source: "section", title: null, blocks: [] })).toBeNull();
+  });
+
+  it("参照先の節から取った会社は、その節の名前を出す", () => {
+    expect(buildPayPolicyView("ＫＤＤＩ株式会社", payPolicies["9433"])?.sourceLabel).toBe(
+      "サステナビリティに関する考え方及び取組"
+    );
+    expect(buildPayPolicyView("x", { source: "employees", title: null, blocks: [para(10)] })?.sourceLabel).toBe(
+      "従業員の状況"
+    );
+  });
+
+  it("1,000字までは畳まない", () => {
+    const view = buildPayPolicyView("x", { source: "section", title: null, blocks: [para(500), para(500)] })!;
+    expect(view.folded).toEqual([]);
+  });
+
+  it("1,000字を超えたら、400字に届いた塊で切り、残りの字数を数える", () => {
+    const blocks = [para(250), para(200), para(300), para(300)];
+    const view = buildPayPolicyView("x", { source: "section", title: null, blocks })!;
+    expect(view.open).toEqual(blocks.slice(0, 2));
+    expect(view.folded).toEqual(blocks.slice(2));
+    expect(view.foldedChars).toBe(600);
+  });
+
+  it("開いている部分を小見出しで終わらせない", () => {
+    const blocks = [para(390), heading("（賞与）"), para(300), para(400)];
+    const view = buildPayPolicyView("x", { source: "section", title: null, blocks })!;
+    expect(view.open).toEqual(blocks.slice(0, 3));
+    expect(view.folded).toEqual(blocks.slice(3));
+  });
+
+  it("畳む部分が空になるなら畳まない", () => {
+    const view = buildPayPolicyView("x", { source: "section", title: null, blocks: [para(1200)] })!;
+    expect(view.open).toHaveLength(1);
+    expect(view.folded).toEqual([]);
+  });
+
+  /**
+   * 実データの全社で、畳む・畳まないの分かれ方と開いている量が spec 1.23 のとおりであること。
+   * **塊をつなぎ直すと元の本文に戻る**（開く部分と畳む部分で1字も落とさない）。
+   */
+  it("全社で、開く部分と畳む部分をつなぐと元の本文に戻り、畳むのは1,000字を超える会社だけ", () => {
+    let folded = 0;
+    for (const [id, record] of Object.entries(payPolicies)) {
+      const view = buildPayPolicyView("x", record)!;
+      expect([...view.open, ...view.folded], id).toEqual(record.blocks);
+      const total = record.blocks.reduce((sum, b) => sum + blockChars(b), 0);
+      if (view.folded.length > 0) {
+        folded++;
+        expect(total, id).toBeGreaterThan(PAY_POLICY_FOLD_OVER);
+        expect(view.open.reduce((sum, b) => sum + blockChars(b), 0), id).toBeGreaterThanOrEqual(
+          PAY_POLICY_OPEN_AT_LEAST
+        );
+        expect(view.open.at(-1)?.kind, id).not.toBe("heading");
+      }
+    }
+    // C18 の全件で1,000字を超えるのは80社。
+    expect(folded).toBe(80);
+  });
+});
+
+describe("blockChars", () => {
+  it("空白を数えず、表はセルの字をすべて、画像は0", () => {
+    expect(blockChars({ kind: "para", text: "給与は\n役割で　決める。" })).toBe(10);
+    expect(blockChars({ kind: "table", rows: [["区分", "内容"], ["基本給", "役割"]] })).toBe(9);
+    expect(blockChars({ kind: "image" })).toBe(0);
+  });
+});

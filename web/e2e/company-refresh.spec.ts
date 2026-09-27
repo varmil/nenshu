@@ -627,10 +627,12 @@ test.describe("AC-15 レイアウト", () => {
    *   **外さないこと**——`company-radar.spec.ts` はキーエンスの横スクロール検査をここに任せて消した
    * - 9413: 社名が長く、年齢別の説明文が最も長くなる（C4）。パンくずも器の中で横に送られる
    * - 8031: 分析に参照した資料が並ぶ（C10）
+   * - 7203・3032・4956: 給与の決定方針（C19・AC-36）。3032 は長くて畳む会社、4956 は本文に6列の表がある。
+   *   **6861 には給与の決定方針が無い**（3月20日決算で改正前の様式）
    */
   test("375px では1カラムで、どの会社でも横スクロールが発生しない", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 844 });
-    for (const id of ["6861", "9413", "8031"]) {
+    for (const id of ["6861", "9413", "8031", "7203", "3032", "4956"]) {
       await page.goto(`/company/${id}`);
       await expect(page.getByRole("heading", { level: 1 }), id).toBeVisible();
       const overflow = await page.evaluate(
@@ -658,6 +660,11 @@ test.describe("AC-15 レイアウト", () => {
  * 出ているデータを加工の度合いで6区分に分け、区分ごとに該当するものと出典を並べる。
  * 行の組み立ては `lib/sources.test.ts`、節の有無による出し分け（説明文の無い会社）は
  * `company-summary.spec.ts`、有報のリンク先の書類は `company-filing.spec.ts`。
+ *
+ * **給与の決定方針のある会社（C19・#852）は先頭に区分「原文」が足されて7区分になる**
+ * （`company-pay-policy.spec.ts`）。キーエンスは改正前の様式なので6区分のまま。7区分の会社は
+ * PC で 290px になり、下の「3ステップより低い」の PC の線（260px）を超える——区分を1つ足した
+ * ぶんで、区分ごとの行は変えていない（`docs/company/pay-policy-display/design.md`）。
  */
 test.describe("AC-16 このページの出典", () => {
   const sources = (page: Page) => page.getByTestId("company-sources");
