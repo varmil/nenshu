@@ -12,6 +12,7 @@
     python3 pick.py compare                        # 起票前に読んだ40社と突き合わせる
     python3 pick.py verify                         # AC-35 の実行ログ（社数・空の理由・原文との突き合わせ）
     python3 pick.py recut                          # 分解の規則を直したあと、書き出した番号から切り直す
+    python3 pick.py relocate                       # 塊の分け方を変えたあと、本文の文字から番号を探し直す
     python3 pick.py clear                          # 次の回の前に work/ を空にする
     python3 pick.py status
 
@@ -286,7 +287,14 @@ def cmd_gate(args):
                 continue
             cache = cached(c["doc_id"])
             html = source_html(cache, c["source"])
-            rec, err = judge(B.parse(html), p, c["source"])
+            blocks = B.parse(html)
+            if B.render(blocks) != c["units"]:
+                # **分解の規則を変えたあとに古いバッチを確かめると、ずれた番号で別の範囲を切る。**
+                # エージェントが見た番号の列と、いまの分解が同じときだけ受け取る
+                errors.append({"doc_id": c["doc_id"], "reason": "分解がバッチを作ったときと違う（番号がずれる）",
+                               "pick": p})
+                continue
+            rec, err = judge(blocks, p, c["source"])
             if err:
                 errors.append({"doc_id": c["doc_id"], "reason": err, "pick": p})
                 continue
@@ -357,6 +365,77 @@ def cmd_merge(args):
             merged += 1
     write_out(out, comp)
     print(f"取り込み {merged}件 → {OUT.name}（{len(out)}社）")
+
+
+def locate(blocks, body):
+    """本文（塊の列）と同じ文字の並びになる番号の範囲を探す。1つに決まらなければ None。
+
+    塊の分け方を変えたあと、本文の文字が変わらない会社の番号を探し直すのに使う（`relocate`）。
+    """
+    want = B.squash("".join(B.block_text(b) for b in body))
+    us = [u for u in B.units(blocks) if u["kind"] != "title"]
+
+    def text(u):
+        b = blocks[u["block"] - 1]
+        return u["text"] if b["kind"] == "para" else B.block_text(b)
+
+    hits = []
+    for i in range(len(us)):
+        acc = ""
+        for j in range(i, len(us)):
+            acc += B.squash(text(us[j]))
+            if not want.startswith(acc):
+                break
+            if acc == want:
+                # 止めない。**画像は文字を持たない**ので、一致した後ろの画像も候補に入れる
+                hits.append((us[i]["id"], us[j]["id"]))
+    # 文字だけでは画像の有無が決まらない。塊まで同じもの、塊の種類の並びが同じもの、の順に絞る
+    for same in (lambda got: got == body,
+                 lambda got: [b["kind"] for b in got] == [b["kind"] for b in body]):
+        picked = [h for h in hits if same(B.cut(blocks, *h))]
+        if len(picked) == 1:
+            return picked[0]
+    return hits[0] if len(hits) == 1 else None
+
+
+def cmd_relocate(args):
+    """塊の分け方を変えたあと、本文の文字が同じなら番号を探し直す。答えは取り直さない。
+
+    本文そのものが変わる会社（新しい分け方で範囲を選び直すべき会社）はこれでは直らないので、
+    **探し直せても、範囲に塊の分け方が変わった部分を含む会社は判定から回し直す**（1列の表を
+    範囲に含めていた5社がそうだった）。探せなかった会社は名前を出す。
+    """
+    comp = companies()
+    out = read_out()
+    moved = lost = 0
+    for d, row in out.items():
+        cache = cached(d)
+        for part, source in ((row, row.get("source")), (row.get("fallback"), "section")):
+            if not part or not part.get("range") or source is None:
+                continue
+            blocks = B.parse(source_html(cache, source))
+            rng = part["range"]
+            try:
+                same = B.cut(blocks, rng["start"], rng["end"]) == part["blocks"]
+            except ValueError:
+                same = False
+            if same:
+                continue
+            hit = locate(blocks, part["blocks"])
+            title = None
+            if hit and part["title"]:
+                bs = B.parse_id(hit[0])[0]
+                heads = [i for i, b in enumerate(blocks, 1)
+                         if b["kind"] == "heading" and b["text"] == part["title"] and i < bs]
+                title = f"b{heads[-1]}" if heads else None
+            if hit is None or (part["title"] and title is None):
+                lost += 1
+                print(f"  探せない {d} {row['name']}")
+                continue
+            part["range"] = {"title": title, "start": hit[0], "end": hit[1]}
+            moved += 1
+    write_out(out, comp)
+    print(f"番号を探し直した {moved}件 / 探せない {lost}件（`recut` で本文を切り直す）")
 
 
 def write_out(out, comp):
@@ -601,6 +680,7 @@ def main():
     c.set_defaults(fn=cmd_compare)
     sub.add_parser("verify").set_defaults(fn=cmd_verify)
     sub.add_parser("recut").set_defaults(fn=cmd_recut)
+    sub.add_parser("relocate").set_defaults(fn=cmd_relocate)
     sub.add_parser("clear").set_defaults(fn=cmd_clear)
     sub.add_parser("status").set_defaults(fn=cmd_status)
     args = ap.parse_args()

@@ -155,11 +155,70 @@ class TestMerge(unittest.TestCase):
         self.assertEqual(row["blocks"], summary)
 
 
+class TestLocate(unittest.TestCase):
+    def test_finds_the_same_text_after_the_numbers_shift(self):
+        body = B.cut(BLOCKS, "b4", "b5s1")
+        # 前に塊が1つ増えて番号がずれた
+        shifted = B.parse("<p>前置きの段落です。</p>" + "".join(
+            f"<p>{B.block_text(b)}</p>" for b in BLOCKS))
+        self.assertEqual(pick.locate(shifted, body), ("b5", "b6s1"))
+
+    def test_keeps_a_trailing_image(self):
+        # 画像は文字を持たないので、文字だけで探すと画像の手前で一致して画像を落とす（日産車体）
+        bl = B.parse('<p>給与は役割で決める。</p><p><img src="a.png" alt="図"/></p><p>研修の話。</p>')
+        body = B.cut(bl, "b1", "b2")
+        self.assertEqual(pick.locate(bl, body), ("b1s1", "b2"))
+
+    def test_none_when_the_text_is_not_there(self):
+        self.assertIsNone(pick.locate(BLOCKS, [{"kind": "para", "text": "どこにも無い文。"}]))
+
+
+class TestGateUnits(unittest.TestCase):
+    """分解の規則を変えたあとの古いバッチは、ずれた番号で別の範囲を切るので受け取らない。"""
+
+    HTML = "<p>②給与の決定方針</p><p>給与は役割で決める。</p>"
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = pick.WORK, pick.cached
+        pick.WORK = self.tmp
+        pick.cached = lambda d: {"section": [{"html": self.HTML}]}
+
+    def tearDown(self):
+        import shutil
+        pick.WORK, pick.cached = self.saved
+        shutil.rmtree(self.tmp)
+
+    def _gate(self, units):
+        import argparse
+        import contextlib
+        import io
+        import json
+        batch = {"companies": [{"doc_id": "D1", "source": "section", "units": units}]}
+        (self.tmp / "batch_0001.json").write_text(json.dumps(batch, ensure_ascii=False))
+        (self.tmp / "pick_0001.jsonl").write_text(json.dumps(
+            {"doc_id": "D1", "verdict": "own", "title": "b1", "start": "b2s1", "end": "b2s1"}, ensure_ascii=False))
+        with contextlib.redirect_stdout(io.StringIO()):
+            pick.cmd_gate(argparse.Namespace(batch=""))
+        return json.loads((self.tmp / "gated_0001.json").read_text())
+
+    def test_accepts_when_the_units_are_the_same(self):
+        got = self._gate(B.render(B.parse(self.HTML)))
+        self.assertEqual(len(got["results"]), 1)
+
+    def test_rejects_when_the_units_changed(self):
+        got = self._gate("b1 ［見出し］②給与の決定方針")
+        self.assertEqual(got["results"], [])
+        self.assertIn("分解", got["errors"][0]["reason"])
+
+
 class TestRecut(unittest.TestCase):
     """分解の規則を直したあと、書き出した番号から切り直す。"""
 
     HTML = ("<h4>（１）【人材戦略に関する基本方針等】</h4><p>②給与の決定方針</p>"
-            "<table><tr><td><p>給与は役割で決める。</p><p>賞与は業績に連動する。</p></td></tr></table>")
+            "<table><tr><td>方針</td><td><p>給与は役割で決める。</p><p>賞与は業績に連動する。</p></td></tr></table>")
 
     def setUp(self):
         import tempfile
@@ -180,13 +239,13 @@ class TestRecut(unittest.TestCase):
         import contextlib
         import io
         # 表のセルの中の段落の区切りを落としていた頃の本文
-        stale = [{"kind": "table", "rows": [["給与は役割で決める。賞与は業績に連動する。"]]}]
+        stale = [{"kind": "table", "rows": [["方針", "給与は役割で決める。賞与は業績に連動する。"]]}]
         pick.write_out({"D1": {"doc_id": "D1", "verdict": "own", "source": "section", "title": "②給与の決定方針",
                                "blocks": stale, "range": {"title": "b2", "start": "b3", "end": "b3"}}}, {"D1": {}})
         with contextlib.redirect_stdout(io.StringIO()):
             pick.cmd_recut(argparse.Namespace())
         row = pick.read_out()["D1"]
-        self.assertEqual(row["blocks"], [{"kind": "table", "rows": [["給与は役割で決める。\n賞与は業績に連動する。"]]}])
+        self.assertEqual(row["blocks"], [{"kind": "table", "rows": [["方針", "給与は役割で決める。\n賞与は業績に連動する。"]]}])
         self.assertEqual(row["title"], "②給与の決定方針")
         self.assertTrue(row["has_table"])
 

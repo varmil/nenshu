@@ -11,7 +11,7 @@
   会社がある（Hamee は本文が h6、日鉄鉱業は長い1文が h5）。句点で終わらない短い行を
   小見出しとみる（`is_heading`）
 - `para` — 段落。p 要素（や h 要素）1つが1段落。文に分ける
-- `table` — 表。セルの文字列を行ごとに持つ。文には分けない
+- `table` — 表。セルの文字列を行ごとに持つ。文には分けない。**1列の表は段落に展開する**（`_unbox`）
 - `image` — 画像。文字を持たない。範囲に入ったら数える
 
 **空白の扱い。** HTML のソースの改行は表示では意味を持たないので落とす。`&#160;` は
@@ -198,12 +198,29 @@ class _Parser(HTMLParser):
         self._flush()
 
 
+def _unbox(blocks):
+    """**1列の表は表ではなく枠。** セルの中の行を段落として並べ直す。
+
+    節の本文を1列の表の中に組む会社がある（ANA・山梨中央銀行は節の文章を1行1列の表に
+    入れている）。表のままだと1つの塊になり、人材戦略の文と給与の文を番号で切り分けられない。
+    2列以上の表（項目名と中身を並べたもの）は表のまま残す。
+    """
+    out = []
+    for b in blocks:
+        if b["kind"] == "table" and all(len(r) == 1 for r in b["rows"]):
+            for r in b["rows"]:
+                out.extend({"kind": "para", "text": line} for line in r[0].split("\n") if line.strip())
+        else:
+            out.append(b)
+    return out
+
+
 def parse(html):
     """節の HTML を塊の列にする。段落には文の列（`sentences`）を付ける。"""
     p = _Parser()
     p.feed(html)
     p.close()
-    blocks = p.blocks
+    blocks = _unbox(p.blocks)
     for b in blocks:
         if b["kind"] == "para":
             # 段落の中の改行（br）は前後の空白ごと1つに寄せる
