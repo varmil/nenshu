@@ -162,6 +162,13 @@ def cmd_plan(args):
     if args.referenced and args.force:
         raise SystemExit("--referenced と --force は一緒に使えない（参照の会社は判定済みの記録から選ぶ）")
     rows = pending(referenced=args.referenced, force=args.force)
+    # 判定中のバッチ（work/ にあって、まだ merge していない）の会社は選ばない。
+    # 回の途中で取得が進んだとき、残りの会社だけを足すため
+    in_flight = set()
+    for bpath in WORK.glob("batch_*.json") if WORK.exists() else []:
+        for c in json.loads(bpath.read_text(encoding="utf-8"))["companies"]:
+            in_flight.add((c["doc_id"], c["source"]))
+    rows = [x for x in rows if (x[0]["doc_id"], x[1]) not in in_flight]
     if args.docs:
         want = args.docs.split(",")
         rows = [x for x in rows if x[0]["doc_id"] in want]
