@@ -14,8 +14,9 @@ HTML なら段落が p 要素のまま残っている。C5・C8 が CSV で足�
 - `section` — 「人材戦略に関する基本方針等」。**タクソノミに標準の要素が無く、各社の
   独自要素で付いている**（2026年版タクソノミは府令の改正より前の公表）。名前はほとんどが
   `jpcrp030000-asr_{EDINETコード}-000:BasicPolicyOnHumanResourcesStrategyEmployeesEtcTextBlock`
-  （無作為100件で100件）だが、**`…:BasicPolicyOnHumanResourcesStrategyTextBlock` の会社がある**
-  （いすゞ）。`BasicPolicyOnHumanResources` で始まり `TextBlock` で終わる名前を拾う。
+  （無作為100件で100件）だが、**`…:BasicPolicyOnHumanResourcesStrategyTextBlock` の会社**
+  （いすゞ）や、**`Policies` と複数形で綴る会社**（ケイヒン）がある。`BasicPolicyOnHumanResources`
+  か `BasicPoliciesOnHumanResources` で始まり `TextBlock` で終わる名前を拾う。
   **独自要素を付けずに「従業員の状況」の要素に節ごと入れる会社もある**（TDK。(1) と (2) を
   1つの要素にしている）ので、節が見つからなければそちらから見出しで切り出す
 - `sustainability` — 「サステナビリティに関する考え方及び取組」。節の中では参照先だけを
@@ -49,7 +50,7 @@ UNIFIED = ROOT / "../data/ranking_unified_2026.csv"
 # 開示府令の改正（(58-2)・(58-3)）は「2026年3月31日以後に終了する事業年度」から
 FIRST_PERIOD_END = "2026-03-31"
 
-SECTION_NAME = re.compile(r":BasicPolicyOnHumanResources\w*TextBlock$")
+SECTION_NAME = re.compile(r":BasicPolic(?:y|ies)OnHumanResources\w*TextBlock$")
 SUSTAINABILITY = "jpcrp_cor:DisclosureOfSustainabilityRelatedFinancialInformationTextBlock"
 EMPLOYEES = "jpcrp_cor:InformationAboutEmployeesTextBlock"
 

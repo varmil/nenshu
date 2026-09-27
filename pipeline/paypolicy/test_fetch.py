@@ -49,6 +49,11 @@ class TestFind(unittest.TestCase):
         html = HTML.replace(SECTION, "jpcrp030000-asr_E02143-000:BasicPolicyOnHumanResourcesStrategyTextBlock")
         self.assertIn("section", fetch.find_blocks(html))
 
+    def test_section_name_with_plural_policies(self):
+        # ケイヒンは「Policies」と複数形で付けている。見落とすと節が無い会社に数えていた
+        html = HTML.replace(SECTION, "jpcrp030000-asr_E04293-000:BasicPoliciesOnHumanResourcesStrategyEmployeesEtcTextBlock")
+        self.assertIn("section", fetch.find_blocks(html))
+
     def test_section_inside_employees_block(self):
         # TDK は (1) と (2) を「従業員の状況」の要素1つに入れている
         inner = ("<h3>5【従業員の状況等】</h3><h4>(1)【人材戦略に関する基本方針等】</h4>"
