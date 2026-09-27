@@ -17,6 +17,7 @@ export function CompanyDetailIsland({
   data,
   analysis,
   digest,
+  payPolicy,
   qa,
   sources,
 }: {
@@ -29,6 +30,12 @@ export function CompanyDetailIsland({
    */
   analysis?: ReactNode;
   digest?: ReactNode;
+  /**
+   * 「{社名}の給与の決定方針」（C19・Issue #852）。**同じく名前付きスロット**（`slot="payPolicy"`）。
+   * 有報の原文そのもので、最長3,140字ある。props に載せると同じ文が HTML の属性と本文の2か所に入る。
+   * 無い会社（改正前の様式・給与の決定方針が空）では `undefined`。
+   */
+  payPolicy?: ReactNode;
   /**
    * 「{社名}の年収に関するQ&A」（C16・Issue #838）。**同じく名前付きスロット**（`slot="qa"`）。
    * 実測値の4項目と EDINET の帯で、表示基準でも年齢でも変わらない。書類 ID もここに閉じるので、
@@ -54,6 +61,7 @@ export function CompanyDetailIsland({
         fiscalPeriod={data.fiscalPeriod}
         analysis={analysis}
         digest={digest}
+        payPolicy={payPolicy}
         qa={qa}
         sources={sources}
       />

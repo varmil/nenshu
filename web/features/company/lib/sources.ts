@@ -3,8 +3,8 @@ import { edinetDocumentUrl, type PRIMARY_SOURCES } from "@/lib/data/sources";
 /**
  * 「このページの出典」の行（C12・Issue #805、`docs/company/spec.md` 1.15・AC-16）。
  *
- * **区分の軸は加工の度合い。** 節の並び順ではなく、実測値・計算値・推定値・自己申告値・
- * AIの要約・AIの評価の6つで束ねる。読者が知りたいのは「この数字をどこまで信じてよいか」
+ * **区分の軸は加工の度合い。** 節の並び順ではなく、原文・実測値・計算値・推定値・自己申告値・
+ * AIの要約・AIの評価の7つで束ねる（原文は C19・#852 で足した）。読者が知りたいのは「この数字をどこまで信じてよいか」
  * で、「推定値と実測値を同じ書式で並べない」（CLAUDE.md）をページ単位で見える形にする。
  *
  * **要約と分析は別の区分にする。** どちらも生成AIの文章だが、書いてよいことの線が違う
@@ -22,6 +22,7 @@ import { edinetDocumentUrl, type PRIMARY_SOURCES } from "@/lib/data/sources";
  */
 
 export type SourceKind =
+  | "original"
   | "measured"
   | "computed"
   | "estimated"
@@ -58,6 +59,8 @@ export interface PagePresence {
   summary: boolean;
   /** 「有価証券報告書の要約」と「現状と今後」。**2つは対**（AC-28）なので1つで持つ。 */
   analysis: boolean;
+  /** 給与の決定方針（C19・#852）。改正前の様式の会社と、給与の決定方針が空の会社には無い。 */
+  payPolicy: boolean;
   /** 実測値の4項目を取った有報の書類 ID（C13）。全社にある。 */
   filingDocId: string;
 }
@@ -68,7 +71,28 @@ export interface PagePresence {
  * （PC 260px・モバイル 580px）より高くしないことを E2E が固定している。
  */
 export function buildSourceRows(presence: PagePresence): SourceRow[] {
-  const rows: SourceRow[] = [
+  const rows: SourceRow[] = [];
+
+  /*
+   * **原文は先頭に置く**（C19・#852、spec 1.15・1.23）。加工の度合いは有報そのままで最も少ないが、
+   * どこまでが給与の決定方針かを生成AIが判定しているので、実測値の行に混ぜるとそれが読めなくなる。
+   * **「生成AI」の語は給与の決定方針の節には置かず、ここと `/about` だけが言う**——節に置くと、
+   * 文そのものを AI が書いたように読める。「有価証券報告書」は実測値の行と同じ書類へのリンク
+   * （原文を切り出した書類＝平均年間給与を取った書類）。
+   */
+  if (presence.payPolicy) {
+    rows.push({
+      kind: "original",
+      label: "原文",
+      covers: "給与の決定方針",
+      source: [
+        { text: "有価証券報告書", url: edinetDocumentUrl(presence.filingDocId) },
+        "の本文をそのまま（どこまでが給与の決定方針かは生成AIが判定）",
+      ],
+    });
+  }
+
+  rows.push(
     {
       kind: "measured",
       label: "実測値",
@@ -113,8 +137,8 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
       label: "自己申告値",
       covers: "残業・有給・男女の賃金の差異",
       source: ["厚生労働省「", { source: "positiveDb" }, "」への登録値"],
-    },
-  ];
+    }
+  );
 
   const digest = [
     presence.summary ? "社名の下の説明文" : null,

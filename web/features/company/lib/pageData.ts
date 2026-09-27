@@ -35,7 +35,9 @@ import logosData from "@/public/data/logos.json";
 import summariesData from "@/public/data/summaries.json";
 import analysesData from "@/public/data/analyses.json";
 import filingsData from "@/public/data/filings.json";
+import payPoliciesData from "@/public/data/pay-policies.json";
 import { buildAnalysisView, type AnalysisRecord, type AnalysisView } from "@/features/company/lib/analysis";
+import { buildPayPolicyView, type PayPolicyRecord, type PayPolicyView } from "@/features/company/lib/payPolicy";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -98,6 +100,13 @@ const logoIds = logosData.byId as Record<string, unknown>;
  */
 const summaries = summariesData.byId as Record<string, string>;
 const analyses = analysesData.byId as Record<string, AnalysisRecord>;
+
+/**
+ * 給与の決定方針の原文（C19・Issue #852）。**ここだけが import する**——`src/pages/index.astro`
+ * から読むとトップページの HTML が1,862社ぶん増える（AC-36）。**本文の無い会社（改正前の様式・
+ * 給与の決定方針が空）はキーごと無い**ので `undefined` が返り、節ごと出ない。
+ */
+const payPolicies = (payPoliciesData as { byId: Record<string, PayPolicyRecord> }).byId;
 
 /**
  * この画面に出る会社（自身と、9基準ぶんの近傍10社）のうちロゴを持つIDだけを配る。
@@ -310,6 +319,14 @@ export function companyFilingDocId(id: string): string {
  */
 export function companyAnalysisFor(id: string): AnalysisView | null {
   return buildAnalysisView(analyses[id]);
+}
+
+/**
+ * 給与の決定方針（C19・Issue #852）。**`companyPageData` に入れない**——分析の2節と同じく
+ * `[id].astro` が静的な HTML にして名前付きスロットで島に差し込む。社名は見出しに使う。
+ */
+export function companyPayPolicyFor(id: string, name: string): PayPolicyView | null {
+  return buildPayPolicyView(name, payPolicies[id]);
 }
 
 /** 事前生成する全社のID（Astro の `getStaticPaths`）。 */

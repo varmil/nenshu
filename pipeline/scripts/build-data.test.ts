@@ -840,6 +840,50 @@ describe("buildData", () => {
       expect(result.filings.byId["6861"]).toBe("S100YAHE");
     });
   });
+
+  /**
+   * 給与の決定方針の原文（C19・Issue #852、`docs/company/spec.md` 1.23）。C18 が切り出した
+   * `pay_policy_2026.json` の本文を**書き換えずに**、企業 ID の辞書にしていること。
+   */
+  describe("pay-policies.json", () => {
+    const source = JSON.parse(readFileSync(join(ROOT, "data/pay_policy_2026.json"), "utf-8")) as {
+      edinet_code: string;
+      blocks: { kind: string; text?: string; rows?: string[][] }[];
+    }[];
+
+    it("本文のある会社だけを持ち、本文は C18 の塊と1字も違わない", () => {
+      const withBody = source.filter((r) => r.blocks.length > 0);
+      expect(Object.keys(result.payPolicies.byId)).toHaveLength(withBody.length);
+      const idByCode = new Map(sourceRows.map((row, i) => [row.edinetCode, result.companies.rows[i][0]]));
+      for (const row of withBody) {
+        const id = idByCode.get(row.edinet_code) as string;
+        const got = result.payPolicies.byId[id];
+        expect(got, row.edinet_code).toBeDefined();
+        // 画像は代替テキストを落とす（空かファイル名で、読める文字が無い）。それ以外はそのまま。
+        expect(got.blocks, id).toEqual(
+          row.blocks.map((b) => (b.kind === "image" ? { kind: "image" } : b))
+        );
+      }
+    });
+
+    /** AC-35 で名指しされた会社（C18）。表示の側でも同じ答えになっていること。 */
+    it("トヨタは1文と会社の小見出し、KDDI はサステナビリティの節、東京電力HDと花王は無い", () => {
+      expect(result.payPolicies.byId["7203"]).toEqual({
+        source: "section",
+        title: "②従業員の給与その他の給与の額及び内容の決定に関する方針",
+        blocks: [
+          {
+            kind: "para",
+            text: "法規制と競争力を踏まえ、必要な人材確保と従業員の安心感醸成のため、適切なレベルの賃金を支給しています。",
+          },
+        ],
+      });
+      expect(result.payPolicies.byId["9433"].source).toBe("sustainability");
+      expect(result.payPolicies.byId["9501"]).toBeUndefined();
+      // 花王は決算期末 2025-12-31 で改正前の様式。
+      expect(result.payPolicies.byId["4452"]).toBeUndefined();
+    });
+  });
 });
 
 /**
