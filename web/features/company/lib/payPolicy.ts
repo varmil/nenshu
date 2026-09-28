@@ -9,10 +9,13 @@
  * クライアントの JS にも島の props にも入らない。
  */
 
+/** 表の結合したセル。`[行, セル, colspan, rowspan]`（行とセルは `rows` の添字）。 */
+export type PayPolicySpan = [row: number, cell: number, colspan: number, rowspan: number];
+
 /** `pipeline/scripts/lib/payPolicy.ts` の `PayPolicyBlock` と同じ形。 */
 export type PayPolicyBlock =
   | { kind: "para" | "heading"; text: string }
-  | { kind: "table"; rows: string[][] }
+  | { kind: "table"; rows: string[][]; spans?: PayPolicySpan[] }
   | { kind: "image" };
 
 export type PayPolicySource = "section" | "sustainability" | "employees";
@@ -61,6 +64,24 @@ export const PAY_POLICY_FOLD_OVER = 1000;
  * （80社で中央値466字・最大938字）。75%点の会社（509字）がまるごと見える量にそろう。
  */
 export const PAY_POLICY_OPEN_AT_LEAST = 400;
+
+/**
+ * 表のセルの結合を引く。結合の無いセルは `undefined`（`colSpan`・`rowSpan` の属性を書かない）。
+ *
+ * **結合を落とすと列がずれる**（公開後の指摘・2026-09-28）。ソニーグループの報酬の表は、項目名が
+ * 2列ぶん、株式報酬の内訳が左に空の列を置いて2行ぶん結合している。結合を読まずに描くと、内訳の
+ * 行だけが1列右へずれていた。
+ */
+export function cellSpan(
+  spans: PayPolicySpan[] | undefined,
+  row: number,
+  cell: number
+): { colSpan?: number; rowSpan?: number } | undefined {
+  const hit = spans?.find(([r, c]) => r === row && c === cell);
+  if (hit === undefined) return undefined;
+  const [, , colSpan, rowSpan] = hit;
+  return { colSpan: colSpan > 1 ? colSpan : undefined, rowSpan: rowSpan > 1 ? rowSpan : undefined };
+}
 
 /** 塊の字数。空白は数えない（C18 が字数を数えたのと同じ規則）。画像は0。 */
 export function blockChars(block: PayPolicyBlock): number {

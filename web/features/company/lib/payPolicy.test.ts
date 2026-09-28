@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   blockChars,
   buildPayPolicyView,
+  cellSpan,
   PAY_POLICY_FOLD_OVER,
   PAY_POLICY_OPEN_AT_LEAST,
   type PayPolicyBlock,
@@ -96,5 +97,54 @@ describe("blockChars", () => {
     expect(blockChars({ kind: "para", text: "給与は\n役割で　決める。" })).toBe(10);
     expect(blockChars({ kind: "table", rows: [["区分", "内容"], ["基本給", "役割"]] })).toBe(9);
     expect(blockChars({ kind: "image" })).toBe(0);
+  });
+});
+
+describe("cellSpan", () => {
+  it("結合したセルだけが colSpan・rowSpan を持ち、1の側は書かない", () => {
+    const spans: [number, number, number, number][] = [
+      [0, 0, 2, 1],
+      [2, 0, 1, 2],
+    ];
+    expect(cellSpan(spans, 0, 0)).toEqual({ colSpan: 2, rowSpan: undefined });
+    expect(cellSpan(spans, 2, 0)).toEqual({ colSpan: undefined, rowSpan: 2 });
+    expect(cellSpan(spans, 0, 1)).toBeUndefined();
+    expect(cellSpan(undefined, 0, 0)).toBeUndefined();
+  });
+
+  /**
+   * 表の各行が占める列の数（上の行から伸びてくる結合を含む）。**これがそろっていない表は列が
+   * ずれて見える**——公開後の指摘（ソニーグループ・2026-09-28）はこの形で出た。
+   */
+  function rowWidths(rows: string[][], spans: [number, number, number, number][] | undefined) {
+    const covered = new Map<number, Set<number>>();
+    return rows.map((row, r) => {
+      const used = covered.get(r) ?? new Set<number>();
+      let col = 0;
+      row.forEach((_, c) => {
+        while (used.has(col)) col++;
+        const { colSpan = 1, rowSpan = 1 } = cellSpan(spans, r, c) ?? {};
+        for (let k = 1; k < rowSpan; k++) {
+          const below = covered.get(r + k) ?? new Set<number>();
+          for (let x = col; x < col + colSpan; x++) below.add(x);
+          covered.set(r + k, below);
+        }
+        col += colSpan;
+      });
+      return Math.max(col, ...[...used].map((x) => x + 1));
+    });
+  }
+
+  it("全社の表で、結合を入れると各行が同じ列数を占める", () => {
+    let tables = 0;
+    for (const [id, record] of Object.entries(payPolicies)) {
+      for (const block of record.blocks) {
+        if (block.kind !== "table") continue;
+        tables++;
+        expect(new Set(rowWidths(block.rows, block.spans)).size, id).toBe(1);
+      }
+    }
+    // C18 の全件で表は71個（58社）。
+    expect(tables).toBe(71);
   });
 });

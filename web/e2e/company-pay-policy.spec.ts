@@ -21,7 +21,7 @@ import { test, expect } from "./appTest";
 
 type Block =
   | { kind: "para" | "heading"; text: string }
-  | { kind: "table"; rows: string[][] }
+  | { kind: "table"; rows: string[][]; spans?: number[][] }
   | { kind: "image"; alt: string };
 type PayPolicies = { byId: Record<string, { source: string; title: string | null; blocks: Block[] }> };
 
@@ -29,7 +29,7 @@ const section = (page: Page) => page.getByTestId("company-pay-policy");
 const TOYOTA_POLICY =
   "法規制と競争力を踏まえ、必要な人材確保と従業員の安心感醸成のため、適切なレベルの賃金を支給しています。";
 
-/** 画面の塊を、データと同じ形（種類と文字列）に読む。表はセルを行ごとに。 */
+/** 画面の塊を、データと同じ形（種類と文字列）に読む。表はセルを行ごとに、結合は `spans` に。 */
 async function renderedBlocks(page: Page) {
   return section(page)
     .locator("[data-pay-block]")
@@ -37,11 +37,16 @@ async function renderedBlocks(page: Page) {
       els.map((el) => {
         const kind = el.getAttribute("data-pay-block")!;
         if (kind === "table") {
+          const trs = [...el.querySelectorAll("tr")];
+          const spans = trs.flatMap((tr, r) =>
+            [...tr.querySelectorAll<HTMLTableCellElement>("td, th")].flatMap((cell, c) =>
+              cell.colSpan > 1 || cell.rowSpan > 1 ? [[r, c, cell.colSpan, cell.rowSpan]] : []
+            )
+          );
           return {
             kind,
-            rows: [...el.querySelectorAll("tr")].map((tr) =>
-              [...tr.querySelectorAll("td, th")].map((cell) => cell.textContent ?? "")
-            ),
+            rows: trs.map((tr) => [...tr.querySelectorAll("td, th")].map((cell) => cell.textContent ?? "")),
+            ...(spans.length > 0 ? { spans } : {}),
           };
         }
         if (kind === "image") return { kind };
@@ -98,12 +103,29 @@ test.describe("AC-36 給与の決定方針", () => {
   test("段落の区切りは原文のまま、表は表として出し、図は省いたと断る", async ({ page, request }) => {
     const data = (await (await request.get("/data/pay-policies.json")).json()) as PayPolicies;
     // 6501 日立: 見出しの無い段落から始まり、三原則の小見出しが続く。
-    // 4956 コニシ: 6列の表を含む。8058 三菱商事: 図を含む。
-    for (const id of ["6501", "4956", "8058"]) {
+    // 4956 コニシ: 6列の表を含む。6758 ソニーグループ: 結合したセルを含む。
+    // 8058 三菱商事: 図を含む（最後に開く。下の「図は省略」はこのページで見る）。
+    for (const id of ["6501", "4956", "6758", "8058"]) {
       await page.goto(`/company/${id}`);
       expect(await renderedBlocks(page), id).toEqual(expectedBlocks(data.byId[id].blocks));
     }
     await expect(section(page).locator('[data-pay-block="image"]').first()).toContainText("図は省略");
+  });
+
+  test("結合したセルのある表で、どの行も表の右端まで届く（列がずれない）", async ({ page }) => {
+    // 6758 ソニーグループ: 項目名が2列ぶん、株式報酬の内訳が2行ぶん結合している。結合を落として
+    // いたときは、内訳の行だけが3セルになって右へはみ出し、他の行の右に空の列ができていた。
+    await page.goto("/company/6758");
+    const table = section(page).locator('[data-pay-block="table"]');
+    const gaps = await table.evaluate((el) => {
+      const right = el.getBoundingClientRect().right;
+      return [...el.querySelectorAll("tr")].map((tr) => {
+        const cells = tr.querySelectorAll("td, th");
+        return Math.round(right - cells[cells.length - 1].getBoundingClientRect().right);
+      });
+    });
+    expect(gaps.length).toBeGreaterThan(1);
+    for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
   });
 
   test("390px でも表の列が1字幅に潰れない（収まらなければ表の器の中で横に送る）", async ({ page }) => {
@@ -119,8 +141,10 @@ test.describe("AC-36 給与の決定方針", () => {
           return { text: td.textContent ?? "", chars: content / parseFloat(style.fontSize) };
         })
       );
-    expect(cells.length).toBeGreaterThan(0);
-    for (const cell of cells) expect(cell.chars, cell.text).toBeGreaterThanOrEqual(3);
+    // 字の無いセルは見ない（字下げの列に使われていて、細いのが原文どおり）
+    const withText = cells.filter((cell) => cell.text.trim() !== "");
+    expect(withText.length).toBeGreaterThan(0);
+    for (const cell of withText) expect(cell.chars, cell.text).toBeGreaterThanOrEqual(3);
   });
 
   test("サステナビリティの節から取った会社は、出どころの節の名前が変わる", async ({ page }) => {
