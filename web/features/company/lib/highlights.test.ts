@@ -128,7 +128,6 @@ describe("buildHistoryPeak（C4）", () => {
   it("値が1つ以下なら null", () => {
     expect(buildHistoryPeak([2017, 2018], [null, 5_000_000])).toBeNull();
   });
-
 });
 
 describe("buildHistorySummary", () => {

@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import analysesData from "../../../public/data/analyses.json";
 import companiesData from "../../../public/data/companies.json";
-import { analysisNote, asOfLabel, buildAnalysisView, digestNote, sourceMeta, type AnalysisRecord } from "./analysis";
+import {
+  analysisNote,
+  asOfLabel,
+  buildAnalysisView,
+  digestNote,
+  sourceMeta,
+  type AnalysisRecord,
+} from "./analysis";
 
 const analyses = analysesData.byId as Record<string, AnalysisRecord>;
 
@@ -9,7 +16,13 @@ const record: AnalysisRecord = {
   digest: "要約。",
   headline: "一言。",
   body: "本文。",
-  sources: [{ url: "https://www.mitsui.com/jp/ja/release/a.html", title: "お知らせ", accessed: "2026-09-08" }],
+  sources: [
+    {
+      url: "https://www.mitsui.com/jp/ja/release/a.html",
+      title: "お知らせ",
+      accessed: "2026-09-08",
+    },
+  ],
   generatedAt: "2026-09",
 };
 
@@ -52,9 +65,13 @@ describe("時点の表記", () => {
 
 describe("sourceMeta", () => {
   it("ドメインと参照した日を1行にする。月日はゼロ埋めしない", () => {
-    expect(sourceMeta({ url: "https://www.hulic.co.jp/ir/hulictown/", title: "x", accessed: "2026-09-08" })).toBe(
-      "www.hulic.co.jp・2026年9月8日に参照"
-    );
+    expect(
+      sourceMeta({
+        url: "https://www.hulic.co.jp/ir/hulictown/",
+        title: "x",
+        accessed: "2026-09-08",
+      })
+    ).toBe("www.hulic.co.jp・2026年9月8日に参照");
   });
 });
 
@@ -79,7 +96,9 @@ describe("analyses.json", () => {
   it("本文が一言と同じ文で始まる会社は無い", () => {
     for (const [id, entry] of Object.entries(analyses)) {
       const norm = (text: string) => text.replace(/『/g, "「").replace(/』/g, "」");
-      expect(norm(entry.body).startsWith(norm(entry.headline).replace(/[。．]$/, "")), id).toBe(false);
+      expect(norm(entry.body).startsWith(norm(entry.headline).replace(/[。．]$/, "")), id).toBe(
+        false
+      );
     }
   });
 });

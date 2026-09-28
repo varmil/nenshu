@@ -48,7 +48,6 @@ const COUNT_BY_INDUSTRY = new Map(
  */
 const DATA_URL = `/data/companies.json?v=${Date.parse(companies.meta.generatedAt)}`;
 
-
 export interface RankingPageData {
   bootstrap: RankingBootstrap;
   curves: CurvesData;

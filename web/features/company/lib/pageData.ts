@@ -1,11 +1,7 @@
 import { buildCompanyView, findRowIndex } from "@/features/company/lib/view";
 import { buildWorklifeView, unitLabel } from "@/features/company/lib/worklife";
 import { buildSummaryView, type SummaryView } from "@/features/company/lib/summary";
-import {
-  decodeWorklife,
-  type WorklifeData,
-  type WorklifeRecord,
-} from "@/lib/data/worklife";
+import { decodeWorklife, type WorklifeData, type WorklifeRecord } from "@/lib/data/worklife";
 import { representative } from "@/features/company/lib/radar";
 import type {
   CompanyRadarInput,
@@ -36,8 +32,16 @@ import summariesData from "@/public/data/summaries.json";
 import analysesData from "@/public/data/analyses.json";
 import filingsData from "@/public/data/filings.json";
 import payPoliciesData from "@/public/data/pay-policies.json";
-import { buildAnalysisView, type AnalysisRecord, type AnalysisView } from "@/features/company/lib/analysis";
-import { buildPayPolicyView, type PayPolicyRecord, type PayPolicyView } from "@/features/company/lib/payPolicy";
+import {
+  buildAnalysisView,
+  type AnalysisRecord,
+  type AnalysisView,
+} from "@/features/company/lib/analysis";
+import {
+  buildPayPolicyView,
+  type PayPolicyRecord,
+  type PayPolicyView,
+} from "@/features/company/lib/payPolicy";
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;
@@ -204,7 +208,6 @@ function worklifeRecordFor(id: string): WorklifeRecord | null {
   return index === -1 ? null : decodeWorklife(worklife, index);
 }
 
-
 /**
  * 企業IDからその会社の決算期を引く（E1・`docs/expansion/spec.md` 1.4）。
  * **このページは1社ぶんなので、母集団の幅ではなく実際の決算期を出す。**
@@ -240,7 +243,9 @@ function fiscalPeriodFor(id: string): string {
 function requireCompanyView(id: string): CompanyView {
   const view = buildCompanyView(companies, curves, stats, id);
   if (view === null) {
-    throw new Error(`企業ID ${id} の CompanyView を作れません（companies.json と生成した一覧が食い違っています）`);
+    throw new Error(
+      `企業ID ${id} の CompanyView を作れません（companies.json と生成した一覧が食い違っています）`
+    );
   }
   return view;
 }
@@ -262,7 +267,9 @@ const filings = (filingsData as { byId: Record<string, string> }).byId;
 function requireFilingDocId(id: string): string {
   const docId = filings[id];
   if (docId === undefined) {
-    throw new Error(`企業ID ${id} の書類 ID が filings.json にありません（build:data を回し直すこと）`);
+    throw new Error(
+      `企業ID ${id} の書類 ID が filings.json にありません（build:data を回し直すこと）`
+    );
   }
   return docId;
 }

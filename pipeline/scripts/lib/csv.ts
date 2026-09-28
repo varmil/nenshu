@@ -23,11 +23,28 @@ export interface UnifiedRow {
 }
 
 const HEADER = [
-  "rank_adj", "rank_raw", "rank_delta", "sec_code", "name", "tse33",
-  "listed", "avg_age", "avg_tenure", "avg_salary", "salary35",
-  "factor", "employees_nonconsolidated", "employees_consolidated",
-  "emp_ratio", "badge", "industry", "source",
-  "period_end", "edinet_code", "corporate_number", "doc_id",
+  "rank_adj",
+  "rank_raw",
+  "rank_delta",
+  "sec_code",
+  "name",
+  "tse33",
+  "listed",
+  "avg_age",
+  "avg_tenure",
+  "avg_salary",
+  "salary35",
+  "factor",
+  "employees_nonconsolidated",
+  "employees_consolidated",
+  "emp_ratio",
+  "badge",
+  "industry",
+  "source",
+  "period_end",
+  "edinet_code",
+  "corporate_number",
+  "doc_id",
 ];
 
 /**
@@ -93,8 +110,15 @@ export interface SalaryHistoryRow {
 }
 
 const HISTORY_HEADER = [
-  "edinet_code", "year", "avg_salary", "avg_age", "avg_tenure",
-  "employees_nonconsolidated", "source", "period_end", "doc_id",
+  "edinet_code",
+  "year",
+  "avg_salary",
+  "avg_age",
+  "avg_tenure",
+  "employees_nonconsolidated",
+  "source",
+  "period_end",
+  "doc_id",
 ];
 
 /**
@@ -152,8 +176,14 @@ export interface PerformanceHistoryRow {
 }
 
 const PERFORMANCE_HEADER = [
-  "edinet_code", "year", "ordinary_income", "oi_basis",
-  "employees_consolidated", "employees_nonconsolidated", "source_year", "back",
+  "edinet_code",
+  "year",
+  "ordinary_income",
+  "oi_basis",
+  "employees_consolidated",
+  "employees_nonconsolidated",
+  "source_year",
+  "back",
 ];
 
 /**

@@ -12,7 +12,10 @@ import payPoliciesData from "@/public/data/pay-policies.json";
 
 const payPolicies = (payPoliciesData as { byId: Record<string, PayPolicyRecord> }).byId;
 
-const para = (chars: number, ch = "あ"): PayPolicyBlock => ({ kind: "para", text: ch.repeat(chars) });
+const para = (chars: number, ch = "あ"): PayPolicyBlock => ({
+  kind: "para",
+  text: ch.repeat(chars),
+});
 const heading = (text: string): PayPolicyBlock => ({ kind: "heading", text });
 
 describe("buildPayPolicyView", () => {
@@ -37,13 +40,17 @@ describe("buildPayPolicyView", () => {
     expect(buildPayPolicyView("ＫＤＤＩ株式会社", payPolicies["9433"])?.sourceLabel).toBe(
       "サステナビリティに関する考え方及び取組"
     );
-    expect(buildPayPolicyView("x", { source: "employees", title: null, blocks: [para(10)] })?.sourceLabel).toBe(
-      "従業員の状況"
-    );
+    expect(
+      buildPayPolicyView("x", { source: "employees", title: null, blocks: [para(10)] })?.sourceLabel
+    ).toBe("従業員の状況");
   });
 
   it("1,000字までは畳まない", () => {
-    const view = buildPayPolicyView("x", { source: "section", title: null, blocks: [para(500), para(500)] })!;
+    const view = buildPayPolicyView("x", {
+      source: "section",
+      title: null,
+      blocks: [para(500), para(500)],
+    })!;
     expect(view.folded).toEqual([]);
   });
 
@@ -81,9 +88,10 @@ describe("buildPayPolicyView", () => {
       if (view.folded.length > 0) {
         folded++;
         expect(total, id).toBeGreaterThan(PAY_POLICY_FOLD_OVER);
-        expect(view.open.reduce((sum, b) => sum + blockChars(b), 0), id).toBeGreaterThanOrEqual(
-          PAY_POLICY_OPEN_AT_LEAST
-        );
+        expect(
+          view.open.reduce((sum, b) => sum + blockChars(b), 0),
+          id
+        ).toBeGreaterThanOrEqual(PAY_POLICY_OPEN_AT_LEAST);
         expect(view.open.at(-1)?.kind, id).not.toBe("heading");
       }
     }
@@ -95,7 +103,15 @@ describe("buildPayPolicyView", () => {
 describe("blockChars", () => {
   it("空白を数えず、表はセルの字をすべて、画像は0", () => {
     expect(blockChars({ kind: "para", text: "給与は\n役割で　決める。" })).toBe(10);
-    expect(blockChars({ kind: "table", rows: [["区分", "内容"], ["基本給", "役割"]] })).toBe(9);
+    expect(
+      blockChars({
+        kind: "table",
+        rows: [
+          ["区分", "内容"],
+          ["基本給", "役割"],
+        ],
+      })
+    ).toBe(9);
     expect(blockChars({ kind: "image" })).toBe(0);
   });
 });

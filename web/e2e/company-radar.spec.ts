@@ -113,7 +113,8 @@ test.describe("AC-7 欠測軸", () => {
       const shown = values.filter((v) => v.text !== "掲載なし");
       expect(missing, label).toHaveLength(5 - points);
       for (const m of missing) {
-        for (const s of shown) expect(m.size, `${label}: ${s.text} より小さい`).toBeLessThan(s.size);
+        for (const s of shown)
+          expect(m.size, `${label}: ${s.text} より小さい`).toBeLessThan(s.size);
       }
 
       if (points < 5) await expect(section(page), label).toContainText(note);
@@ -220,7 +221,10 @@ test.describe("AC-11 表示基準", () => {
 
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await page.getByRole("group", { name: "目標年齢" }).getByRole("button", { name: "25歳" }).click();
+    await page
+      .getByRole("group", { name: "目標年齢" })
+      .getByRole("button", { name: "25歳" })
+      .click();
     // 表示基準は URL に出さない（R1・ADR-0012）。
     await expect(page).toHaveURL(/\/company\/6861$/);
 
@@ -279,7 +283,9 @@ test.describe("指標リストの列（PC）", () => {
               valueRight: Math.round(cells[0].getBoundingClientRect().right),
               rankRight: Math.round(cells[1].getBoundingClientRect().right),
               rankTextRight: Math.round(inner(cells[1]).right),
-              valueSlack: Math.round(cells[0].getBoundingClientRect().width - inner(cells[0]).width),
+              valueSlack: Math.round(
+                cells[0].getBoundingClientRect().width - inner(cells[0]).width
+              ),
               rankSlack: Math.round(cells[1].getBoundingClientRect().width - inner(cells[1]).width),
               noteRight: note ? Math.round(note.getBoundingClientRect().right) : null,
               dtLines: Math.round(
@@ -352,9 +358,7 @@ test.describe("指標リストの列（PC）", () => {
             rank: Math.round(cells[1].getBoundingClientRect().right),
             // **行の矩形は器の幅のままなので、中身の右端を測る。**
             // はみ出していた `dd` は 805px にあったが、行そのものは 796px だった。
-            right: Math.round(
-              Math.max(...cells.map((c) => c.getBoundingClientRect().right))
-            ),
+            right: Math.round(Math.max(...cells.map((c) => c.getBoundingClientRect().right))),
             height: Math.round(row.getBoundingClientRect().height),
             secondLines:
               second === undefined

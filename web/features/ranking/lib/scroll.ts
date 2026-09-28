@@ -14,6 +14,8 @@
  * `window` を引数で受けるのは、テスト（node 環境の vitest）から呼べるようにする
  * ため。サーバー側で読み込まれても評価時には何も起きない。
  */
-export function scrollToPageTop(scroller: Pick<Window, "scrollTo"> | undefined = globalThis.window) {
+export function scrollToPageTop(
+  scroller: Pick<Window, "scrollTo"> | undefined = globalThis.window
+) {
   scroller?.scrollTo({ top: 0, left: 0 });
 }

@@ -53,8 +53,7 @@ export function SalaryCurveChart({
   const innerWidth = WIDTH - PADDING.left - PADDING.right;
   const innerHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const x = (i: number) => PADDING.left + (innerWidth * i) / (byAge.length - 1);
-  const y = (v: number) =>
-    PADDING.top + innerHeight * (1 - (v - low) / (high - low));
+  const y = (v: number) => PADDING.top + innerHeight * (1 - (v - low) / (high - low));
 
   const line = byAge.map((s, i) => `${x(i)},${y(s.salary)}`).join(" ");
   // 上端を左→右、下端を右→左でなぞって閉じる（±20%の帯）。
@@ -62,10 +61,7 @@ export function SalaryCurveChart({
     ...byAge.map((s, i) => `${x(i)},${y(estimateRange(s.salary).high)}`),
     ...[...byAge]
       .reverse()
-      .map(
-        (s, i) =>
-          `${x(byAge.length - 1 - i)},${y(estimateRange(s.salary).low)}`,
-      ),
+      .map((s, i) => `${x(byAge.length - 1 - i)},${y(estimateRange(s.salary).low)}`),
   ].join(" ");
 
   /*
@@ -89,12 +85,7 @@ export function SalaryCurveChart({
           単位は左端から書き出す。右揃えにすると、器が狭くて文字が大きいときに
           「（万円）」の4文字が viewBox の左に出て切れる。
         */}
-        <text
-          x={2}
-          y={PADDING.top - 14}
-          className={TEXT_UNIT}
-          fill="var(--color-muted-foreground)"
-        >
+        <text x={2} y={PADDING.top - 14} className={TEXT_UNIT} fill="var(--color-muted-foreground)">
           （万円）
         </text>
         <text
@@ -148,11 +139,7 @@ export function SalaryCurveChart({
                 cx={x(i)}
                 cy={y(s.salary)}
                 r={isSelected ? 6 : 3.5}
-                fill={
-                  isSelected
-                    ? "var(--color-primary)"
-                    : "var(--color-background)"
-                }
+                fill={isSelected ? "var(--color-primary)" : "var(--color-background)"}
                 stroke="var(--color-primary)"
                 strokeWidth={2}
               />
@@ -164,11 +151,7 @@ export function SalaryCurveChart({
                 textAnchor={isFirst ? "start" : isLast ? "end" : "middle"}
                 className={TEXT_VALUE}
                 fontWeight={isSelected ? 700 : 400}
-                fill={
-                  isSelected
-                    ? "var(--color-primary)"
-                    : "var(--color-muted-foreground)"
-                }
+                fill={isSelected ? "var(--color-primary)" : "var(--color-muted-foreground)"}
               >
                 {Math.round(s.salary / 10000).toLocaleString("ja-JP")}
               </text>
@@ -178,11 +161,7 @@ export function SalaryCurveChart({
                 textAnchor="middle"
                 className={TEXT_TICK}
                 fontWeight={isSelected ? 700 : 400}
-                fill={
-                  isSelected
-                    ? "var(--color-primary)"
-                    : "var(--color-muted-foreground)"
-                }
+                fill={isSelected ? "var(--color-primary)" : "var(--color-muted-foreground)"}
               >
                 {s.targetAge}
               </text>

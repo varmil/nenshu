@@ -139,10 +139,7 @@ function headerLogos(html: string, baseUrl: string): string[] {
  * 公式サイトのURLが `https://www.kddi.com/english/` のように深いことがあり、
  * パスの形だけで判定すると本物のロゴが後ろへ回る（KDDI は povo のロゴが先に来ていた）。
  */
-export function linkDestination(
-  href: string | null,
-  baseUrl: string
-): "home" | "other" | "social" {
+export function linkDestination(href: string | null, baseUrl: string): "home" | "other" | "social" {
   if (!href) return "other";
   const abs = absolute(href, baseUrl);
   if (!abs) return "other";

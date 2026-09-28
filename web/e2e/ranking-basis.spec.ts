@@ -38,7 +38,9 @@ test.describe("表示基準の切替", () => {
     await expect(page.getByText("推定年収（35歳）")).toHaveCount(0);
     // 同じ文言が表の caption（PC）とカード一覧の注記（モバイル）の両方にある。
     await expect(
-      page.getByText("有価証券報告書の平均年間給与（提出会社単体）そのままです", { exact: false }).first()
+      page
+        .getByText("有価証券報告書の平均年間給与（提出会社単体）そのままです", { exact: false })
+        .first()
     ).toBeVisible();
   });
 

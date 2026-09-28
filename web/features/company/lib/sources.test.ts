@@ -11,11 +11,14 @@ const ALL: PagePresence = {
   filingDocId: "S100YAHE",
 };
 
-const byKind = (rows: ReturnType<typeof buildSourceRows>, kind: string) => rows.find((r) => r.kind === kind)!;
+const byKind = (rows: ReturnType<typeof buildSourceRows>, kind: string) =>
+  rows.find((r) => r.kind === kind)!;
 
 const text = (segments: SourceSegment[]) =>
   segments
-    .map((s) => (typeof s === "string" ? s : "source" in s ? PRIMARY_SOURCES[s.source].name : s.text))
+    .map((s) =>
+      typeof s === "string" ? s : "source" in s ? PRIMARY_SOURCES[s.source].name : s.text
+    )
     .join("");
 
 describe("buildSourceRows（C12・AC-16）", () => {
@@ -61,18 +64,26 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("推移の無い会社では推移を挙げない", () => {
-    const measured = byKind(buildSourceRows({ ...ALL, history: false, tenureHistory: false }), "measured");
+    const measured = byKind(
+      buildSourceRows({ ...ALL, history: false, tenureHistory: false }),
+      "measured"
+    );
     expect(measured.covers).toBe("平均年収・平均年齢・在籍年数・従業員数");
     expect(byKind(buildSourceRows(ALL), "measured").covers).toContain("その推移");
   });
 
   it("在籍年数の推移がある会社では、在籍年数も推移にかけ、業種の中央値を計算値に挙げる（T4）", () => {
     const rows = buildSourceRows(ALL);
-    expect(byKind(rows, "measured").covers).toBe("平均年収・平均年齢・在籍年数とその推移・従業員数");
+    expect(byKind(rows, "measured").covers).toBe(
+      "平均年収・平均年齢・在籍年数とその推移・従業員数"
+    );
     expect(byKind(rows, "computed").covers).toContain("業種の中央値");
 
     const without = buildSourceRows({ ...ALL, tenureHistory: false });
-    const [measuredWithout, computedWithout] = [byKind(without, "measured"), byKind(without, "computed")];
+    const [measuredWithout, computedWithout] = [
+      byKind(without, "measured"),
+      byKind(without, "computed"),
+    ];
     expect(measuredWithout.covers).toBe("平均年収・平均年齢とその推移・在籍年数・従業員数");
     expect(computedWithout.covers).not.toContain("業種の中央値");
   });
@@ -101,8 +112,13 @@ describe("buildSourceRows（C12・AC-16）", () => {
     const original = buildSourceRows({ ...ALL, filingDocId: "S100YBLA" })[0];
     expect(original.kind).toBe("original");
     expect(original.covers).toBe("給与の決定方針");
-    expect(text(original.source)).toBe("有価証券報告書の本文をそのまま（どこまでが給与の決定方針かは生成AIが判定）");
-    expect(original.source).toContainEqual({ text: "有価証券報告書", url: edinetDocumentUrl("S100YBLA") });
+    expect(text(original.source)).toBe(
+      "有価証券報告書の本文をそのまま（どこまでが給与の決定方針かは生成AIが判定）"
+    );
+    expect(original.source).toContainEqual({
+      text: "有価証券報告書",
+      url: edinetDocumentUrl("S100YBLA"),
+    });
   });
 
   it("給与の決定方針の無い会社（改正前の様式・空）では原文の行を出さない", () => {

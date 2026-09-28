@@ -80,17 +80,13 @@ export class Fetcher {
  * サイトで余計な1往復が全社に掛かる。**逆向き（https → http）はしない**——平文へ落として
  * まで取りに行く理由が無い。
  */
-export async function fetchSite(
-  fetcher: SiteFetcher,
-  site: string
-): Promise<FetchResult | null> {
+export async function fetchSite(fetcher: SiteFetcher, site: string): Promise<FetchResult | null> {
   const res = await fetcher.get(site);
   if (res.status === 200 && res.body.length > 0) return res;
   if (!site.startsWith("http://")) return null;
   const upgraded = await fetcher.get(`https://${site.slice("http://".length)}`);
   return upgraded.status === 200 && upgraded.body.length > 0 ? upgraded : null;
 }
-
 
 /** 取得だけを使う。テストが `Fetcher` を丸ごと作らずに済むように構造で受ける。 */
 export type SiteFetcher = Pick<Fetcher, "get">;

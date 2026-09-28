@@ -28,13 +28,16 @@ describe("symbolSvg", () => {
     [48, 38 / 48],
     [180, 0.62],
     [512, 0.55],
-  ])("一辺 %i・割合 %f で、外接矩形がその割合ぴったりになり、上下左右の余白が等しい", (size, coverage) => {
-    const { min, max } = bounds(symbolSvg({ size, coverage, stroke: "#007595" }));
-    // 桁は 0.005px まで見る。SVG の数値は4桁で丸めてある（バイト数がそのまま
-    // 成果物に効くため）ので、512px では 0.001px ほどの差が残る。
-    expect(max - min).toBeCloseTo(size * coverage, 2);
-    expect(min).toBeCloseTo(size - max, 2);
-  });
+  ])(
+    "一辺 %i・割合 %f で、外接矩形がその割合ぴったりになり、上下左右の余白が等しい",
+    (size, coverage) => {
+      const { min, max } = bounds(symbolSvg({ size, coverage, stroke: "#007595" }));
+      // 桁は 0.005px まで見る。SVG の数値は4桁で丸めてある（バイト数がそのまま
+      // 成果物に効くため）ので、512px では 0.001px ほどの差が残る。
+      expect(max - min).toBeCloseTo(size * coverage, 2);
+      expect(min).toBeCloseTo(size - max, 2);
+    }
+  );
 
   it("濃色サーフェスの色を渡したときだけメディアクエリが出る", () => {
     const svg = symbolSvg({

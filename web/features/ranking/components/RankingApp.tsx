@@ -49,15 +49,12 @@ export function RankingApp({
    * 全件は初回に1度だけ取りに行く（E0・ADR-0013）。**サーバーは1ページぶんしか
    * 渡さない**ので、届くまではそれを出す。
    */
-  const companies = useCompaniesDataset(
-    bootstrap.dataUrl,
-    bootstrap.meta.version,
-  );
+  const companies = useCompaniesDataset(bootstrap.dataUrl, bootstrap.meta.version);
   const { state, setState, page, ready } = useRankingState(
     companies,
     curves,
     initialState,
-    bootstrap.page,
+    bootstrap.page
   );
   const { companies: rankedCompanies, totalCount, pageMaxSalary } = page;
 
@@ -91,8 +88,7 @@ export function RankingApp({
     applyFilter({ targetAge: basis === "raw" ? null : DEFAULT_TARGET_AGE });
   // 軸と向きは1つの値なので、そのまま差分として当たる（`types.ts` の `SortSelection`）。
   const handleSortChange = (sort: SortSelection) => applyFilter({ sort });
-  const handlePageChange = (nextPage: number) =>
-    commit({ ...state, page: nextPage });
+  const handlePageChange = (nextPage: number) => commit({ ...state, page: nextPage });
 
   const isRaw = state.targetAge === null;
   const headingParts = rankingHeadingParts(state, bootstrap.industries);
@@ -112,9 +108,7 @@ export function RankingApp({
    * 同じ関数である。
    */
   const countOf = useMemo(() => {
-    const byIndustry = new Map(
-      bootstrap.industries.map((name, i) => [name, counts[i]]),
-    );
+    const byIndustry = new Map(bootstrap.industries.map((name, i) => [name, counts[i]]));
     return (industry: string) => byIndustry.get(industry) ?? 0;
   }, [bootstrap.industries, counts]);
   usePageMeta(rankingPageMeta(buildSearchParams(state), bootstrap, countOf));
@@ -148,10 +142,8 @@ export function RankingApp({
    */
   const logoIds = useMemo(
     () =>
-      companies === null
-        ? bootstrap.pageLogoIds
-        : logoIdSet(companies.rows, bootstrap.logoMask),
-    [companies, bootstrap.pageLogoIds, bootstrap.logoMask],
+      companies === null ? bootstrap.pageLogoIds : logoIdSet(companies.rows, bootstrap.logoMask),
+    [companies, bootstrap.pageLogoIds, bootstrap.logoMask]
   );
 
   return (
@@ -214,36 +206,24 @@ export function RankingApp({
               isRaw ? (
                 <>
                   有価証券報告書の数値のまま。
-                  <span className="hidden md:inline">
-                    年齢の違いは補正していません。
-                  </span>
+                  <span className="hidden md:inline">年齢の違いは補正していません。</span>
                 </>
               ) : (
                 <>
                   業種の賃金カーブで補正した推定値です。
-                  <span className="hidden md:inline">
-                    全社を同じ年齢に置き換えています。
-                  </span>
+                  <span className="hidden md:inline">全社を同じ年齢に置き換えています。</span>
                 </>
               )
             }
           >
-            <BasisSwitch
-              value={state.targetAge}
-              onChange={handleBasisChange}
-              label="並べ方"
-            />
+            <BasisSwitch value={state.targetAge} onChange={handleBasisChange} label="並べ方" />
           </ControlBand>
           <ControlBand
             label="年齢"
             tone={isRaw ? "dashed" : "solid"}
             hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
           >
-            <AgeSwitch
-              value={state.targetAge}
-              onChange={handleAgeChange}
-              disabled={isRaw}
-            />
+            <AgeSwitch value={state.targetAge} onChange={handleAgeChange} disabled={isRaw} />
           </ControlBand>
         </header>
 
@@ -275,10 +255,7 @@ export function RankingApp({
               ページ全体が横に動く（U3 で踏んだ）。
             */}
               <div className="order-1 flex w-full min-w-0 flex-wrap items-center gap-1.5 md:order-2 md:ml-auto md:w-auto">
-                <span
-                  aria-hidden="true"
-                  className="text-muted-foreground hidden text-xs md:inline"
-                >
+                <span aria-hidden="true" className="text-muted-foreground hidden text-xs md:inline">
                   並び替え
                 </span>
                 <SortSwitch value={state.sort} onChange={handleSortChange} />
@@ -289,9 +266,7 @@ export function RankingApp({
                   "0社"
                 ) : (
                   <>
-                    <span className="text-foreground font-semibold">
-                      {formatInt(totalCount)}社
-                    </span>{" "}
+                    <span className="text-foreground font-semibold">{formatInt(totalCount)}社</span>{" "}
                     中 {formatInt(range.from)}〜{formatInt(range.to)}社目
                   </>
                 )}

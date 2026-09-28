@@ -203,7 +203,15 @@ export function buildTenureChart(history: TenureHistory): TenureChartGeometry {
     const medianY = median === null ? null : yOf(median);
     const labelBelow = medianY !== null && medianY < cy && cy - medianY < LABEL_CLEARANCE;
     return [
-      { index: i, year: history.years[i], value, cx: xOf(i), cy, labelBelow, latest: i === latestIndex },
+      {
+        index: i,
+        year: history.years[i],
+        value,
+        cx: xOf(i),
+        cy,
+        labelBelow,
+        latest: i === latestIndex,
+      },
     ];
   });
 

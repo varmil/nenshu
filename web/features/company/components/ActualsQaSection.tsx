@@ -40,7 +40,10 @@ export function ActualsQaSection({ qa, docId }: { qa: ActualsQa; docId: string }
                 Q
               </span>
               <h3 className="text-sm leading-5 font-semibold">{item.question}</h3>
-              <span aria-hidden="true" className="text-muted-foreground text-sm leading-relaxed font-bold">
+              <span
+                aria-hidden="true"
+                className="text-muted-foreground text-sm leading-relaxed font-bold"
+              >
                 A
               </span>
               <p className="text-sm leading-relaxed text-pretty">

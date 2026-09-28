@@ -34,9 +34,7 @@ export function SalaryDistributionChart({
           並ぶので外した（#831）。
         */}
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-xs font-semibold">
-            全体{formatInt(count)}社の中の位置
-          </span>
+          <span className="text-xs font-semibold">全体{formatInt(count)}社の中の位置</span>
           <span className="text-muted-foreground text-xs tabular-nums">
             偏差値 {formatDeviation(current.deviation)}
           </span>

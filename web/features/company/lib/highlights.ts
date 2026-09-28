@@ -123,14 +123,10 @@ export function buildCurveSummary(byAge: CompanyAgeStats[], name: string): strin
   if (milestones.length > 0) {
     sentences.push(
       `${name}の推定年収を年齢別に見ると、` +
-        milestones
-          .map((m) => `${m.age}歳で${m.manYen.toLocaleString("ja-JP")}万円`)
-          .join("、") +
+        milestones.map((m) => `${m.age}歳で${m.manYen.toLocaleString("ja-JP")}万円`).join("、") +
         "に達します。"
     );
-    sentences.push(
-      `最も高い水準は${peak.targetAge}歳の${formatManYen(peak.salary)}です。`
-    );
+    sentences.push(`最も高い水準は${peak.targetAge}歳の${formatManYen(peak.salary)}です。`);
   } else {
     // 段に1つも届かない会社（8点が最も低い段の中に収まる。実データで8社）。
     // 到達年齢の文を省いたぶん、切り出しの「年齢別に見ると」は最高水準の文が引き継ぐ。

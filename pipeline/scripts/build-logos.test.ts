@@ -135,7 +135,12 @@ describe("公式サイトからの候補の抽出", () => {
     const href = manifestUrl(html, BASE);
     expect(href).toBe("https://example.co.jp/site.webmanifest");
     const icons = manifestIcons(
-      { icons: [{ src: "icon-192.png", sizes: "192x192" }, { src: "/icon-512.png", sizes: "512x512" }] },
+      {
+        icons: [
+          { src: "icon-192.png", sizes: "192x192" },
+          { src: "/icon-512.png", sizes: "512x512" },
+        ],
+      },
       href!
     );
     expect(icons).toEqual([
@@ -230,7 +235,10 @@ describe("会社ごとに決めた候補の指定", () => {
 
   it("指定した候補を優先順より先に置く", () => {
     const cands = sortCandidates([
-      { source: "jsonld", url: "https://www.toyota-tsusho.com/english/app-files/img/symbol/logo.png" },
+      {
+        source: "jsonld",
+        url: "https://www.toyota-tsusho.com/english/app-files/img/symbol/logo.png",
+      },
       pin,
     ]);
     // 出典の順では jsonld が header より先だが、指定はその上を行く
@@ -239,12 +247,18 @@ describe("会社ごとに決めた候補の指定", () => {
   });
 
   it("同じURLが候補にもあれば1つに畳む", () => {
-    const got = prioritize("8015", [pin, { source: "icon", url: "https://example.co.jp/favicon.ico" }]);
+    const got = prioritize("8015", [
+      pin,
+      { source: "icon", url: "https://example.co.jp/favicon.ico" },
+    ]);
     expect(got.filter((c) => c.url === pin.url)).toHaveLength(1);
   });
 
   it("指定の無い会社では並びを変えない", () => {
-    const cands: Candidate[] = [{ source: "jsonld", url: "a" }, { source: "header", url: "b" }];
+    const cands: Candidate[] = [
+      { source: "jsonld", url: "a" },
+      { source: "header", url: "b" },
+    ];
     expect(prioritize("6861", cands)).toEqual(cands);
   });
 
@@ -302,7 +316,12 @@ describe("壊れている画像の判定", () => {
   const png = async (w: number, h: number, rgba: [number, number, number, number]) => {
     const sharp = (await import("sharp")).default;
     return sharp({
-      create: { width: w, height: h, channels: 4, background: { r: rgba[0], g: rgba[1], b: rgba[2], alpha: rgba[3] / 255 } },
+      create: {
+        width: w,
+        height: h,
+        channels: 4,
+        background: { r: rgba[0], g: rgba[1], b: rgba[2], alpha: rgba[3] / 255 },
+      },
     })
       .png()
       .toBuffer();
@@ -330,7 +349,12 @@ describe("壊れている画像の判定", () => {
       .composite([
         {
           input: {
-            create: { width: 90, height: 12, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 1 } },
+            create: {
+              width: 90,
+              height: 12,
+              channels: 4,
+              background: { r: 0, g: 0, b: 0, alpha: 1 },
+            },
           },
           left: 15,
           top: 14,
@@ -350,7 +374,10 @@ describe("壊れている画像の判定", () => {
 
 describe("明るい器で見えないロゴの判定（Issue #156）", () => {
   /** 透明の地に、指定色の帯を1本だけ置いた図（＝ワードマークの代わり） */
-  const wordmark = async (rgba: [number, number, number, number], border?: [number, number, number]) => {
+  const wordmark = async (
+    rgba: [number, number, number, number],
+    border?: [number, number, number]
+  ) => {
     const sharp = (await import("sharp")).default;
     const bar = {
       input: {
@@ -417,7 +444,12 @@ describe("図の一部しか見えないロゴの判定（Issue #221）", () => 
       .composite([
         {
           input: {
-            create: { width: 30, height: 30, channels: 4 as const, background: { r: 10, g: 40, b: 120, alpha: 1 } },
+            create: {
+              width: 30,
+              height: 30,
+              channels: 4 as const,
+              background: { r: 10, g: 40, b: 120, alpha: 1 },
+            },
           },
           left: 5,
           top: 5,
@@ -454,7 +486,12 @@ describe("図の一部しか見えないロゴの判定（Issue #221）", () => 
     const sharp = (await import("sharp")).default;
     const { mostlyHiddenOnLight, blankOnLight } = await import("./lib/logo/image");
     const allWhite = await sharp({
-      create: { width: 200, height: 40, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+      create: {
+        width: 200,
+        height: 40,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
     })
       .png()
       .toBuffer();
@@ -468,12 +505,22 @@ describe("図の一部しか見えないロゴの判定（Issue #221）", () => 
     const sharp = (await import("sharp")).default;
     const { mostlyHiddenOnLight } = await import("./lib/logo/image");
     const onWhiteCard = await sharp({
-      create: { width: 300, height: 40, channels: 4, background: { r: 255, g: 255, b: 255, alpha: 1 } },
+      create: {
+        width: 300,
+        height: 40,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
     })
       .composite([
         {
           input: {
-            create: { width: 30, height: 30, channels: 4 as const, background: { r: 10, g: 40, b: 120, alpha: 1 } },
+            create: {
+              width: 30,
+              height: 30,
+              channels: 4 as const,
+              background: { r: 10, g: 40, b: 120, alpha: 1 },
+            },
           },
           left: 5,
           top: 5,
@@ -521,7 +568,12 @@ describe("ICO の展開（sharp は ICO を読めない）", () => {
     const sharp = (await import("sharp")).default;
     const { icoToImage, probe } = await import("./lib/logo/image");
     const png = await sharp({
-      create: { width: 64, height: 64, channels: 4, background: { r: 200, g: 30, b: 30, alpha: 1 } },
+      create: {
+        width: 64,
+        height: 64,
+        channels: 4,
+        background: { r: 200, g: 30, b: 30, alpha: 1 },
+      },
     })
       .png()
       .toBuffer();

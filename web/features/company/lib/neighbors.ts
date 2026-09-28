@@ -84,10 +84,12 @@ export function findNeighbors(
     return { ...company, industryRank };
   });
 
-  return ranked
-    .filter((company) => company.id !== id)
-    .sort((a, b) => Math.abs(a.salary - selfSalary) - Math.abs(b.salary - selfSalary))
-    .slice(0, limit)
-    // 並べるときは金額の降順にする。近さで並べると上下に交互に跳ねて読みにくい。
-    .sort((a, b) => b.salary - a.salary);
+  return (
+    ranked
+      .filter((company) => company.id !== id)
+      .sort((a, b) => Math.abs(a.salary - selfSalary) - Math.abs(b.salary - selfSalary))
+      .slice(0, limit)
+      // 並べるときは金額の降順にする。近さで並べると上下に交互に跳ねて読みにくい。
+      .sort((a, b) => b.salary - a.salary)
+  );
 }

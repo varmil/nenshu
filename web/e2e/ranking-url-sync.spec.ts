@@ -57,7 +57,11 @@ test.describe("URLクエリとの同期", () => {
       // 効いていることは件数の表示で見る（行数は PAGE_SIZE で頭打ちのため）。
       {
         url: "/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD",
-        text: ["銀行業の45歳年収ランキング", "45歳時点に補正した銀行業の82社。", "82社 中 1〜30社目"],
+        text: [
+          "銀行業の45歳年収ランキング",
+          "45歳時点に補正した銀行業の82社。",
+          "82社 中 1〜30社目",
+        ],
         rows: 30,
       },
       // 2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社。
@@ -127,11 +131,17 @@ test.describe("URLクエリとの同期", () => {
     await page.goBack();
     await expect(page).toHaveURL(/[?&]age=45/);
     await expect(page).not.toHaveURL(/[?&]ind=/);
-    await expect(page.getByRole("button", { name: "45歳" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "45歳" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
     await page.goBack();
     await expect(page).toHaveURL(/[?&]age=35/);
-    await expect(page.getByRole("button", { name: "35歳" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "35歳" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
 
     await page.goBack();
     await expect(page).toHaveURL(/\/$/);

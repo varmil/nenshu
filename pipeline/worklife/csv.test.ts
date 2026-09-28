@@ -49,7 +49,7 @@ describe("toCsv", () => {
   it("書いたものを読み直すと元に戻る（引用符の中の CRLF はそのまま残す）", () => {
     const rows = [
       ["id", "note"],
-      ["6861", "1行目\r\n2行目, カンマと\"引用符\""],
+      ["6861", '1行目\r\n2行目, カンマと"引用符"'],
     ];
     expect(parseCsv(toCsv(rows))).toEqual(rows);
   });

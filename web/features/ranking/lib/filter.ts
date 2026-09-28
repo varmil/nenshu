@@ -1,4 +1,10 @@
-import type { AvgAgeBucket, CompanyRow, EmployeeSizeBucket, RankingState, TenureBucket } from "../types";
+import type {
+  AvgAgeBucket,
+  CompanyRow,
+  EmployeeSizeBucket,
+  RankingState,
+  TenureBucket,
+} from "../types";
 
 /**
  * 閾値は実データ検証済み（docs/ranking/ranking-filters/plan.md）。
@@ -22,11 +28,17 @@ export function classifyAvgAgeBucket(avgAge: number): AvgAgeBucket {
   return "43plus";
 }
 
-export function matchesFilters(row: CompanyRow, industries: string[], state: RankingState): boolean {
+export function matchesFilters(
+  row: CompanyRow,
+  industries: string[],
+  state: RankingState
+): boolean {
   const [, , tse33Idx, , avgAge, avgTenure, , employees] = row;
   if (state.industry !== null && industries[tse33Idx] !== state.industry) return false;
-  if (state.employeeSize !== null && classifyEmployeeSize(employees) !== state.employeeSize) return false;
+  if (state.employeeSize !== null && classifyEmployeeSize(employees) !== state.employeeSize)
+    return false;
   if (state.tenure !== null && classifyTenure(avgTenure) !== state.tenure) return false;
-  if (state.avgAgeBucket !== null && classifyAvgAgeBucket(avgAge) !== state.avgAgeBucket) return false;
+  if (state.avgAgeBucket !== null && classifyAvgAgeBucket(avgAge) !== state.avgAgeBucket)
+    return false;
   return true;
 }

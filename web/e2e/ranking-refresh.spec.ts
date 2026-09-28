@@ -31,9 +31,7 @@ const AVG_AGE = /平均([\d.]+)歳/;
 const EMPLOYEES = /・\s*([\d,]+)人/;
 
 const expectSorted = (values: number[], order: "asc" | "desc", label: string) =>
-  expect(values, label).toEqual(
-    [...values].sort((a, b) => (order === "asc" ? a - b : b - a))
-  );
+  expect(values, label).toEqual([...values].sort((a, b) => (order === "asc" ? a - b : b - a)));
 
 /** 順位バッジの数字。読み上げ用の「位」が textContent に混ざるので落とす。 */
 const rankValues = async (page: Page) => {
@@ -43,9 +41,7 @@ const rankValues = async (page: Page) => {
 
 /** ページ全体の横スクロール量。0 以下なら出ていない。 */
 const horizontalOverflow = (page: Page) =>
-  page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
-  );
+  page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
 /**
  * 要素の文字を、描かれた行ごとの文字列にする。1字ずつの矩形の左端が前の字より左へ
@@ -132,13 +128,8 @@ test.describe("AC-13 年収バー", () => {
   const barWidth = async (page: Page, index: number) =>
     Number(
       (
-        await rows(page)
-          .nth(index)
-          .locator('[style*="width"]')
-          .first()
-          .getAttribute("style")
-      )
-        ?.match(/width:\s*([\d.]+)%/)?.[1] ?? "0"
+        await rows(page).nth(index).locator('[style*="width"]').first().getAttribute("style")
+      )?.match(/width:\s*([\d.]+)%/)?.[1] ?? "0"
     );
 
   /*
@@ -148,9 +139,7 @@ test.describe("AC-13 年収バー", () => {
    */
   test("そのページの1位を100%とし、表示基準やページが変わると取り直す", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("table").locator("caption")).toContainText(
-      "このページの1位を100%"
-    );
+    await expect(page.getByRole("table").locator("caption")).toContainText("このページの1位を100%");
     expect(await barWidth(page, 0)).toBe(100);
     const second = await barWidth(page, 1);
     expect(second).toBeLessThan(100);
@@ -342,9 +331,7 @@ test.describe("U13 モックとの一致", () => {
     // 2文目はPCだけ（モバイルは1行に収める）。ここはPC幅で見ている。
     await expect(page.getByText("有価証券報告書の数値のまま。")).toBeVisible();
     // 同じ文が脚注にもあるので、帯の中のものを厳密に指す。
-    await expect(
-      page.getByText("年齢の違いは補正していません。", { exact: true })
-    ).toBeVisible();
+    await expect(page.getByText("年齢の違いは補正していません。", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page.getByText("業種の賃金カーブで補正した推定値です。")).toBeVisible();
@@ -478,7 +465,10 @@ test.describe("モバイルの絞り込みシート", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    await dialog.getByRole("group", { name: "従業員数" }).getByRole("button", { name: "〜300人" }).click();
+    await dialog
+      .getByRole("group", { name: "従業員数" })
+      .getByRole("button", { name: "〜300人" })
+      .click();
     await expect(page).toHaveURL(/emp=-300/);
 
     await page.keyboard.press("Escape");
@@ -528,9 +518,10 @@ test.describe("モバイルの行（390px）", () => {
         .length,
       "説明文"
     ).toBeLessThanOrEqual(2);
-    expect(await renderedLines(page.getByText("有価証券報告書の数値のまま。")), "帯のヒント").toHaveLength(
-      1
-    );
+    expect(
+      await renderedLines(page.getByText("有価証券報告書の数値のまま。")),
+      "帯のヒント"
+    ).toHaveLength(1);
   });
 
   /*
@@ -600,7 +591,10 @@ test.describe("モバイルの行（390px）", () => {
     );
     expect(measured).toHaveLength(9);
     expect(new Set(measured.flatMap((m) => [m.amountLeft, m.barLeft])).size, "左端").toBe(1);
-    expect(measured.map((m) => m.amountLines), "金額の行数").toEqual(Array(9).fill(1));
+    expect(
+      measured.map((m) => m.amountLines),
+      "金額の行数"
+    ).toEqual(Array(9).fill(1));
     expect(new Set(measured.map((m) => m.height)).size, "行の高さ").toBe(1);
   });
 
@@ -618,9 +612,7 @@ test.describe("モバイルの行（390px）", () => {
   test("順位はロゴ左上のバッジで、桁が増えても左端・上端が動かない", async ({ page }) => {
     const offset = async (url: string, rank: string) => {
       await page.goto(url);
-      const badge = page
-        .locator("div.md\\:hidden [data-rank-badge]", { hasText: rank })
-        .first();
+      const badge = page.locator("div.md\\:hidden [data-rank-badge]", { hasText: rank }).first();
       const logo = badge.locator("xpath=preceding-sibling::*[1]");
       const badgeBox = (await badge.boundingBox())!;
       const logoBox = (await logo.boundingBox())!;
@@ -664,7 +656,6 @@ const MOBILE_PATHS = [
   "/?q=ジャパンエレベーター&age=35",
   "/?ind=証券、商品先物取引業&age=60",
 ];
-
 
 for (const width of [390, 360]) {
   test.describe(`モバイルの行が縮んでも数値が残る（${width}px）`, () => {

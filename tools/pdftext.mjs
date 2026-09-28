@@ -29,9 +29,7 @@ const end = to ? Math.min(pageCount, Number.parseInt(to, 10)) : pageCount;
 
 console.log(`# ${basename(file)} — ${pageCount}ページ（${start}〜${end} を出力）`);
 for (let i = start - 1; i < end; i++) {
-  const structured = JSON.parse(
-    doc.loadPage(i).toStructuredText("preserve-whitespace").asJSON()
-  );
+  const structured = JSON.parse(doc.loadPage(i).toStructuredText("preserve-whitespace").asJSON());
   const lines = [];
   for (const block of structured.blocks ?? []) {
     for (const line of block.lines ?? []) {

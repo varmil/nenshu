@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  CLARITY_PROJECT_ID,
-  buildClarityScript,
-  isClarityEnabled,
-} from "./clarity";
+import { CLARITY_PROJECT_ID, buildClarityScript, isClarityEnabled } from "./clarity";
 
 describe("isClarityEnabled", () => {
   it("本番ビルドでだけ有効になる（開発サーバーとテストの実行ぶんを計測に混ぜない）", () => {

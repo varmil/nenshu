@@ -260,7 +260,8 @@ function buildModelBiasFacts(companies: CompaniesData, curves: CurvesData): Mode
     meanExtrapolationByAge: TARGET_AGES.map((age) => ({
       age,
       distance:
-        companies.rows.reduce((sum, row) => sum + Math.abs(age - row[4]), 0) / companies.rows.length,
+        companies.rows.reduce((sum, row) => sum + Math.abs(age - row[4]), 0) /
+        companies.rows.length,
     })),
     top50Overlap: rankedIdsAt(oldest).filter((id) => youngestTop50.has(id)).length,
     youngestTargetAge: youngest,

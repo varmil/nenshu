@@ -10,7 +10,13 @@ export type LogoEntry = {
   attr?: boolean;
 };
 
-export type LogoCredit = { id: string; name: string; license: string; author: string; from: string };
+export type LogoCredit = {
+  id: string;
+  name: string;
+  license: string;
+  author: string;
+  from: string;
+};
 
 /**
  * 帰属表示が要るロゴ（`/about` に出す。spec AC-14）。

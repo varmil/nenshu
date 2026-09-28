@@ -79,9 +79,7 @@ function WorklifeMetricRow({ metric }: { metric: WorklifeMetricView }) {
       <div className="flex items-baseline justify-between gap-2 sm:flex-col sm:items-start sm:justify-start sm:gap-0.5">
         <dt className="text-sm font-semibold">{metric.label}</dt>
         {/* 単位は**行ごとに繰り返さず**ここに1回だけ置く（アートボード 6c）。 */}
-        {metric.unit !== "" && (
-          <span className="text-muted-foreground text-xs">{metric.unit}</span>
-        )}
+        {metric.unit !== "" && <span className="text-muted-foreground text-xs">{metric.unit}</span>}
         {/*
           **1行に収める**（アートボード 6b）。既定のまま折ると `× 100` の
           `100` だけが2行目に落ち、式が割れて読めなくなる（実測）。
@@ -191,9 +189,7 @@ function WorklifeRowLine({
       >
         {row.value.toFixed(1)}
         {valueSuffix !== "" && (
-          <span className="text-muted-foreground ml-0.5 text-xs font-normal">
-            {valueSuffix}
-          </span>
+          <span className="text-muted-foreground ml-0.5 text-xs font-normal">{valueSuffix}</span>
         )}
       </span>
     </div>
@@ -217,10 +213,7 @@ function WorklifeBar({ ratio }: { ratio: number | null }) {
       className="bg-muted relative block h-[7px] flex-1 overflow-hidden rounded-[2px]"
       aria-hidden="true"
     >
-      <span
-        className="bg-primary absolute inset-y-0 left-0"
-        style={{ width: `${ratio * 100}%` }}
-      />
+      <span className="bg-primary absolute inset-y-0 left-0" style={{ width: `${ratio * 100}%` }} />
       {/* 1メモリ＝10時間・10%（上限100）。 */}
       <span
         className="absolute inset-0"

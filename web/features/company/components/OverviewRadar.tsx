@@ -74,9 +74,7 @@ function labelDy(index: number): number {
 export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
   // **頂点を打つ軸だけを結ぶ。** 欠測軸を飛ばして多角形を閉じるので、
   // 掲載なしの軸があっても面積が広がらない（AC-7・アートボード 6d）。
-  const drawn = axes
-    .map((axis, i) => ({ axis, i }))
-    .filter(({ axis }) => axis.position !== null);
+  const drawn = axes.map((axis, i) => ({ axis, i })).filter(({ axis }) => axis.position !== null);
   const shape = drawn.map(({ axis, i }) => pointAt(i, axis.position as number).join(",")).join(" ");
 
   return (
@@ -106,9 +104,7 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
             y1={CY}
             x2={x}
             y2={y}
-            className={
-              missing ? "stroke-[var(--muted-foreground)]" : "stroke-[var(--border)]"
-            }
+            className={missing ? "stroke-[var(--muted-foreground)]" : "stroke-[var(--border)]"}
             strokeWidth={1}
             strokeDasharray={missing ? "3 3" : undefined}
             opacity={missing ? 0.6 : undefined}
@@ -127,11 +123,7 @@ export function OverviewRadar({ axes }: { axes: RadarAxis[] }) {
         />
       )}
       {drawn.length === 2 && (
-        <polyline
-          points={shape}
-          className="fill-none stroke-[var(--chart-1)]"
-          strokeWidth={2}
-        />
+        <polyline points={shape} className="fill-none stroke-[var(--chart-1)]" strokeWidth={2} />
       )}
       {drawn.map(({ axis, i }) => {
         const [x, y] = pointAt(i, axis.position as number);

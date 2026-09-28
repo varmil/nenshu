@@ -111,7 +111,10 @@ test.describe("検索エンジン向け導線（U8）", () => {
     request,
   }) => {
     const titles: [path: string, title: string | null][] = [
-      ["/", "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】"],
+      [
+        "/",
+        "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】",
+      ],
       ["/?age=35", "35歳年収ランキング | OpenReport"],
       [`/?ind=${BANK}`, "銀行業の平均年収ランキング | OpenReport"],
       // 文言は単体テストが持つので、ここでは出ていることだけ見る。
@@ -150,9 +153,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     }
   });
 
-  test("ページごとに別の企業が並び、企業ページへの内部リンクになっている", async ({
-    request,
-  }) => {
+  test("ページごとに別の企業が並び、企業ページへの内部リンクになっている", async ({ request }) => {
     const companyIds = async (path: string) => {
       const html = await (await request.get(path)).text();
       return new Set([...html.matchAll(/href="\/company\/([^"]+)"/g)].map((m) => m[1]));

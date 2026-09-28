@@ -56,8 +56,9 @@ const cell = (v: number | null) => (v === null ? "" : String(v));
 
 export function toRow(id: string, r: WorklifeRecord): string[] {
   const unitCells = (units: WorklifeRecord["overtimeUnits"]) =>
-    Array.from({ length: 5 }, (_, k) => units[k])
-      .flatMap((u) => (u ? [u.unit, cell(u.value)] : ["", ""]));
+    Array.from({ length: 5 }, (_, k) => units[k]).flatMap((u) =>
+      u ? [u.unit, cell(u.value)] : ["", ""]
+    );
   return [
     id,
     r.corporateNumber,
@@ -112,7 +113,9 @@ export function extract() {
   }
 
   // 女性活躍DB側。要る掲載社ぶんだけ拾い、残りはその場で捨てる
-  const text = execFileSync("unzip", ["-p", zipPath], { maxBuffer: 512 * 1024 * 1024 }).toString("utf-8");
+  const text = execFileSync("unzip", ["-p", zipPath], { maxBuffer: 512 * 1024 * 1024 }).toString(
+    "utf-8"
+  );
   const picked = new Map<string, string[]>();
   let sourceRows = 0;
   let headerChecked = false;
@@ -149,8 +152,10 @@ export function extract() {
     }
     // 記入率は「全体」と「雇用管理区分ごと」の和集合で数える。
     // 片方だけを見ると4割落とす（docs/worklife/intent.md）
-    if (record.overtimeAll !== null || record.overtimeUnits.some((u) => u.value !== null)) filled.overtime++;
-    if (record.paidLeaveAll !== null || record.paidLeaveUnits.some((u) => u.value !== null)) filled.paidLeave++;
+    if (record.overtimeAll !== null || record.overtimeUnits.some((u) => u.value !== null))
+      filled.overtime++;
+    if (record.paidLeaveAll !== null || record.paidLeaveUnits.some((u) => u.value !== null))
+      filled.paidLeave++;
     if (record.wageGapAll !== null) filled.wageGap++;
     if (record.wageGapNote !== "") filled.note++;
     rows.push(toRow(makeId(row), record));
@@ -177,7 +182,16 @@ export function extract() {
     "utf-8"
   );
 
-  return { zipPath, sha256, sourceRows, matched: picked.size, written: rows.length, withoutMetrics, filled, dropped };
+  return {
+    zipPath,
+    sha256,
+    sourceRows,
+    matched: picked.size,
+    written: rows.length,
+    withoutMetrics,
+    filled,
+    dropped,
+  };
 }
 
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
@@ -188,7 +202,8 @@ if (isMain) {
   console.log(`法人番号で突合: ${r.matched}社 (${pct(r.matched)})`);
   console.log(`  うち3指標のいずれも無い: ${r.withoutMetrics}社（行を作らない）`);
   console.log(`${OUT_CSV}: ${r.written}行`);
-  const rate = (n: number) => `${n}社（突合比 ${((n / r.matched) * 100).toFixed(1)}% / 全社比 ${pct(n)}）`;
+  const rate = (n: number) =>
+    `${n}社（突合比 ${((n / r.matched) * 100).toFixed(1)}% / 全社比 ${pct(n)}）`;
   console.log(`  平均残業時間        ${rate(r.filled.overtime)}`);
   console.log(`  年次有給休暇の取得率 ${rate(r.filled.paidLeave)}`);
   console.log(`  男女の賃金の差異    ${rate(r.filled.wageGap)}`);
@@ -207,7 +222,8 @@ if (isMain) {
     }
     for (const [reason, list] of [...byReason].sort((a, b) => b[1].length - a[1].length)) {
       console.log(`  ${reason}: ${list.length}件`);
-      for (const d of list) console.log(`    ${d.name}（${d.corporateNumber}） ${d.field} = ${d.raw}`);
+      for (const d of list)
+        console.log(`    ${d.name}（${d.corporateNumber}） ${d.field} = ${d.raw}`);
     }
   }
 }

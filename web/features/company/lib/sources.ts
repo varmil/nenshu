@@ -22,22 +22,14 @@ import { edinetDocumentUrl, type PRIMARY_SOURCES } from "@/lib/data/sources";
  */
 
 export type SourceKind =
-  | "original"
-  | "measured"
-  | "computed"
-  | "estimated"
-  | "selfReported"
-  | "aiDigest"
-  | "aiAnalysis";
+  "original" | "measured" | "computed" | "estimated" | "selfReported" | "aiDigest" | "aiAnalysis";
 
 /**
  * 出典の文の切れ端。文字列はそのまま、`source` は一次情報（全ページ共通）へのリンク、
  * `url` はその会社だけのリンク（C13・有報の書類閲覧ページ）になる。
  */
 export type SourceSegment =
-  | string
-  | { source: keyof typeof PRIMARY_SOURCES }
-  | { text: string; url: string };
+  string | { source: keyof typeof PRIMARY_SOURCES } | { text: string; url: string };
 
 export interface SourceRow {
   kind: SourceKind;
@@ -169,4 +161,3 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
 
   return rows;
 }
-

@@ -38,7 +38,9 @@ export function AnalysisSection({ name, view }: { name: string; view: AnalysisVi
       */}
       <div className="bg-background ring-foreground/10 mt-3.5 rounded-lg px-3.5 py-3 ring-1 sm:px-4.5 sm:py-3.5">
         <p className="text-muted-foreground mb-1 text-xs font-medium">ひとことで言うと</p>
-        <p className="text-sm leading-relaxed font-semibold text-pretty sm:text-[15px]">{view.headline}</p>
+        <p className="text-sm leading-relaxed font-semibold text-pretty sm:text-[15px]">
+          {view.headline}
+        </p>
       </div>
 
       <p className="mt-3.5 text-[13px] leading-[1.85] text-pretty sm:text-sm">{view.body}</p>
@@ -90,7 +92,9 @@ export function DigestSection({
   return (
     <section className="flex flex-col" data-testid="company-digest">
       <h2 className="text-lg font-bold">{name}の有価証券報告書の要約</h2>
-      <p className="text-muted-foreground mt-1 mb-2.5 text-xs leading-relaxed">{digestNote(fiscalPeriod)}</p>
+      <p className="text-muted-foreground mt-1 mb-2.5 text-xs leading-relaxed">
+        {digestNote(fiscalPeriod)}
+      </p>
       <p className="text-[13px] leading-[1.85] text-pretty sm:text-sm">{view.digest}</p>
     </section>
   );

@@ -19,7 +19,9 @@ const WITH_LOGO = { id: "6861", name: "株式会社キーエンス" };
 const WITHOUT_LOGO = { id: "4716", name: "日本オラクル株式会社", initial: "日" };
 
 test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
-  test("AC-7: ロゴを持つ会社は画像が出て、器からはみ出さず、引き伸ばされていない", async ({ page }) => {
+  test("AC-7: ロゴを持つ会社は画像が出て、器からはみ出さず、引き伸ばされていない", async ({
+    page,
+  }) => {
     await page.goto("/");
     const row = page.getByRole("row").filter({ hasText: WITH_LOGO.name });
     const box = row.locator('[data-logo="image"]');
@@ -49,9 +51,9 @@ test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
     expect(size.drawnRatio).toBeCloseTo(size.naturalRatio, 1);
 
     // 代替テキストは空。読み込みに失敗しても、社名の隣に同じ文字列が出ない。
-    const alts = await page.locator('[data-logo="image"] img').evaluateAll((els) =>
-      els.map((el) => (el as HTMLImageElement).alt),
-    );
+    const alts = await page
+      .locator('[data-logo="image"] img')
+      .evaluateAll((els) => els.map((el) => (el as HTMLImageElement).alt));
     expect(alts.length).toBeGreaterThan(0);
     expect(alts.every((alt) => alt === "")).toBe(true);
   });
@@ -96,7 +98,7 @@ test.describe("AC-9 混在しても列が揃う", () => {
             rowH: Math.round(el.getBoundingClientRect().height),
           };
         })
-        .filter(Boolean),
+        .filter(Boolean)
     );
     expect(measured.length).toBeGreaterThan(10);
     const kinds = new Set(measured.map((m) => m!.kind));
@@ -115,14 +117,14 @@ test.describe("AC-10 モバイル", () => {
   test("360px で横スクロールが出ず、社名が読める幅を保ち、器の幅が揃う", async ({ page }) => {
     await page.goto("/");
     const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth
     );
     expect(overflow).toBe(false);
 
     // **表とカードは両方がDOMにある**（`hidden md:block`）。見えているほうを測る
     const nameWidth = await page.evaluate(() => {
       const link = [...document.querySelectorAll("a[href^='/company/']")].find(
-        (el) => (el as HTMLElement).offsetParent !== null,
+        (el) => (el as HTMLElement).offsetParent !== null
       )!;
       return link.getBoundingClientRect().width;
     });
@@ -134,7 +136,7 @@ test.describe("AC-10 モバイル", () => {
         ...new Set(
           els
             .filter((el) => (el as HTMLElement).offsetParent !== null)
-            .map((el) => Math.round(el.getBoundingClientRect().width)),
+            .map((el) => Math.round(el.getBoundingClientRect().width))
         ),
       ]);
     expect(widths).toHaveLength(1);
@@ -163,7 +165,7 @@ test.describe("AC-11 操作でページを取り直さない", () => {
       els.map((el) => ({
         href: el.querySelector("a[href^='/company/']")?.getAttribute("href") ?? null,
         src: el.querySelector('[data-logo="image"] img')?.getAttribute("src") ?? null,
-      })),
+      }))
     );
     const withLogo = rows.filter((row) => row.src !== null);
     expect(withLogo.length).toBeGreaterThan(0);
@@ -184,7 +186,10 @@ test.describe("AC-12 レイアウトが動かない", () => {
     const before = await page.evaluate(() => {
       const name = document.querySelector("a[href^='/company/']")!;
       const row = name.closest("tr, div")!;
-      return { left: name.getBoundingClientRect().left, height: row.getBoundingClientRect().height };
+      return {
+        left: name.getBoundingClientRect().left,
+        height: row.getBoundingClientRect().height,
+      };
     });
 
     await page.unroute("**/logos/*.webp");
@@ -193,7 +198,10 @@ test.describe("AC-12 レイアウトが動かない", () => {
     const after = await page.evaluate(() => {
       const name = document.querySelector("a[href^='/company/']")!;
       const row = name.closest("tr, div")!;
-      return { left: name.getBoundingClientRect().left, height: row.getBoundingClientRect().height };
+      return {
+        left: name.getBoundingClientRect().left,
+        height: row.getBoundingClientRect().height,
+      };
     });
 
     expect(after.left).toBeCloseTo(before.left, 0);
@@ -206,7 +214,7 @@ test.describe("企業詳細ページ", () => {
     await page.goto(`/company/${WITH_LOGO.id}`);
     await expect(page.locator('header [data-logo="image"] img')).toHaveAttribute(
       "src",
-      `/logos/${WITH_LOGO.id}.webp`,
+      `/logos/${WITH_LOGO.id}.webp`
     );
     const section = page.getByRole("heading", { name: /水準が近い会社/ }).locator("..");
     await expect(section.locator('[data-logo="image"] img').first()).toBeVisible();
