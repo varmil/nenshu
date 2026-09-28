@@ -11,7 +11,10 @@
   会社がある（Hamee は本文が h6、日鉄鉱業は長い1文が h5）。句点で終わらない短い行を
   小見出しとみる（`is_heading`）
 - `para` — 段落。p 要素（や h 要素）1つが1段落。文に分ける
-- `table` — 表。セルの文字列を行ごとに持つ。文には分けない。**1列の表は段落に展開する**（`_unbox`）
+- `table` — 表。セルの文字列を行ごとに持つ。文には分けない。**1列の表は段落に展開する**（`_unbox`）。
+  **結合したセルは `spans` に持つ**（`[行, セル, colspan, rowspan]`。行とセルは `rows` の添字で、
+  結合の無い表では鍵ごと無い）。落とすと行ごとにセルが左へ詰まり、列がずれて見える（ソニー
+  グループの報酬の表で、株式報酬の内訳の行だけが1列右へずれていた）
 - `image` — 画像。文字を持たない。範囲に入ったら数える
 
 **空白の扱い。** HTML のソースの改行は表示では意味を持たないので落とす。`&#160;` は
@@ -111,8 +114,9 @@ class _Parser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.blocks = []
         self.buf = []
-        self.table = None  # 表の中なら行の配列
+        self.table = None  # 表の中なら行の配列。セルは (文字列, colspan, rowspan)
         self.cell = None
+        self.span = (1, 1)
         # **表は入れ子になる**（サステナビリティの節で、セルの中に表を置く会社がある）。
         # 内側の表の閉じタグで外側まで閉じると、残りのセルの文字を落とす。内側の表は
         # 外側のセルの文字列に平たく入れる
@@ -139,6 +143,8 @@ class _Parser(HTMLParser):
                 self.table.append([])
             elif tag in ("td", "th"):
                 self.cell = []
+                a = dict(attrs)
+                self.span = (_span(a.get("colspan")), _span(a.get("rowspan")))
             elif (tag == "br" or tag in _BLOCK_TAGS) and self.cell is not None:
                 # **セルの中の段落の区切りを改行で残す。** 本文を1列の表の中に組む会社がある
                 # （ANA。レイアウトのための表）。区切りを落とすと段落が1つの塊になる。
@@ -163,9 +169,9 @@ class _Parser(HTMLParser):
             if tag == "table":
                 self.depth -= 1
                 if self.depth == 0:
-                    rows = [r for r in self.table if any(c for c in r)]
-                    if rows:
-                        self.blocks.append({"kind": "table", "rows": rows})
+                    table = _table(self.table)
+                    if table:
+                        self.blocks.append(table)
                     self.table = None
             elif self.depth > 1:
                 if tag in ("td", "th") and self.cell is not None:
@@ -174,7 +180,7 @@ class _Parser(HTMLParser):
                 if not self.table:
                     self.table.append([])
                 text = re.sub(r"[ \t]*\n[\s]*", "\n", "".join(self.cell)).strip()
-                self.table[-1].append(text)
+                self.table[-1].append((text, *self.span))
                 self.cell = None
             elif tag in _BLOCK_TAGS and self.cell is not None:
                 self.cell.append("\n")
@@ -189,13 +195,52 @@ class _Parser(HTMLParser):
                 self.cell.append(data)
             elif data.strip():
                 # セルの外の文字（表題など）も落とさない。1セルの行として持つ
-                self.table.append([data.strip()])
+                self.table.append([(data.strip(), 1, 1)])
             return
         self.buf.append(data)
 
     def close(self):
         super().close()
         self._flush()
+
+
+def _span(value):
+    """colspan・rowspan の値。数でなければ・1未満なら1（結合しない）。"""
+    try:
+        return max(1, int(str(value).strip()))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _table(raw):
+    """(文字列, colspan, rowspan) の行の列を、表の塊にする。文字の無い行は落とす。
+
+    **行を落とすなら、その行を跨ぐ rowspan を縮める。** 縮めないと、結合したセルが次の行まで
+    伸びて列がずれる。**文字の無い行でも、下の行まで伸びるセルを持つなら残す**——落とすと
+    そのセルが占めていた場所が詰まる。
+    """
+    n = len(raw)
+    keep = [any(c[0] for c in r) for r in raw]
+    for i, r in enumerate(raw):
+        if not keep[i] and any(rs > 1 and any(keep[i + 1:i + rs]) for _, _, rs in r):
+            keep[i] = True
+    rows, spans = [], []
+    for i, r in enumerate(raw):
+        if not keep[i]:
+            continue
+        cells = []
+        for j, (text, cs, rs) in enumerate(r):
+            rs = sum(keep[i:min(n, i + rs)])
+            cells.append(text)
+            if cs > 1 or rs > 1:
+                spans.append([len(rows), j, cs, rs])
+        rows.append(cells)
+    if not rows:
+        return None
+    table = {"kind": "table", "rows": rows}
+    if spans:
+        table["spans"] = spans
+    return table
 
 
 def _unbox(blocks):
@@ -207,7 +252,8 @@ def _unbox(blocks):
     """
     out = []
     for b in blocks:
-        if b["kind"] == "table" and all(len(r) == 1 for r in b["rows"]):
+        # 文字の無い行は数えない（結合したセルを持つので残した空の行が、1列の表を2列に見せる）
+        if b["kind"] == "table" and all(len(r) == 1 for r in b["rows"] if any(r)):
             for r in b["rows"]:
                 out.extend({"kind": "para", "text": line} for line in r[0].split("\n") if line.strip())
         else:
@@ -353,7 +399,7 @@ def cut(blocks, start, end):
         elif b["kind"] == "heading":
             out.append({"kind": "heading", "text": b["text"]})
         elif b["kind"] == "table":
-            out.append({"kind": "table", "rows": b["rows"]})
+            out.append({k: b[k] for k in ("kind", "rows", "spans") if k in b})
         else:
             out.append({"kind": "image", "alt": b["alt"]})
     return out

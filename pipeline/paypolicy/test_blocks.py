@@ -103,6 +103,50 @@ class TestParse(unittest.TestCase):
                                      ("heading", "②給与の決定方針"), ("para", "給与は役割で決める。")])
         self.assertEqual(B.squash("".join(B.block_text(b) for b in bl)), B.squash(B.plain_text(html)))
 
+    def test_merged_cells_keep_their_spans(self):
+        # ソニーグループの報酬の表。項目名は2列ぶん、株式報酬の内訳は左に空の列を1つ置いて
+        # 2行ぶん結合している。結合を落とすと内訳の行だけが1列右へずれる
+        html = ('<table><tr><td colspan="2">報酬の種類</td><td>概要</td></tr>'
+                '<tr><td colspan="2">株式報酬</td><td>付与する</td></tr>'
+                '<tr><td rowspan="2">&#160;</td><td>ストック・オプション</td><td>3年で行使</td></tr>'
+                '<tr><td>RSU</td><td>3年で確定</td></tr></table>')
+        [table] = B.parse(html)
+        self.assertEqual(table["rows"], [["報酬の種類", "概要"], ["株式報酬", "付与する"],
+                                         ["", "ストック・オプション", "3年で行使"], ["RSU", "3年で確定"]])
+        self.assertEqual(table["spans"], [[0, 0, 2, 1], [1, 0, 2, 1], [2, 0, 1, 2]])
+
+    def test_table_without_merged_cells_has_no_spans(self):
+        [table] = B.parse('<table><tr><td colspan="1">A</td><td rowspan="x">B</td></tr></table>')
+        self.assertNotIn("spans", table)
+
+    def test_dropping_an_empty_row_shrinks_the_rowspan_over_it(self):
+        html = ('<table><tr><td rowspan="3">区分</td><td>A</td></tr>'
+                '<tr><td>&#160;</td></tr><tr><td>B</td></tr></table>')
+        [table] = B.parse(html)
+        self.assertEqual(table["rows"], [["区分", "A"], ["B"]])
+        self.assertEqual(table["spans"], [[0, 0, 1, 2]])
+
+    def test_empty_row_holding_a_span_is_kept(self):
+        # 文字の無い行でも、下の行まで伸びるセルを持つなら落とさない（落とすとその列が詰まる）
+        html = ('<table><tr><td rowspan="2">&#160;</td><td>&#160;</td><td>&#160;</td></tr>'
+                '<tr><td>A</td><td>B</td></tr></table>')
+        [table] = B.parse(html)
+        self.assertEqual(table["rows"], [["", "", ""], ["A", "B"]])
+        self.assertEqual(table["spans"], [[0, 0, 1, 2]])
+
+    def test_empty_row_does_not_turn_a_frame_into_a_table(self):
+        # 残した空の行が2セルでも、文字のある行が1セルずつなら枠として段落に展開する
+        # （塊の数が変わると、判定済みの番号がずれる）
+        html = ('<table><tr><td rowspan="2">&#160;</td><td>&#160;</td></tr>'
+                '<tr><td>給与は役割で決める。</td></tr></table>')
+        self.assertEqual(texts(B.parse(html)), [("para", "給与は役割で決める。")])
+
+    def test_cut_keeps_the_spans(self):
+        blocks = B.parse('<p>前置き。</p><table><tr><td colspan="2">題</td></tr>'
+                         '<tr><td>A</td><td>B</td></tr></table>')
+        self.assertEqual(B.cut(blocks, "b2", "b2"),
+                         [{"kind": "table", "rows": [["題"], ["A", "B"]], "spans": [[0, 0, 2, 1]]}])
+
     def test_text_outside_cells_is_kept(self):
         html = "<table><caption>表の題</caption><tr><td>A</td><td>B</td></tr></table>"
         self.assertEqual(B.parse(html)[0]["rows"], [["表の題"], ["A", "B"]])

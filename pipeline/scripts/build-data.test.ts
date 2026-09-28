@@ -883,6 +883,24 @@ describe("buildData", () => {
       // 花王は決算期末 2025-12-31 で改正前の様式。
       expect(result.payPolicies.byId["4452"]).toBeUndefined();
     });
+
+    /**
+     * 公開後の指摘（2026-09-28）。ソニーグループの報酬の表は、項目名が2列ぶん、株式報酬の内訳が
+     * 左に空の列を置いて2行ぶん結合している。結合を落とすと内訳の行だけが1列右へずれていた。
+     */
+    it("ソニーグループの表は結合したセルを持つ", () => {
+      const [table] = result.payPolicies.byId["6758"].blocks.filter((b) => b.kind === "table");
+      expect(table).toMatchObject({
+        spans: [
+          [0, 0, 2, 1],
+          [1, 0, 2, 1],
+          [2, 0, 2, 1],
+          [3, 0, 2, 1],
+          [4, 0, 1, 2],
+          [6, 0, 2, 1],
+        ],
+      });
+    });
   });
 });
 

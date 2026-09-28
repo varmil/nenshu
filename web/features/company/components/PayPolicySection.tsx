@@ -1,9 +1,10 @@
 import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableRow } from "@/design-system/ui/table";
 import { TABLE_NO_VERTICAL_SCROLL } from "@/design-system/tableContainer";
 import { edinetDocumentUrl } from "@/lib/data/sources";
 import { formatInt } from "@/features/ranking/lib/format";
-import type { PayPolicyBlock, PayPolicyView } from "../lib/payPolicy";
+import { cellSpan, type PayPolicyBlock, type PayPolicyView } from "../lib/payPolicy";
 import { FilingLink } from "./FilingLink";
 
 /**
@@ -97,6 +98,11 @@ function Block({ block }: { block: PayPolicyBlock }) {
        *
        * **セルに最小幅（5字ぶん）を持たせる。** 持たせないと表は器の幅に縮もうとして、6列の表
        * （コニシ）が 390px で1字ずつ縦に折れる（「※所定内賃金」が6行になっていた）。
+       *
+       * **最小幅は字のあるセルにだけ付ける。** 字の無いセルは字下げの列（ソニーグループの株式報酬の
+       * 内訳。原文では24px）に使われていて、5字ぶん取ると 390px で本文の列が細る。
+       *
+       * **結合したセルは原文どおりに結合する**（`cellSpan`）。落とすと列がずれる。
        */
       return (
         <div className={TABLE_NO_VERTICAL_SCROLL}>
@@ -107,7 +113,11 @@ function Block({ block }: { block: PayPolicyBlock }) {
                   {row.map((cell, c) => (
                     <TableCell
                       key={c}
-                      className="border-border min-w-[5em] border px-2 py-1.5 align-top leading-relaxed whitespace-pre-line"
+                      {...cellSpan(block.spans, r, c)}
+                      className={cn(
+                        "border-border border px-2 py-1.5 align-top leading-relaxed whitespace-pre-line",
+                        cell.trim() !== "" && "min-w-[5em]"
+                      )}
                     >
                       {cell}
                     </TableCell>
