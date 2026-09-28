@@ -242,15 +242,22 @@ test.describe("企業詳細ページ", () => {
     expect((await request.get("/company/does-not-exist")).status()).toBe(404);
   });
 
-  test("AC-6: 三菱商事に「本社のみ」バッジと、その意味の説明がある", async ({ page }) => {
+  /*
+   * 単体が連結の10%未満の会社（244社）だけ、平均年収の回答に断りが入る。文言と、断りの無い
+   * 会社の文は `lib/actualsQa.test.ts`。ここではページが `hasBadge` を Q&A まで渡していることを見る。
+   * 2026-09-28 までは社名の隣の「本社のみ」バッジとフッタの注記がこの役だった。
+   */
+  test("AC-6: 単体が連結の10%未満の三菱商事は、Q&A の平均年収の回答に断りがある", async ({
+    page,
+  }) => {
     await page.goto("/company/8058");
 
-    await expect(page.getByRole("heading", { name: "三菱商事株式会社", level: 1 })).toBeVisible();
-    await expect(page.getByText("本社のみ", { exact: true }).first()).toBeVisible();
-    // 断りはフッタにある（C11・#799 で「この会社の要点」を外すまでは2か所だった）。
-    await expect(
-      page.getByText("単体従業員数が連結の10%未満", { exact: false }).first()
-    ).toBeVisible();
+    const salaryAnswer = page.getByTestId("company-qa-list").locator("p").first();
+    await expect(salaryAnswer).toHaveText(
+      "三菱商事株式会社の平均年収は2,113万円です（提出会社単体の4,456人の平均で、グループ全体の平均ではありません）。"
+    );
+    // 太字は金額だけ（C16）。断りまで太くしない。
+    await expect(salaryAnswer.locator("strong")).toHaveText("2,113万円");
   });
 
   /*

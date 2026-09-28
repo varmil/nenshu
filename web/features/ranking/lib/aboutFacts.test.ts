@@ -21,7 +21,7 @@ describe("buildAboutFacts", () => {
     expect(facts.agePoints).toEqual([22, 27, 32, 37, 42, 47, 52, 57, 62, 67]);
   });
 
-  it("持株会社の実例（みずほFG）には「本社のみ」バッジが付く", () => {
+  it("持株会社の実例（みずほFG）は単体従業員数が連結の10%未満の側に入る", () => {
     const { holdingExample: e } = facts;
     expect(e.name).toBe("株式会社みずほフィナンシャルグループ");
     expect(e.avgSalary).toBe(11665000);
@@ -30,7 +30,7 @@ describe("buildAboutFacts", () => {
     expect(e.hasBadge).toBe(true);
   });
 
-  it("事業会社の実例（みずほ銀行）にはバッジが付かず、単体従業員数が桁違いに多い", () => {
+  it("事業会社の実例（みずほ銀行）は10%未満の側に入らず、単体従業員数が桁違いに多い", () => {
     const { operatingExample: e } = facts;
     expect(e.name).toBe("株式会社みずほ銀行");
     expect(e.avgSalary).toBe(8701000);
@@ -40,7 +40,7 @@ describe("buildAboutFacts", () => {
   });
 
   it("持株会社のほうが平均年間給与は高いが、単体従業員数は事業会社より大幅に少ない", () => {
-    // 「本社のみ」バッジが何を意味するかの実例として成立していること
+    // 単体の数字がグループ全体を代表しないことの実例として成立していること
     expect(facts.holdingExample.avgSalary).toBeGreaterThan(facts.operatingExample.avgSalary);
     expect(facts.holdingExample.employees).toBeLessThan(facts.operatingExample.employees);
   });

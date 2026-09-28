@@ -77,12 +77,11 @@ test.describe("計算方法ページ（/about）", () => {
     await expect(page.getByText("平均年間給与 870.1万円")).toBeVisible();
     await expect(page.getByText(/推定年収 ＝ .*＝ 755万円/)).toBeVisible();
 
-    // 「本社のみ」バッジの実例。「2つの表示基準」の表も同じページにあるので、
-    // バッジの実例の表に絞る。
+    // 単体の数字がグループ全体を代表しない実例（持株会社と事業会社）。「2つの表示基準」の表も
+    // 同じページにあるので、実例の表に絞る。
     const table = page.getByRole("table").filter({ hasText: "単体従業員数" });
     await expect(table).toContainText("株式会社みずほフィナンシャルグループ");
     await expect(table).toContainText("株式会社みずほ銀行");
-    await expect(table).toContainText("本社のみ");
     // 表に出す金額（丸め後）と、本文が述べる差額が食い違わないこと。
     // 丸める前の差を取ると1万円ずれる（1,167万 − 870万 = 297万 だが 296.4万 → 296万）。
     await expect(table).toContainText("1,167万円");

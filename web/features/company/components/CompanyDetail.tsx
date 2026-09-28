@@ -4,7 +4,6 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { shortIndustryLabel } from "@/lib/data/industry";
-import { Badge } from "@/design-system/ui/badge";
 import { Card, CardContent } from "@/design-system/ui/card";
 import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
 import { ControlBand } from "@/features/ranking/components/ControlBand";
@@ -256,11 +255,16 @@ export function CompanyDetail({
         <div className="grid grid-cols-[auto_1fr] items-start gap-x-3.5 gap-y-3">
           <CompanyLogo id={view.id} name={view.name} size="lg" />
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              {/* 390px では 28px だと社名が2行に折れる（実測）。モバイルは1段落とす。 */}
-              <h1 className="text-2xl font-bold sm:text-3xl">{view.name}</h1>
-              {view.hasBadge && <Badge variant="outline">本社のみ</Badge>}
-            </div>
+            {/*
+              390px では 28px だと社名が2行に折れる（実測）。モバイルは1段落とす。
+
+              **社名の隣に「本社のみ」バッジを置かない**（2026-09-28・運営者の判断）。390px では
+              ロゴの右の列が 208px しかなく、バッジはどの会社でも独立した1行になって金額を
+              18〜28px 押し下げていた。意味の説明もページ最下部のフッタにしか無かった。
+              単体が連結の10%未満であることの断りは「年収に関するQ&A」の平均年収の回答が持つ
+              （`lib/actualsQa.ts`）。
+            */}
+            <h1 className="text-2xl font-bold sm:text-3xl">{view.name}</h1>
             {/*
               業種と業界内順位を h1 の直下に置く（アートボード 4b）。カードの中まで読まなくても
               同業の中の位置が分かる。**上位◯%は出さない**（運営者の指示）。
@@ -556,7 +560,8 @@ export function CompanyDetail({
           **出典はここに書かない**（C12・#805）。本文の末尾の「このページの出典」が
           ページ全体の出典を持っている。ここに以前あった1行は EDINET と賃金構造基本統計
           調査の2つしか挙げておらず、女性活躍DBが抜けていた。残すのは表示基準ごとの
-          断り（AC-9）と「本社のみ」の断り（AC-6）。
+          断り（AC-9）だけ。「本社のみ」の断りは見出しのバッジと一緒に外し、Q&A の
+          平均年収の回答へ移した（AC-6）。
         */}
         <p>
           {isRaw
@@ -566,11 +571,6 @@ export function CompanyDetail({
             計算方法と限界
           </a>
         </p>
-        {view.hasBadge && (
-          <p>
-            「本社のみ」は単体従業員数が連結の10%未満の会社に付けています。この数字はグループ全体を代表していません。
-          </p>
-        )}
       </footer>
     </div>
   );

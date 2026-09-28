@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/design-system/ui/table";
-import { Badge } from "@/design-system/ui/badge";
 import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
@@ -84,18 +83,22 @@ export function RankingTable({
                       <RankBadge rank={company.rank} size="md" />
                     </span>
                     <span className="flex min-w-0 flex-col">
-                      <span className="flex min-w-0 items-center gap-1.5">
+                      {/*
+                        **「本社のみ」バッジは置かない**（2026-09-28・運営者の判断）。意味の説明が
+                        このページに無く（`/about` だけ）、モバイルの行ではもともと出していない。
+                        企業詳細の見出しからも外したので、ここに残すとラベルを見て開いた先に
+                        同じラベルが無い。断りは企業詳細の「年収に関するQ&A」が持つ。
+
+                        器の span は残す——リンクを行の中で中身の幅に留める（外すと列の幅いっぱいが
+                        押せる範囲になる）。
+                      */}
+                      <span className="flex min-w-0 items-center">
                         <a
                           href={`/company/${company.id}`}
                           className="text-primary truncate font-bold hover:underline"
                         >
                           {company.name}
                         </a>
-                        {company.hasBadge && (
-                          <Badge variant="outline" className="shrink-0">
-                            本社のみ
-                          </Badge>
-                        )}
                       </span>
                       <span className="text-xs">
                         <CompanyMetaLine company={company} />
