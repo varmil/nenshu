@@ -64,7 +64,10 @@ describe("buildActualsQa（C16・AC-34）", () => {
   it("決算期はその会社の値で、説明の1行にだけ入る", () => {
     const qa = qaFor("7488");
     expect(qa.note.startsWith("2026年4月期の有価証券報告書の値です。")).toBe(true);
-    const rest = [qa.heading, ...qa.items.flatMap((item) => [item.question, sentence(item.answer)])];
+    const rest = [
+      qa.heading,
+      ...qa.items.flatMap((item) => [item.question, sentence(item.answer)]),
+    ];
     for (const text of rest) expect(text).not.toMatch(/\d{4}年\d{1,2}月期/);
   });
 });

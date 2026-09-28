@@ -47,10 +47,7 @@ describe("decodeWorklife", () => {
 
   it("AC-6b 区分名は会社が登録したまま（新日本空調・みずほ銀行）", () => {
     // 職能で切る会社。**「正規/非正規」のような軸に振り替えない。**
-    expect(recordOf("1952")?.overtimeUnits.map((u) => u.unit)).toEqual([
-      "営業・管理系",
-      "技術系",
-    ]);
+    expect(recordOf("1952")?.overtimeUnits.map((u) => u.unit)).toEqual(["営業・管理系", "技術系"]);
     // 組織階層と雇用形態が**1社の中で混ざる**。軸を1本に決められる前提が成り立たない。
     expect(recordOf("E03532")?.overtimeUnits.map((u) => u.unit)).toEqual([
       "カンパニー",

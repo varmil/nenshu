@@ -1,12 +1,7 @@
 "use client";
 
 import { AVG_AGE_OPTIONS, EMPLOYEE_SIZE_OPTIONS, TENURE_OPTIONS } from "../lib/filterOptions";
-import type {
-  AvgAgeBucket,
-  EmployeeSizeBucket,
-  RankingState,
-  TenureBucket,
-} from "../types";
+import type { AvgAgeBucket, EmployeeSizeBucket, RankingState, TenureBucket } from "../types";
 import { FilterSelect } from "./FilterSelect";
 import { FilterToggleGroup } from "./FilterToggleGroup";
 
@@ -47,9 +42,7 @@ export function RankingFilters({ state, onChange, industries }: FilterPanelProps
       <FilterToggleGroup
         label="平均年齢"
         value={state.avgAgeBucket}
-        onChange={(avgAgeBucket) =>
-          onChange({ avgAgeBucket: avgAgeBucket as AvgAgeBucket | null })
-        }
+        onChange={(avgAgeBucket) => onChange({ avgAgeBucket: avgAgeBucket as AvgAgeBucket | null })}
         options={AVG_AGE_OPTIONS}
       />
       <FilterToggleGroup

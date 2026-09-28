@@ -97,7 +97,10 @@ export function blockChars(block: PayPolicyBlock): number {
  * ——開いている部分の最後が小見出しだと、その中身が「続きを読む」の向こうに行って見出しだけが残る。
  * 畳む部分が空になるなら畳まない。
  */
-export function buildPayPolicyView(name: string, record: PayPolicyRecord | undefined): PayPolicyView | null {
+export function buildPayPolicyView(
+  name: string,
+  record: PayPolicyRecord | undefined
+): PayPolicyView | null {
   if (record === undefined || record.blocks.length === 0) return null;
   const total = record.blocks.reduce((sum, block) => sum + blockChars(block), 0);
   let cut = record.blocks.length;

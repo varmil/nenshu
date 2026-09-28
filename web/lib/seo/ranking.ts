@@ -233,4 +233,3 @@ export function rankingPageMeta(
     canonical: canonical.path,
   };
 }
-

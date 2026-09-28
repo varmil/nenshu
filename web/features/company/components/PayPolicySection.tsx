@@ -58,8 +58,13 @@ export function PayPolicySection({ view, docId }: { view: PayPolicyView; docId: 
              */
             <details className="group border-border border-t border-dashed pt-2.5">
               <summary className="text-primary flex min-h-8 cursor-pointer list-none items-center gap-1 text-[13px] font-semibold [&::-webkit-details-marker]:hidden">
-                <ChevronDown aria-hidden="true" className="size-3.5 flex-none transition-transform group-open:rotate-180" />
-                <span className="underline underline-offset-2">続きを読む（残り{formatInt(view.foldedChars)}字）</span>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="size-3.5 flex-none transition-transform group-open:rotate-180"
+                />
+                <span className="underline underline-offset-2">
+                  続きを読む（残り{formatInt(view.foldedChars)}字）
+                </span>
               </summary>
               <div className="mt-2.5 flex flex-col gap-2.5">
                 {view.folded.map((block, i) => (
@@ -86,7 +91,10 @@ function Block({ block }: { block: PayPolicyBlock }) {
       );
     case "heading":
       return (
-        <p data-pay-block="heading" className="text-sm leading-[1.8] font-medium whitespace-pre-line">
+        <p
+          data-pay-block="heading"
+          className="text-sm leading-[1.8] font-medium whitespace-pre-line"
+        >
           {block.text}
         </p>
       );

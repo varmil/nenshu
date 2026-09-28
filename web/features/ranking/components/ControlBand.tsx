@@ -24,9 +24,7 @@ export function ControlBand({
 }) {
   const base = "flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3.5 py-3";
   const skin =
-    tone === "solid"
-      ? "bg-muted"
-      : "border-border border border-dashed opacity-60 py-2.5";
+    tone === "solid" ? "bg-muted" : "border-border border border-dashed opacity-60 py-2.5";
 
   return (
     <div className={`${base} ${skin}`}>

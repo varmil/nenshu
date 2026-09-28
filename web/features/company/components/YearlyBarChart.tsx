@@ -62,7 +62,9 @@ export function YearlyBarChart({
               ) : (
                 <span
                   className={`w-full rounded-t-sm ${i === latest ? "bg-primary" : "bg-chart-1 dark:bg-chart-3"}`}
-                  style={{ height: `calc(var(--bar-max) * ${Math.max(0.02, value / max).toFixed(4)})` }}
+                  style={{
+                    height: `calc(var(--bar-max) * ${Math.max(0.02, value / max).toFixed(4)})`,
+                  }}
                 />
               )}
             </div>

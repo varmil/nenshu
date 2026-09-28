@@ -147,8 +147,7 @@ test.describe("AC-10 データが無いとき", () => {
       await expect(metric(page, label)).toContainText("掲載なし");
       const note = metric(page, label).getByText("データベースに登録していません");
       const lines = await note.evaluate(
-        (el) =>
-          el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)
+        (el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)
       );
       expect(Math.round(lines), `${label} の1文が折り返している`).toBe(1);
     }

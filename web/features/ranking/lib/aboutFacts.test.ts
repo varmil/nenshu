@@ -87,7 +87,9 @@ describe("buildAboutFacts の式の実例", () => {
     const man1 = (yen: number) => Number(formatManYen1(yen).replace("万円", ""));
     const a = man1(e.curveAtAnchorAge);
     const byHand =
-      a + ((man1(e.company.avgSalary) - a) * (man1(e.curveAtTargetAge) - a)) / (man1(e.curveAtAvgAge) - a);
+      a +
+      ((man1(e.company.avgSalary) - a) * (man1(e.curveAtTargetAge) - a)) /
+        (man1(e.curveAtAvgAge) - a);
     expect(Math.round(byHand)).toBe(Math.round(e.estimatedSalary / 10000));
   });
 

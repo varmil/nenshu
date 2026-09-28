@@ -62,12 +62,13 @@ export type TextOptions = {
  * 文字列を1つの `<g>` に組む。字は原点から描いてあるので、送り幅ぶん平行移動して並べ、
  * 外側の `<g>` で `translate(x baseline) scale(size/100)` する。
  */
-export function textSvg(text: string, { x, baseline, size, fill, weight = 0 }: TextOptions): string {
+export function textSvg(
+  text: string,
+  { x, baseline, size, fill, weight = 0 }: TextOptions
+): string {
   const scale = size / 100;
   const stroke =
-    weight > 0
-      ? ` stroke="${fill}" stroke-width="${num(weight)}" stroke-linejoin="round"`
-      : "";
+    weight > 0 ? ` stroke="${fill}" stroke-width="${num(weight)}" stroke-linejoin="round"` : "";
 
   let offset = 0;
   let glyphs = "";

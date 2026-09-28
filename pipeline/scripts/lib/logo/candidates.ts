@@ -91,11 +91,17 @@ const PINNED: Record<string, Candidate> = {
     逆転する。だから**1枚ずつ見て決め、その結論を指定として持つ。**
   */
   // ベルグアース（1383）。いまは 28×17 の favicon
-  "1383": { source: "ogp", url: "https://bergearth.co.jp/wp-content/themes/bergearth/images/socialthumb.jpg" },
+  "1383": {
+    source: "ogp",
+    url: "https://bergearth.co.jp/wp-content/themes/bergearth/images/socialthumb.jpg",
+  },
   // 明豊ファシリティワークス（1717）。いまは 32×19 の favicon
   "1717": { source: "ogp", url: "https://www.meiho.co.jp/assets/images/common/ogp.jpg" },
   // ＦＲＯＮＴＥＯ（2158）。いまは 16×16 の favicon
-  "2158": { source: "ogp", url: "https://www.fronteo.com/hubfs/raw_assets/public/p-chan-fronteo/assets/images/common/FRONTEO_logo_FB.png" },
+  "2158": {
+    source: "ogp",
+    url: "https://www.fronteo.com/hubfs/raw_assets/public/p-chan-fronteo/assets/images/common/FRONTEO_logo_FB.png",
+  },
   // タイミー（215A）。いまは 48×46 の favicon
   "215A": { source: "ogp", url: "https://timee.co.jp/_assets/ogp.D2zkELIe.png" },
   // クエスト（2332）。いまは 14×15 の favicon
@@ -111,7 +117,10 @@ const PINNED: Record<string, Candidate> = {
   // グンゼ（3002）。いまは 32×30 の favicon
   "3002": { source: "ogp", url: "https://www.gunze.co.jp/assets/ogp.jpg" },
   // ＭＩＣ（300A）。いまは 12×6 の favicon
-  "300A": { source: "ogp", url: "https://www.mic-p.com/_wp2/wp-content/themes/mic/common/img/other/default_ogp.png" },
+  "300A": {
+    source: "ogp",
+    url: "https://www.mic-p.com/_wp2/wp-content/themes/mic/common/img/other/default_ogp.png",
+  },
   // コスモ・バイオ（3386）。いまは 29×32 の favicon
   "3386": { source: "ogp", url: "https://www.cosmobio.co.jp/img/cosmobio.png" },
   // トリドールホールディングス（3397）。いまは 32×32 の favicon
@@ -123,19 +132,31 @@ const PINNED: Record<string, Candidate> = {
   // ファインデックス（3649）。いまは 16×16 の favicon
   "3649": { source: "ogp", url: "https://findex.co.jp/img/ogp_26.png" },
   // ＪＩＧ－ＳＡＷ（3914）。いまは 48×48 の favicon
-  "3914": { source: "ogp", url: "https://www.jig-saw.com/wp-content/themes/jig-saw/assets/img/common/ogp.png" },
+  "3914": {
+    source: "ogp",
+    url: "https://www.jig-saw.com/wp-content/themes/jig-saw/assets/img/common/ogp.png",
+  },
   // マイネット（3928）。いまは 42×42 の favicon
-  "3928": { source: "ogp", url: "https://www.mynet.co.jp/media/Se1NoND1jyrycwzDfAh4WqwXqDL7u8PaB9NsV5Pl.png" },
+  "3928": {
+    source: "ogp",
+    url: "https://www.mynet.co.jp/media/Se1NoND1jyrycwzDfAh4WqwXqDL7u8PaB9NsV5Pl.png",
+  },
   // ＰＫＳＨＡ　Ｔｅｃｈｎｏｌｏｇｙ（3993）。いまは 24×22 の favicon
   "3993": { source: "ogp", url: "https://www.pkshatech.com/assets/img/ogp.jpg" },
   // インフキュリオン（438A）。いまは 40×40 の favicon
   "438A": { source: "ogp", url: "https://infcurion.com/ogp/og.png" },
   // Ｓａｎｓａｎ（4443）。いまは 16×26 の favicon
-  "4443": { source: "ogp", url: "https://www.corp-sansan.com/corp/wp-content/themes/sansan-corp4/img/og.png" },
+  "4443": {
+    source: "ogp",
+    url: "https://www.corp-sansan.com/corp/wp-content/themes/sansan-corp4/img/og.png",
+  },
   // ダイサン（4750）。いまは 48×38 の favicon
   "4750": { source: "ogp", url: "https://www.daisan-g.co.jp/common/img/ogp.jpg" },
   // 日本ビジネスシステムズ（5036）。いまは 48×48 の favicon
-  "5036": { source: "ogp", url: "https://www.jbs.co.jp/-/media/JBS/image/common/jbs-ogp.ashx?sc_lang=ja-JP" },
+  "5036": {
+    source: "ogp",
+    url: "https://www.jbs.co.jp/-/media/JBS/image/common/jbs-ogp.ashx?sc_lang=ja-JP",
+  },
   // ＢＴＭ（5247）。いまは 46×34 の favicon
   "5247": { source: "ogp", url: "https://www.b-tm.co.jp/wp-content/themes/BTM/images/ogp.png" },
   // ＳＯＬＩＺＥ　Ｈｏｌｄｉｎｇｓ（5871）。いまは 14×14 の favicon
@@ -145,7 +166,10 @@ const PINNED: Record<string, Candidate> = {
   // リブセンス（6054）。いまは 12×20 の favicon
   "6054": { source: "ogp", url: "https://www.livesense.co.jp/wp-content/uploads/2018/06/og.png" },
   // トレンダーズ（6069）。いまは 34×34 の favicon
-  "6069": { source: "ogp", url: "https://www.trenders.co.jp/wp-content/themes/trds-corp/images/global_top/OGP.jpg" },
+  "6069": {
+    source: "ogp",
+    url: "https://www.trenders.co.jp/wp-content/themes/trds-corp/images/global_top/OGP.jpg",
+  },
   // 石川製作所（6208）。いまは 48×26 の favicon
   "6208": { source: "ogp", url: "https://www.ishiss.co.jp/common/img/ogp/ogp.png" },
   // グローリー（6457）。いまは 32×30 の favicon
@@ -153,9 +177,15 @@ const PINNED: Record<string, Candidate> = {
   // ＹＵＳＨＩＮ（6482）。いまは 42×10 の favicon
   "6482": { source: "ogp", url: "https://www.yushincompany.jp/files/img/ogp.png" },
   // ＰＨＣホールディングス（6523）。いまは 24×28 の favicon
-  "6523": { source: "ogp", url: "https://www.phchd.com/-/media/Images/PHC_ogimage.png?rev=c16c9c71ec56487f83fbf987a8a87429&sc_lang=ja-JP" },
+  "6523": {
+    source: "ogp",
+    url: "https://www.phchd.com/-/media/Images/PHC_ogimage.png?rev=c16c9c71ec56487f83fbf987a8a87429&sc_lang=ja-JP",
+  },
   // 千代田インテグレ（6915）。いまは 28×40 の favicon
-  "6915": { source: "ogp", url: "https://www.chiyoda-i.co.jp/wp-content/themes/chiyoda-i/lib/img/common/ogp.png" },
+  "6915": {
+    source: "ogp",
+    url: "https://www.chiyoda-i.co.jp/wp-content/themes/chiyoda-i/lib/img/common/ogp.png",
+  },
   // ＧＭＯフィナンシャルホールディングス（7177）。いまは 16×16 の favicon
   "7177": { source: "ogp", url: "https://www.gmofh.com/assets/images/ogp-gmofh-jp-large.png" },
   // フジオーゼックス（7299）。いまは 30×10 の favicon
@@ -165,9 +195,15 @@ const PINNED: Record<string, Candidate> = {
   // Ｚｅｎｋｅｎ（7371）。いまは 42×38 の favicon
   "7371": { source: "ogp", url: "https://www.zenken.co.jp/img/ogp.png" },
   // アールビバン（7523）。いまは 45×27 の favicon
-  "7523": { source: "ogp", url: "https://www.artvivant.co.jp/assets/img/common/ogp.png?1787743001" },
+  "7523": {
+    source: "ogp",
+    url: "https://www.artvivant.co.jp/assets/img/common/ogp.png?1787743001",
+  },
   // いつも（7694）。いまは 10×16 の favicon
-  "7694": { source: "ogp", url: "https://itsumo365.co.jp/official/system/wp-content/themes/itsumo-theme/common/img/base/ogimage02.png" },
+  "7694": {
+    source: "ogp",
+    url: "https://itsumo365.co.jp/official/system/wp-content/themes/itsumo-theme/common/img/base/ogimage02.png",
+  },
   // ＩＭＶ（7760）。いまは 32×32 の favicon
   "7760": { source: "ogp", url: "https://we-are-imv.com/assets/images/common/ogp_img.png" },
   // 内田洋行（8057）。いまは 32×14 の favicon

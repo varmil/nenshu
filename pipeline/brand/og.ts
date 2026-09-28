@@ -260,9 +260,7 @@ export function ogOverflow(facts: OgFacts): string | null {
     const limit = index < DIVIDER_X.length ? DIVIDER_X[index] : right;
     const widest = Math.max(
       textWidth(label, LABEL_SIZE),
-      ...lines.map((line) =>
-        textWidth(line, lines.length === 1 ? VALUE_SIZE : SOURCE_SIZE)
-      )
+      ...lines.map((line) => textWidth(line, lines.length === 1 ? VALUE_SIZE : SOURCE_SIZE))
     );
     const end = COLUMN_X[index] + widest;
     if (end > limit) {

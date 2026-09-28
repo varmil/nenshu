@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { classifyAvgAgeBucket, classifyEmployeeSize, classifyTenure, matchesFilters } from "./filter";
+import {
+  classifyAvgAgeBucket,
+  classifyEmployeeSize,
+  classifyTenure,
+  matchesFilters,
+} from "./filter";
 import companiesData from "../../../public/data/companies.json";
 import type { CompaniesData, RankingState } from "../types";
 

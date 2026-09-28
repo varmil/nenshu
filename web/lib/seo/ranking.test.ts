@@ -5,12 +5,7 @@ import {
   buildSearchParams,
   parseSearchParams,
 } from "@/features/ranking/lib/urlState";
-import {
-  rankingCanonical,
-  rankingHeading,
-  rankingHeadingParts,
-  rankingPageMeta,
-} from "./ranking";
+import { rankingCanonical, rankingHeading, rankingHeadingParts, rankingPageMeta } from "./ranking";
 
 const INDUSTRIES = ["銀行業", "電気機器", "海運業"];
 
@@ -110,7 +105,9 @@ describe("rankingCanonical — ページ送り", () => {
     expect(canonicalOf("age=35&page=2")).toBe("/?age=35&page=2");
     expect(canonicalOf("ind=銀行業&page=2")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
     // 年齢と業種の組み合わせは業種側へ。ページはそのまま乗せる。
-    expect(canonicalOf("age=35&ind=銀行業&page=2")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
+    expect(canonicalOf("age=35&ind=銀行業&page=2")).toBe(
+      "/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2"
+    );
   });
 
   it("`buildSearchParams` と同じ並び（page が最後）になっている", () => {
@@ -211,7 +208,10 @@ describe("rankingPageMeta", () => {
  */
 describe("rankingHeading", () => {
   const heading = (query: string) =>
-    rankingHeading({ ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams(query)) }, INDUSTRIES);
+    rankingHeading(
+      { ...INITIAL_STATE, ...parseSearchParams(new URLSearchParams(query)) },
+      INDUSTRIES
+    );
 
   it("業種があれば「◯◯の」を前に付ける。年齢そろえなら年齢の見出しに付く", () => {
     expect(heading("")).toBe("平均年収ランキング");

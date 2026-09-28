@@ -41,7 +41,11 @@ export function ActiveFilterChips({
       </div>
       <div className="flex flex-wrap gap-1.5">
         {filters.map((filter) => (
-          <Badge key={`${filter.group}:${filter.label}`} variant="outline" className="bg-muted h-6 gap-1 pr-1.5">
+          <Badge
+            key={`${filter.group}:${filter.label}`}
+            variant="outline"
+            className="bg-muted h-6 gap-1 pr-1.5"
+          >
             {filter.label}
             <button
               type="button"

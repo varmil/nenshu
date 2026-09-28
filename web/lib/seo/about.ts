@@ -30,4 +30,3 @@ export function aboutPageMeta(meta: CompaniesMeta): PageMeta {
     canonical: "/about",
   };
 }
-

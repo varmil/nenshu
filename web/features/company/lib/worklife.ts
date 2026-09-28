@@ -193,9 +193,7 @@ export function buildWorklifeView(record: WorklifeRecord | null): WorklifeView {
       unit: "月あたり",
       valueSuffix: "h",
       definition: "",
-      rows: record
-        ? withAll(record.overtimeAll, record.overtimeUnits, record.overtimeScope)
-        : [],
+      rows: record ? withAll(record.overtimeAll, record.overtimeUnits, record.overtimeScope) : [],
       emptyNote: "この会社は残業時間をデータベースに登録していません。",
     },
     {

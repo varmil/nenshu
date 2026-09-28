@@ -59,7 +59,9 @@ test("色の役割: 会社名リンクと選択中の年齢タブは Primary、�
  * 描いていたのは数字とラテン文字だけで、日本語はどのみち OS のフォントに
  * 落ちていた。ここが 0 に保たれていることをブラウザで固定する。
  */
-test("フォントを1件もダウンロードせず、日本語フォントを明示したスタックで組む", async ({ page }) => {
+test("フォントを1件もダウンロードせず、日本語フォントを明示したスタックで組む", async ({
+  page,
+}) => {
   for (const path of ["/", "/about", "/company/6861"]) {
     const fontRequests: string[] = [];
     const onRequest = (request: import("@playwright/test").Request) => {
@@ -72,7 +74,7 @@ test("フォントを1件もダウンロードせず、日本語フォントを�
     expect(fontRequests, path).toEqual([]);
     // @font-face が読み込まれていないことも合わせて見る。
     const loaded = await page.evaluate(() =>
-      [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family),
+      [...document.fonts].filter((f) => f.status === "loaded").map((f) => f.family)
     );
     expect(loaded, path).toEqual([]);
 
@@ -138,7 +140,9 @@ test.describe("表示モード", () => {
 
         const bg = getComputedStyle(document.body).backgroundColor;
         const link = document.querySelector("tbody tr a")!;
-        const selectedTab = document.querySelector('[data-slot="toggle-group-item"][aria-pressed="true"]')!;
+        const selectedTab = document.querySelector(
+          '[data-slot="toggle-group-item"][aria-pressed="true"]'
+        )!;
         const selectedStyle = getComputedStyle(selectedTab);
 
         return {

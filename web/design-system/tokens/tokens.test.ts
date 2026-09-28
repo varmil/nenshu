@@ -43,8 +43,7 @@ describe("tokens.css の色トークン", () => {
     const colorNames = (tokens: Tokens) =>
       Object.keys(tokens)
         .filter(
-          (name) =>
-            !name.startsWith("space-") && !name.startsWith("font-") && name !== "radius",
+          (name) => !name.startsWith("space-") && !name.startsWith("font-") && name !== "radius"
         )
         .sort();
 
@@ -84,8 +83,8 @@ describe("tokens.css の色トークン", () => {
 
   it.each(
     modes.flatMap(([mode, tokens]) =>
-      contrastPairs.map(([fg, bg]) => [mode, fg, bg, tokens] as const),
-    ),
+      contrastPairs.map(([fg, bg]) => [mode, fg, bg, tokens] as const)
+    )
   )("%s: %s は %s の上で WCAG AA（4.5:1）を満たす", (_mode, fg, bg, tokens) => {
     // --primary はリンク・選択中のタブ・年齢別チャートの色（#65 で役割を決めた）。
     // --primary-foreground は塗りつぶしたタブとボタンのラベル。
@@ -126,13 +125,16 @@ describe("tokens.css の色トークン", () => {
 describe("tokens.css のフォント", () => {
   const stacks = { "--font-sans": root["font-sans"], "--font-mono": root["font-mono"] };
 
-  it.each(Object.entries(stacks))("%s は webfont を参照せず、総称ファミリーで終わる", (_name, stack) => {
-    // url(...) が出てくる = ダウンロードが要るフォントを指している。
-    expect(stack).not.toMatch(/url\(/);
-    // 最後の砦。どれも入っていない環境で無指定に落ちないようにする。
-    // （未定義なら `trim` で落ちるので、定義されていることもここで見ている。）
-    expect(stack.trim()).toMatch(/(sans-serif|serif|monospace)$/);
-  });
+  it.each(Object.entries(stacks))(
+    "%s は webfont を参照せず、総称ファミリーで終わる",
+    (_name, stack) => {
+      // url(...) が出てくる = ダウンロードが要るフォントを指している。
+      expect(stack).not.toMatch(/url\(/);
+      // 最後の砦。どれも入っていない環境で無指定に落ちないようにする。
+      // （未定義なら `trim` で落ちるので、定義されていることもここで見ている。）
+      expect(stack.trim()).toMatch(/(sans-serif|serif|monospace)$/);
+    }
+  );
 
   it("--font-sans は日本語フォントを明示している", () => {
     // 明示が無いと、日本語が中国語フォントに解決されて漢字の字形が崩れる環境がある

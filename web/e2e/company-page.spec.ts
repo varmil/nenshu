@@ -32,7 +32,9 @@ async function independentSections(page: Page): Promise<Record<string, string | 
   const byHeading = (name: string) =>
     page.getByRole("heading", { name }).locator("xpath=..").textContent();
   return {
-    説明文: await page.getByText("電子応用機器の開発、製造及び販売を主な事業とする。").textContent(),
+    説明文: await page
+      .getByText("電子応用機器の開発、製造及び販売を主な事業とする。")
+      .textContent(),
     分析: await page.getByTestId("company-analysis").textContent(),
     要約: await page.getByTestId("company-digest").textContent(),
     年齢別の説明文: await page
@@ -72,16 +74,28 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("35歳時点の推定年収")).toHaveCount(0);
-    await expect(page.getByText("推定年収は年齢補正後の推定値です", { exact: false })).toHaveCount(0);
-    await expect(page.getByText("実測値モードでは補正を行っていません", { exact: false })).toBeVisible();
-    await expect(page.getByRole("link", { name: "計算方法と限界" })).toHaveAttribute("href", "/about");
+    await expect(page.getByText("推定年収は年齢補正後の推定値です", { exact: false })).toHaveCount(
+      0
+    );
+    await expect(
+      page.getByText("実測値モードでは補正を行っていません", { exact: false })
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "計算方法と限界" })).toHaveAttribute(
+      "href",
+      "/about"
+    );
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("推定年収は年齢補正後の推定値です", { exact: false })).toBeVisible();
-    await expect(page.getByRole("link", { name: "計算方法と限界" })).toHaveAttribute("href", "/about");
+    await expect(
+      page.getByText("推定年収は年齢補正後の推定値です", { exact: false })
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "計算方法と限界" })).toHaveAttribute(
+      "href",
+      "/about"
+    );
   });
 
   /*
@@ -133,7 +147,10 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByText("偏差値 125.7", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "60歳" }).click();
-    await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     await expect(page.getByText("2,213万円", { exact: true }).first()).toBeVisible();
 
     expect(requests).toHaveLength(0);
@@ -196,7 +213,9 @@ test.describe("企業詳細ページ", () => {
    * （信頼区間ではない）は `company-refresh.spec.ts` の AC-14 が見る。「個人の軌跡ではない」は
    * `/about` に移した。
    */
-  test("AC-4: 25〜60歳のチャートが8点ぶんの金額を持ち、選んだ年齢だけを強調する", async ({ page }) => {
+  test("AC-4: 25〜60歳のチャートが8点ぶんの金額を持ち、選んだ年齢だけを強調する", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
     const chart = page.getByRole("img", { name: /年齢別の推定年収/ });
     await expect(chart.locator("circle")).toHaveCount(8);
@@ -212,7 +231,9 @@ test.describe("企業詳細ページ", () => {
    * ID は証券コード（上場）かEDINETコード（非上場）（ADR-0006）。一覧に無い ID は
    * ビルド時に生成されないので 404（`docs/runtime/cpu-budget/design.md`）。
    */
-  test("AC-5・AC-7: EDINETコードのIDで開け、存在しないIDと旧形式の書類IDは404", async ({ request }) => {
+  test("AC-5・AC-7: EDINETコードのIDで開け、存在しないIDと旧形式の書類IDは404", async ({
+    request,
+  }) => {
     const mizuho = await request.get("/company/E03532");
     expect(mizuho.status()).toBe(200);
     expect(await mizuho.text()).toContain("株式会社みずほ銀行");
@@ -227,7 +248,9 @@ test.describe("企業詳細ページ", () => {
     await expect(page.getByRole("heading", { name: "三菱商事株式会社", level: 1 })).toBeVisible();
     await expect(page.getByText("本社のみ", { exact: true }).first()).toBeVisible();
     // 断りはフッタにある（C11・#799 で「この会社の要点」を外すまでは2か所だった）。
-    await expect(page.getByText("単体従業員数が連結の10%未満", { exact: false }).first()).toBeVisible();
+    await expect(
+      page.getByText("単体従業員数が連結の10%未満", { exact: false }).first()
+    ).toBeVisible();
   });
 
   /*
@@ -392,7 +415,9 @@ test.describe("企業詳細ページ", () => {
     // 給与の決定方針の節の「抜き出し方」から飛んでくる（C19・AC-36）。範囲の判定に生成AIを
     // 使い、文は変えていないこと・改正前の様式の会社には無いこと。
     const payPolicy = page.locator("#pay-policy");
-    await expect(payPolicy.getByRole("heading", { name: "給与の決定方針の抜き出し方" })).toBeVisible();
+    await expect(
+      payPolicy.getByRole("heading", { name: "給与の決定方針の抜き出し方" })
+    ).toBeVisible();
     await expect(payPolicy).toContainText("人材戦略に関する基本方針等");
     await expect(payPolicy).toContainText("生成AI");
     await expect(payPolicy).toContainText("2026年3月31日");

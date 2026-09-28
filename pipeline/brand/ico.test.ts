@@ -50,7 +50,7 @@ describe("buildIco", () => {
     const ico = buildIco(images);
     expect(entry(ico, 0).offset).toBe(HEADER + ENTRY * images.length);
     expect(ico.length).toBe(
-      HEADER + ENTRY * images.length + images.reduce((sum, { png }) => sum + png.length, 0),
+      HEADER + ENTRY * images.length + images.reduce((sum, { png }) => sum + png.length, 0)
     );
   });
 

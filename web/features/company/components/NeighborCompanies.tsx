@@ -58,10 +58,7 @@ export function NeighborCompanies({
           </li>
         ))}
       </ul>
-      <a
-        href={`/?ind=${encodeURIComponent(industry)}`}
-        className="text-primary text-xs underline"
-      >
+      <a href={`/?ind=${encodeURIComponent(industry)}`} className="text-primary text-xs underline">
         {industry}
         {formatInt(industryCount)}社をすべて見る
       </a>

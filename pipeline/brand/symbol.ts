@@ -100,9 +100,7 @@ export function symbolSvg({
   const style = strokeDark
     ? `<style>.mark{stroke:${stroke}}@media(prefers-color-scheme:dark){.mark{stroke:${strokeDark}}}</style>`
     : "";
-  const plate = background
-    ? `<rect width="${size}" height="${size}" fill="${background}"/>`
-    : "";
+  const plate = background ? `<rect width="${size}" height="${size}" fill="${background}"/>` : "";
 
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`,

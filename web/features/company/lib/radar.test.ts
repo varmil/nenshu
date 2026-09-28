@@ -158,13 +158,7 @@ describe("buildRadarAxes", () => {
   // 番号を文字列に書くと `#154` が生の hex カラーとして lint に引っかかる
   // （`no-restricted-syntax`）。
   it("5軸を12時から時計回りで返す（男女の賃金の差異は軸に無い）", () => {
-    expect(axes.map((a) => a.key)).toEqual([
-      "salary",
-      "paidLeave",
-      "tenure",
-      "profit",
-      "overtime",
-    ]);
+    expect(axes.map((a) => a.key)).toEqual(["salary", "paidLeave", "tenure", "profit", "overtime"]);
   });
 
   it("AC-7 掲載なしの軸は頂点を打たず、ラベルは指標名のまま残る", () => {
@@ -233,7 +227,13 @@ describe("unitPickNote", () => {
     note: "",
     pickedUnit,
   });
-  const base = [axis("salary"), axis("paidLeave"), axis("tenure"), axis("profit"), axis("overtime")];
+  const base = [
+    axis("salary"),
+    axis("paidLeave"),
+    axis("tenure"),
+    axis("profit"),
+    axis("overtime"),
+  ];
 
   /*
    * AC-17。**断りは該当する会社にだけ出す**——W2 の「区分別」の断りは全社の

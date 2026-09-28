@@ -46,7 +46,6 @@ const analysisCount = Object.keys(analysesData.byId).length;
 // 給与の決定方針を出している社数（C19・Issue #852）。本文のある会社だけが `pay-policies.json` に入る。
 const payPolicyCount = Object.keys(payPoliciesData.byId).length;
 
-
 /**
  * `id` は**この節へ画面から直接来る導線があるときだけ**付ける（C7・Issue #161）。
  * 企業詳細ページの説明文からここへ飛ばすのに要る——9つ並ぶ節のどれかは、
@@ -125,34 +124,34 @@ export function AboutPage() {
         </p>
         <div className={TABLE_NO_VERTICAL_SCROLL}>
           <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>表示基準</TableHead>
-              <TableHead>出している数字</TableHead>
-              <TableHead>URL</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell className="font-medium">実測値（既定）</TableCell>
-              <TableCell>
-                有価証券報告書の平均年間給与（提出会社単体）そのまま。補正を一切かけていません
-              </TableCell>
-              <TableCell className="font-mono text-xs">/</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell className="font-medium">年齢そろえ</TableCell>
-              <TableCell>
-                下の式で、選んだ年齢の時点に読み替えた<strong>推定値</strong>
-              </TableCell>
-              <TableCell className="font-mono text-xs">/?age=35</TableCell>
-            </TableRow>
-          </TableBody>
+            <TableHeader>
+              <TableRow>
+                <TableHead>表示基準</TableHead>
+                <TableHead>出している数字</TableHead>
+                <TableHead>URL</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <TableRow>
+                <TableCell className="font-medium">実測値（既定）</TableCell>
+                <TableCell>
+                  有価証券報告書の平均年間給与（提出会社単体）そのまま。補正を一切かけていません
+                </TableCell>
+                <TableCell className="font-mono text-xs">/</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="font-medium">年齢そろえ</TableCell>
+                <TableCell>
+                  下の式で、選んだ年齢の時点に読み替えた<strong>推定値</strong>
+                </TableCell>
+                <TableCell className="font-mono text-xs">/?age=35</TableCell>
+              </TableRow>
+            </TableBody>
           </Table>
         </div>
         <p>
-          実測値を既定にしているのは、それが<strong>検証できる一次情報</strong>だからです。
-          EDINET で有価証券報告書を開けば同じ数字が載っています。
+          実測値を既定にしているのは、それが<strong>検証できる一次情報</strong>だからです。 EDINET
+          で有価証券報告書を開けば同じ数字が載っています。
           ただし会社によって従業員の平均年齢が違うので（
           {formatDecimal1(facts.coverage.minAvgAge)}歳から
           {formatDecimal1(facts.coverage.maxAvgAge)}歳まであります）、
@@ -166,7 +165,9 @@ export function AboutPage() {
           どちらで見ているかによって順位が変わります。
         </p>
         <p>
-          <strong>年齢別に出している「推定範囲 ±20%」は、目安の幅であって統計的な信頼区間ではありません。</strong>
+          <strong>
+            年齢別に出している「推定範囲 ±20%」は、目安の幅であって統計的な信頼区間ではありません。
+          </strong>
           賃金カーブは会社間の差から作った1本の平均的な形で、1社ごとのばらつきを推定する仕組みを持っていません。
           「この範囲に◯%の確からしさで収まる」という意味には読めない数字です。
         </p>
@@ -202,7 +203,8 @@ export function AboutPage() {
           。「産業平均に対する倍率は何歳でも同じ」と置くと、産業平均より大幅に高い会社では若い側が過大に出ます。それを避けるための式です。
         </p>
         <p>
-          実例として、{ex.company.name}を目標年齢{ex.targetAge}歳で見た場合の計算をそのまま示します。
+          実例として、{ex.company.name}を目標年齢{ex.targetAge}
+          歳で見た場合の計算をそのまま示します。
         </p>
         <ul className="ml-5 list-disc space-y-1">
           <li>
@@ -235,14 +237,13 @@ export function AboutPage() {
 
       <Section title="賃金カーブの作り方と出典">
         <p>
-          出典は厚生労働省「<strong>令和5年賃金構造基本統計調査</strong>」です（e-Stat 経由、統計表ID
+          出典は厚生労働省「<strong>令和5年賃金構造基本統計調査</strong>」です（e-Stat
+          経由、統計表ID
           0003425893）。一般労働者・男女計・学歴計・企業規模計・民営事業所の値を使っています。
         </p>
         <p>年収は次の定義で組み立てています。</p>
         <Formula label="年収の定義">{`年収 ＝ きまって支給する現金給与額 × 12 ＋ 年間賞与その他特別給与額`}</Formula>
-        <p>
-          有価証券報告書の「平均年間給与」も賞与と時間外手当を含むため、定義を揃えています。
-        </p>
+        <p>有価証券報告書の「平均年間給与」も賞与と時間外手当を含むため、定義を揃えています。</p>
         <p>
           年齢階級の代表値である{facts.agePoints.join("、")}歳の{facts.agePoints.length}
           点を取り、その間は直線でつなぎます（区分線形補間）。
@@ -250,7 +251,8 @@ export function AboutPage() {
           歳超は端の値で頭打ちにします。
         </p>
         <p>
-          カーブは<strong>産業大分類{facts.curveCount}系列</strong>で引いています。表に出している東証
+          カーブは<strong>産業大分類{facts.curveCount}系列</strong>
+          で引いています。表に出している東証
           {facts.industryCount}
           業種は、この{facts.curveCount}系列に機械的に対応づけています。つまり
           <strong>
@@ -297,33 +299,34 @@ export function AboutPage() {
       <Section title="「本社のみ」バッジの意味">
         <p>
           単体従業員数が連結従業員数の10%未満の会社に付けています（
-          {formatInt(facts.badgeCount)}社）。その会社の数字がグループ全体を代表していないことを示します。
+          {formatInt(facts.badgeCount)}
+          社）。その会社の数字がグループ全体を代表していないことを示します。
         </p>
         <div className="overflow-x-auto">
           <div className={TABLE_NO_VERTICAL_SCROLL}>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>会社</TableHead>
-                <TableHead>平均年間給与</TableHead>
-                <TableHead>単体従業員数</TableHead>
-                <TableHead>バッジ</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {[holdingExample, operatingExample].map((c) => (
-                <TableRow key={c.name}>
-                  <TableCell>{c.name}</TableCell>
-                  <TableCell>{formatManYen(c.avgSalary)}</TableCell>
-                  <TableCell>{formatInt(c.employees)}人</TableCell>
-                  <TableCell>
-                    {c.hasBadge ? <Badge variant="outline">本社のみ</Badge> : "—"}
-                  </TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>会社</TableHead>
+                  <TableHead>平均年間給与</TableHead>
+                  <TableHead>単体従業員数</TableHead>
+                  <TableHead>バッジ</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
+              </TableHeader>
+              <TableBody>
+                {[holdingExample, operatingExample].map((c) => (
+                  <TableRow key={c.name}>
+                    <TableCell>{c.name}</TableCell>
+                    <TableCell>{formatManYen(c.avgSalary)}</TableCell>
+                    <TableCell>{formatInt(c.employees)}人</TableCell>
+                    <TableCell>
+                      {c.hasBadge ? <Badge variant="outline">本社のみ</Badge> : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
             </Table>
-        </div>
+          </div>
         </div>
         <p>
           持株会社の本体には管理職が中心に在籍するため、平均年間給与は高く出ます。実際に人を雇っている事業会社のほうが、その会社で働く実態に近い数字になります。同じグループでも
@@ -359,9 +362,7 @@ export function AboutPage() {
         <div className="flex flex-col gap-4">
           <div>
             <h3 className="font-bold">平均値であって分布ではありません</h3>
-            <p>
-              出せるのは会社の平均です。同じ会社でも職種や等級によって実際にはかなり散ります。
-            </p>
+            <p>出せるのは会社の平均です。同じ会社でも職種や等級によって実際にはかなり散ります。</p>
           </div>
 
           <div>
@@ -375,7 +376,9 @@ export function AboutPage() {
             <h3 className="font-bold">カーブはある時点の断面です</h3>
             <p>
               賃金カーブは、調査時点にいた労働者を年齢階級ごとに平均したものです。
-              <strong>同じ人が歳を取っていく軌跡でも、1社の中で昇給していく軌跡でもありません。</strong>
+              <strong>
+                同じ人が歳を取っていく軌跡でも、1社の中で昇給していく軌跡でもありません。
+              </strong>
               中途入社の人も含まれるため、同じ会社に勤め続けた場合の昇給より傾きは緩やかになります。
             </p>
           </div>
@@ -384,15 +387,11 @@ export function AboutPage() {
             <h3 className="font-bold">
               {facts.industryCount}業種が{facts.curveCount}本のカーブに集約されています
             </h3>
-            <p>
-              同じカーブを共有する業種同士では、年齢の効き方の違いを表現できません。
-            </p>
+            <p>同じカーブを共有する業種同士では、年齢の効き方の違いを表現できません。</p>
           </div>
 
           <div>
-            <h3 className="font-bold">
-              {ex.anchorAge}歳の水準を業種平均と置いています
-            </h3>
+            <h3 className="font-bold">{ex.anchorAge}歳の水準を業種平均と置いています</h3>
             <p>
               若い側の式は、その会社の{ex.anchorAge}
               歳時点の給与が業種平均と同じだと仮定しています。会社ごとの給与の開きは実際には中央値
@@ -408,9 +407,7 @@ export function AboutPage() {
           </div>
 
           <div>
-            <h3 className="font-bold">
-              平均年齢より上は、いまも倍率を一定と置いています
-            </h3>
+            <h3 className="font-bold">平均年齢より上は、いまも倍率を一定と置いています</h3>
             <p>
               若い側と違い、平均年齢より上では「産業平均に対する倍率は変わらない」という仮定が残っています。
               {bias.oldestTargetAge}歳時点の推定は最大で{bias.oldestMaxCompanyName}の
@@ -435,7 +432,9 @@ export function AboutPage() {
               {extrapolation.get(40)?.toFixed(1)}歳）が最も近く、両端が最も遠くなります。
             </p>
             <p className="mt-2">
-              <strong>平均年齢に近い年齢ほど確からしく、離れるほど幅を持って読んでください。</strong>
+              <strong>
+                平均年齢に近い年齢ほど確からしく、離れるほど幅を持って読んでください。
+              </strong>
             </p>
           </div>
 
@@ -464,7 +463,8 @@ export function AboutPage() {
             >
               {PRIMARY_SOURCES.edinet.name}（金融庁）
             </a>
-            — 有価証券報告書。平均年間給与・平均年齢・平均勤続年数・従業員数（単体）と、稼ぐ力に使う連結の経常利益・従業員数
+            —
+            有価証券報告書。平均年間給与・平均年齢・平均勤続年数・従業員数（単体）と、稼ぐ力に使う連結の経常利益・従業員数
           </li>
           <li>
             <a
@@ -476,7 +476,12 @@ export function AboutPage() {
               {PRIMARY_SOURCES.wageCensus.name}（厚生労働省）
             </a>
             — 賃金カーブ。
-            <a href="https://www.e-stat.go.jp/" className="text-primary underline" target="_blank" rel="noreferrer">
+            <a
+              href="https://www.e-stat.go.jp/"
+              className="text-primary underline"
+              target="_blank"
+              rel="noreferrer"
+            >
               e-Stat
             </a>
             経由で取得
@@ -543,12 +548,18 @@ export function AboutPage() {
         </p>
         <ul className="ml-5 list-disc space-y-1">
           <li>有価証券報告書の同じ4節</li>
-          <li>同じページに出している数値（平均年収の10年推移・稼ぐ力とその推移・定着・残業と有給）</li>
-          <li>その会社が自ら出している文書（公式サイト・ニュースリリース・採用情報。配信サービスや求人サイトに載せたものを含む）。生成のときに検索して取りに行き、使った文書は「参照した資料」に、参照した日と一緒に並べています</li>
+          <li>
+            同じページに出している数値（平均年収の10年推移・稼ぐ力とその推移・定着・残業と有給）
+          </li>
+          <li>
+            その会社が自ら出している文書（公式サイト・ニュースリリース・採用情報。配信サービスや求人サイトに載せたものを含む）。生成のときに検索して取りに行き、使った文書は「参照した資料」に、参照した日と一緒に並べています
+          </li>
           <li>AIが学習で知っている一般知識（業界の文脈や相場観）</li>
         </ul>
         <p>
-          <strong>金額・率・順位・シェア・従業員数のような具体的な数値は、上の材料にあるものだけを使います。</strong>
+          <strong>
+            金額・率・順位・シェア・従業員数のような具体的な数値は、上の材料にあるものだけを使います。
+          </strong>
           AIの記憶から数値を書くと、有価証券報告書の数値と見分けがつかなくなるためです。年収のまとめ記事のような、会社以外が書いた文書は材料にしません。
         </p>
         <p>
@@ -570,7 +581,8 @@ export function AboutPage() {
         <p>
           企業ページの「給与の決定方針」は、その会社の
           <strong>有価証券報告書の「人材戦略に関する基本方針等」</strong>
-          から、従業員の給与の決め方を述べた部分を抜き出したものです。{formatInt(payPolicyCount)}社に出しています。
+          から、従業員の給与の決め方を述べた部分を抜き出したものです。{formatInt(payPolicyCount)}
+          社に出しています。
         </p>
         <p>
           この項目は、2026年3月31日以後に終わる事業年度の有価証券報告書から記載が義務になりました。
@@ -578,21 +590,31 @@ export function AboutPage() {
           項目があっても給与の決定方針に触れていない会社も同じです。
         </p>
         <p>
-          <strong>どこからどこまでが給与の決定方針かは、生成AIで判定しています。文そのものは1字も変えていません。</strong>
+          <strong>
+            どこからどこまでが給与の決定方針かは、生成AIで判定しています。文そのものは1字も変えていません。
+          </strong>
           見出しを付けて書く会社もあれば、人材戦略の段落の途中に続けて書く会社もあり、機械的には切り分けられないためです。
           AIが答えるのは範囲の始まりと終わりだけで、本文は原文から切り出します。載せている文が原文の連続した一部であることは、全社について機械で確かめています。
         </p>
         <ul className="ml-5 list-disc space-y-1">
-          <li>項目の中で「サステナビリティに関する考え方及び取組」など別の節を参照している会社は、参照先の節から抜き出しています</li>
-          <li>表は表のまま載せています。図は、有価証券報告書のデータに読める文字が無いため省いています</li>
-          <li>要約・言い換え・評価はしていません。会社の方針の表明を言い換えると、言い換えた側の解釈が混ざるためです</li>
+          <li>
+            項目の中で「サステナビリティに関する考え方及び取組」など別の節を参照している会社は、参照先の節から抜き出しています
+          </li>
+          <li>
+            表は表のまま載せています。図は、有価証券報告書のデータに読める文字が無いため省いています
+          </li>
+          <li>
+            要約・言い換え・評価はしていません。会社の方針の表明を言い換えると、言い換えた側の解釈が混ざるためです
+          </li>
         </ul>
       </Section>
 
       <Section title="企業ロゴの出典">
         <p>
-          会社名の左に出しているロゴは、{formatInt(logoCounts.total)}社ぶんを2つの出典から取得し、当サイトで配信しています。
-          {formatInt(logoCounts.commons)}社は Wikimedia Commons に自由なライセンスで公開されているもの、
+          会社名の左に出しているロゴは、{formatInt(logoCounts.total)}
+          社ぶんを2つの出典から取得し、当サイトで配信しています。
+          {formatInt(logoCounts.commons)}社は Wikimedia Commons
+          に自由なライセンスで公開されているもの、
           {formatInt(logoCounts.site)}社は各社の公式サイトに掲載されているものです。
           いずれも大きさをそろえる以外の加工はしていません。ロゴを持たない会社は社名の頭文字を代わりに出しています。
         </p>
@@ -603,13 +625,19 @@ export function AboutPage() {
         {logoCredits.length > 0 && (
           <>
             <p>
-              このうち次の{formatInt(logoCredits.length)}社のロゴは、作者の表示が求められるライセンスで公開されているものです。
+              このうち次の{formatInt(logoCredits.length)}
+              社のロゴは、作者の表示が求められるライセンスで公開されているものです。
             </p>
             <ul className="flex flex-col gap-1 text-sm">
               {logoCredits.map((credit) => (
                 <li key={credit.id}>
                   {credit.name} —{" "}
-                  <a href={credit.from} className="text-primary underline" target="_blank" rel="noreferrer">
+                  <a
+                    href={credit.from}
+                    className="text-primary underline"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     {credit.license}
                   </a>
                   {credit.author && `（${credit.author}）`}

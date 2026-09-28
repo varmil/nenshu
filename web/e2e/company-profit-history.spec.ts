@@ -22,7 +22,9 @@ async function rows(page: Page): Promise<string[][]> {
   return section(page)
     .locator("tbody tr")
     .evaluateAll((list) =>
-      list.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+      list.map((row) =>
+        [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? "")
+      )
     );
 }
 
