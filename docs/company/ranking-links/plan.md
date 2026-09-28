@@ -1,8 +1,7 @@
 # C20 ランキングへ戻る導線 — plan.md
 
-参照: `docs/company/spec.md` 1.24・AC-37, `docs/adr/0006-public-url-strategy.md`, ADR-0012, Claude Design `企業詳細 ランキング導線.dc.html`（1b）
+参照: Issue [#861](https://github.com/varmil/nenshu/issues/861), `docs/company/spec.md` 1.24・AC-37, `docs/adr/0006-public-url-strategy.md`, ADR-0012, Claude Design `企業詳細 ランキング導線.dc.html`（1b）
 依存: C3
-Issue: 未起票（このセッションから Issue を立てられなかった。起票したらここに番号を書く）
 
 ## Context
 

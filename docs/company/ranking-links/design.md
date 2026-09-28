@@ -1,6 +1,6 @@
 # C20 ランキングへ戻る導線 — design.md
 
-参照: `docs/company/spec.md` 1.24・AC-37, [plan.md](plan.md), Claude Design `企業詳細 ランキング導線.dc.html`（1b・1b PC）
+参照: Issue [#861](https://github.com/varmil/nenshu/issues/861), `docs/company/spec.md` 1.24・AC-37, [plan.md](plan.md), Claude Design `企業詳細 ランキング導線.dc.html`（1b・1b PC）
 
 ## 出来上がり
 
