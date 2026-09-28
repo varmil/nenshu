@@ -30,6 +30,8 @@ import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
+import { RankingLinks } from "./RankingLinks";
+import { buildRankingLinks } from "../lib/rankingLinks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { buildCurveSummary, buildHistoryPeak, buildHistorySummary } from "../lib/highlights";
 
@@ -163,6 +165,7 @@ export function CompanyDetail({
   const cardLead = buildCardLead(view);
   const isRaw = targetAge === null;
   const breadcrumb = companyBreadcrumb(view);
+  const rankingLinks = buildRankingLinks(view, current);
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
@@ -536,6 +539,13 @@ export function CompanyDetail({
           />
         </aside>
       </div>
+
+      {/*
+        **本文＋サイドバーの grid とフッタの間に全幅で置く**（C20・spec 1.24、Claude Design の 1b）。
+        本文が出典で終わったあと、ランキングへ戻る道がヘッダのロゴとページ上端のパンくずしか
+        無かった。モバイルでは「水準が近い会社」の直後に来る。
+      */}
+      <RankingLinks links={rankingLinks} />
 
       <footer className="text-muted-foreground flex flex-col gap-1 text-xs">
         {/*
