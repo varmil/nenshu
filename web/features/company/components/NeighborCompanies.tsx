@@ -38,10 +38,6 @@ export function NeighborCompanies({
           >
             <CompanyLogo id={company.id} name={company.name} size="sm" />
             <div className="min-w-0 flex-1">
-              {/*
-                **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと
-                社名がそのぶん切れる。バッジの意味はその会社のページで説明している。
-              */}
               <a
                 href={`/company/${company.id}`}
                 className="text-primary block truncate text-sm hover:underline"

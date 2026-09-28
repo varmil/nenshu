@@ -6,7 +6,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/design-system/ui/table";
-import { Badge } from "@/design-system/ui/badge";
 import { TABLE_NO_VERTICAL_SCROLL } from "@/design-system/tableContainer";
 import { buildAboutFacts } from "@/features/ranking/lib/aboutFacts";
 import { attributionCredits, creditCounts, type LogoEntry } from "@/features/logo/lib/credits";
@@ -296,11 +295,15 @@ export function AboutPage() {
         </p>
       </Section>
 
-      <Section title="「本社のみ」バッジの意味">
+      {/*
+        2026-09-28 までは「「本社のみ」バッジの意味」の節だった。バッジを企業詳細・ランキングの
+        両方から外し、断りを企業詳細の「年収に関するQ&A」の平均年収の回答へ移した。
+      */}
+      <Section title="持株会社などの数字はグループ全体を代表しません">
         <p>
-          単体従業員数が連結従業員数の10%未満の会社に付けています（
-          {formatInt(facts.badgeCount)}
-          社）。その会社の数字がグループ全体を代表していないことを示します。
+          単体従業員数が連結従業員数の10%未満の会社が
+          <strong>{formatInt(facts.badgeCount)}社</strong>
+          あります。平均年間給与はグループのごく一部の社員の平均で、グループ全体を代表していません。これらの会社の企業ページでは、「年収に関するQ&A」の平均年収の回答にその旨を添えています。
         </p>
         <div className="overflow-x-auto">
           <div className={TABLE_NO_VERTICAL_SCROLL}>
@@ -310,7 +313,6 @@ export function AboutPage() {
                   <TableHead>会社</TableHead>
                   <TableHead>平均年間給与</TableHead>
                   <TableHead>単体従業員数</TableHead>
-                  <TableHead>バッジ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -319,9 +321,6 @@ export function AboutPage() {
                     <TableCell>{c.name}</TableCell>
                     <TableCell>{formatManYen(c.avgSalary)}</TableCell>
                     <TableCell>{formatInt(c.employees)}人</TableCell>
-                    <TableCell>
-                      {c.hasBadge ? <Badge variant="outline">本社のみ</Badge> : "—"}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -368,7 +367,7 @@ export function AboutPage() {
           <div>
             <h3 className="font-bold">単体の数字です</h3>
             <p>
-              連結子会社の社員は入りません。「本社のみ」バッジはその極端な場合を示しますが、バッジが付かない会社でも単体と連結の差はあります。
+              連結子会社の社員は入りません。単体従業員数が連結の10%未満の会社はその極端な場合ですが、それ以外の会社でも単体と連結の差はあります。
             </p>
           </div>
 

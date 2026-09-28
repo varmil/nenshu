@@ -36,13 +36,19 @@ export interface ActualsQa {
  * - **従業員数の回答にだけ単体の断りを重ねる。** 説明と同じ内容だが、「◯◯の従業員数」を
  *   探す読者は連結の人数を思い浮かべていることが多く、回答だけが引用されたときに断りが落ちる
  *   と別の数字として読まれる
+ * - **単体が連結の10%未満の会社（`hasBadge`・244社）は、平均年収の回答にも断りを重ねる。**
+ *   ソニーグループの1,155万円は持株会社の2,166人の平均で、グループで働く9万人余りの平均では
+ *   ない。「ソニー 年収」で引用されるのはこの1文なので、断りは同じ文の中に置く（2文目に
+ *   分けると1文目だけが切り出されたときに落ちる）。以前は社名の隣の「本社のみ」バッジが
+ *   この役を持っていたが、意味の説明がページ最下部のフッタにしか無く、390px では独立した
+ *   1行になって金額を 18〜28px 押し下げていたので外した
  * - **「推定」の語を置かない。** どれも有報の値そのもので、表示基準でも年齢でも変わらない
  *
  * **構造化データ（`FAQPage`）には流さない**（`lib/seo/jsonLd.ts`）。必要になったら、この
  * 配列から出す——画面と別に組み立てると、片方だけ直したときに食い違う。
  */
 export function buildActualsQa(
-  view: Pick<CompanyView, "name" | "avgSalary" | "avgAge" | "avgTenure" | "employees">,
+  view: Pick<CompanyView, "name" | "avgSalary" | "avgAge" | "avgTenure" | "employees" | "hasBadge">,
   fiscalPeriod: string
 ): ActualsQa {
   const { name } = view;
@@ -55,7 +61,9 @@ export function buildActualsQa(
         answer: {
           before: `${name}の平均年収は`,
           value: formatManYen(view.avgSalary),
-          after: "です。",
+          after: view.hasBadge
+            ? `です（提出会社単体の${formatInt(view.employees)}人の平均で、グループ全体の平均ではありません）。`
+            : "です。",
         },
       },
       {

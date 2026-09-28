@@ -6,7 +6,6 @@ export interface NeighborCompany {
   id: string;
   name: string;
   salary: number;
-  hasBadge: boolean;
   /** 同じ業種の中での順位（同額は同順位）。C3 でカードの各行に添える。 */
   industryRank: number;
   /** 有報の平均年齢。表示基準では変わらない実測値。 */
@@ -69,7 +68,6 @@ export function findNeighbors(
       id: row[0],
       name: row[1],
       salary: salaryOf(row),
-      hasBadge: row[8] === 1,
       avgAge: row[4],
     }))
     .sort((a, b) => b.salary - a.salary);

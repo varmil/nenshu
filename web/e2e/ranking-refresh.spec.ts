@@ -598,16 +598,6 @@ test.describe("モバイルの行（390px）", () => {
     expect(new Set(measured.map((m) => m.height)).size, "行の高さ").toBe(1);
   });
 
-  // CLAUDE.md の約束。社名の列が狭いので、バッジのぶんは社名か偏差値を削ることになる。
-  test("「本社のみ」はモバイルの行に出ない（PCの表には残る）", async ({ page }) => {
-    // 三菱商事は hasBadge を持つ会社（`about.spec.ts` の実例と同じ）。
-    await page.goto("/?q=三菱商事");
-    await expect(page.locator("div.md\\:hidden").getByText("本社のみ")).toHaveCount(0);
-
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expect(rows(page).first().getByText("本社のみ")).toBeVisible();
-  });
-
   // PC と同じ記号に統一してある（アートボード 3e）。
   test("順位はロゴ左上のバッジで、桁が増えても左端・上端が動かない", async ({ page }) => {
     const offset = async (url: string, rank: string) => {

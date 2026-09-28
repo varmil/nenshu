@@ -65,7 +65,7 @@ export function buildRankedCompanies(
    */
   const targetAge = state.targetAge;
   const withSalary = companies.rows.map((row) => {
-    const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees, badge] = row;
+    const [id, name, tse33Idx, curveIdx, avgAge, avgTenure, avgSalary, employees] = row;
     const estimatedSalary =
       targetAge === null
         ? null
@@ -83,7 +83,6 @@ export function buildRankedCompanies(
         id,
         name,
         tse33: companies.industries[tse33Idx],
-        hasBadge: badge === 1,
         avgAge,
         avgTenure,
         avgSalary,

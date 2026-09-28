@@ -109,11 +109,7 @@ test.describe("節の並び", () => {
 });
 
 test.describe("AC-12 水準が近い会社", () => {
-  /*
-   * **「本社のみ」は出さない**（運営者の指示）。316px の列にバッジを足すと社名が切れる。
-   * キーエンスの10社にはバッジを持つ会社が3社（キオクシア・ソニー・SCREEN）入っているので、
-   * 出していれば落ちる。自分を含まないこと・10社に満たない業種は `lib/neighbors.test.ts`。
-   */
+  // 自分を含まないこと・10社に満たない業種は `lib/neighbors.test.ts`。
   test("同業種の10社が企業詳細へのリンクとして並び、業界順位・平均年齢と業種一覧への導線が付く", async ({
     page,
   }) => {
@@ -130,7 +126,6 @@ test.describe("AC-12 水準が近い会社", () => {
     await expect(
       neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })
     ).toHaveAttribute("href", /^\/\?ind=/);
-    await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
   });
 });
 

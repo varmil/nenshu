@@ -9,6 +9,11 @@ export interface CompanyExample {
   avgSalary: number;
   avgAge: number;
   employees: number;
+  /**
+   * 単体従業員数が連結の10%未満か（CSV の `badge` 列）。本文には出さない。**持株会社の実例が
+   * 本当にその側に入っていることをテストが確かめる**ために持つ——本文が「10%未満の会社が
+   * ◯社あります」の直後にこの実例を並べているので、外れると例になっていない。
+   */
   hasBadge: boolean;
 }
 
@@ -70,9 +75,9 @@ export interface AboutFacts {
   industryCount: number;
   curveCount: number;
   agePoints: number[];
-  /** 持株会社の例（「本社のみ」バッジが付く側）。 */
+  /** 持株会社の例（単体従業員数が連結の10%未満の側）。 */
   holdingExample: CompanyExample;
-  /** 同じグループの事業会社の例（バッジが付かない側）。式の実例も兼ねる。 */
+  /** 同じグループの事業会社の例（10%未満ではない側）。式の実例も兼ねる。 */
   operatingExample: CompanyExample;
   /** 補正の式を1本たどって見せる実例。 */
   formulaExample: FormulaExample;

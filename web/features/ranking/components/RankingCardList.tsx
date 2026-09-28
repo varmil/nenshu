@@ -76,8 +76,9 @@ export function RankingCardList({
 
               {/*
                 meta 行は**平均年齢と偏差値だけ**。「本社のみ」バッジはここから外した
-                （PC の表には残る）——4カラムにして社名の列が 390px で 160px 前後まで
-                狭まったので、バッジのぶんは社名か偏差値のどちらかを削ることになる。
+                ——4カラムにして社名の列が 390px で 160px 前後まで狭まったので、バッジの
+                ぶんは社名か偏差値のどちらかを削ることになる（PC の表と企業詳細からも
+                2026-09-28 に外した）。
               */}
               <div className="text-muted-foreground flex items-baseline gap-2 text-[0.7rem]">
                 <CompanyMetaLine company={company} compact />

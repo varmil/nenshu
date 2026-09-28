@@ -184,7 +184,6 @@ export interface RankedCompany {
   id: string;
   name: string;
   tse33: string;
-  hasBadge: boolean;
   avgAge: number;
   avgTenure: number;
   avgSalary: number;
