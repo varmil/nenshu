@@ -163,6 +163,12 @@ test.describe("AC-13 分布の中での位置", () => {
     await expect(figure(page).getByText("〜500", { exact: true })).toBeVisible();
     await expect(figure(page).getByText("1,200+", { exact: true })).toBeVisible();
     await expect(figure(page).locator("figcaption")).not.toContainText("両端の階級");
+
+    // 棒の上の社数と目盛は読み上げない。9階級は sr-only の一覧だけが読む（同じ中身を2回読ませない）。
+    const tree = await figure(page).ariaSnapshot();
+    expect(tree).toContain("株式会社キーエンスはここ");
+    expect(tree).not.toContain("〜500");
+    expect(tree).not.toContain("1,200+");
   });
 
   // ラベルが折り返すと軸の高さが階級ごとに変わり、棒の下端が揃わなくなる（公開後に報告あり）。
@@ -171,10 +177,10 @@ test.describe("AC-13 分布の中での位置", () => {
     await page.goto("/company/6861");
 
     const { widths, lines } = await figure(page).evaluate((el) => ({
-      widths: [...el.querySelectorAll('[role="presentation"] > div')].map(
+      widths: [...el.querySelectorAll('[aria-hidden="true"] > div')].map(
         (n) => Math.round(n.getBoundingClientRect().width * 10) / 10
       ),
-      lines: [...el.querySelectorAll('[role="presentation"] > div > span:last-child')].map(
+      lines: [...el.querySelectorAll('[aria-hidden="true"] > div > span:last-child')].map(
         (n) => n.getClientRects().length
       ),
     }));
@@ -401,6 +407,8 @@ test.describe("T1・T2・T3 平均年収推移", () => {
     // 棒と年のラベルはグラフ側に残る（4桁の西暦）。
     await expect(section.getByText("2017", { exact: true })).toBeVisible();
     await expect(section.getByText("2026", { exact: true })).toBeVisible();
+    // ただし図は読み上げない。棒の上の金額と年は表と同じ中身なので、2回読ませない。
+    expect(await section.locator("figure").ariaSnapshot()).not.toMatch(/2017|2026/);
 
     // 説明は出典だけ（AC-9）。表示基準と独立であることは値で担保するので、断りを重ねない。
     await expect(section).toContainText("平均年間給与と平均年齢の実測値（提出会社単体）");
@@ -471,12 +479,12 @@ test.describe("T1・T2・T3 平均年収推移", () => {
     // 稼ぐ力の推移（P2）が同じ `YearlyBarChart` を使うので、節で絞ってから figure を取る。
     const figure = historySection(page).locator("figure");
 
-    const bars = figure.locator('[role="presentation"]').first();
+    const bars = figure.locator('[aria-hidden="true"]').first();
     expect((await bars.boundingBox())!.height).toBeGreaterThanOrEqual(120);
 
     // 棒と年ラベルは別の行なので、割り付けが違うと1本ずつずれる。
     const [barX, yearX] = await figure.evaluate((el) => {
-      const rows = el.querySelectorAll('[role="presentation"]');
+      const rows = el.querySelectorAll('[aria-hidden="true"]');
       const centers = (row: Element) =>
         [...row.children].map((n) => {
           const r = n.getBoundingClientRect();
