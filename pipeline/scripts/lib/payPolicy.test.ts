@@ -46,6 +46,18 @@ describe("toPayPolicyRecord", () => {
     expect(toPayPolicyRecord(row({ source: "sustainability", title: null }))?.source).toBe("sustainability");
   });
 
+  it("表の結合したセルはそのまま持ち、結合の無い表には鍵を足さない", () => {
+    const rows = [["報酬の種類", "概要"], ["", "ストック・オプション", "3年で行使"], ["RSU", "3年で確定"]];
+    const spans = [
+      [0, 0, 2, 1],
+      [1, 0, 1, 2],
+    ];
+    expect(toPayPolicyRecord(row({ blocks: [{ kind: "table", rows, spans }] }))?.blocks).toEqual([
+      { kind: "table", rows, spans },
+    ]);
+    expect(toPayPolicyRecord(row({ blocks: [{ kind: "table", rows }] }))?.blocks[0]).not.toHaveProperty("spans");
+  });
+
   it("形が崩れていたら落とす", () => {
     for (const bad of [
       row({ verdict: "referenced" }),
@@ -54,6 +66,10 @@ describe("toPayPolicyRecord", () => {
       row({ blocks: [{ kind: "para", text: "" }] }),
       row({ blocks: [{ kind: "table", rows: [] }] }),
       row({ blocks: [{ kind: "list", text: "x" }] }),
+      // 結合がセルを指していない・何も結合していない・空
+      row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [[0, 2, 2, 1]] }] }),
+      row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [[0, 0, 1, 1]] }] }),
+      row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [] }] }),
     ]) {
       expect(() => toPayPolicyRecord(bad)).toThrow();
     }
