@@ -11,8 +11,10 @@
  *
  * **値の無い年は棒を描かず、軸ラベルは残す**（AC-7）。内挿しない。
  *
- * **読み上げ用の一覧は持たない。** 同じ10件は上の `SalaryHistoryTable` が表として出して
- * おり（T2）、AC-10 はそちらが担う——同じ中身を読み上げる経路を2つ置かない。
+ * **読み上げ用の一覧は持たず、図そのものも読み上げから外す（`aria-hidden`）。** 同じ10件は
+ * 直後の表（`SalaryHistoryTable`・`ProfitHistoryTable`）が出しており（T2）、AC-10 はそちらが
+ * 担う——同じ中身を読み上げる経路を2つ置かない。`role="presentation"` は器の役割を消すだけで
+ * 子の文字は残すので、それだけでは棒の上の金額と年が表と2回読まれる。
  *
  * 依存を足さずCSSと`<div>`で描く。縦軸は0起点でよい——年齢別の折れ線と違い、
  * ここで見たいのは水準そのものの増減である（`docs/timeseries/overview.md`）。
@@ -40,7 +42,7 @@ export function YearlyBarChart({
     <figure className="@container flex flex-col gap-2">
       <div
         className="border-border flex items-end gap-1.5 border-b [--bar-max:6rem] @xl:[--bar-max:7.5rem]"
-        role="presentation"
+        aria-hidden="true"
       >
         {years.map((year, i) => {
           const value = values[i];
@@ -68,7 +70,7 @@ export function YearlyBarChart({
         })}
       </div>
       {/* 年のラベルは棒と同じ割り付け（`flex-1 basis-0`）にしないと1本ずつずれる。 */}
-      <div className="flex gap-1.5" role="presentation">
+      <div className="flex gap-1.5" aria-hidden="true">
         {years.map((year) => (
           <span
             key={year}

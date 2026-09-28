@@ -69,8 +69,12 @@ export function SalaryDistributionChart({
         `min-w-0` と `basis-0`。**ラベルの文字数で列が押し広げられ、棒の太さが
         階級ごとに違っていた**（報告あり）。`flex-1` だけでは中身の最小幅が効くので、
         基準を0に固定して9等分にする。
+
+        **読み上げからは外す（`aria-hidden`）。** 同じ9階級は下の `sr-only` の一覧が
+        読み上げる。`role="presentation"` は器の役割を消すだけで子の文字は残すので、
+        棒の上の社数と目盛が一覧と2回読まれていた。
       */}
-      <div className="flex items-end gap-1" role="presentation">
+      <div className="flex items-end gap-1" aria-hidden="true">
         {distribution.counts.map((n, i) => (
           <div key={i} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1">
             {/*
