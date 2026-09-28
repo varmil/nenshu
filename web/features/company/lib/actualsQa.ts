@@ -52,11 +52,19 @@ export function buildActualsQa(
     items: [
       {
         question: `${name}の平均年収はいくらですか？`,
-        answer: { before: `${name}の平均年収は`, value: formatManYen(view.avgSalary), after: "です。" },
+        answer: {
+          before: `${name}の平均年収は`,
+          value: formatManYen(view.avgSalary),
+          after: "です。",
+        },
       },
       {
         question: `${name}の平均年齢は何歳ですか？`,
-        answer: { before: `${name}の平均年齢は`, value: `${formatDecimal1(view.avgAge)}歳`, after: "です。" },
+        answer: {
+          before: `${name}の平均年齢は`,
+          value: `${formatDecimal1(view.avgAge)}歳`,
+          after: "です。",
+        },
       },
       {
         question: `${name}の平均勤続年数は何年ですか？`,

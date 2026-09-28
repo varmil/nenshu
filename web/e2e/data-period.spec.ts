@@ -45,12 +45,14 @@ test.describe("データの時点（S3・E1）", () => {
       expect(description, `${path} description`).toContain(RANGE);
       expect(page.slice(page.indexOf("<body")), `${path} 本文`).toContain(RANGE);
       // title に入れるのは `/` だけ。ファセットの title は年齢・業種名のほうが情報量が高い。
-      if (path === "/") expect(page.match(/<title>([^<]*)<\/title>/)?.[1], "/ の title").toContain(RANGE);
+      if (path === "/")
+        expect(page.match(/<title>([^<]*)<\/title>/)?.[1], "/ の title").toContain(RANGE);
     }
     // 企業詳細は1社ぶんなので幅ではなくその会社の決算期（E1）。
     const description =
-      (await html(request, "/company/6861")).match(/<meta name="description" content="([^"]*)"/)?.[1] ??
-      "";
+      (await html(request, "/company/6861")).match(
+        /<meta name="description" content="([^"]*)"/
+      )?.[1] ?? "";
     expect(description).toContain(KEYENCE_PERIOD);
     expect(description).not.toContain(RANGE);
   });
@@ -64,7 +66,9 @@ test.describe("データの時点（S3・E1）", () => {
 
     // 年齢そろえでも同じ位置に残る。
     await page.getByRole("button", { name: "年齢そろえ" }).click();
-    await expect(page.getByText(new RegExp(`^${RANGE}の有価証券報告書の平均年間給与を`))).toBeVisible();
+    await expect(
+      page.getByText(new RegExp(`^${RANGE}の有価証券報告書の平均年間給与を`))
+    ).toBeVisible();
   });
 
   // 1画面に1回（spec 5.1）。見出しと脚注のように同じ語を重ねない——Issue #128 で
@@ -101,8 +105,12 @@ test.describe("データの時点（S3・E1）", () => {
       await page.goto(path);
       const count = (await page.locator("body").innerText()).split(label).length - 1;
       expect(count, path).toBe(2);
-      await expect(page.getByTestId("company-qa"), path).toContainText(`${label}の有価証券報告書の値です。`);
-      await expect(page.getByTestId("company-digest"), path).toContainText(`${label}の有価証券報告書`);
+      await expect(page.getByTestId("company-qa"), path).toContainText(
+        `${label}の有価証券報告書の値です。`
+      );
+      await expect(page.getByTestId("company-digest"), path).toContainText(
+        `${label}の有価証券報告書`
+      );
     }
   });
 
@@ -119,7 +127,10 @@ test.describe("データの時点（S3・E1）", () => {
 
     const { from, to } = data.meta.fiscalPeriodRange;
     const [f, t] = [label(from), label(to)];
-    const range = f === t ? f : `${f}〜${t.replace(/^\d+年/, from.slice(0, 4) === to.slice(0, 4) ? "" : `${to.slice(0, 4)}年`)}`;
+    const range =
+      f === t
+        ? f
+        : `${f}〜${t.replace(/^\d+年/, from.slice(0, 4) === to.slice(0, 4) ? "" : `${to.slice(0, 4)}年`)}`;
     expect(range).toBe(RANGE);
     expect(await html(request, "/")).toContain(range);
 

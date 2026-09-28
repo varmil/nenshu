@@ -80,13 +80,18 @@ type Company = { id: string; name: string; houjin: string };
 async function main() {
   const outDir = argValue("--out") ?? "../web/public";
   const limit = Number(argValue("--limit") ?? "0");
-  const only = argValue("--only")?.split(",").map((s) => s.trim()).filter(Boolean);
+  const only = argValue("--only")
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const publicDir = resolve(ROOT, outDir);
   mkdirSync(CACHE, { recursive: true });
   const fetcher = new Fetcher(CACHE);
 
   // 1. 名寄せの土台
-  const rows = parseUnifiedCsv(readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8"));
+  const rows = parseUnifiedCsv(
+    readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8")
+  );
   if (rows.length !== EXPECTED_ROW_COUNT) {
     throw new Error(`${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
   }
@@ -166,9 +171,10 @@ async function main() {
         w: picked.probe.w,
         h: picked.probe.h,
         src: picked.candidate.source,
-        from: commonsInfo && picked.candidate.source === "commons"
-          ? commonsInfo.descriptionUrl
-          : picked.candidate.url,
+        from:
+          commonsInfo && picked.candidate.source === "commons"
+            ? commonsInfo.descriptionUrl
+            : picked.candidate.url,
         ...(picked.candidate.source === "commons" && commonsInfo
           ? { lic: commonsInfo.license, by: commonsInfo.author, attr: commonsInfo.needsAttribution }
           : {}),
@@ -188,7 +194,9 @@ async function main() {
     // 直しに来た当の対象をそのまま置いて帰ることになる（Issue #156 の白いロゴがこれ）
     const file = resolve(logosDir, `${company.id}.webp`);
     if (existsSync(file) && (await unusableOnLight(readFileSync(file)))) {
-      console.warn(`  ${company.id}（${company.name}）は代わりが無いので記録を消します（頭文字に戻る）`);
+      console.warn(
+        `  ${company.id}（${company.name}）は代わりが無いので記録を消します（頭文字に戻る）`
+      );
       dropped.add(company.id);
       rmSync(file);
       continue;
@@ -253,7 +261,11 @@ async function buildIndex(fetcher: Fetcher, companies: readonly Company[], parti
     const cached = JSON.parse(readFileSync(path, "utf-8"));
     if (cached.count === companies.length) {
       console.log("外部の索引はキャッシュから読みました");
-      return cached as { count: number; wikidata: Record<string, WikidataHit>; gbiz: Record<string, string> };
+      return cached as {
+        count: number;
+        wikidata: Record<string, WikidataHit>;
+        gbiz: Record<string, string>;
+      };
     }
   }
   const houjinNumbers = companies.map((c) => c.houjin);
@@ -389,7 +401,10 @@ function report(json: LogosJson, total: number) {
   console.log("出典の内訳:", bySource);
   // **内訳は「回した社数」に対する値。** 全社を回していないときは分母を明示する
   // ——さもないと母集団に対する欠けの内訳として読まれる。
-  console.log(`落ちた理由${partialOf === undefined ? "" : `（${partialOf}社を回したぶん）`}:`, missReasons);
+  console.log(
+    `落ちた理由${partialOf === undefined ? "" : `（${partialOf}社を回したぶん）`}:`,
+    missReasons
+  );
 }
 
 function argValue(flag: string): string | undefined {

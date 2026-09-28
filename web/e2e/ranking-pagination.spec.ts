@@ -113,12 +113,19 @@ test.describe("0件・端の状態と段階表示", () => {
 
         // 押せる大きさは削っていない（数字の器は 32px のまま。CLAUDE.md）
         const current = page.getByRole("button", { name: String(n), exact: true });
-        expect((await current.boundingBox())!.width, `${n}ページ目の番号の幅`).toBeGreaterThanOrEqual(32);
+        expect(
+          (await current.boundingBox())!.width,
+          `${n}ページ目の番号の幅`
+        ).toBeGreaterThanOrEqual(32);
 
         // 並びは表の下にあるので、縦にスクロールしてから両端が丸ごと見えているかを見る
         await nav.scrollIntoViewIfNeeded();
-        await expect(page.getByRole("button", { name: "前のページへ" })).toBeInViewport({ ratio: 1 });
-        await expect(page.getByRole("button", { name: "次のページへ" })).toBeInViewport({ ratio: 1 });
+        await expect(page.getByRole("button", { name: "前のページへ" })).toBeInViewport({
+          ratio: 1,
+        });
+        await expect(page.getByRole("button", { name: "次のページへ" })).toBeInViewport({
+          ratio: 1,
+        });
       }
     });
   });

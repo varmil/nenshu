@@ -59,7 +59,9 @@ test.describe("計算方法ページ（/about）", () => {
 
     // 2点モデルの仮定（22歳＝業種平均）と、平均年齢より上に倍率一定が残っていることを、
     // 60歳の最大値付きで開示している。
-    await expect(page.getByRole("heading", { name: /22歳の水準を業種平均と置いています/ })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: /22歳の水準を業種平均と置いています/ })
+    ).toBeVisible();
     await expect(page.getByText("中央値1.19倍")).toBeVisible();
     await expect(
       page.getByRole("heading", { name: /平均年齢より上は、いまも倍率を一定と置いています/ })

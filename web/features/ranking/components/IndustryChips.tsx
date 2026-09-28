@@ -40,10 +40,7 @@ export function IndustryChips({
   };
 
   return (
-    <nav
-      aria-label="業種から見る"
-      className="bg-muted flex flex-col gap-2 rounded-lg p-4"
-    >
+    <nav aria-label="業種から見る" className="bg-muted flex flex-col gap-2 rounded-lg p-4">
       <h2 className="text-sm font-bold">業種から見る</h2>
       <ul className="flex flex-wrap gap-1.5">
         {industries.map((industry, index) => (

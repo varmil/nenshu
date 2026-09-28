@@ -23,7 +23,9 @@ type Block =
   | { kind: "para" | "heading"; text: string }
   | { kind: "table"; rows: string[][]; spans?: number[][] }
   | { kind: "image"; alt: string };
-type PayPolicies = { byId: Record<string, { source: string; title: string | null; blocks: Block[] }> };
+type PayPolicies = {
+  byId: Record<string, { source: string; title: string | null; blocks: Block[] }>;
+};
 
 const section = (page: Page) => page.getByTestId("company-pay-policy");
 const TOYOTA_POLICY =
@@ -45,7 +47,9 @@ async function renderedBlocks(page: Page) {
           );
           return {
             kind,
-            rows: trs.map((tr) => [...tr.querySelectorAll("td, th")].map((cell) => cell.textContent ?? "")),
+            rows: trs.map((tr) =>
+              [...tr.querySelectorAll("td, th")].map((cell) => cell.textContent ?? "")
+            ),
             ...(spans.length > 0 ? { spans } : {}),
           };
         }
@@ -61,7 +65,10 @@ function expectedBlocks(blocks: Block[]) {
 }
 
 test.describe("AC-36 給与の決定方針", () => {
-  test("トヨタ: 要約と Q&A の間に節があり、原文そのものを会社の小見出しから出す", async ({ page, request }) => {
+  test("トヨタ: 要約と Q&A の間に節があり、原文そのものを会社の小見出しから出す", async ({
+    page,
+    request,
+  }) => {
     const data = (await (await request.get("/data/pay-policies.json")).json()) as PayPolicies;
     const toyota = data.byId["7203"];
 
@@ -100,7 +107,10 @@ test.describe("AC-36 給与の決定方針", () => {
     await expect(section(page).locator("blockquote")).toHaveAttribute("cite", qaHref!);
   });
 
-  test("段落の区切りは原文のまま、表は表として出し、図は省いたと断る", async ({ page, request }) => {
+  test("段落の区切りは原文のまま、表は表として出し、図は省いたと断る", async ({
+    page,
+    request,
+  }) => {
     const data = (await (await request.get("/data/pay-policies.json")).json()) as PayPolicies;
     // 6501 日立: 見出しの無い段落から始まり、三原則の小見出しが続く。
     // 4956 コニシ: 6列の表を含む。6758 ソニーグループ: 結合したセルを含む。
@@ -109,7 +119,9 @@ test.describe("AC-36 給与の決定方針", () => {
       await page.goto(`/company/${id}`);
       expect(await renderedBlocks(page), id).toEqual(expectedBlocks(data.byId[id].blocks));
     }
-    await expect(section(page).locator('[data-pay-block="image"]').first()).toContainText("図は省略");
+    await expect(section(page).locator('[data-pay-block="image"]').first()).toContainText(
+      "図は省略"
+    );
   });
 
   test("結合したセルのある表で、どの行も表の右端まで届く（列がずれない）", async ({ page }) => {
@@ -128,7 +140,9 @@ test.describe("AC-36 給与の決定方針", () => {
     for (const gap of gaps) expect(Math.abs(gap)).toBeLessThanOrEqual(1);
   });
 
-  test("390px でも表の列が1字幅に潰れない（収まらなければ表の器の中で横に送る）", async ({ page }) => {
+  test("390px でも表の列が1字幅に潰れない（収まらなければ表の器の中で横に送る）", async ({
+    page,
+  }) => {
     // 4956 コニシ: 6列の表。潰れていたときは「※所定内賃金」が1字ずつ6行に折れていた。
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/company/4956");
@@ -137,7 +151,8 @@ test.describe("AC-36 給与の決定方針", () => {
       .evaluateAll((tds) =>
         tds.map((td) => {
           const style = getComputedStyle(td);
-          const content = td.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+          const content =
+            td.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
           return { text: td.textContent ?? "", chars: content / parseFloat(style.fontSize) };
         })
       );
@@ -168,11 +183,16 @@ test.describe("AC-36 給与の決定方針", () => {
     const before = await section(page).textContent();
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await page.getByRole("button", { name: "25歳" }).click();
-    await expect(page.getByRole("button", { name: "25歳" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "25歳" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
     expect(await section(page).textContent()).toBe(before);
   });
 
-  test("出典の一覧の先頭に区分「原文」があり、範囲の判定に生成AIを使ったことが読める", async ({ page }) => {
+  test("出典の一覧の先頭に区分「原文」があり、範囲の判定に生成AIを使ったことが読める", async ({
+    page,
+  }) => {
     await page.goto("/company/7203");
     const sources = page.getByTestId("company-sources");
     await expect(sources.locator("dt").first()).toHaveText("原文");

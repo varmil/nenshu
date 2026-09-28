@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorklifeRecord } from "@/lib/data/worklife";
-import {
-  buildWorklifeView,
-  metricFootnote,
-  OVERTIME_DEFINITION_NOTE,
-  unitLabel,
-} from "./worklife";
+import { buildWorklifeView, metricFootnote, OVERTIME_DEFINITION_NOTE, unitLabel } from "./worklife";
 
 const EMPTY: WorklifeRecord = {
   overtimeAll: null,

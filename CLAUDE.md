@@ -80,9 +80,13 @@ Astro、React、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
     - **E2E で状態遷移の組み合わせを網羅しない。** 規則はユニットで固定し、E2E は「操作が画面・URL に届く」流れを1本持てば足りる
     - **CSS の値を写さない**（font-size が 16px・バーが 3px・器が 68×48 等）。E2E が固定するのは実際の崩れ——横スクロール・切り詰め・折り返し・重なり・列のずれ・縦に潰れる——で、値の写しは意匠を変えるたびに落ちるだけで何も守らない
     - **外した機能が「出ないこと」だけを見るテストは書かない。** 不在が spec の規則であるもの（実測値で「推定」を出さない・決算期は1画面に1回 等）は別
+- **書式は prettier（ルートの `.prettierrc.json`・100桁）。コミット時に lint-staged が整形する**ので、手でそろえなくてよい。まとめて回すならルートで `npm run format`（確かめるだけなら `npm run format:check`）。**`web/` の中で `npx prettier` を回さない**——`@astrojs/check` の依存で入った別の版を拾う
+  - **対象は JS/TS だけ。** Markdown・JSON・CSS・`.astro` と生成物は `.prettierignore` で外してある。**「手で編集しない」生成物（`outline.py` が書く `lettering.ts`・`build:brand` が書く `ogFacts.ts` のようなもの）を足したら `.prettierignore` にも足す**——書き出し元は整形しないので、整形すると書き出し直すたびに差分が出る
+  - **整形だけのコミットは `.git-blame-ignore-revs` に載せる。** GitHub の blame はこれを読む。手元では `git config blame.ignoreRevsFile .git-blame-ignore-revs`
+  - 2026-09-28 に入れた。それまで設定は無く、`web/node_modules` にあるものをセッションが `npx prettier --check` で回すと、既定値（80桁）で大半のファイルが引っかかっていた
 - **Claude Code on the web のセッションは `.claude/hooks/session-start.sh` が整える。** コンテナは毎回まっさらでクローンされるので、これが無いと `node_modules` が無い状態から始まる。中身は3つのワークスペースの `npm ci` と、`PLAYWRIGHT_CHROMIUM_PATH` を `$CLAUDE_ENV_FILE` に書くこと。**`$CLAUDE_CODE_REMOTE` で囲ってあるのでローカルでは何もしない。** 依存を足したりコマンドを増やしたらこのフックも直す
   - **`npm install` ではなく `npm ci`。** lock を書き換えないので、セッション開始時点で作業ツリーが汚れない（上の2つの約束と同じ理由）
-  - **ルートの `npm ci` が husky の `prepare` を走らせ、`.husky/pre-commit`（lint-staged → lint・typecheck・vitest）を有効にする。** これが無いと web セッションのコミットだけがゲートを素通りする（実際に素通りしていた）
+  - **ルートの `npm ci` が husky の `prepare` を走らせ、`.husky/pre-commit`（lint-staged → prettier・lint・typecheck・vitest）を有効にする。** これが無いと web セッションのコミットだけがゲートを素通りする（実際に素通りしていた）
   - **Playwright の Chromium はコンテナのものを使う。** Playwright 1.62 が同梱を期待するのは 151（rev 1234）だが、入っているのは 141（rev 1194）だけ。`playwright.config.ts` の `PLAYWRIGHT_CHROMIUM_PATH` に渡して通す。**取り直さない**——環境側が `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD` で止めている
 
 ## Unit の起票（着手前）

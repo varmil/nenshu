@@ -246,7 +246,7 @@ export const EXPECTED_HEADER: readonly string[] = [
   "短時間勤務制度",
   "病気・不妊治療休暇",
   "年次有給休暇時間単位取得制度",
-  "データの最終更新日"
+  "データの最終更新日",
 ];
 
 /** 見出し番号（1始まり）を配列の添字に直す。番号は spec.md 1.3 の表と対応する。 */
@@ -390,7 +390,11 @@ export function toNumber(raw: string): number | null {
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : null;
 }
 
-function units(row: readonly string[], nameIdx: readonly number[], valueIdx: readonly number[]): UnitValue[] {
+function units(
+  row: readonly string[],
+  nameIdx: readonly number[],
+  valueIdx: readonly number[]
+): UnitValue[] {
   const out: UnitValue[] = [];
   for (let k = 0; k < nameIdx.length; k++) {
     const unit = (row[nameIdx[k]] ?? "").trim();
@@ -409,7 +413,10 @@ function units(row: readonly string[], nameIdx: readonly number[], valueIdx: rea
  * - 100%を超える有給取得率は落とさない（前年繰越の消化。実測で7社）
  * - 極端な賃金の差異も落とさない（少人数区分の外れ値だが値としては正しい）
  */
-export function normalizeRow(row: readonly string[]): { record: WorklifeRecord; dropped: DroppedValue[] } {
+export function normalizeRow(row: readonly string[]): {
+  record: WorklifeRecord;
+  dropped: DroppedValue[];
+} {
   const corporateNumber = (row[COL.corporateNumber] ?? "").trim();
   const positivedbName = (row[COL.name] ?? "").trim();
   const dropped: DroppedValue[] = [];
@@ -445,7 +452,11 @@ export function normalizeRow(row: readonly string[]): { record: WorklifeRecord; 
   // 並ぶ順が書いた順と一致しない（`dropped` はサマリーにそのまま出る）。
   const overtimeUnits = readUnits(COL.overtimeUnitName, COL.overtimeUnitValue, "overtime_unit");
   const overtimeAll = readAll(COL.overtimeAll, "overtime_all");
-  const paidLeaveUnits = readUnits(COL.paidLeaveUnitName, COL.paidLeaveUnitValue, "paid_leave_unit");
+  const paidLeaveUnits = readUnits(
+    COL.paidLeaveUnitName,
+    COL.paidLeaveUnitValue,
+    "paid_leave_unit"
+  );
   let paidLeaveAll = readAll(COL.paidLeaveAll, "paid_leave_all");
   if (paidLeaveAll !== null && isMisenteredFullRate(paidLeaveAll, paidLeaveUnits)) {
     drop("paid_leave_all", String(paidLeaveAll), "全体値が100%ちょうど");

@@ -3,11 +3,7 @@ import sharp from "sharp";
 export type ImageProbe = { w: number; h: number; format: string };
 
 export type Rejection =
-  | "notImage"
-  | "tooTiny"
-  | "solidColor"
-  | "almostTransparent"
-  | "extremeRatio";
+  "notImage" | "tooTiny" | "solidColor" | "almostTransparent" | "extremeRatio";
 
 /**
  * 表示は器の中で最大でも高さ48px程度（L1 で決める）。その2倍を持つ。
@@ -98,7 +94,9 @@ async function dibToPng(dib: Buffer): Promise<Buffer | null> {
     for (let i = 3; i < rgba.length; i += 4) rgba[i] = 255;
   }
   try {
-    return await sharp(rgba, { raw: { width, height, channels: 4 } }).png().toBuffer();
+    return await sharp(rgba, { raw: { width, height, channels: 4 } })
+      .png()
+      .toBuffer();
   } catch {
     return null;
   }
@@ -250,8 +248,14 @@ export async function mostlyHiddenOnLight(normalized: Buffer): Promise<boolean> 
     .toBuffer({ resolveWithObject: true });
   const { width: w, height: h, channels } = info;
 
-  let inkX0 = w, inkY0 = h, inkX1 = -1, inkY1 = -1;
-  let figX0 = w, figY0 = h, figX1 = -1, figY1 = -1;
+  let inkX0 = w,
+    inkY0 = h,
+    inkX1 = -1,
+    inkY1 = -1;
+  let figX0 = w,
+    figY0 = h,
+    figX1 = -1,
+    figY1 = -1;
   const alpha = new Uint8Array(w * h);
   const isInk = new Uint8Array(w * h);
   for (let y = 0; y < h; y++) {

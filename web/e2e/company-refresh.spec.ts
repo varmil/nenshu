@@ -28,7 +28,9 @@ test.describe("節の並び", () => {
   const radar = (page: Page) =>
     page.getByRole("heading", { name: "公開資料による全体像", level: 2 }).locator("xpath=..");
 
-  test("本文は平均年収カード → レーダー → 分析の順で始まり、見出しが決めた順に並ぶ", async ({ page }) => {
+  test("本文は平均年収カード → レーダー → 分析の順で始まり、見出しが決めた順に並ぶ", async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/company/6861");
 
@@ -123,10 +125,9 @@ test.describe("AC-12 水準が近い会社", () => {
     );
     await expect(neighbors.locator("ul")).not.toContainText("株式会社キーエンス");
     await expect(neighbors.getByText("業界2位・平均40.1歳")).toBeVisible();
-    await expect(neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })).toHaveAttribute(
-      "href",
-      /^\/\?ind=/
-    );
+    await expect(
+      neighbors.getByRole("link", { name: "電気機器193社をすべて見る" })
+    ).toHaveAttribute("href", /^\/\?ind=/);
     await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
   });
 });
@@ -293,7 +294,10 @@ test.describe("AC-14 年齢別の表と推定範囲", () => {
     const pairs = [...text.matchAll(/(\d+)歳で([\d,]+)万円/g)];
     expect(pairs.length).toBeGreaterThan(0);
     for (const [, age, manYen] of pairs) {
-      const row = curveSection(page).getByRole("row").filter({ hasText: `${age}歳` }).first();
+      const row = curveSection(page)
+        .getByRole("row")
+        .filter({ hasText: `${age}歳` })
+        .first();
       const shown = Number((await row.locator("td").nth(1).textContent())!.replace(/[^0-9]/g, ""));
       expect(shown, `${age}歳`).toBeGreaterThanOrEqual(Number(manYen.replace(/,/g, "")));
     }
@@ -395,7 +399,9 @@ async function historyRows(page: Page): Promise<string[][]> {
   return historySection(page)
     .locator("tbody tr")
     .evaluateAll((rows) =>
-      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+      rows.map((row) =>
+        [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? "")
+      )
     );
 }
 
@@ -478,7 +484,9 @@ test.describe("T1・T2・T3 平均年収推移", () => {
     expect(byYear.get("2025年")![3]).toMatch(/^[＋−±][\d.]+%$/);
 
     await page.goto("/company/3447");
-    await expect(historySection(page).getByRole("columnheader", { name: "2018年比" })).toBeVisible();
+    await expect(
+      historySection(page).getByRole("columnheader", { name: "2018年比" })
+    ).toBeVisible();
     await expect(historySection(page)).toContainText("2018年比は会社の平均が動いた幅で");
     const rows = await historyRows(page);
     expect(rows[0]).toEqual(["2017年", "データなし", "", ""]);
@@ -537,7 +545,9 @@ async function tenureRows(page: Page): Promise<string[][]> {
   return tenureSection(page)
     .locator("tbody tr")
     .evaluateAll((rows) =>
-      rows.map((row) => [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? ""))
+      rows.map((row) =>
+        [...row.querySelectorAll("td")].map((cell) => cell.textContent?.trim() ?? "")
+      )
     );
 }
 
@@ -549,9 +559,7 @@ async function tenureRows(page: Page): Promise<string[][]> {
  * チャート → 表 → 説明文 の並び（AC-19）は上の「節の並び」。
  */
 test.describe("T4 在籍年数推移", () => {
-  test("AC-19: 折れ線と業種の中央値の点線、10行の表、説明文が出る", async ({
-    page,
-  }) => {
+  test("AC-19: 折れ線と業種の中央値の点線、10行の表、説明文が出る", async ({ page }) => {
     await page.goto("/company/6861");
     const section = tenureSection(page);
 
@@ -573,10 +581,13 @@ test.describe("T4 在籍年数推移", () => {
 
     // 図: 中央値の点線があり、各点に表と同じ値が書かれている。最新年の点の値は太字。
     const chart = section.getByRole("img");
-    await expect(chart).toHaveAttribute("aria-label", /電気機器の中央値（点線）。中央値は2017年 [\d.]+年、/);
+    await expect(chart).toHaveAttribute(
+      "aria-label",
+      /電気機器の中央値（点線）。中央値は2017年 [\d.]+年、/
+    );
     await expect(section.getByTestId("tenure-median-line")).toHaveAttribute("d", /^M/);
     await expect(chart.locator("text", { hasText: /^業種の中央値 [\d.]+$/ })).toHaveCount(1);
-    const pointLabels = await chart.locator('text[font-weight]').allTextContents();
+    const pointLabels = await chart.locator("text[font-weight]").allTextContents();
     expect(pointLabels).toEqual(rows.map((row) => row[1].replace("年", "")));
     await expect(chart.locator('text[font-weight="700"]')).toHaveText(rows[9][1].replace("年", ""));
 
@@ -614,7 +625,9 @@ test.describe("T4 在籍年数推移", () => {
     expect(((await median.getAttribute("d")) ?? "").match(/M/g)).toHaveLength(1);
 
     await page.goto("/company/3447");
-    await expect(tenureSection(page).getByRole("columnheader", { name: "2018年との差" })).toBeVisible();
+    await expect(
+      tenureSection(page).getByRole("columnheader", { name: "2018年との差" })
+    ).toBeVisible();
     const rows = await tenureRows(page);
     expect(rows[0]).toEqual(["2017年", "データなし", ""]);
     expect(rows[1][2]).toBe("");
@@ -723,7 +736,9 @@ test.describe("AC-16 このページの出典", () => {
   test("6区分が該当するものと出典を添えて並び、一次情報へのリンクがある", async ({ page }) => {
     await page.goto("/company/6861");
 
-    await expect(sources(page).getByRole("heading", { name: "このページの出典", level: 2 })).toBeVisible();
+    await expect(
+      sources(page).getByRole("heading", { name: "このページの出典", level: 2 })
+    ).toBeVisible();
     await expect(sources(page).locator("dt")).toHaveText([
       "実測値",
       "計算値",
@@ -801,7 +816,9 @@ test.describe("AC-32 平均年収カード（C14）", () => {
    * 定着の軸にある）。**太字は金額だけ**——順位まで太いと、どれがこのカードの
    * 答えなのかが読めない。
    */
-  test("1段目に平均年齢・従業員数、2段目に業界内順位・全体順位が並び、太字は金額だけで、見出しとの間は4px", async ({ page }) => {
+  test("1段目に平均年齢・従業員数、2段目に業界内順位・全体順位が並び、太字は金額だけで、見出しとの間は4px", async ({
+    page,
+  }) => {
     await page.goto("/company/6861");
 
     expect(await texts(page, 0, "dt")).toEqual(["平均年齢", "従業員数（単体）"]);
@@ -825,9 +842,9 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     expect(weights).toEqual([400, 400, 400, 400]);
 
     // 見出しと金額の間は 4px（spec AC-32。運営者の指示で C15 の後に足した）。
-    const label = (
-      await salaryCard(page).getByText("平均年収（有価証券報告書・単体）", { exact: true }).boundingBox()
-    )!;
+    const label = (await salaryCard(page)
+      .getByText("平均年収（有価証券報告書・単体）", { exact: true })
+      .boundingBox())!;
     const amount = (await salaryCard(page).getByText("2,178万円", { exact: true }).boundingBox())!;
     expect(amount.y - (label.y + label.height)).toBeCloseTo(4, 0);
   });
@@ -861,7 +878,10 @@ test.describe("AC-32 平均年収カード（C14）", () => {
     page,
   }) => {
     await page.goto("/company/6861");
-    const firstBin = page.getByText(/全2,961社の分布/).locator("xpath=../ul[1]/li").first();
+    const firstBin = page
+      .getByText(/全2,961社の分布/)
+      .locator("xpath=../ul[1]/li")
+      .first();
     const before = await firstBin.textContent();
     /*
      * 金額の直下は有報の値を言い直す1文（C15・spec 1.4）。**年齢そろえでも同じ文のまま**
@@ -917,7 +937,9 @@ test.describe("AC-34 年収に関するQ&A（C16）", () => {
     await page.goto("/company/6861");
     const qa = page.getByTestId("company-qa");
 
-    await expect(qa.getByRole("heading", { level: 2 })).toHaveText("株式会社キーエンスの年収に関するQ&A");
+    await expect(qa.getByRole("heading", { level: 2 })).toHaveText(
+      "株式会社キーエンスの年収に関するQ&A"
+    );
     await expect(qa).toContainText(
       "2026年3月期の有価証券報告書の値です。提出会社（単体）のもので、連結子会社の従業員は入りません。"
     );
@@ -936,7 +958,12 @@ test.describe("AC-34 年収に関するQ&A（C16）", () => {
       "株式会社キーエンスの従業員数は3,306人です（提出会社単体。連結子会社の従業員は含みません）。",
     ]);
     for (const answer of await answers.all()) await expect(answer).toBeVisible();
-    await expect(answers.locator("strong")).toHaveText(["2,178万円", "35.0歳", "11.3年", "3,306人"]);
+    await expect(answers.locator("strong")).toHaveText([
+      "2,178万円",
+      "35.0歳",
+      "11.3年",
+      "3,306人",
+    ]);
 
     // 実測値だけの節なので「推定」を置かない（AC-9）。作り替える前の節は残っていない。
     await expect(qa).not.toContainText("推定");

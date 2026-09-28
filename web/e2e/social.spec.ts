@@ -47,8 +47,7 @@ async function headOf(request: APIRequestContext, path: string) {
     title: pick(/<title>([^<]*)<\/title>/),
     description: pick(/<meta name="description" content="([^"]*)"/),
     canonical: pick(/<link rel="canonical" href="([^"]*)"/),
-    og: (property: string) =>
-      pick(new RegExp(`<meta property="og:${property}" content="([^"]*)"`)),
+    og: (property: string) => pick(new RegExp(`<meta property="og:${property}" content="([^"]*)"`)),
     twitterCard: pick(/<meta name="twitter:card" content="([^"]*)"/),
     jsonLd: [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(
       (match) => JSON.parse(match[1])
@@ -142,9 +141,9 @@ test.describe("構造化データ（AC-14・AC-15）", () => {
     expect(paths.slice(0, -1)).toEqual(hrefs);
     expect(paths.at(-1)).toBe("/company/6861");
     expect(breadcrumb.itemListElement.at(-1).item).toBe(`${ORIGIN}/company/6861`);
-    expect(
-      breadcrumb.itemListElement.map((item: { position: number }) => item.position)
-    ).toEqual([1, 2, 3]);
+    expect(breadcrumb.itemListElement.map((item: { position: number }) => item.position)).toEqual([
+      1, 2, 3,
+    ]);
   });
 
   test("画面に出ていない値を入れない（AC-15）", async ({ request }) => {

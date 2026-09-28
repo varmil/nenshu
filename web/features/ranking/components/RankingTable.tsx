@@ -106,11 +106,7 @@ export function RankingTable({
                 <TableCell>
                   <div className="flex flex-col gap-1">
                     <span className="text-base font-bold tabular-nums">{formatManYen(salary)}</span>
-                    <SalaryBar
-                      value={salary}
-                      max={pageMaxSalary}
-                      mean={population?.mean ?? null}
-                    />
+                    <SalaryBar value={salary} max={pageMaxSalary} mean={population?.mean ?? null} />
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
@@ -134,8 +130,7 @@ export function RankingTable({
         <TableCaption>
           {isRaw
             ? "有価証券報告書の平均年間給与（提出会社単体）そのままです。年齢の違いは補正していません。"
-            : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}
-          {" "}
+            : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}{" "}
           帯はこのページの1位を100%とした相対の長さで、細い縦線は全体平均
           {population ? `（${formatManYen(population.mean)}）` : ""}の位置です。
           偏差値は分布が右に裾を引くため100を超えることがあります。水準は順位と併せて読んでください。

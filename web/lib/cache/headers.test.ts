@@ -57,7 +57,10 @@ describe("public/_headers（事前生成したページ）", () => {
     const lines = readFileSync(HEADERS_FILE, "utf8").split("\n");
     // 規則として書かれていないことを見る（コメントで言及するのは構わない）。
     for (const path of ["/", "/_astro/*"]) {
-      expect(lines.some((line) => line.trim() === path), path).toBe(false);
+      expect(
+        lines.some((line) => line.trim() === path),
+        path
+      ).toBe(false);
     }
   });
 });

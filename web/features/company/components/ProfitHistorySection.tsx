@@ -27,7 +27,8 @@ export function ProfitHistorySection({ history }: { history: ProfitHistory }) {
         言い直さないと同じ画面の2つの数字が同じ範囲に見える。
       */}
       <p className="text-muted-foreground text-xs">
-        各年の有価証券報告書から算出した、従業員1人当たりの経常利益（連結の経常利益 ÷ 連結の従業員数）。パート・アルバイトは従業員数に含まれません。
+        各年の有価証券報告書から算出した、従業員1人当たりの経常利益（連結の経常利益 ÷
+        連結の従業員数）。パート・アルバイトは従業員数に含まれません。
       </p>
       <YearlyBarChart
         years={history.years}

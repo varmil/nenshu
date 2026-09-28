@@ -48,7 +48,28 @@ const eslintConfig = defineConfig([
       "jsx-a11y/no-noninteractive-tabindex": "off",
     },
   },
-  { languageOptions: { globals: { window: "readonly", document: "readonly", console: "readonly", localStorage: "readonly", setTimeout: "readonly", clearTimeout: "readonly", queueMicrotask: "readonly", fetch: "readonly", History: "readonly", HTMLAnchorElement: "readonly", MouseEvent: "readonly", URL: "readonly", URLSearchParams: "readonly", Response: "readonly", Request: "readonly", process: "readonly" } } },
+  {
+    languageOptions: {
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        console: "readonly",
+        localStorage: "readonly",
+        setTimeout: "readonly",
+        clearTimeout: "readonly",
+        queueMicrotask: "readonly",
+        fetch: "readonly",
+        History: "readonly",
+        HTMLAnchorElement: "readonly",
+        MouseEvent: "readonly",
+        URL: "readonly",
+        URLSearchParams: "readonly",
+        Response: "readonly",
+        Request: "readonly",
+        process: "readonly",
+      },
+    },
+  },
   globalIgnores([
     // Astro のビルド成果物と型生成
     "dist/**",

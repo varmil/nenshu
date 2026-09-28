@@ -257,9 +257,7 @@ describe("buildData", () => {
 
       for (let i = 0; i < rows.length; i++) {
         expect(rankAll[i][k]).toBe(rankAllExpected.get(estimates[i]));
-        expect(rankIndustry[i][k]).toBe(
-          rankIndustryExpected.get(rows[i][2])!.get(estimates[i])
-        );
+        expect(rankIndustry[i][k]).toBe(rankIndustryExpected.get(rows[i][2])!.get(estimates[i]));
         expect(rankIndustry[i][k]).toBeLessThanOrEqual(industryCounts[rows[i][2]]);
       }
     }
@@ -440,7 +438,10 @@ describe("buildData", () => {
     for (const [id, values] of Object.entries(byId)) {
       const ages = ageById[id];
       expect(ages.length).toBe(years.length);
-      expect(ages.map((age) => age === null), id).toEqual(values.map((value) => value === null));
+      expect(
+        ages.map((age) => age === null),
+        id
+      ).toEqual(values.map((value) => value === null));
       for (const age of ages) {
         if (age === null) continue;
         expect(age, id).toBeGreaterThanOrEqual(20);
@@ -576,7 +577,9 @@ describe("buildData", () => {
         }
         matched += 1;
         const decoded = decodeRow(result.worklife.rows[i] as WorklifeRow, result.worklife.pool);
-        expect(decoded.overtimeAll).toBe(cells.overtime_all === "" ? null : Number(cells.overtime_all));
+        expect(decoded.overtimeAll).toBe(
+          cells.overtime_all === "" ? null : Number(cells.overtime_all)
+        );
         expect(decoded.asOf).toBe(cells.as_of);
         expect(result.worklife.notes[i]).toBe(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
       });
@@ -635,7 +638,9 @@ describe("buildData", () => {
 
     it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
       // `sourceRows` と `companies.rows` は同じ並びなので添字がそのまま使える。
-      const missing = sourceRows.flatMap((row, i) => (row.employeesConsolidated === null ? [i] : []));
+      const missing = sourceRows.flatMap((row, i) =>
+        row.employeesConsolidated === null ? [i] : []
+      );
       expect(missing.length).toBe(371);
       // 代用しないとこの371社が丸ごと欠ける。**埋まらない1社は、稼ぐ力そのものを
       // 落とした2社（最後の開示が8年前）のうちの1社**。
@@ -810,14 +815,14 @@ describe("buildData", () => {
     /** 規格（`docs/company/spec.md` 1.18）。機械ゲートが通した結果を再確認する。 */
     it("全件が全角15〜130字・1〜3文に収まる", () => {
       for (const [id, text] of Object.entries(result.summaries.byId)) {
-        const width = [...text].reduce(
-          (sum, ch) => sum + (/[ -~｡-ﾟ]/.test(ch) ? 0.5 : 1),
-          0
-        );
+        const width = [...text].reduce((sum, ch) => sum + (/[ -~｡-ﾟ]/.test(ch) ? 0.5 : 1), 0);
         expect(width, `${id}: ${text}`).toBeGreaterThanOrEqual(15);
         expect(width, `${id}: ${text}`).toBeLessThanOrEqual(130);
         // 引用の中の「。」は文の区切りに数えない（`pipeline/summary/gate.py` の sentences）。
-        const sentences = text.replace(/「[^」]*」|『[^』]*』/g, "").split("。").filter(Boolean);
+        const sentences = text
+          .replace(/「[^」]*」|『[^』]*』/g, "")
+          .split("。")
+          .filter(Boolean);
         expect(sentences.length, `${id}: ${text}`).toBeGreaterThanOrEqual(1);
         expect(sentences.length, `${id}: ${text}`).toBeLessThanOrEqual(3);
       }
@@ -854,7 +859,9 @@ describe("buildData", () => {
     it("本文のある会社だけを持ち、本文は C18 の塊と1字も違わない", () => {
       const withBody = source.filter((r) => r.blocks.length > 0);
       expect(Object.keys(result.payPolicies.byId)).toHaveLength(withBody.length);
-      const idByCode = new Map(sourceRows.map((row, i) => [row.edinetCode, result.companies.rows[i][0]]));
+      const idByCode = new Map(
+        sourceRows.map((row, i) => [row.edinetCode, result.companies.rows[i][0]])
+      );
       for (const row of withBody) {
         const id = idByCode.get(row.edinet_code) as string;
         const got = result.payPolicies.byId[id];
@@ -911,11 +918,21 @@ describe("fiscalPeriodRange", () => {
   const rows = (...periods: string[]) => periods.map((periodEnd) => ({ periodEnd }));
 
   it.each([
-    ["並び順によらず最古と最新を返す", ["2026-03-31", "2026-03-20", "2026-04-20"], "2026-03", "2026-04"],
+    [
+      "並び順によらず最古と最新を返す",
+      ["2026-03-31", "2026-03-20", "2026-04-20"],
+      "2026-03",
+      "2026-04",
+    ],
     // **旧ガード（最頻が過半に届かなければ落とす）は通ってしまう分布**。母集団を
     // 広げると3月期は 63.5% で、1,081社の決算期が違うまま代表を名乗ることになる。
     // 幅で出すならこれは正常系。
-    ["最頻が過半に届かなくても落ちない", ["2026-03-31", "2026-04-20", "2026-05-31"], "2026-03", "2026-05"],
+    [
+      "最頻が過半に届かなくても落ちない",
+      ["2026-03-31", "2026-04-20", "2026-05-31"],
+      "2026-03",
+      "2026-05",
+    ],
     // 拡大後の実測の端（ニデックの2025-03期 〜 2026-05期 = 15か月）。
     ["拡大後の15か月の幅は通る", ["2025-03-31", "2026-05-31"], "2025-03", "2026-05"],
   ])("%s", (_, periods, from, to) => {

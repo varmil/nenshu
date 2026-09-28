@@ -2,11 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  parseUnifiedCsv,
-  parseSalaryHistoryCsv,
-  parsePerformanceHistoryCsv,
-} from "./lib/csv";
+import { parseUnifiedCsv, parseSalaryHistoryCsv, parsePerformanceHistoryCsv } from "./lib/csv";
 import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { makeId } from "./lib/slug";
@@ -513,10 +509,7 @@ function buildRadar(
     paidLeaveValue.push(
       cells === undefined
         ? null
-        : representativeValue(
-            numberOrNull(cells.paid_leave_all),
-            units("paid_leave_unit", "_rate")
-          )
+        : representativeValue(numberOrNull(cells.paid_leave_all), units("paid_leave_unit", "_rate"))
     );
     overtimeValue.push(
       cells === undefined
@@ -573,7 +566,11 @@ function buildProfitHistory(
    */
   const yearIndex = new Map(years.map((y, i) => [y, i]));
 
-  type Series = { profit: (number | null)[]; income: (number | null)[]; employees: (number | null)[] };
+  type Series = {
+    profit: (number | null)[];
+    income: (number | null)[];
+    employees: (number | null)[];
+  };
   const byEdinetCode = new Map<string, Series>();
   for (const row of historyRows) {
     let series = byEdinetCode.get(row.edinetCode);
@@ -788,7 +785,9 @@ function buildPayPolicies(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
 ) {
-  const source = JSON.parse(readFileSync(resolve(ROOT, "data/pay_policy_2026.json"), "utf-8")) as PayPolicyRow[];
+  const source = JSON.parse(
+    readFileSync(resolve(ROOT, "data/pay_policy_2026.json"), "utf-8")
+  ) as PayPolicyRow[];
   const byEdinetCode = new Map(source.map((row) => [row.edinet_code, row]));
 
   const byId: Record<string, PayPolicyRecord> = {};
@@ -1023,7 +1022,10 @@ interface CompaniesShape {
  * **行がずれると別の会社の順位を、列がずれると別の表示基準の順位を出してしまうので、
  * `companies` を組み立てたのと同じ配列から作り、`build-data.test.ts` で固定する。**
  */
-function buildStats(companies: CompaniesShape, curves: { agePoints: number[]; curves: Record<string, number[]> }) {
+function buildStats(
+  companies: CompaniesShape,
+  curves: { agePoints: number[]; curves: Record<string, number[]> }
+) {
   const ages = [...TARGET_AGES];
   // 表示基準の並び。先頭の null が「実測値」（有報の平均年間給与そのまま）で、
   // 残りが「年齢そろえ」の8年齢。population / rankAll / rankIndustry はすべて
@@ -1185,7 +1187,9 @@ if (isMain) {
       `, 決算期 ${from}〜${to}（${result.companies.periods.length}種類）`
   );
   console.log(result.curvesPath);
-  console.log(`${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`);
+  console.log(
+    `${result.statsPath}: ${result.stats.bases.length}表示基準 × ${result.stats.count}社`
+  );
   // **母集団に対する割合を添える**（E2・AC-8）。社数だけだと、母集団が広がった
   // ときに「追随していない施策がどれだけ欠けているか」が読み取れない。
   const total = result.companies.meta.count;

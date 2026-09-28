@@ -16,11 +16,7 @@
  * 解決）を決めれば読めるスラッグは作れる。ただしURLの可読性が検索順位に効く
  * 度合いは小さく、規則を発明するコストに見合わないと判断した（ADR-0006 の却下案）。
  */
-export function makeId(row: {
-  secCode: string;
-  edinetCode: string;
-  name: string;
-}): string {
+export function makeId(row: { secCode: string; edinetCode: string; name: string }): string {
   if (row.secCode) return row.secCode;
   if (row.edinetCode) return row.edinetCode;
   throw new Error(`${row.name} に証券コードもEDINETコードもありません`);

@@ -1,10 +1,6 @@
 import { describe, it, expect } from "vitest";
 import companiesData from "@/public/data/companies.json";
-import {
-  shortIndustryLabel,
-  INDUSTRY_SHORT_LABELS,
-  MAX_INDUSTRY_LABEL_LENGTH,
-} from "./industry";
+import { shortIndustryLabel, INDUSTRY_SHORT_LABELS, MAX_INDUSTRY_LABEL_LENGTH } from "./industry";
 
 /**
  * **実物の `companies.json` に対して見る。** 略称の表は業種名の綴りを鍵にした

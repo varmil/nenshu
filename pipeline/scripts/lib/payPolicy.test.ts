@@ -20,7 +20,13 @@ describe("toPayPolicyRecord", () => {
           blocks: [
             { kind: "heading", text: "（報酬の水準）" },
             { kind: "para", text: "一行目。\n二行目。" },
-            { kind: "table", rows: [["区分", "内容"], ["基本給", "役割に応じて決める"]] },
+            {
+              kind: "table",
+              rows: [
+                ["区分", "内容"],
+                ["基本給", "役割に応じて決める"],
+              ],
+            },
             { kind: "image", alt: "0104010_004.png" },
           ],
         })
@@ -31,7 +37,13 @@ describe("toPayPolicyRecord", () => {
       blocks: [
         { kind: "heading", text: "（報酬の水準）" },
         { kind: "para", text: "一行目。\n二行目。" },
-        { kind: "table", rows: [["区分", "内容"], ["基本給", "役割に応じて決める"]] },
+        {
+          kind: "table",
+          rows: [
+            ["区分", "内容"],
+            ["基本給", "役割に応じて決める"],
+          ],
+        },
         // 代替テキストは空かファイル名で、読める文字が無いので落とす
         { kind: "image" },
       ],
@@ -39,15 +51,23 @@ describe("toPayPolicyRecord", () => {
   });
 
   it("本文の無い会社は null（節ごと出さない）", () => {
-    expect(toPayPolicyRecord(row({ verdict: "none", source: undefined, title: null, blocks: [] }))).toBeNull();
+    expect(
+      toPayPolicyRecord(row({ verdict: "none", source: undefined, title: null, blocks: [] }))
+    ).toBeNull();
   });
 
   it("参照先の節から取った会社は、その節を source に持つ", () => {
-    expect(toPayPolicyRecord(row({ source: "sustainability", title: null }))?.source).toBe("sustainability");
+    expect(toPayPolicyRecord(row({ source: "sustainability", title: null }))?.source).toBe(
+      "sustainability"
+    );
   });
 
   it("表の結合したセルはそのまま持ち、結合の無い表には鍵を足さない", () => {
-    const rows = [["報酬の種類", "概要"], ["", "ストック・オプション", "3年で行使"], ["RSU", "3年で確定"]];
+    const rows = [
+      ["報酬の種類", "概要"],
+      ["", "ストック・オプション", "3年で行使"],
+      ["RSU", "3年で確定"],
+    ];
     const spans = [
       [0, 0, 2, 1],
       [1, 0, 1, 2],
@@ -55,7 +75,9 @@ describe("toPayPolicyRecord", () => {
     expect(toPayPolicyRecord(row({ blocks: [{ kind: "table", rows, spans }] }))?.blocks).toEqual([
       { kind: "table", rows, spans },
     ]);
-    expect(toPayPolicyRecord(row({ blocks: [{ kind: "table", rows }] }))?.blocks[0]).not.toHaveProperty("spans");
+    expect(
+      toPayPolicyRecord(row({ blocks: [{ kind: "table", rows }] }))?.blocks[0]
+    ).not.toHaveProperty("spans");
   });
 
   it("形が崩れていたら落とす", () => {

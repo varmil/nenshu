@@ -1,0 +1,9 @@
+# 書式だけを変えたコミット。git blame はこれらを飛ばして、その前に行を書いたコミットを指す。
+# GitHub の blame はこのファイルを自動で読む。手元では次の1回の設定で読む。
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# **squash でマージするとハッシュが変わり、blame が整形のコミットを飛ばせなくなる。**
+# 整形だけのコミットを含む PR はマージコミットでマージする。
+
+# prettier の導入に伴う全体の整形（2026-09-28）
+33812ade84afdb29433075b539d851621d84a338
