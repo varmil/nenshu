@@ -1,0 +1,39 @@
+# 書式をそろえるのは JS/TS（.ts・.tsx・.mjs・.cjs・.js）だけ。
+# Markdown（docs/ の表と改行）・JSON（データ）・CSS（トークン）は書いた形のまま置く。
+*.md
+*.json
+*.jsonc
+*.css
+*.yml
+*.yaml
+*.html
+# .astro は prettier-plugin-astro が無いと読めない。
+*.astro
+
+# 生成物。書き出し元が整形しないので、整形すると書き出し直すたびに差分が出る。
+# 生成物を足したらここにも足す。
+pipeline/brand/lettering.ts
+web/lib/brand/ogFacts.ts
+
+# Claude Design と同期するための道具（web/.design-sync/NOTES.md）。
+web/.design-sync/
+web/.ds-sync/
+
+# ビルド・テスト・取得の成果物。ルートから回す prettier は入れ子の .gitignore
+# （web/.gitignore・pipeline/.gitignore）を読まないので、ここに書き写す。
+web/dist/
+web/.astro/
+web/public/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/coverage/
+pipeline/coverage/
+pipeline/logo-cache/
+pipeline/salary/cache/
+pipeline/salary/out/
+pipeline/worklife/source/
+pipeline/analysis/work/
+pipeline/summary/work/
+pipeline/paypolicy/cache/
+pipeline/paypolicy/work/

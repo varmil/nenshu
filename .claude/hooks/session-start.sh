@@ -23,7 +23,7 @@ cd "$CLAUDE_PROJECT_DIR"
 # `npm ci` は lock を書き換えないので、セッション開始時点で作業ツリーが汚れない。
 #
 # ルートの `npm ci` は husky の `prepare` を走らせ、`.husky/pre-commit`
-# （lint-staged → lint・typecheck・vitest）を有効にする。これが無いと
+# （lint-staged → prettier・lint・typecheck・vitest）を有効にする。これが無いと
 # web セッションでのコミットだけがリポジトリのゲートを素通りする。
 npm ci
 npm --prefix pipeline ci
