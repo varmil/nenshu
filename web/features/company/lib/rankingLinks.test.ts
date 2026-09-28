@@ -14,7 +14,11 @@ describe("buildRankingLinks（C20・AC-37）", () => {
   });
 
   it("行き先はパンくずの業種・ランキングと同じ文字列になる（ADR-0006）", () => {
-    const crumbs = companyBreadcrumb({ id: "6758", name: "ソニーグループ株式会社", tse33: "電気機器" });
+    const crumbs = companyBreadcrumb({
+      id: "6758",
+      name: "ソニーグループ株式会社",
+      tse33: "電気機器",
+    });
     expect(links.map((l) => l.path)).toEqual([crumbs[1].path, crumbs[0].path]);
   });
 });

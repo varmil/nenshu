@@ -138,7 +138,8 @@ test.describe("AC-12 水準が近い会社", () => {
  * 押すとランキングの業種フィルタに着くことを見る。横スクロールは AC-15 のループ。
  */
 test.describe("AC-37 ランキングへ戻る導線", () => {
-  const rankingNav = (page: Page) => page.getByRole("navigation", { name: "ランキング", exact: true });
+  const rankingNav = (page: Page) =>
+    page.getByRole("navigation", { name: "ランキング", exact: true });
 
   test("業種と全体の2本が順位を添えてフッタの直前に並び、業種のほうはランキングの業種フィルタに着く", async ({
     page,
@@ -157,7 +158,9 @@ test.describe("AC-37 ランキングへ戻る導線", () => {
     // 本文＋サイドバーの grid の次の兄弟で、そのすぐ次がフッタ。
     expect(
       await nav.evaluate(
-        (el) => el.nextElementSibling?.tagName === "FOOTER" && el.previousElementSibling?.contains(document.querySelector("aside")) === true
+        (el) =>
+          el.nextElementSibling?.tagName === "FOOTER" &&
+          el.previousElementSibling?.contains(document.querySelector("aside")) === true
       )
     ).toBe(true);
 
@@ -169,12 +172,16 @@ test.describe("AC-37 ランキングへ戻る導線", () => {
   test("PC では2列、390px では縦に積む", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/company/6861");
-    let [first, second] = await Promise.all([0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox()));
+    let [first, second] = await Promise.all(
+      [0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox())
+    );
     expect(Math.round(first!.y)).toBe(Math.round(second!.y));
     expect(first!.x + first!.width).toBeLessThanOrEqual(second!.x + 1);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    [first, second] = await Promise.all([0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox()));
+    [first, second] = await Promise.all(
+      [0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox())
+    );
     expect(first!.y + first!.height).toBeLessThanOrEqual(second!.y + 1);
   });
 });
