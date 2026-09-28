@@ -1,12 +1,7 @@
 "use client";
 
 import { RankingApp } from "./RankingApp";
-import type {
-  CurvesData,
-  PopulationStats,
-  RankingBootstrap,
-  RankingState,
-} from "../types";
+import type { CurvesData, PopulationStats, RankingBootstrap, RankingState } from "../types";
 
 export interface RankingIslandProps {
   bootstrap: RankingBootstrap;

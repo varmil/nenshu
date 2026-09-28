@@ -82,11 +82,17 @@ describe("buildTenureSummary", () => {
   });
 
   it("欠損の年は飛ばし、実在する最初と最後の年で書く", () => {
-    expect(buildTenureSummary(GAPPED, "B社", "情報・通信業")).toContain("2019年の9.8年から7年で2.5年伸びています");
+    expect(buildTenureSummary(GAPPED, "B社", "情報・通信業")).toContain(
+      "2019年の9.8年から7年で2.5年伸びています"
+    );
   });
 
   it("中央値と同じ・動いていないときは差を書かない", () => {
-    const flat: TenureHistory = { years: [2025, 2026], values: [10.0, 10.04], industryMedian: [10.0, 10.0] };
+    const flat: TenureHistory = {
+      years: [2025, 2026],
+      values: [10.0, 10.04],
+      industryMedian: [10.0, 10.0],
+    };
     expect(buildTenureSummary(flat, "C社", "小売業")).toBe(
       "C社の平均勤続年数は、単体（提出会社）で10.0年です。" +
         "小売業の中央値（10.0年）と同じで、2025年の10.0年から1年で変わっていません。"
@@ -158,13 +164,18 @@ describe("buildTenureChart（AC-19・AC-20）", () => {
     const rightEnd = below.points.find((p) => p.latest)!;
     expect(below.medianLabel!.below).toBe(true);
     expect(below.medianLabel!.x).toBe(rightEnd.cx);
-    const lastMedianY = buildTenureChart({ ...SAMPLE, industryMedian: SAMPLE.industryMedian.map(() => 16.7) })
-      .medianLabel!.y;
+    const lastMedianY = buildTenureChart({
+      ...SAMPLE,
+      industryMedian: SAMPLE.industryMedian.map(() => 16.7),
+    }).medianLabel!.y;
     expect(below.medianLabel!.y).toBeGreaterThan(lastMedianY);
 
     // 点線の上に置くときは、範囲でいちばん高いところ（右肩上がりなら右端）。
     const above = buildTenureChart(GAPPED);
-    const flat = buildTenureChart({ ...GAPPED, industryMedian: GAPPED.industryMedian.map(() => 12.6) });
+    const flat = buildTenureChart({
+      ...GAPPED,
+      industryMedian: GAPPED.industryMedian.map(() => 12.6),
+    });
     expect(above.medianLabel!.y).toBeCloseTo(flat.medianLabel!.y, 5);
   });
 

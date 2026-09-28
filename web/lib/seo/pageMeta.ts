@@ -1,4 +1,3 @@
-
 /**
  * 1ページぶんのメタデータ（U16・Issue #135）。
  *
@@ -21,4 +20,3 @@ export interface PageMeta {
   description: string;
   canonical: string;
 }
-

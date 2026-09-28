@@ -2,11 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
-import {
-  symbolSvg,
-  MAX_COVERAGE_MASKABLE,
-  MAX_COVERAGE_WITH_CLEAR_SPACE,
-} from "../brand/symbol";
+import { symbolSvg, MAX_COVERAGE_MASKABLE, MAX_COVERAGE_WITH_CLEAR_SPACE } from "../brand/symbol";
 import { buildIco } from "../brand/ico";
 import { ogAlt, ogOverflow, ogSvg, type OgFacts } from "../brand/og";
 import {
@@ -172,7 +168,7 @@ export function manifestJson(): string {
       })),
     },
     null,
-    2,
+    2
   )}\n`;
 }
 
@@ -208,7 +204,7 @@ export async function buildBrand(
       coverage: FAVICON_COVERAGE,
       stroke: BRAND_COLOR,
       strokeDark: BRAND_COLOR_DARK,
-    })}\n`,
+    })}\n`
   );
 
   for (const { path, size } of FAVICON_PNG) {
@@ -219,9 +215,9 @@ export async function buildBrand(
     FAVICON_ICO,
     buildIco(
       await Promise.all(
-        ICO_SIZES.map(async (size) => ({ size, png: await png(markSvg(size), size) })),
-      ),
-    ),
+        ICO_SIZES.map(async (size) => ({ size, png: await png(markSvg(size), size) }))
+      )
+    )
   );
 
   // ホーム画面。**透過で渡さない**——iOS は透過部分を黒で埋める。
@@ -230,8 +226,8 @@ export async function buildBrand(
     await png(
       plateSvg(APPLE_TOUCH_ICON.size, APP_ICON_COVERAGE),
       APPLE_TOUCH_ICON.size,
-      BRAND_ICON_BACKGROUND,
-    ),
+      BRAND_ICON_BACKGROUND
+    )
   );
   for (const { path, size, purpose } of APP_ICONS) {
     const coverage = purpose === "maskable" ? MASKABLE_COVERAGE : APP_ICON_COVERAGE;
@@ -252,15 +248,15 @@ export async function buildBrand(
             rule: BRAND_RULE,
             background: BRAND_ICON_BACKGROUND,
           },
-          facts,
-        ),
+          facts
+        )
       ),
-      { density: 384 },
+      { density: 384 }
     )
       .resize(OG_IMAGE.width, OG_IMAGE.height)
       .flatten({ background: BRAND_ICON_BACKGROUND })
       .png()
-      .toBuffer(),
+      .toBuffer()
   );
 
   write(WEB_MANIFEST, manifestJson());

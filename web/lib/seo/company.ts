@@ -43,4 +43,3 @@ export function companyPageMeta(view: CompanyView, fiscalPeriod: string): PageMe
       `金融庁 EDINET の有価証券報告書（${fiscalPeriod}）に載っている提出会社単体の実測値です。`,
   };
 }
-

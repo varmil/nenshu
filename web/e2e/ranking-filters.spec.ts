@@ -19,7 +19,11 @@ import { test, expect } from "./appTest";
  * base-ui の Select はポップアップを Portal で document.body 直下に描画するため、
  * トリガーの role=combobox と、開いた後の role=option で操作する。
  */
-async function selectOption(page: import("@playwright/test").Page, filterLabel: string, optionLabel: string) {
+async function selectOption(
+  page: import("@playwright/test").Page,
+  filterLabel: string,
+  optionLabel: string
+) {
   await page.getByRole("combobox", { name: filterLabel }).click();
   await page.getByRole("option", { name: optionLabel, exact: true }).click();
 }
@@ -28,15 +32,18 @@ async function selectOption(page: import("@playwright/test").Page, filterLabel: 
  * 従業員数・在籍年数・平均年齢はToggleGroup（3択のスイッチ）。
  * ToggleGroupはrole=groupでaria-labelを持ち、各選択肢はrole=buttonになる。
  */
-async function pressToggle(page: import("@playwright/test").Page, filterLabel: string, optionLabel: string) {
+async function pressToggle(
+  page: import("@playwright/test").Page,
+  filterLabel: string,
+  optionLabel: string
+) {
   await page
     .getByRole("group", { name: filterLabel })
     .getByRole("button", { name: optionLabel, exact: true })
     .click();
 }
 
-const rows = (page: import("@playwright/test").Page) =>
-  page.getByRole("table").locator("tbody tr");
+const rows = (page: import("@playwright/test").Page) => page.getByRole("table").locator("tbody tr");
 
 /*
  * U12 で絞り込みは左サイドバーへ、検索は共通ヘッダへ移った。

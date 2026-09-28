@@ -147,7 +147,8 @@ export function parseSearchParams(params: URLSearchParams): Partial<RankingState
   if (ind !== null) result.industry = ind;
 
   const emp = params.get("emp");
-  if (emp !== null && emp in PARAM_TO_EMPLOYEE_SIZE) result.employeeSize = PARAM_TO_EMPLOYEE_SIZE[emp];
+  if (emp !== null && emp in PARAM_TO_EMPLOYEE_SIZE)
+    result.employeeSize = PARAM_TO_EMPLOYEE_SIZE[emp];
 
   const ten = params.get("ten");
   if (ten !== null && ten in PARAM_TO_TENURE) result.tenure = PARAM_TO_TENURE[ten];

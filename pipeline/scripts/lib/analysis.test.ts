@@ -4,13 +4,19 @@ import { dropRepeatedHeadline, generatedMonth, parseSources, toAnalysisRecord } 
 describe("dropRepeatedHeadline", () => {
   it("本文が一言と同じ文で始まっていれば1文目を落とす", () => {
     expect(
-      dropRepeatedHeadline("通行台数も収入も伸びたのに、営業利益は9割近く消えた。", "通行台数も収入も伸びたのに、営業利益は9割近く消えた一年である。料金収入は伸びた。")
+      dropRepeatedHeadline(
+        "通行台数も収入も伸びたのに、営業利益は9割近く消えた。",
+        "通行台数も収入も伸びたのに、営業利益は9割近く消えた一年である。料金収入は伸びた。"
+      )
     ).toBe("料金収入は伸びた。");
   });
 
   it("かぎ括弧の種類が違っても同じ文とみなす（8001）", () => {
     expect(
-      dropRepeatedHeadline("『川下』で稼ぐ路線を貫いている。", "「川下」で稼ぐ路線を貫いている。中国の事業が伸びた。")
+      dropRepeatedHeadline(
+        "『川下』で稼ぐ路線を貫いている。",
+        "「川下」で稼ぐ路線を貫いている。中国の事業が伸びた。"
+      )
     ).toBe("中国の事業が伸びた。");
   });
 
@@ -20,15 +26,26 @@ describe("dropRepeatedHeadline", () => {
   });
 
   it("本文が1文だけなら空にしない", () => {
-    expect(dropRepeatedHeadline("伸びている会社だ。", "伸びている会社だ。")).toBe("伸びている会社だ。");
+    expect(dropRepeatedHeadline("伸びている会社だ。", "伸びている会社だ。")).toBe(
+      "伸びている会社だ。"
+    );
   });
 });
 
 describe("parseSources", () => {
   it("url・title・accessed を読む", () => {
     expect(
-      parseSources('[{"url": "https://www.mitsui.com/jp/ja/release/a.html", "title": " お知らせ ", "accessed": "2026-09-08"}]', "8031")
-    ).toEqual([{ url: "https://www.mitsui.com/jp/ja/release/a.html", title: "お知らせ", accessed: "2026-09-08" }]);
+      parseSources(
+        '[{"url": "https://www.mitsui.com/jp/ja/release/a.html", "title": " お知らせ ", "accessed": "2026-09-08"}]',
+        "8031"
+      )
+    ).toEqual([
+      {
+        url: "https://www.mitsui.com/jp/ja/release/a.html",
+        title: "お知らせ",
+        accessed: "2026-09-08",
+      },
+    ]);
   });
 
   it("空は資料なし", () => {
@@ -37,9 +54,15 @@ describe("parseSources", () => {
   });
 
   it("形が崩れていたら落とす", () => {
-    expect(() => parseSources('[{"url": "javascript:alert(1)", "title": "x", "accessed": "2026-09-08"}]', "x")).toThrow();
-    expect(() => parseSources('[{"url": "https://a.jp/", "title": "", "accessed": "2026-09-08"}]', "x")).toThrow();
-    expect(() => parseSources('[{"url": "https://a.jp/", "title": "x", "accessed": "9月8日"}]', "x")).toThrow();
+    expect(() =>
+      parseSources('[{"url": "javascript:alert(1)", "title": "x", "accessed": "2026-09-08"}]', "x")
+    ).toThrow();
+    expect(() =>
+      parseSources('[{"url": "https://a.jp/", "title": "", "accessed": "2026-09-08"}]', "x")
+    ).toThrow();
+    expect(() =>
+      parseSources('[{"url": "https://a.jp/", "title": "x", "accessed": "9月8日"}]', "x")
+    ).toThrow();
     expect(() => parseSources('{"url": "https://a.jp/"}', "x")).toThrow();
   });
 });

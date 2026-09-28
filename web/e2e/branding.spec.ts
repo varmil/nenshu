@@ -29,7 +29,10 @@ test.describe("ブランドのアイコン", () => {
     await page.goto("/");
 
     for (const { path, type } of ICON_LINKS) {
-      await expect(page.locator(`link[rel="icon"][href="${path}"]`), path).toHaveAttribute("type", type);
+      await expect(page.locator(`link[rel="icon"][href="${path}"]`), path).toHaveAttribute(
+        "type",
+        type
+      );
     }
     /*
       SVG を最初の `icon` にする（AC-25）。濃色サーフェスでの色の切り替えを持っているのは
@@ -42,7 +45,9 @@ test.describe("ブランドのアイコン", () => {
       固定パスを叩く相手（RSSリーダー・ブックマークサービス）のため（下のテストで 200 を見る）。
     */
     await expect(page.locator(`link[href="${FAVICON_ICO}"]`)).toHaveCount(0);
-    await expect(page.locator(`link[rel="apple-touch-icon"][href="${APPLE_TOUCH_ICON.path}"]`)).toHaveCount(1);
+    await expect(
+      page.locator(`link[rel="apple-touch-icon"][href="${APPLE_TOUCH_ICON.path}"]`)
+    ).toHaveCount(1);
     await expect(page.locator(`link[rel="manifest"][href="${WEB_MANIFEST}"]`)).toHaveCount(1);
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(1);
   });
@@ -69,7 +74,9 @@ test.describe("ヘッダのブランド", () => {
    * ブラウザで違うので、**同じブラウザの中で `var(--primary)` を当てた要素と
    * 文字列比較する**。形式が何であれ、同じ色なら同じ文字列になる。
    */
-  test("文字のままで、ライトでもダークでも --primary の色になる（AC-25〜AC-27）", async ({ page }) => {
+  test("文字のままで、ライトでもダークでも --primary の色になる（AC-25〜AC-27）", async ({
+    page,
+  }) => {
     await page.goto("/");
     const brand = page.locator("header a[href='/']").first();
     await expect(brand).toHaveText("OpenReport");

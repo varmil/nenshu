@@ -85,7 +85,7 @@ describe("buildThemeScript", () => {
     new Function("localStorage", "window", "document", buildThemeScript())(
       localStorage,
       window,
-      document,
+      document
     );
     return dark;
   }
@@ -95,7 +95,7 @@ describe("buildThemeScript", () => {
       for (const prefersDark of [false, true]) {
         const expected = resolveTheme(parseStoredTheme(stored), prefersDark) === "dark";
         expect(run(stored, prefersDark), `${stored} × OS${prefersDark ? "ダーク" : "ライト"}`).toBe(
-          expected,
+          expected
         );
       }
     }

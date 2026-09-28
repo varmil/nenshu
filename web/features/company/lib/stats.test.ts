@@ -36,7 +36,6 @@ describe("formatDeviation", () => {
   });
 });
 
-
 const stats = statsData as CompanyStatsData;
 
 /*
@@ -115,7 +114,12 @@ describe("niceTicks", () => {
 });
 
 describe("formatBinTick", () => {
-  const distribution = { median: 0, min: 5_000_000, width: 1_000_000, counts: new Array(9).fill(0) };
+  const distribution = {
+    median: 0,
+    min: 5_000_000,
+    width: 1_000_000,
+    counts: new Array(9).fill(0),
+  };
 
   it("先頭は上限、末尾は下限＋、中間は下限だけを返す", () => {
     expect(formatBinTick(distribution, 0)).toBe("〜600");

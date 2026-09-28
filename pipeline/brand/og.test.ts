@@ -22,7 +22,11 @@ import { OG_FACTS } from "../../web/lib/brand/ogFacts";
  * `web/lib/brand/ogFacts.test.ts` が見る。
  */
 
-const facts: OgFacts = { count: 2961, averageManYen: 693, fiscalPeriod: "2025年3月期〜2026年5月期" };
+const facts: OgFacts = {
+  count: 2961,
+  averageManYen: 693,
+  fiscalPeriod: "2025年3月期〜2026年5月期",
+};
 
 const svg = ogSvg(
   { brand: "#007595", text: "#090b0c", muted: "#67787c", rule: "#e3e7e8", background: "#ffffff" },

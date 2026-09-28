@@ -32,11 +32,7 @@ export function ThemeToggle() {
   }, []);
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      onClick={() => applyTheme(toggleTheme(readAppliedTheme()))}
-    >
+    <Button variant="ghost" size="icon" onClick={() => applyTheme(toggleTheme(readAppliedTheme()))}>
       <Sun className="dark:hidden" />
       <Moon className="hidden dark:block" />
       {/*

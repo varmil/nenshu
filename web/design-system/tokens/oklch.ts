@@ -18,7 +18,7 @@ export type Oklch = { l: number; c: number; h: number; alpha: number };
 /** `oklch(L C H)` / `oklch(L C H / A)` をパースする。A は白背景合成のために使う。 */
 export function parseOklch(value: string): Oklch {
   const match = value.match(
-    /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*(?:\/\s*([\d.]+)(%?)\s*)?\)$/,
+    /^oklch\(\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*(?:\/\s*([\d.]+)(%?)\s*)?\)$/
   );
   if (!match) throw new Error(`oklch として読めない: ${value}`);
   const [, l, c, h, a, pct] = match;

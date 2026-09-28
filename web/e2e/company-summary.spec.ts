@@ -114,7 +114,11 @@ test.describe("会社の説明文", () => {
             ? h1?.getBoundingClientRect()
             : h1?.closest(".grid")?.firstElementChild?.getBoundingClientRect();
         return summary && ref
-          ? { left: Math.round(summary.left), refLeft: Math.round(ref.left), width: Math.round(summary.width) }
+          ? {
+              left: Math.round(summary.left),
+              refLeft: Math.round(ref.left),
+              width: Math.round(summary.width),
+            }
           : null;
       }, anchor);
 

@@ -62,7 +62,9 @@ describe("toNumber", () => {
 
 describe("normalizeRow", () => {
   it("負の残業時間は落とし、落としたことを報告する", () => {
-    const { record, dropped } = normalizeRow(row({ 2: "9010001101119", 1: "テスト株式会社", 129: "-16.8" }));
+    const { record, dropped } = normalizeRow(
+      row({ 2: "9010001101119", 1: "テスト株式会社", 129: "-16.8" })
+    );
     expect(record.overtimeAll).toBeNull();
     expect(dropped).toEqual([
       {
@@ -135,7 +137,12 @@ describe("normalizeRow", () => {
 
   it("時点と注釈をそのまま持つ", () => {
     const { record } = normalizeRow(
-      row({ 219: "計算の前提\r\n・労働者", 220: "2025年4月1日～2026年3月31日", 223: "2026年3月時点", 236: "2026年06月26日" })
+      row({
+        219: "計算の前提\r\n・労働者",
+        220: "2025年4月1日～2026年3月31日",
+        223: "2026年3月時点",
+        236: "2026年06月26日",
+      })
     );
     expect(record.wageGapNote).toBe("計算の前提\r\n・労働者");
     expect(record.wageGapPeriod).toBe("2025年4月1日～2026年3月31日");
@@ -220,7 +227,10 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
   });
 
   it("100%を超える有給取得率は残っている（前年繰越の消化。丸めていない）", () => {
-    const cols = [col("paid_leave_all"), ...[1, 2, 3, 4, 5].map((n) => col(`paid_leave_unit${n}_rate`))];
+    const cols = [
+      col("paid_leave_all"),
+      ...[1, 2, 3, 4, 5].map((n) => col(`paid_leave_unit${n}_rate`)),
+    ];
     const over = body.filter((r) => cols.some((i) => r[i] !== "" && Number(r[i]) > 100));
     expect(over.length).toBeGreaterThan(0);
   });

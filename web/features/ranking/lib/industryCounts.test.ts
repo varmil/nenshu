@@ -7,7 +7,18 @@ const companies: CompaniesData = JSON.parse(
   readFileSync(new URL("../../../public/data/companies.json", import.meta.url), "utf-8")
 );
 
-const row = (tse33Idx: number): CompanyRow => ["id", "名前", tse33Idx, 0, 40, 10, 6_000_000, 100, 0, 0];
+const row = (tse33Idx: number): CompanyRow => [
+  "id",
+  "名前",
+  tse33Idx,
+  0,
+  40,
+  10,
+  6_000_000,
+  100,
+  0,
+  0,
+];
 
 describe("industryCounts", () => {
   it("`industries` と同じ並び・同じ長さで、合計が掲載社数と一致する（海運業は9社）", () => {

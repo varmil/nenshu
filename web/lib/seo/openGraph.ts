@@ -39,4 +39,3 @@ export const OPEN_GRAPH_DEFAULTS = {
  * `title`・`description`・`openGraph.images` から埋める。
  */
 export const TWITTER_DEFAULTS = { card: "summary_large_image" } as const;
-

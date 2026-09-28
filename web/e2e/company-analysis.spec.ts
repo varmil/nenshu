@@ -21,7 +21,8 @@ import { test, expect } from "./appTest";
 const analysis = (page: Page) => page.getByTestId("company-analysis");
 const digest = (page: Page) => page.getByTestId("company-digest");
 
-const KEYENCE_HEADLINE = "成長の重心はすでに海外にあり、国内より海外で人と投資が増えていく会社である。";
+const KEYENCE_HEADLINE =
+  "成長の重心はすでに海外にあり、国内より海外で人と投資が増えていく会社である。";
 const KEYENCE_DIGEST_START = "当期には、製造現場向けの3Dプリンタ";
 
 test.describe("有報の要約と AI 分析", () => {
@@ -44,7 +45,10 @@ test.describe("有報の要約と AI 分析", () => {
       analysis(page).getByRole("heading", { name: "株式会社キーエンスの現状と今後", level: 2 })
     ).toBeVisible();
     await expect(
-      digest(page).getByRole("heading", { name: "株式会社キーエンスの有価証券報告書の要約", level: 2 })
+      digest(page).getByRole("heading", {
+        name: "株式会社キーエンスの有価証券報告書の要約",
+        level: 2,
+      })
     ).toBeVisible();
 
     await expect(analysis(page)).toContainText(`AIが書いた評価です（${y}年${m}月時点）`);
@@ -81,9 +85,14 @@ test.describe("有報の要約と AI 分析", () => {
   }) => {
     await page.goto("/company/8031");
 
-    await expect(analysis(page).getByRole("heading", { name: "参照した資料", level: 3 })).toBeVisible();
+    await expect(
+      analysis(page).getByRole("heading", { name: "参照した資料", level: 3 })
+    ).toBeVisible();
     const link = analysis(page).getByRole("link", { name: /Rhodes Ridge鉄鉱石事業/ });
-    await expect(link).toHaveAttribute("href", "https://www.mitsui.com/jp/ja/release/2025/1250896_14873.html");
+    await expect(link).toHaveAttribute(
+      "href",
+      "https://www.mitsui.com/jp/ja/release/2025/1250896_14873.html"
+    );
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "nofollow noopener");
     await expect(analysis(page)).toContainText("www.mitsui.com・2026年9月8日に参照");

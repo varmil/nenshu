@@ -10,10 +10,7 @@ import { AgeSwitch } from "@/features/ranking/components/AgeSwitch";
 import { ControlBand } from "@/features/ranking/components/ControlBand";
 import { BasisSwitch } from "@/features/ranking/components/BasisSwitch";
 import { DEFAULT_TARGET_AGE } from "@/features/ranking/lib/urlState";
-import {
-  formatDecimal1,
-  formatManYen,
-} from "@/features/ranking/lib/format";
+import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory, TenureHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
@@ -64,7 +61,11 @@ function useTargetAge() {
     const url = new URL(window.location.href);
     if (!url.searchParams.has("age")) return;
     url.searchParams.delete("age");
-    window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
   }, []);
 
   return { targetAge, setTargetAge };
@@ -165,9 +166,7 @@ export function CompanyDetail({
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
-  const historySummary = history
-    ? buildHistorySummary(history.years, history.values)
-    : null;
+  const historySummary = history ? buildHistorySummary(history.years, history.values) : null;
   const historyPeak = history ? buildHistoryPeak(history.years, history.values) : null;
   const historyBase = history ? historyBaseYear(history) : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
@@ -309,9 +308,7 @@ export function CompanyDetail({
         >
           <BasisSwitch
             value={targetAge}
-            onChange={(basis) =>
-              setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)
-            }
+            onChange={(basis) => setTargetAge(basis === "raw" ? null : DEFAULT_TARGET_AGE)}
             label="見せ方"
           />
         </ControlBand>
@@ -321,11 +318,7 @@ export function CompanyDetail({
           hint={isRaw ? "「年齢そろえ」のときだけ使います" : undefined}
         >
           {/* 実測値のときも消さずに無効化する（ADR-0007）。理由は AgeSwitch.tsx。 */}
-          <AgeSwitch
-            value={targetAge}
-            onChange={setTargetAge}
-            disabled={isRaw}
-          />
+          <AgeSwitch value={targetAge} onChange={setTargetAge} disabled={isRaw} />
         </ControlBand>
       </header>
 
@@ -355,9 +348,7 @@ export function CompanyDetail({
                   <span className="text-muted-foreground mb-1 block text-sm">
                     {isRaw ? "平均年収（有価証券報告書・単体）" : `${targetAge}歳時点の推定年収`}
                   </span>
-                  <p className="text-4xl font-bold tabular-nums">
-                    {formatManYen(current.salary)}
-                  </p>
+                  <p className="text-4xl font-bold tabular-nums">{formatManYen(current.salary)}</p>
                   {/*
                     **有報の値を1文で言い直す。全体平均との差は置かない**（位置はこのカードの
                     順位・偏差値・分布が持っている）。表示基準では変わらない（`buildCardLead`）。
