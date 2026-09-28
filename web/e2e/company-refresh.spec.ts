@@ -47,6 +47,8 @@ test.describe("節の並び", () => {
       "このページの出典",
       // サイドバーは DOM では本文の後ろ。
       "電気機器で水準が近い会社",
+      // ランキングへ戻る導線は本文＋サイドバーの下、フッタの直前（C20・spec AC-37）。
+      "ランキングで比べる",
     ]);
 
     // カードは本文の列の最初の子で、レーダーの節はそのすぐ次の兄弟。分析はスロット
@@ -126,6 +128,53 @@ test.describe("AC-12 水準が近い会社", () => {
       /^\/\?ind=/
     );
     await expect(neighbors.getByText("本社のみ")).toHaveCount(0);
+  });
+});
+
+/*
+ * 最下部の「ランキングで比べる」（C20・spec 1.24）。行き先の文字列がパンくずと同じであることと
+ * 順位の文言は `lib/rankingLinks.test.ts`。ここでは置き場所（本文＋サイドバーの下・フッタの直前）と、
+ * 押すとランキングの業種フィルタに着くことを見る。横スクロールは AC-15 のループ。
+ */
+test.describe("AC-37 ランキングへ戻る導線", () => {
+  const rankingNav = (page: Page) => page.getByRole("navigation", { name: "ランキング", exact: true });
+
+  test("業種と全体の2本が順位を添えてフッタの直前に並び、業種のほうはランキングの業種フィルタに着く", async ({
+    page,
+  }) => {
+    await page.goto("/company/6861");
+    const nav = rankingNav(page);
+    const links = nav.getByRole("link");
+
+    await expect(links).toHaveCount(2);
+    await expect(links.nth(0)).toContainText("電気機器の平均年収ランキング");
+    await expect(links.nth(0)).toContainText("この会社は193社中1位");
+    await expect(links.nth(1)).toContainText("全業種の平均年収ランキング");
+    await expect(links.nth(1)).toHaveAttribute("href", "/");
+    await expect(links.nth(1)).toContainText(/この会社は[\d,]+社中[\d,]+位/);
+
+    // 本文＋サイドバーの grid の次の兄弟で、そのすぐ次がフッタ。
+    expect(
+      await nav.evaluate(
+        (el) => el.nextElementSibling?.tagName === "FOOTER" && el.previousElementSibling?.contains(document.querySelector("aside")) === true
+      )
+    ).toBe(true);
+
+    await links.nth(0).click();
+    await expect(page).toHaveURL(/[?&]ind=/);
+    await expect(page.getByRole("combobox", { name: "業種" })).toContainText("電気機器");
+  });
+
+  test("PC では2列、390px では縦に積む", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/company/6861");
+    let [first, second] = await Promise.all([0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox()));
+    expect(Math.round(first!.y)).toBe(Math.round(second!.y));
+    expect(first!.x + first!.width).toBeLessThanOrEqual(second!.x + 1);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    [first, second] = await Promise.all([0, 1].map((i) => rankingNav(page).getByRole("link").nth(i).boundingBox()));
+    expect(first!.y + first!.height).toBeLessThanOrEqual(second!.y + 1);
   });
 });
 
