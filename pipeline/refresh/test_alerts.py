@@ -2,7 +2,7 @@
 import unittest
 from datetime import date
 
-from alerts import Case, key_of, pending_cases, plan, pr_cases, stalled_case, worklife_case
+from alerts import Case, key_of, pending_cases, plan, pr_cases, stalled_case, texts_cases, worklife_case
 
 TODAY = date(2026, 10, 5)
 
@@ -37,6 +37,23 @@ class Pending(unittest.TestCase):
     def test_one_case_per_company(self):
         rows = [pending("not_eligible", code="E00001"), pending("unresolved", code="E00002")]
         self.assertEqual([c.key for c in pending_cases(rows, TODAY)], ["numbers:E00001", "numbers:E00002"])
+
+
+class Texts(unittest.TestCase):
+    """文章の待ち行列（D6）。同じ書類では選び直さないので、1日目から知らせる。"""
+
+    def row(self, stage, reason="検証パス: 重み付け"):
+        return {"edinet_code": "E01991", "stage": stage, "doc_id": "S100NEW", "name": "レーザーテック株式会社",
+                "reason": reason, "since": "2026-10-01"}
+
+    def test_one_case_per_company_listing_the_stages(self):
+        cases = texts_cases([self.row("pay_policy", "人材戦略の節が無い"), self.row("analysis")])
+        self.assertEqual([c.key for c in cases], ["texts:E01991"])
+        self.assertIn("分析と要約・給与の決定方針", cases[0].title)
+        self.assertLess(cases[0].body.index("分析と要約"), cases[0].body.index("給与の決定方針"))
+
+    def test_no_rows_no_case(self):
+        self.assertEqual(texts_cases([]), [])
 
 
 class Worklife(unittest.TestCase):

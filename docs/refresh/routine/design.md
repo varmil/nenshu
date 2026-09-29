@@ -12,7 +12,7 @@ spec: `docs/refresh/spec.md` 1.12・1.13・1.14・1.17・AC-12・AC-14・AC-18 �
 ```
 定期実行（Claude Code の Routine・毎日 日本時間の朝）
   └ .claude/skills/refresh-daily/SKILL.md の手順
-      数字（D4）→ 女性活躍DB（D7）→ ビルド → テスト → PR（ラベル refresh）
+      数字（D4）→ 女性活躍DB（D7）→ ビルド → 文章（D6）→ ビルド → テスト → PR（ラベル refresh）
                                                           │
 GitHub Actions                                            ▼
   ci.yml（D1）── 完了（または PR にラベル）──→ refresh-automerge.yml ─→ automerge.py
@@ -27,6 +27,7 @@ GitHub Actions                                            ▼
 | ファイル | 役目 |
 | --- | --- |
 | `.claude/skills/refresh-daily/SKILL.md` | 定期実行の手順。定期実行の設定は「この skill に従う」だけを書く |
+| `.claude/skills/refresh-daily/texts.md` | そのうち文章の工程（D6・`docs/refresh/text-refresh/design.md`） |
 | `.github/workflows/refresh-automerge.yml` | CI の完了を受けて automerge.py を呼ぶ |
 | `.github/workflows/refresh-alerts.yml` | alerts.py sync を呼ぶ |
 | `pipeline/refresh/automerge.py` | マージするかの判定（`decide`）と、ラベル・マージ |
@@ -86,6 +87,7 @@ GitHub Actions                                            ▼
 | 鍵 | 件 | 出どころ |
 | --- | --- | --- |
 | `numbers:<EDINETコード>` | 数字を反映できなかった会社 | `pipeline/data/numbers_pending.csv`。`unresolved`・`not_eligible` はすぐ、`fetch_failed`・`reread` は2日続けて残ったら（1回の取得の失敗は次の回で直ることが多い） |
+| `texts:<EDINETコード>` | 文章を書き直せず、前の書類の文章のまま出している会社（D6） | `pipeline/data/texts_pending.csv`。1社1件で、落ちた工程を並べる。同じ書類では選び直さないのですぐ |
 | `worklife:rejected` | 女性活躍DB の版を検証で落とした | `pipeline/worklife/manifest.json` の `rejected` |
 | `routine:stalled` | 定期実行が止まっている | `pipeline/data/universe.json` の書類一覧を読んだ日が3日以上前（ふだんは昨日） |
 | `pr-criteria:<番号>` | 基準を変えるので止めた PR | 開いている `refresh` の PR の `refresh-criteria` |
@@ -95,7 +97,7 @@ GitHub Actions                                            ▼
 - 件が無くなったら Issue を閉じる（コメントを残す）。同じ鍵の Issue が2つあれば新しいほうを閉じる。**鍵の無い Issue には触らない**（運営者が手で立てたもの）
 - 件は **main のファイル**から数える。マージされていない PR の中の待ち行列は数えない——その PR が止まっていること自体が件になる
 - **「コードでは直せない失敗」**（API キーの失効・外部サービスの設定）は、書類一覧が進まなくなることで `routine:stalled` として現れる。専用の件は置いていない
-- 文章の書き直しに失敗した会社（spec 1.13 の2つ目）と文章の品質のずれ（1.14）は D6・D10 が件を足す
+- 文章の品質のずれ（1.14）は D10 が件を足す
 - Issue は `GITHUB_TOKEN`（github-actions）が立てる。セッションの GitHub のツールで Issue を書くと山括弧の文字列が落ちる（CLAUDE.md）ので、そちらは使わない
 
 ## 閾値

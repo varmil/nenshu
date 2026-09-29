@@ -85,6 +85,15 @@ CUT_OUT = ROOT / f"../data/analysis_text_cut{CUT_SIG}.csv.gz"
 EDINET_VALUE_CAP = 30000
 
 BASE_HEADERS = ["edinet_code", "sec_code", "name", "doc_id", "period_end"]
+META_HEADERS = BASE_HEADERS + [c for k in KEYS for c in (f"{k}_len", f"{k}_sha1")] + ["truncated"]
+
+# **定期実行（refresh の D6）が1社ぶんだけ取り直した切った原文。git に置かない。**
+# 切った版の gzip（17MB）は1社替えるだけで全体が別物になり、毎日コミットすると履歴が
+# 毎回17MB ずつ増える。だから選んだ会社の切った原文はここにだけ置き、コミットするのは
+# マニフェストの1行だけにする。`generate.py` は gzip よりこちらを先に見て、gzip の中の
+# **書類 ID がマニフェストと食い違う行（古い書類の原文）は使わない**
+# （`docs/refresh/text-refresh/design.md`）。
+OVERLAY = ROOT / "cache" / "overlay.csv"
 
 # 取れなかった理由。**件数を出さないと気づけない**（C5 の `extract.py` と同じ線）。
 # 取得失敗は `fetch.py` を回せば直り、要素が無い・値が空は書類そのものの話で
@@ -145,6 +154,49 @@ def extract(row, max_chars=0):
     return rec, None
 
 
+def cut_row(rec):
+    """切った版の1行。**列は切らない版と同じ**（`generate.py` はどちらも同じように読む）。"""
+    return {**{h: rec[h] for h in BASE_HEADERS}, **{k: (rec[k] or "")[:CUT_CHARS[k]] for k in KEYS}}
+
+
+def replace_row(path, headers, row):
+    """`path` の CSV で、`row` と同じ会社の行を差し替える（無ければ末尾に足す）。
+
+    **ほかの行には触らない。** 書き方（見出し・`\r\n`）は `main` と同じ `csv.DictWriter` の既定。
+    """
+    rows = []
+    if path.exists():
+        with open(path, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+    code = row["edinet_code"]
+    for i, r in enumerate(rows):
+        if r["edinet_code"] == code:
+            rows[i] = row
+            break
+    else:
+        rows.append(row)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=headers, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+
+
+def update_one(row, overlay=None, manifest=None):
+    """1社ぶんだけ抜き直す（refresh の D6）。`(record, reason)` を返す。
+
+    切った原文は `OVERLAY`（git に置かない）へ、節ごとの字数と SHA-1 はマニフェストへ
+    書く。**ZIP は呼び出し側が落としておく**（`edinet.fetch_csv`）。取れなければ何も書かない。
+    """
+    rec, reason = extract(row)
+    if rec is None:
+        return None, reason
+    replace_row(overlay or OVERLAY, BASE_HEADERS + KEYS, cut_row(rec))
+    replace_row(manifest or MANIFEST, META_HEADERS, rec)
+    return rec, None
+
+
 def report(out, total):
     """節ごとの取得率と文字数、打ち切りの件数（AC-24）。"""
     for key in KEYS:
@@ -197,11 +249,10 @@ def main():
         w = csv.DictWriter(f, fieldnames=BASE_HEADERS + KEYS, extrasaction="ignore")
         w.writeheader()
         for r in out:
-            w.writerow({**r, **{k: (r[k] or "")[:CUT_CHARS[k]] for k in KEYS}})
+            w.writerow(cut_row(r))
 
-    meta_headers = BASE_HEADERS + [c for k in KEYS for c in (f"{k}_len", f"{k}_sha1")] + ["truncated"]
     with open(MANIFEST, "w", encoding="utf-8", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=meta_headers, extrasaction="ignore")
+        w = csv.DictWriter(f, fieldnames=META_HEADERS, extrasaction="ignore")
         w.writeheader()
         for r in out:
             w.writerow(r)

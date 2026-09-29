@@ -202,5 +202,78 @@ class Retry(Base):
         self.assertEqual(list(self.work.iterdir()), [])
 
 
+class Only(Base):
+    """会社を名指したとき（refresh の D6・spec 1.8）。前の説明文がある会社は検証だけ、無い会社は書く。"""
+
+    OLD_A = "電子応用機器の製造及び販売を行う。"
+
+    def setUp(self):
+        super().setUp()
+        self._done([
+            {"edinet_code": "E00001", "sec_code": "1001", "summary": self.OLD_A, "source_doc_id": "S099",
+             "source_sha1": "古い", "verdict": "ok", "reject_reason": "",
+             "model": "claude-opus-5", "generated_at": "2026-08-27T00:00:00+00:00"},
+            {"edinet_code": "E00002", "sec_code": "1002", "summary": "宝飾品等の小売販売及び卸売販売を行う。",
+             "source_doc_id": "S099", "source_sha1": "古い", "verdict": "ok", "reject_reason": "",
+             "model": "claude-opus-5", "generated_at": "2026-08-27T00:00:00+00:00"},
+            {"edinet_code": "E00003", "sec_code": "1003", "summary": "", "source_doc_id": "S099",
+             "source_sha1": "古い", "verdict": "rejected", "reject_reason": "説明文が空"},
+        ])
+
+    def _plan(self, codes):
+        generate.cmd_plan(argparse.Namespace(
+            only=codes, rejected=False, force=False, pilot=False, size=20, batches=1, max_chars=2000, seed=0))
+
+    def _rows(self):
+        with open(generate.OUT, encoding="utf-8") as f:
+            return {r["edinet_code"]: r for r in csv.DictReader(f)}
+
+    def test_前の文がある会社は生成物まで置き_無い会社は書かせる(self):
+        self._plan("E00001,E00003")
+        recheck = json.loads((self.work / "batch_0001.json").read_text(encoding="utf-8"))
+        write = json.loads((self.work / "batch_0002.json").read_text(encoding="utf-8"))
+        self.assertTrue(recheck["recheck"])
+        self.assertEqual([c["edinet_code"] for c in recheck["companies"]], ["E00001"])
+        self.assertEqual([c["edinet_code"] for c in write["companies"]], ["E00003"])
+        gen = (self.work / "gen_0001.jsonl").read_text(encoding="utf-8")
+        self.assertIn(self.OLD_A, gen)
+        # 書くほうの生成物は置かない（エージェントが書く）
+        self.assertFalse((self.work / "gen_0002.jsonl").exists())
+
+    def test_検証で通れば文と書いたモデルはそのままで出典が新しい書類になる(self):
+        self._plan("E00001")
+        generate.cmd_gate(argparse.Namespace(chunk=25))
+        _jsonl(self.work / "verify_0001.jsonl", [{"edinet_code": "E00001", "supported": True, "reason": ""}])
+        generate.cmd_merge(argparse.Namespace(model="claude-opus-5-5@xhigh"))
+        row = self._rows()["E00001"]
+        self.assertEqual((row["summary"], row["verdict"]), (self.OLD_A, "ok"))
+        self.assertEqual((row["source_doc_id"], row["source_sha1"]), ("S100", "sha-E00001"))
+        self.assertEqual((row["model"], row["generated_at"]), ("claude-opus-5", "2026-08-27T00:00:00+00:00"))
+
+    def test_書き直した文は新しいモデルで記録する(self):
+        self._plan("E00001")
+        generate.cmd_gate(argparse.Namespace(chunk=25))
+        _jsonl(self.work / "verify_0001.jsonl", [{"edinet_code": "E00001", "supported": False, "reason": "重み付け"}])
+        generate.cmd_retry(argparse.Namespace(size=60, max_chars=2000))
+        _jsonl(self.work / "gen_0001.jsonl", [{"edinet_code": "E00001", "summary": "電子応用機器を製造し、販売する。"}])
+        generate.cmd_gate(argparse.Namespace(chunk=25))
+        _jsonl(self.work / "verify_0001.jsonl", [{"edinet_code": "E00001", "supported": True, "reason": ""}])
+        generate.cmd_merge(argparse.Namespace(model="claude-opus-5-5@xhigh"))
+        row = self._rows()["E00001"]
+        self.assertEqual(row["summary"], "電子応用機器を製造し、販売する。")
+        self.assertEqual((row["model"], row["source_doc_id"]), ("claude-opus-5-5@xhigh", "S100"))
+
+    def test_書き直しても落ちたら前の文と前の書類を残す(self):
+        # spec 1.5。書き直しで「あったものが消える」のを防ぐ。出典も前の書類のまま（D3）
+        self._plan("E00002")
+        generate.cmd_gate(argparse.Namespace(chunk=25))
+        _jsonl(self.work / "verify_0001.jsonl", [{"edinet_code": "E00002", "supported": False, "reason": "重み付け"}])
+        generate.cmd_merge(argparse.Namespace(model="claude-opus-5-5@xhigh"))
+        row = self._rows()["E00002"]
+        self.assertEqual((row["summary"], row["verdict"]), ("宝飾品等の小売販売及び卸売販売を行う。", "ok"))
+        self.assertEqual((row["source_doc_id"], row["model"]), ("S099", "claude-opus-5"))
+        self.assertIn("前の版を残した", row["reject_reason"])
+
+
 if __name__ == "__main__":
     unittest.main()

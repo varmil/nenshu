@@ -163,5 +163,95 @@ class PreferGated(unittest.TestCase):
         got = generate._prefer_gated([{"edinet_code": "E00001", "summary": "旧"}])
         self.assertEqual(got[0]["summary"], "旧")
 
+def _write_rows(path, headers, rows, gzipped=False):
+    opener = (lambda: gzip.open(path, "wt", encoding="utf-8", newline="")) if gzipped \
+        else (lambda: open(path, "w", encoding="utf-8", newline=""))
+    with opener() as f:
+        w = csv.DictWriter(f, fieldnames=headers)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+
+
+class Overlay(unittest.TestCase):
+    """定期実行（refresh の D6）が1社ぶんだけ取り直した原文。
+
+    切った版の gzip は書き直さない（毎日コミットすると履歴が17MB ずつ増える）ので、取り直した
+    会社の gzip の行は古い書類のまま残る。**書類 ID がマニフェストと食い違う行は使わない。**
+    """
+
+    HEADERS = ["edinet_code", "sec_code", "name", "doc_id", "period_end", "mdna"]
+
+    def setUp(self):
+        self._dir = TemporaryDirectory()
+        root = Path(self._dir.name)
+        self._saved = (generate.SOURCE, generate.CUT_SOURCE, generate.OVERLAY, generate.MANIFEST)
+        generate.SOURCE = root / "analysis_text.csv"
+        generate.CUT_SOURCE = root / "cut.csv.gz"
+        generate.OVERLAY = root / "overlay.csv"
+        generate.MANIFEST = root / "manifest.csv"
+        base = {"sec_code": "", "name": "", "period_end": "2026-03-31"}
+        _write_rows(generate.CUT_SOURCE, self.HEADERS, [
+            {**base, "edinet_code": "E00001", "doc_id": "OLD1", "mdna": "古い"},
+            {**base, "edinet_code": "E00002", "doc_id": "D2", "mdna": "そのまま"},
+            {**base, "edinet_code": "E00003", "doc_id": "OLD3", "mdna": "古い"},
+        ], gzipped=True)
+        _write_rows(generate.OVERLAY, self.HEADERS, [
+            {**base, "edinet_code": "E00001", "doc_id": "NEW1", "mdna": "新しい"},
+        ])
+        _write_rows(generate.MANIFEST, ["edinet_code", "doc_id"], [
+            {"edinet_code": "E00001", "doc_id": "NEW1"},
+            {"edinet_code": "E00002", "doc_id": "D2"},
+            # 前の回に取り直したが、いまのコンテナには取り直した原文が無い
+            {"edinet_code": "E00003", "doc_id": "NEW3"},
+        ])
+
+    def tearDown(self):
+        generate.SOURCE, generate.CUT_SOURCE, generate.OVERLAY, generate.MANIFEST = self._saved
+        self._dir.cleanup()
+
+    def test_取り直した原文を先に見て_古い書類の行は使わない(self):
+        src = generate.sources_by_code()
+        self.assertEqual(src["E00001"]["mdna"], "新しい")
+        self.assertEqual(src["E00002"]["mdna"], "そのまま")
+        self.assertNotIn("E00003", src)
+
+
+class MergeKeepsRowsOutsideSource(unittest.TestCase):
+    """**原文に無い会社の行も落とさない。** 前の回に取り直した会社は、次のコンテナでは
+    原文（`sources_by_code()`）から外れる。原文の並びだけで書くと、その会社の要約と分析が
+    CSV から消える。"""
+
+    def setUp(self):
+        self._dir = TemporaryDirectory()
+        root = Path(self._dir.name)
+        self._saved = (generate.OUT, generate.WORK, generate.sources_by_code, generate.manifest,
+                       generate.salary_history)
+        generate.OUT = root / "company_analysis.csv"
+        generate.WORK = root / "work"
+        generate.WORK.mkdir()
+        generate.sources_by_code = lambda: {}
+        generate.manifest = lambda: {}
+        generate.salary_history = lambda: {}
+        _write_rows(generate.OUT, generate.HEADERS, [
+            {h: "" for h in generate.HEADERS} | {"edinet_code": "E00009", "summary": "前に書いた要約",
+                                                 "source_doc_id": "NEW9"},
+        ])
+
+    def tearDown(self):
+        (generate.OUT, generate.WORK, generate.sources_by_code, generate.manifest,
+         generate.salary_history) = self._saved
+        self._dir.cleanup()
+
+    def test_mergeが原文に無い会社の行を残す(self):
+        import argparse
+        import contextlib
+        import io
+        with contextlib.redirect_stdout(io.StringIO()):
+            generate.cmd_merge(argparse.Namespace(model="m", max_digits=5))
+        rows = generate.read_csv(generate.OUT)
+        self.assertEqual([(r["edinet_code"], r["summary"]) for r in rows], [("E00009", "前に書いた要約")])
+
+
 if __name__ == "__main__":
     unittest.main()

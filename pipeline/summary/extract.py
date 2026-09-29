@@ -93,6 +93,35 @@ def extract(row):
     }, None
 
 
+def update_one(row, path=None):
+    """1社ぶんだけ抜き直し、`business_text.csv` のその会社の行を差し替える（refresh の D6）。
+
+    `(record, reason)` を返す。**取れなければ何も書かない**——前の書類の原文の行が残り、
+    説明文の工程はその会社を「原文が取れない」で落とす（前の説明文のまま）。
+    **ZIP は呼び出し側が落としておく**（`edinet.fetch_csv`）。
+    """
+    rec, reason = extract(row)
+    if rec is None:
+        return None, reason
+    path = path or OUT
+    rows = []
+    if path.exists():
+        with open(path, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+    for i, r in enumerate(rows):
+        if r["edinet_code"] == rec["edinet_code"]:
+            rows[i] = rec
+            break
+    else:
+        rows.append(rec)
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=HEADERS)
+        w.writeheader()
+        for r in rows:
+            w.writerow(r)
+    return rec, None
+
+
 def main():
     rows = universe()
     out = []

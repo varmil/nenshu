@@ -361,7 +361,19 @@ def cmd_merge(args):
                 title, body, rng = prev["fallback"]["title"], prev["fallback"]["blocks"], prev["fallback"].get("range")
             row.update({"title": title, "blocks": body, "range": rng, **stats(body),
                         "note": rec["note"], "picked_at": today})
+            model = getattr(args, "model", "")
+            if model:
+                # 範囲を答えたモデル（refresh の D6・spec 1.14）。C18 の記録には無い
+                row["model"] = model
             out[rec["doc_id"]] = row
+            if row["verdict"] in ("own", "none"):
+                # **答えが決まったら、同じ会社の前の書類の記録を外す**（refresh の D6）。記録は
+                # 書類 ID で持つので、新しい書類で取り込むと1社に2行残り、ビルドが古いほうを読む。
+                # 参照先で答え直す前（`referenced`）は外さない——2回目が通らなければ前の書類の
+                # 記録を残す（`update_texts.py finish` が新しい書類の書きかけを外す）
+                for d in [d for d, r in out.items()
+                          if r["edinet_code"] == row["edinet_code"] and d != rec["doc_id"]]:
+                    del out[d]
             merged += 1
     write_out(out, comp)
     print(f"取り込み {merged}件 → {OUT.name}（{len(out)}社）")
@@ -674,7 +686,9 @@ def main():
     g = sub.add_parser("gate")
     g.add_argument("--batch", default="", help="バッチ番号をカンマ区切りで（並べて回すとき）")
     g.set_defaults(fn=cmd_gate)
-    sub.add_parser("merge").set_defaults(fn=cmd_merge)
+    m = sub.add_parser("merge")
+    m.add_argument("--model", default="", help="範囲を答えたモデル（記録に残す）")
+    m.set_defaults(fn=cmd_merge)
     c = sub.add_parser("compare")
     c.add_argument("-v", "--verbose", action="store_true")
     c.set_defaults(fn=cmd_compare)

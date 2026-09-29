@@ -115,5 +115,52 @@ class Extract(unittest.TestCase):
             ("あ" * 1500).encode("utf-8")).hexdigest())
 
 
+class UpdateOne(unittest.TestCase):
+    """1社ぶんだけ抜き直す（refresh の D6）。切った原文は git に置かない場所へ、字数と SHA-1 は
+    マニフェストの行へ。**ほかの会社の行には触らない。**"""
+
+    def setUp(self):
+        self._dir = TemporaryDirectory()
+        self._cache = edinet.CACHE
+        edinet.CACHE = Path(self._dir.name)
+        self.overlay = Path(self._dir.name) / "cache" / "overlay.csv"
+        self.manifest = Path(self._dir.name) / "manifest.csv"
+
+    def tearDown(self):
+        edinet.CACHE = self._cache
+        self._dir.cleanup()
+
+    def _read(self, path):
+        import csv
+        with open(path, encoding="utf-8", newline="") as f:
+            return list(csv.DictReader(f))
+
+    def test_切った原文とマニフェストの行を書く(self):
+        extract_analysis.replace_row(self.manifest, extract_analysis.META_HEADERS,
+                                     {"edinet_code": "E00009", "doc_id": "S000OTHER"})
+        long_mdna = "あ" * (extract_analysis.CUT_CHARS["mdna"] + 10)
+        _write(edinet.CACHE, ROW["doc_id"], [_row(MDNA, long_mdna)] + [_row(e, v) for e, v in FOUR[1:]])
+        rec, reason = extract_analysis.update_one(ROW, self.overlay, self.manifest)
+        self.assertIsNone(reason)
+        overlay = self._read(self.overlay)
+        self.assertEqual(len(overlay[0]["mdna"]), extract_analysis.CUT_CHARS["mdna"])
+        manifest = self._read(self.manifest)
+        self.assertEqual([(r["edinet_code"], r["doc_id"]) for r in manifest],
+                         [("E00009", "S000OTHER"), ("E00001", "S000TEST")])
+        # **字数と SHA-1 は切る前の原文で取る**（全件の `main` と同じ）
+        self.assertEqual(manifest[1]["mdna_len"], str(len(long_mdna)))
+
+    def test_同じ会社の行は差し替える(self):
+        _write(edinet.CACHE, ROW["doc_id"], [_row(e, v) for e, v in FOUR])
+        extract_analysis.update_one(ROW, self.overlay, self.manifest)
+        extract_analysis.update_one({**ROW, "doc_id": "S000TEST"}, self.overlay, self.manifest)
+        self.assertEqual(len(self._read(self.overlay)), 1)
+        self.assertEqual(len(self._read(self.manifest)), 1)
+
+    def test_取れなければ何も書かない(self):
+        self.assertEqual(extract_analysis.update_one(ROW, self.overlay, self.manifest), (None, "取得失敗"))
+        self.assertFalse(self.overlay.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

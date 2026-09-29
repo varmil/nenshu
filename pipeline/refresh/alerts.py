@@ -14,6 +14,7 @@ docs/refresh/routine/design.md「知らせ」。
 | 鍵 | 出どころ |
 | --- | --- |
 | `numbers:<EDINETコード>` | `pipeline/data/numbers_pending.csv`（D4 の待ち行列） |
+| `texts:<EDINETコード>` | `pipeline/data/texts_pending.csv`（D6 の文章の待ち行列） |
 | `worklife:rejected` | `pipeline/worklife/manifest.json` の `rejected`（D7） |
 | `routine:stalled` | `pipeline/data/universe.json` の書類一覧を読んだ日が古い |
 | `pr-criteria:<番号>`・`pr-failed:<番号>` | 開いている PR のラベル（automerge.py が付ける） |
@@ -101,6 +102,43 @@ def pending_cases(rows: list[dict], today: date) -> list[Case]:
     return cases
 
 
+TEXT_STAGES = {"analysis": "分析と要約", "description": "説明文", "pay_policy": "給与の決定方針"}
+
+
+def texts_cases(rows: list[dict]) -> list[Case]:
+    """文章の待ち行列（D6）。**1社につき1件**——工程ごとに分けると、同じ有報の話で Issue が3つ立つ。
+
+    書き直しても通らなかった工程は、前の書類の文章のまま出ている（spec 1.5）。同じ書類では
+    選び直さないので、その会社の次の有報が出て通れば閉じる。
+    """
+    by_code: dict[str, list[dict]] = {}
+    for row in rows:
+        by_code.setdefault(row["edinet_code"], []).append(row)
+    cases = []
+    for code, items in by_code.items():
+        items.sort(key=lambda r: list(TEXT_STAGES).index(r["stage"]) if r["stage"] in TEXT_STAGES else 9)
+        name = items[0]["name"]
+        doc = items[0]["doc_id"]
+        labels = "・".join(TEXT_STAGES.get(r["stage"], r["stage"]) for r in items)
+        lines = "".join(
+            f"- {TEXT_STAGES.get(r['stage'], r['stage'])}: {r['reason']}（{r['since']} から）\n" for r in items
+        )
+        cases.append(
+            Case(
+                key=f"texts:{code}",
+                title=f"文章を更新できない: {name}（{labels}）",
+                body=(
+                    f"{name}（{code}）の新しい有報で文章を書き直せず、前の書類の文章のまま出している。"
+                    "同じ書類では選び直さないので、次の有報が出るまでこのまま。\n\n"
+                    f"{lines}"
+                    f"- 書類: `{doc}` https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?{doc},,\n\n"
+                    "待ち行列は `pipeline/data/texts_pending.csv`、読み方は `docs/refresh/text-refresh/design.md`。"
+                ),
+            )
+        )
+    return cases
+
+
 def worklife_case(manifest: dict | None) -> Case | None:
     rejected = (manifest or {}).get("rejected")
     if not rejected:
@@ -168,6 +206,7 @@ def pr_cases(prs: list[dict]) -> list[Case]:
 
 
 def read_pending(path: Path = DATA / "numbers_pending.csv") -> list[dict]:
+    """待ち行列の CSV（数字・文章のどちらも）。無ければ空。"""
     if not path.exists():
         return []
     with path.open(encoding="utf-8", newline="") as f:
@@ -179,7 +218,7 @@ def read_json(path: Path) -> dict | None:
 
 
 def collect(today: date, prs: list[dict]) -> list[Case]:
-    cases = pending_cases(read_pending(), today)
+    cases = pending_cases(read_pending(), today) + texts_cases(read_pending(DATA / "texts_pending.csv"))
     for case in [
         worklife_case(read_json(PIPELINE / "worklife" / "manifest.json")),
         stalled_case(read_json(DATA / "universe.json"), today),

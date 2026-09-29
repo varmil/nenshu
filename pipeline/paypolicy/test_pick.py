@@ -161,6 +161,57 @@ class TestMerge(unittest.TestCase):
         self.assertEqual(row["blocks"], summary)
 
 
+class TestMergeReplacesThePreviousFiling(unittest.TestCase):
+    """新しい書類で取り込んだら、同じ会社の前の書類の記録を外す（refresh の D6）。
+
+    記録は書類 ID で持つので、外さないと1社に2行残り、ビルドが古いほうを読む。ただし参照先で
+    答え直す前（`referenced`）は外さない——2回目が通らなければ前の書類の記録を残す。
+    """
+
+    OLD, NEW = "OLD", "NEW"
+
+    def setUp(self):
+        import json
+        import tempfile
+        from pathlib import Path
+        self.tmp = Path(tempfile.mkdtemp())
+        self.saved = pick.OUT, pick.WORK, pick.companies
+        pick.OUT, pick.WORK = self.tmp / "out.json", self.tmp / "work"
+        pick.WORK.mkdir()
+        company = {"edinet_code": "E00001", "sec_code": "0001", "name": "テスト株式会社"}
+        pick.companies = lambda: {self.NEW: {**company, "period_end": "2027-03-31"}}
+        old = {"doc_id": self.OLD, **company, "period_end": "2026-03-31", "verdict": "own", "source": "section",
+               "title": None, "blocks": [{"kind": "para", "text": "前の期の方針。"}]}
+        pick.OUT.write_text(json.dumps([old], ensure_ascii=False), encoding="utf-8")
+
+    def tearDown(self):
+        import shutil
+        pick.OUT, pick.WORK, pick.companies = self.saved
+        shutil.rmtree(self.tmp)
+
+    def _merge(self, rec, model=""):
+        import argparse
+        import contextlib
+        import io
+        import json
+        (pick.WORK / "gated_0001.json").write_text(json.dumps({"results": [rec], "errors": []}, ensure_ascii=False))
+        with contextlib.redirect_stdout(io.StringIO()):
+            pick.cmd_merge(argparse.Namespace(model=model))
+        return pick.read_out()
+
+    def test_own_replaces_the_previous_filing_and_records_the_model(self):
+        body = [{"kind": "para", "text": "今期の方針。"}]
+        out = self._merge({"doc_id": self.NEW, "source": "section", "source_sha1": "a", "verdict": "own",
+                           "title": None, "blocks": body, "note": ""}, model="claude-opus-5-5@xhigh")
+        self.assertEqual(list(out), [self.NEW])
+        self.assertEqual(out[self.NEW]["model"], "claude-opus-5-5@xhigh")
+
+    def test_referenced_keeps_the_previous_filing_until_answered(self):
+        out = self._merge({"doc_id": self.NEW, "source": "section", "source_sha1": "a", "verdict": "referenced",
+                           "title": None, "blocks": [], "note": ""})
+        self.assertEqual(sorted(out), [self.NEW, self.OLD])
+
+
 class TestLocate(unittest.TestCase):
     def test_finds_the_same_text_after_the_numbers_shift(self):
         body = B.cut(BLOCKS, "b4", "b5s1")
