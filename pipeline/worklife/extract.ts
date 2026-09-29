@@ -2,18 +2,19 @@
  * 女性活躍DBの全件CSVを、有報の掲載社に法人番号で突合して
  * `pipeline/data/worklife.csv` を作る（W0・Issue #149）。
  *
- *   cd pipeline && npx tsx worklife/extract.ts
+ *   cd pipeline && npm run extract:worklife
  *
- * **ZIP の取得は自動化しない。** ダウンロードURLに UUID が入っていて固定できないので、
- * 手で落としたものを `pipeline/worklife/source/` に置く（`docs/worklife/spec.md` 1.1）。
- * 置いたファイルの名前・sha256・行数は `manifest.json` に残す。
+ * **ZIP は定期実行が落とす**（`npm run update:worklife`・refresh の D7・#877）。この入口は
+ * `pipeline/worklife/source/` に置かれた ZIP を読む——取り込みの規則だけを変えて回し直すとき
+ * に使う。使った ZIP の名前・sha256・行数は `manifest.json` に残す。
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import { forEachCsvRow, toCsv } from "./csv";
+import { jstDate, PAGE_URL } from "./download";
 import {
   assertHeader,
   hasAnyMetric,
@@ -27,9 +28,55 @@ import { companyIdOf, readLedger } from "../scripts/lib/ledger";
 
 const HERE = resolve(dirname(fileURLToPath(import.meta.url)));
 const PIPELINE = resolve(HERE, "..");
-const SOURCE_DIR = resolve(HERE, "source");
-const MANIFEST = resolve(HERE, "manifest.json");
-const OUT_CSV = resolve(PIPELINE, "data/worklife.csv");
+
+/** 読み書きする場所。テストが一時ディレクトリに差し替える。 */
+export type ExtractPaths = {
+  sourceDir: string;
+  manifest: string;
+  outCsv: string;
+  unifiedCsv: string;
+  ledger: string;
+};
+
+export const DEFAULT_PATHS: ExtractPaths = {
+  sourceDir: resolve(HERE, "source"),
+  manifest: resolve(HERE, "manifest.json"),
+  outCsv: resolve(PIPELINE, "data/worklife.csv"),
+  unifiedCsv: resolve(PIPELINE, "data/ranking_unified.csv"),
+  ledger: resolve(PIPELINE, "data/ledger.csv"),
+};
+
+/**
+ * 突合できた社数が前の版からこの割合を超えて減ったら、その版を取り込まない（D7）。
+ * 列がそろっていても中身の欠けた版を取り込むと、「データベースに登録していません」が
+ * 大量に事実と違う文になる。割合はビルドの社数の線（`MAX_COUNT_DROP_RATIO`）と同じ。
+ */
+export const MAX_MATCHED_DROP_RATIO = 0.05;
+
+/** 版そのものを取り込めない（列が違う・中身が欠けている）。前の版のまま残す。 */
+export class RejectedSourceError extends Error {}
+
+/** `manifest.json` の形。`rejected` は最後に落とした版があるときだけ持つ。 */
+export type WorklifeManifest = {
+  source: string;
+  url: string;
+  file: string;
+  sha256: string;
+  bytes: number;
+  fetchedAt: string;
+  sourceRows: number;
+  matched: number;
+  written: number;
+  rejected?: { file: string; sha256: string; fetchedAt: string; reason: string };
+};
+
+export function readManifest(path: string = DEFAULT_PATHS.manifest): WorklifeManifest | null {
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf-8")) as WorklifeManifest) : null;
+}
+
+export function writeManifest(path: string, manifest: WorklifeManifest) {
+  writeFileSync(path, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+}
 
 /** 出力の列。**注釈は改行・カンマ・引用符を含む**ので、書き出しは `toCsv` を通す。 */
 export const WORKLIFE_HEADER = [
@@ -76,31 +123,41 @@ export function toRow(id: string, r: WorklifeRecord): string[] {
   ];
 }
 
-function findSourceZip(): string {
-  const zips = readdirSync(SOURCE_DIR).filter((f) => f.toLowerCase().endsWith(".zip"));
+function findSourceZip(sourceDir: string): string {
+  const zips = existsSync(sourceDir)
+    ? readdirSync(sourceDir).filter((f) => f.toLowerCase().endsWith(".zip"))
+    : [];
   if (zips.length !== 1) {
     throw new Error(
-      `${SOURCE_DIR} に .zip をちょうど1つ置いてください（いまは${zips.length}個）。` +
-        `女性活躍DBのオープンデータ（全件版）を手で落として置く（docs/worklife/spec.md 1.1）`
+      `${sourceDir} に .zip をちょうど1つ置いてください（いまは${zips.length}個）。` +
+        `ふだんは npm run update:worklife が落として置く（docs/refresh/worklife-fetch/design.md）`
     );
   }
-  return resolve(SOURCE_DIR, zips[0]);
+  return resolve(sourceDir, zips[0]);
 }
 
-export function extract() {
-  const zipPath = findSourceZip();
+/**
+ * ZIP を取り込み、`worklife.csv` と `manifest.json` を書く。**書くのは検証が全部通った後だけ**
+ * で、列が違う（`HeaderMismatchError`）・中身が欠けている（`RejectedSourceError`）版では
+ * 何も書かずに投げる。
+ *
+ * `fetchedAt` は ZIP を落とした日（日本時間）。渡されなければ、前の manifest と同じ版なら
+ * その日付を引き継ぎ、違えば ZIP の更新時刻の日付にする（手で置いた ZIP のとき）。
+ */
+export function extract(opts: { zipPath?: string; fetchedAt?: string; paths?: ExtractPaths } = {}) {
+  const paths = opts.paths ?? DEFAULT_PATHS;
+  const zipPath = opts.zipPath ?? findSourceZip(paths.sourceDir);
   const bytes = readFileSync(zipPath);
   const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const previous = readManifest(paths.manifest);
 
   // 有報側。突合キーは法人番号だけ（ADR-0009）
-  const unified = parseUnifiedCsv(
-    readFileSync(resolve(PIPELINE, "data/ranking_unified.csv"), "utf-8")
-  );
+  const unified = parseUnifiedCsv(readFileSync(paths.unifiedCsv, "utf-8"));
   // **社数は固定しない**（refresh の D0・#870）。毎日の更新で社数は動く。以前は 2,961 で
   // 決め打ちしており、1社動いただけで取り込みが落ちた。空の CSV だけは止める。
   if (unified.length === 0) throw new Error("ranking_unified.csv に会社がありません");
   // 企業 ID は更新台帳から引く（refresh の D2・ADR-0017）
-  const ledger = readLedger();
+  const ledger = readLedger(paths.ledger);
   const idByNumber = new Map<string, string>();
   for (const row of unified) {
     if (!row.corporateNumber) {
@@ -134,7 +191,15 @@ export function extract() {
       picked.set(number, row);
     }
   });
-  if (!headerChecked) throw new Error("女性活躍DBのCSVが空です");
+  if (!headerChecked) throw new RejectedSourceError("女性活躍DBのCSVが空です");
+  // **版全体の壊れ方で止める**（D7）。1社ずつの値の動きでは止めない——自己申告値で、
+  // 動いたときにどちらが正しいかを決める根拠が無い（W2 が 0 と 100 ちょうどしか落とさないのと同じ）
+  if (previous && picked.size < previous.matched * (1 - MAX_MATCHED_DROP_RATIO)) {
+    throw new RejectedSourceError(
+      `法人番号で突合できた社数が前の版の${previous.matched}社から${picked.size}社に減りました` +
+        `（${MAX_MATCHED_DROP_RATIO * 100}%を超える減少）。版の中身が欠けているのを疑って取り込みません`
+    );
+  }
 
   const dropped: DroppedValue[] = [];
   const rows: string[][] = [];
@@ -161,30 +226,27 @@ export function extract() {
     rows.push(toRow(companyIdOf(ledger, row), record));
   }
 
-  writeFileSync(OUT_CSV, toCsv([[...WORKLIFE_HEADER], ...rows]), "utf-8");
-  writeFileSync(
-    MANIFEST,
-    JSON.stringify(
-      {
-        source: "厚生労働省 女性の活躍推進企業データベース オープンデータ（全件版）",
-        url: "https://positive-ryouritsu.mhlw.go.jp/positivedb/opendata/",
-        file: basename(zipPath),
-        sha256,
-        bytes: bytes.length,
-        fetchedAt: statSync(zipPath).mtime.toISOString().slice(0, 10),
-        sourceRows,
-        matched: picked.size,
-        written: rows.length,
-      },
-      null,
-      2
-    ) + "\n",
-    "utf-8"
-  );
+  const fetchedAt =
+    opts.fetchedAt ??
+    (previous?.sha256 === sha256 ? previous.fetchedAt : jstDate(statSync(zipPath).mtime));
+  writeFileSync(paths.outCsv, toCsv([[...WORKLIFE_HEADER], ...rows]), "utf-8");
+  // 取り込めたので、前に落とした版の記録（`rejected`）は持ち越さない
+  writeManifest(paths.manifest, {
+    source: "厚生労働省 女性の活躍推進企業データベース オープンデータ（全件版）",
+    url: PAGE_URL,
+    file: basename(zipPath),
+    sha256,
+    bytes: bytes.length,
+    fetchedAt,
+    sourceRows,
+    matched: picked.size,
+    written: rows.length,
+  });
 
   return {
     zipPath,
     sha256,
+    changed: previous?.sha256 !== sha256,
     sourceRows,
     companies: unified.length,
     matched: picked.size,
@@ -195,14 +257,13 @@ export function extract() {
   };
 }
 
-const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
-if (isMain) {
-  const r = extract();
+/** 取り込みの結果を人が読む形で出す。`update.ts` も使う。 */
+export function printExtractResult(r: ReturnType<typeof extract>, outCsv: string) {
   const pct = (n: number) => `${((n / r.companies) * 100).toFixed(1)}%`;
   console.log(`${basename(r.zipPath)}  sha256 ${r.sha256.slice(0, 16)}…  ${r.sourceRows}行`);
   console.log(`法人番号で突合: ${r.matched}社 (${pct(r.matched)})`);
   console.log(`  うち3指標のいずれも無い: ${r.withoutMetrics}社（行を作らない）`);
-  console.log(`${OUT_CSV}: ${r.written}行`);
+  console.log(`${outCsv}: ${r.written}行`);
   const rate = (n: number) =>
     `${n}社（突合比 ${((n / r.matched) * 100).toFixed(1)}% / 全社比 ${pct(n)}）`;
   console.log(`  平均残業時間        ${rate(r.filled.overtime)}`);
@@ -228,3 +289,6 @@ if (isMain) {
     }
   }
 }
+
+const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+if (isMain) printExtractResult(extract(), DEFAULT_PATHS.outCsv);

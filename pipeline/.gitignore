@@ -7,7 +7,7 @@ salary/.edinet_key
 salary/.estat_key
 salary/.gbiz_key
 
-# 女性活躍DBのオープンデータ（手で落として置く。89MBのCSV・11MBのZIP。docs/worklife/spec.md 1.1）
+# 女性活躍DBのオープンデータ（npm run update:worklife が落として置く。11MBのZIP。docs/refresh/worklife-fetch/design.md）
 worklife/source/
 
 # パイプラインの生成物
