@@ -1,0 +1,102 @@
+# PR ごとに、テスト・lint・型チェック・ビルド・E2E を回す（refresh の D1・#871・
+# docs/refresh/ci/design.md）。
+#
+# 自動マージ（D8）は「テストが通ったか」を、定期実行のセッションの報告ではなくこのチェックの
+# 結果で判定する（docs/refresh/spec.md 1.12）。**ジョブの名前（name）は D8 が API で読むので、
+# 変えるなら D8 の側も直す。**
+#
+# コミット前のフック（.husky/pre-commit → .lintstagedrc.mjs）は、ステージしたファイルの種類で
+# 回すものを選ぶ。ここは PR 全体を見るので、絞らずに全部回す。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 同じ PR に続けて push したら、古いほうの実行を止める。main は止めない。
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  pipeline:
+    name: pipeline
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            pipeline/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      # ルートは prettier のため。husky の prepare は CI では要らない。
+      - run: npm ci
+        env:
+          HUSKY: "0"
+      - run: npm run format:check
+      - run: npm ci
+        working-directory: pipeline
+      # vitest と Python の unittest（test:py）
+      - run: npm test
+        working-directory: pipeline
+      # コミットされた web/public/data/ が pipeline/data/ から作り直したものと一致するか
+      - run: npm run check:data
+        working-directory: pipeline
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # **Cloudflare のビルド環境と同じ npm の版で入れる**（CLAUDE.md「開発上の約束」）。
+      # 版が違うと optionalDependencies の解決がずれ、Cloudflare の npm ci だけが落ちる。
+      - run: npx --yes npm@10.9.2 ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npx --yes npm@10.9.2 ci
+      - run: npx playwright install --with-deps chromium
+      # dev サーバーに向けて全件。Worker に向けないと走らないもの（cache-headers・asset-routing の
+      # 後半）は skip になる（playwright.config.ts）。
+      - run: npx playwright test --reporter=line
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-results
+          path: web/test-results/
+          retention-days: 7
