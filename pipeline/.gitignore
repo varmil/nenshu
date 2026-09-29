@@ -31,3 +31,5 @@ summary/work/
 # **成果物（data/pay_policy.json）はコミットする。**
 paypolicy/cache/
 paypolicy/work/
+# 数字の差分更新の途中の成果物（判定・読み直しの原文・判定の結果）。refresh の D4
+refresh/work/

@@ -66,6 +66,17 @@ def may_enter(filed, as_of):
     return add_months(as_of, -ENTRY_MONTHS) <= filed <= as_of
 
 
+def normalize_sec_code(sec_code):
+    """証券コードとして使える値か。**0 だけのもの（`0000`）は証券コードが無いものとして扱う。**
+
+    EDINET の書類一覧とコードリストは、証券コードがまだ無い会社に `00000`／`0000` を入れることが
+    ある（D4 の1回目でクラサスケミカル E42126 がそうだった）。そのまま ID にすると `/company/0000`
+    になり、次に同じ扱いの会社が来たときにぶつかる。
+    """
+    sec_code = (sec_code or "").strip()
+    return "" if not sec_code or set(sec_code) == {"0"} else sec_code
+
+
 def assign_id(sec_code, edinet_code, taken):
     """新しく載る会社の企業 ID（ADR-0017）。
 
@@ -77,7 +88,7 @@ def assign_id(sec_code, edinet_code, taken):
     """
     if not _EDINET_CODE.match(edinet_code or ""):
         raise ValueError(f"EDINETコードの形ではありません: {edinet_code!r}")
-    candidate = sec_code or edinet_code
+    candidate = normalize_sec_code(sec_code) or edinet_code
     if candidate in taken:
         candidate = edinet_code
     if candidate in taken:
@@ -125,8 +136,13 @@ def check(entries):
             raise ValueError(f"{code} の提出日が YYYY-MM-DD の形ではありません: {e['filed']!r}")
 
 
-def load(path=PATH):
-    """EDINETコード → 行（列名 → 文字列）。"""
+def load(path=None):
+    """EDINETコード → 行（列名 → 文字列）。
+
+    **置き場所は呼んだ時点の `PATH` を見る**（既定の引数に束ねない）。テストが `PATH` を差し替えても、
+    既定の引数は定義した時点の値のままなので、本物の台帳を読み書きしてしまう（D4 で実際に踏んだ）。
+    """
+    path = path or PATH
     with open(path, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames != COLUMNS:
@@ -136,8 +152,9 @@ def load(path=PATH):
     return entries
 
 
-def save(entries, path=PATH):
+def save(entries, path=None):
     """**EDINETコードの順に1社1行で書く。** 毎日書き換わるので、差分が会社ごとに出る形にする。"""
+    path = path or PATH
     check(entries)
     with open(path, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")

@@ -48,7 +48,8 @@ def targets(codes, first_year, last_year):
             continue
         data = json.loads(Path(path).read_text())
         for r in data.get("results") or []:
-            if r.get("docTypeCode") != "120" or r.get("withdrawalStatus") == "1":
+            # ファンドの有報（030）を除く（`edinet.is_company_annual_report`・refresh の D4）
+            if not edinet.is_company_annual_report(r):
                 continue
             code = r.get("edinetCode")
             if code not in codes:

@@ -195,6 +195,29 @@ def list_documents(day, retries=5):
         time.sleep(2 ** (i + 1))
 
 
+# 企業内容等の開示に関する内閣府令（会社本体の有報）。030 は特定有価証券の内容等の開示に
+# 関する内閣府令（投資信託などファンドの有報）で、運用会社の EDINETコードで出る。
+COMPANY_ORDINANCE = "010"
+
+
+def is_company_annual_report(r):
+    """書類一覧の1件が、会社本体の有価証券報告書か（refresh の D4・#874）。
+
+    **ファンドの有報（`ordinanceCode` 030）を除く。** 信託銀行はファンドの有報を自分の
+    EDINETコードで何十件も出す。`docTypeCode` だけで拾うと、期末が新しいほうを採る規則
+    （`doc_rank`）でファンドの有報が会社の有報に勝ち、**従業員の状況が無いので会社ごと
+    母集団から落ちる**——三菱ＵＦＪ信託銀行（E03626）がそうなっていた（2026-09-29 に発見。
+    窓の中にファンドの有報が50件あり、期末 2026-05-01 のものが 2026-03-31 期の自社の有報に
+    勝っていた）。三井住友信託銀行とりそな銀行は、ファンドの期末が自社より前で無事だった。
+    """
+    return (
+        r.get("docTypeCode") == "120"
+        and r.get("ordinanceCode") == COMPANY_ORDINANCE
+        and bool(r.get("edinetCode"))
+        and r.get("withdrawalStatus") != "1"
+    )
+
+
 def doc_rank(r):
     """同じ会社の書類のうちどれを採るかの順序（大きいほうが勝つ）。
 
@@ -234,11 +257,7 @@ def annual_reports(start, end, verbose=True):
                     print(f"  {day} 取得失敗: {e}")
                 day += timedelta(days=1)
                 continue
-            hits = [
-                r for r in (data.get("results") or [])
-                if r.get("docTypeCode") == "120" and r.get("edinetCode")
-                and not r.get("withdrawalStatus") == "1"
-            ]
+            hits = [r for r in (data.get("results") or []) if is_company_annual_report(r)]
             for r in hits:
                 code = r["edinetCode"]
                 cur = best.get(code)
