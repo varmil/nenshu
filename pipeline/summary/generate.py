@@ -139,7 +139,65 @@ def _jsonl(path):
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
+def recheck_items(codes, src, have, max_chars):
+    """会社を名指したときのバッチの中身（refresh の D6・spec 1.8）。`(検証だけ, 書く)` を返す。
+
+    **前の説明文がある会社は検証だけ。** 前の文を「生成物」として置き、`gate` → 検証パス →
+    `retry` → `merge` のいまの流れにそのまま乗せる。通れば文はそのままで出典が新しい書類に
+    替わり、落ちたら `retry` が前の文と理由を添えて書き直しに回す。**前の説明文が無い会社**
+    （新しく載った会社・前に落ちた会社）はふつうに書く。
+    """
+    recheck, write = [], []
+    for code in codes:
+        row = src.get(code)
+        if row is None:
+            raise SystemExit(f"{code} の原文が business_text.csv に無い")
+        item = {
+            "edinet_code": code,
+            "sec_code": row["sec_code"],
+            "name": row["name"],
+            "source": _cut(row["text"], max_chars),
+        }
+        old = have.get(code)
+        if old is not None and old.get("verdict") == "ok" and old.get("summary"):
+            recheck.append((item, old["summary"]))
+        else:
+            write.append(item)
+    return recheck, write
+
+
+def _plan_only(args):
+    """`plan --only`。検証だけのバッチは生成物（`gen_*.jsonl`）まで書き、書くバッチはいつもどおり。"""
+    codes = [c for c in args.only.split(",") if c]
+    recheck, write = recheck_items(codes, sources(), done(), args.max_chars)
+    WORK.mkdir(exist_ok=True)
+    n = 0
+    for i in range(0, len(recheck), args.size):
+        n += 1
+        chunk = recheck[i : i + args.size]
+        _batch_path("batch", n).write_text(json.dumps(
+            {"batch": n, "recheck": True, "companies": [item for item, _ in chunk]},
+            ensure_ascii=False, indent=1), encoding="utf-8")
+        (WORK / f"gen_{n:04d}.jsonl").write_text("".join(
+            json.dumps({"edinet_code": item["edinet_code"], "summary": summary}, ensure_ascii=False) + "\n"
+            for item, summary in chunk), encoding="utf-8")
+    first_write = n + 1
+    for i in range(0, len(write), args.size):
+        n += 1
+        _batch_path("batch", n).write_text(json.dumps(
+            {"batch": n, "companies": write[i : i + args.size]}, ensure_ascii=False, indent=1),
+            encoding="utf-8")
+    print(f"名指し {len(codes)}社 → 検証だけ {len(recheck)}社・書く {len(write)}社", flush=True)
+    if write:
+        print(f"生成エージェントが書くのは batch_{first_write:04d}.json 以降（それより前は前の文を置いてある）",
+              flush=True)
+
+
 def cmd_plan(args):
+    if getattr(args, "only", ""):
+        if args.rejected or args.pilot or args.force:
+            raise SystemExit("--only は --rejected・--pilot・--force と一緒に使えない")
+        return _plan_only(args)
     reasons = {}
     if args.rejected:
         picked = rejected()
@@ -400,7 +458,7 @@ def cmd_merge(args):
 
     rows = done()
     stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    counts = {"ok": 0, "rejected": 0}
+    counts = {"ok": 0, "rejected": 0, "kept": 0}
     reasons = {}
     for code, r in final.items():
         row = src[code]
@@ -410,6 +468,16 @@ def cmd_merge(args):
         if reason:
             head = reason.split("（")[0].split(":")[0].strip()
             reasons[head] = reasons.get(head, 0) + 1
+        old = rows.get(code)
+        old_ok = old is not None and old.get("verdict") == "ok" and old.get("summary")
+        if not text and old_ok:
+            # **書き直しが落ちたら、前の説明文を残す**（refresh の D6・spec 1.5）。新しく書くなら
+            # 「まだ無い」だが、書き直しでは「あったものが消える」。出典も前の書類のままなので、
+            # 画面は前の書類を指したまま（D3）。落ちた理由は残し、定期実行がそれを知らせにする
+            rows[code] = {**old, "reject_reason": f"書き直しが落ちたので前の版を残した（{reason}）"}
+            counts["kept"] += 1
+            continue
+        same = old_ok and text == old.get("summary")
         rows[code] = {
             "edinet_code": code,
             "sec_code": row["sec_code"],
@@ -417,8 +485,10 @@ def cmd_merge(args):
             "source_doc_id": row["doc_id"],
             "source_period_end": row["period_end"],
             "source_sha1": row["text_sha1"],
-            "model": args.model,
-            "generated_at": stamp,
+            # **文が前と同じなら、書いたモデルと日時は前のまま**（検証だけで通った会社）。
+            # 出典は新しい書類に替わるが、文を書いたのは前の回のモデル（spec 1.14）
+            "model": old["model"] if same else args.model,
+            "generated_at": old["generated_at"] if same else stamp,
             "verdict": verdict,
             "reject_reason": reason,
         }
@@ -432,7 +502,8 @@ def cmd_merge(args):
             w.writerow(r)
 
     n = counts["ok"] + counts["rejected"]
-    print(f"この回: {n}社 → ok {counts['ok']}社 / rejected {counts['rejected']}社", flush=True)
+    print(f"この回: {n}社 → ok {counts['ok']}社 / rejected {counts['rejected']}社"
+          f"（うち前の版を残した {counts['kept']}社）", flush=True)
     for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]):
         print(f"  {k}: {v}社", flush=True)
     print(f"→ {OUT}（{len(ordered)}行）", flush=True)
@@ -487,6 +558,8 @@ def main():
     a.add_argument("--force", action="store_true")
     # C17（#840）。CSV で rejected の会社だけを選び、前回の落ちた理由を添える。
     a.add_argument("--rejected", action="store_true", help="rejected の会社だけを選ぶ")
+    # refresh の D6。前の説明文がある会社は検証だけ、無い会社は書く
+    a.add_argument("--only", default="", help="EDINETコードをカンマ区切りで")
     a.set_defaults(func=cmd_plan)
 
     b = sub.add_parser("gate")

@@ -80,6 +80,29 @@ class Extract(unittest.TestCase):
         rec, _ = extract.extract(ROW)
         self.assertEqual(list(rec), extract.HEADERS)
 
+    def test_1社ぶんだけ差し替える(self):
+        # refresh の D6。ほかの会社の行は触らず、その会社の行だけを新しい書類にする
+        import csv
+        path = Path(self._dir.name) / "business_text.csv"
+        other = {h: "" for h in extract.HEADERS} | {"edinet_code": "E00009", "text": "別の会社"}
+        old = {h: "" for h in extract.HEADERS} | {"edinet_code": "E00001", "doc_id": "S000OLD", "text": "古い"}
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=extract.HEADERS)
+            w.writeheader()
+            w.writerows([other, old])
+        _write(edinet.CACHE, ROW["doc_id"], [_row(BUSINESS, "当社は製造業です。")])
+        rec, reason = extract.update_one(ROW, path)
+        self.assertIsNone(reason)
+        with open(path, encoding="utf-8", newline="") as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual([(r["edinet_code"], r["doc_id"]) for r in rows], [("E00009", ""), ("E00001", "S000TEST")])
+        self.assertEqual(rows[0]["text"], "別の会社")
+
+    def test_取れなければ何も書かない(self):
+        path = Path(self._dir.name) / "business_text.csv"
+        self.assertEqual(extract.update_one(ROW, path), (None, "取得失敗"))
+        self.assertFalse(path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

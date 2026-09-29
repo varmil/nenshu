@@ -33,3 +33,6 @@ paypolicy/cache/
 paypolicy/work/
 # 数字の差分更新の途中の成果物（判定・読み直しの原文・判定の結果）。refresh の D4
 refresh/work/
+
+# 定期実行（refresh の D6）が1社ぶんだけ取り直した分析の切った原文。`extract_analysis.OVERLAY`
+analysis/cache/

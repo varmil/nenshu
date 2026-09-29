@@ -58,6 +58,9 @@ SOURCE = DATA / "analysis_text.csv"
 # こちらで組み立てると片方だけ古くなる。
 CUT_SOURCE = DATA / extract_analysis.CUT_OUT.name
 MANIFEST = DATA / "analysis_text_manifest.csv"
+# 定期実行（refresh の D6）が1社ぶんだけ取り直した切った原文（git に置かない）。
+# **切った版の gzip より先に見る。** 置き場所と理由は `extract_analysis.OVERLAY`。
+OVERLAY = extract_analysis.OVERLAY
 UNIVERSE = DATA / "ranking_unified.csv"
 SALARY_HISTORY = DATA / "salary_history.csv"
 # **稼ぐ力は `web/public/data/` の生成物から読む。** `pipeline/data/` にあるのは
@@ -209,7 +212,18 @@ def universe():
 
 
 def sources_by_code():
-    return {r["edinet_code"]: r for r in read_csv(source_path()[0])}
+    """会社 → 原文の行。**書類 ID がマニフェストと同じ行だけ**を返す。
+
+    定期実行（refresh の D6）は1社ぶんの原文を `OVERLAY` に置き、マニフェストの行だけを
+    新しい書類にする。切った版の gzip は書き直さないので、**その会社の gzip の行は古い書類の
+    原文のまま残る**——書類 ID で見分けて使わない。使うと、新しい書類の SHA-1 で古い書類の
+    原文から書いた文を取り込むことになる。
+    """
+    man = manifest()
+    rows = {r["edinet_code"]: r for r in read_csv(source_path()[0])}
+    for r in read_csv(OVERLAY):
+        rows[r["edinet_code"]] = r
+    return {c: r for c, r in rows.items() if c in man and man[c].get("doc_id") == r.get("doc_id")}
 
 
 def combined_sha1(manifest_row):
@@ -347,6 +361,7 @@ def cmd_plan(args):
             "切った版は git にあるはずなので、まず `git status` を見ること。"
             "作り直すなら `python3 extract_analysis.py`（キャッシュがあれば51秒）。"
         )
+    only = [c for c in (getattr(args, "only", "") or "").split(",") if c]
     if is_cut:
         cut = extract_analysis.CUT_CHARS
         if args.max_chars == 0:
@@ -362,13 +377,28 @@ def cmd_plan(args):
             )
         # **行数をマニフェストと突き合わせる。** 切った版は git 経由で運ばれてくるので、
         # 古い版が混ざっても字面では気づけない（C6・C8 の「ファイルを数える」と同じ線）。
+        # **会社を名指すときは見ない**——定期実行が原文を取り直した会社は gzip の行が古い
+        # 書類のままで、数が合わないのが正しい。名指した会社に原文があるかは下で見る。
         want, got = len(manifest()), len(sources_by_code())
-        if want != got:
+        if want != got and not only:
             raise SystemExit(
-                f"{src_path.name} は {got}社だが、マニフェストは {want}社。"
-                "版がずれているので `python3 extract_analysis.py` で作り直すこと。"
+                f"{src_path.name} で使える原文は {got}社だが、マニフェストは {want}社。"
+                "版がずれているか、定期実行が原文を取り直した会社がある。"
+                "`python3 extract_analysis.py` で作り直すこと。"
             )
-    rows = pending(force=args.force, regenerate=args.regenerate)
+    if only:
+        # **会社を名指す**（refresh の D6）。原文が変わったかどうかは見ない——定期実行は
+        # 数字の書類が替わった会社を選んで渡すので、選ばれたら書き直す
+        src = sources_by_code()
+        missing = [c for c in only if c not in src]
+        if missing:
+            raise SystemExit(
+                f"原文が無い会社: {', '.join(missing)}。"
+                "`update_texts.py prepare` で1社ぶん取り直してから実行すること。"
+            )
+        rows = [src[c] for c in only]
+    else:
+        rows = pending(force=args.force, regenerate=args.regenerate)
     if args.pilot:
         by_sec = {}
         for r in rows:
@@ -407,10 +437,13 @@ def cmd_plan(args):
                                    ensure_ascii=False, indent=1), encoding="utf-8")
         made += 1
 
-    label = "規格が古い" if args.regenerate else "未生成"
+    label = "名指し" if only else ("規格が古い" if args.regenerate else "未生成")
     print(f"{label} {len(rows)}社 → バッチ {made}本"
           f"（1本 {args.size}社）", flush=True)
-    print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}",
+    overlaid = {r["edinet_code"] for r in read_csv(OVERLAY)}
+    fresh = sum(1 for r in rows if r["edinet_code"] in overlaid)
+    print(f"原文: {src_path.name}{'（節ごと' + str(extract_analysis.CUT_CHARS) + '字に切った版）' if is_cut else ''}"
+          + (f"・うち {fresh}社は定期実行が取り直した原文（{OVERLAY.name}）" if fresh else ""),
           flush=True)
     how = ("節ごと（" + " / ".join(f"{k}{extract_analysis.CUT_CHARS[k]}" for k in KEYS) + "字）"
            if args.max_chars is None else
@@ -668,7 +701,10 @@ def cmd_merge(args):
             "spec": SPEC if summary else "",
         }
 
-    order = list(src)
+    # **原文に無い会社の行も落とさない。** 定期実行が原文を取り直した会社は、次のコンテナでは
+    # gzip の行が古い書類のままで `sources_by_code()` から外れる。`src` の並びだけで書くと、
+    # その会社の要約と分析が CSV から消える
+    order = list(src) + [c for c in rows if c not in src]
     ordered = [rows[c] for c in order if c in rows]
     with open(OUT, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=HEADERS)
@@ -686,6 +722,37 @@ def cmd_merge(args):
     for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]):
         print(f"  {k}: {v}社", flush=True)
     print(f"→ {OUT}（{len(ordered)}行）", flush=True)
+
+
+def cmd_check_gated(args):
+    """書き直した `gated_*.json` に、機械ゲートを当て直す（refresh の D6）。
+
+    検証パスが `false` を返したら、生成エージェントに理由を渡して `gated_*.json` の本文を
+    書き直させ、検証パスを回し直す（`prompts/verify.md`「落ちたら書き直す」）。**書き直した
+    本文が機械ゲートを通るかは `merge` まで分からない**ので、検証に回す前にここで確かめる。
+    落ちたらもう一度書き直させる（書き直しの回数に数える）。
+    """
+    src = sources_by_code()
+    history = salary_history()
+    bad = 0
+    for path in sorted(WORK.glob("gated_*.json")):
+        for c in json.loads(path.read_text(encoding="utf-8")).get("companies", []):
+            row = src.get(c.get("edinet_code"))
+            if row is None:
+                continue
+            summary, headline, analysis, s_reasons, a_reasons = _apply_gates(
+                c, row, history, args.max_digits)
+            ok = bool(summary) and bool(analysis)
+            bad += not ok
+            reasons = []
+            if not summary:
+                reasons.append("要約: " + (" / ".join(s_reasons) or "空"))
+            if not analysis:
+                reasons.append("分析: " + (" / ".join(a_reasons) or "空"))
+            print(f"{c['edinet_code']} {c.get('name', '')}: "
+                  f"{'通る' if ok else '落ちる（' + '・'.join(reasons) + '）'}", flush=True)
+    if bad:
+        raise SystemExit(f"機械ゲートに落ちる会社が {bad}社ある。書き直させること。")
 
 
 def cmd_clear(args):
@@ -732,6 +799,8 @@ def main():
     a.add_argument("--force", action="store_true")
     a.add_argument("--regenerate", action="store_true",
                    help="規格の版が古い社を選び直す（要約も分析も作り直す）")
+    a.add_argument("--only", default="",
+                   help="EDINETコードをカンマ区切りで。その会社だけを書き直す（refresh の D6）")
     a.set_defaults(func=cmd_plan)
 
     b = sub.add_parser("gate")
@@ -743,6 +812,10 @@ def main():
     c.add_argument("--model", default="claude-opus-5")
     c.add_argument("--max-digits", type=int, default=gate.MAX_ANALYSIS_DIGITS)
     c.set_defaults(func=cmd_merge)
+
+    g = sub.add_parser("check-gated")
+    g.add_argument("--max-digits", type=int, default=gate.MAX_ANALYSIS_DIGITS)
+    g.set_defaults(func=cmd_check_gated)
 
     d = sub.add_parser("clear")
     d.set_defaults(func=cmd_clear)
