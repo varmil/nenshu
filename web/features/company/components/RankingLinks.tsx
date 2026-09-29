@@ -24,7 +24,7 @@ export function RankingLinks({ links }: { links: RankingLink[] }) {
             }`}
           >
             <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="text-primary text-sm font-semibold">{link.label}</span>
+              <span className="text-primary text-sm">{link.label}</span>
               <span className="text-muted-foreground text-xs tabular-nums">{link.note}</span>
             </span>
             <ChevronRight aria-hidden="true" className="text-muted-foreground size-4 flex-none" />
