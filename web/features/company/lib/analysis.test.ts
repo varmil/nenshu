@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import analysesData from "../../../public/data/analyses.json";
-import companiesData from "../../../public/data/companies.json";
+import { analyses as analysesData } from "@/testing/realData";
 import {
   analysisNote,
   asOfLabel,
@@ -10,7 +9,7 @@ import {
   type AnalysisRecord,
 } from "./analysis";
 
-const analyses = analysesData.byId as Record<string, AnalysisRecord>;
+const analyses = analysesData.byId;
 
 const record: AnalysisRecord = {
   digest: "要約。",
@@ -76,14 +75,18 @@ describe("sourceMeta", () => {
 });
 
 /*
- * 実データ（`analyses.json`）に対して。**全社が両方を持つ**ことと、**一言が本文の
- * 書き出しに繰り返されていない**こと（ビルド時の `dropRepeatedHeadline`。29社が該当した）。
+ * 実データ（`analyses.json`）に対して。**記録のある会社は両方を持つ**ことと、**一言が本文の
+ * 書き出しに繰り返されていない**こと（ビルド時の `dropRepeatedHeadline`）。
+ *
+ * **掲載の全社が持つとは限らない。** 新しく載った会社は、分析を書くまで要約も分析も持たない
+ * （`docs/refresh/spec.md` 1.9）。見るのは「要約と分析は対で、片方だけの会社は無い」こと。
  */
 describe("analyses.json", () => {
-  it("掲載の全社に要約と分析がある", () => {
-    expect(Object.keys(analyses)).toHaveLength(companiesData.rows.length);
-    for (const row of companiesData.rows) {
-      expect(buildAnalysisView(analyses[row[0] as string]), String(row[0])).not.toBeNull();
+  it("記録のある会社は要約と分析の両方を持つ（片方だけの会社は無い）", () => {
+    const entries = Object.entries(analyses);
+    expect(entries.length).toBeGreaterThan(0);
+    for (const [id, entry] of entries) {
+      expect(buildAnalysisView(entry), id).not.toBeNull();
     }
   });
 
