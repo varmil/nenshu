@@ -88,6 +88,8 @@ Astro、React、TypeScript、Tailwind CSS、shadcn/ui、Cloudflare Workers。
   - **対象は JS/TS だけ。** Markdown・JSON・CSS・`.astro` と生成物は `.prettierignore` で外してある。**「手で編集しない」生成物（`outline.py` が書く `lettering.ts`・`build:brand` が書く `ogFacts.ts` のようなもの）を足したら `.prettierignore` にも足す**——書き出し元は整形しないので、整形すると書き出し直すたびに差分が出る
   - **整形だけのコミットは `.git-blame-ignore-revs` に載せる。** GitHub の blame はこれを読む。手元では `git config blame.ignoreRevsFile .git-blame-ignore-revs`
   - 2026-09-28 に入れた。それまで設定は無く、`web/node_modules` にあるものをセッションが `npx prettier --check` で回すと、既定値（80桁）で大半のファイルが引っかかっていた
+- **PR ごとに GitHub Actions の CI（`.github/workflows/ci.yml`）が回る**（refresh の D1・#871・`docs/refresh/ci/`）。ジョブは `pipeline`（prettier・pipeline の vitest と Python・`check:data`）・`web`（npm 10.9.2 の `npm ci`・lint・typecheck・vitest・`astro build`）・`e2e`（dev サーバーに向けて全件）の3つで、待ち時間は約3分。**コミット前のフックと違い、ファイルの種類で絞らずに全部回す。** ジョブの名前は自動マージ（D8）が API で読むので変えない
+  - **`check:data` は、コミットされた `web/public/data/` が `pipeline/data/` から作り直したものと一致するかを見る**（`companies.json` の `generatedAt` だけ除く）。`pipeline/data/` を直したら `build:data` を回してコミットする
 - **Claude Code on the web のセッションは `.claude/hooks/session-start.sh` が整える。** コンテナは毎回まっさらでクローンされるので、これが無いと `node_modules` が無い状態から始まる。中身は3つのワークスペースの `npm ci` と、`PLAYWRIGHT_CHROMIUM_PATH` を `$CLAUDE_ENV_FILE` に書くこと。**`$CLAUDE_CODE_REMOTE` で囲ってあるのでローカルでは何もしない。** 依存を足したりコマンドを増やしたらこのフックも直す
   - **`npm install` ではなく `npm ci`。** lock を書き換えないので、セッション開始時点で作業ツリーが汚れない（上の2つの約束と同じ理由）
   - **ルートの `npm ci` が husky の `prepare` を走らせ、`.husky/pre-commit`（lint-staged → prettier・lint・typecheck・vitest）を有効にする。** これが無いと web セッションのコミットだけがゲートを素通りする（実際に素通りしていた）
@@ -620,7 +622,7 @@ Unit の実装を終えたら、次の順で進める。
 - **会社ごとの決算期は文字列プールの添字**（`periods`）。`YYYY-MM` をそのまま並べると `/` の HTML が4倍以上増える。実測で `/` は gzip +301 B（2種類しか無かった頃は圧縮が極端に効いた。**拡大後は14種類**）
 - **`/about` だけは幅と最頻の両方を出す。** 幅だけだと端（`2025年3月期` の1社）が全体を代表しているように読める。「3月期が中心」の直書きはやめ、`buildAboutFacts` の `fiscalPeriodTop` から引く。E2E の「1画面に1回」は**幅のほう**を数える
 
-**データの更新は、年1回の一括から毎日の差分更新へ移す**（`refresh` 施策・`docs/refresh/`・親 Issue #868。**Inception 完了。Unit は D0〜D10 = #870〜#880 で、D0（#870）・D2（#872）・D3（#873）は実装済み**）。有報を出した会社だけを毎日拾い、数字を先に替え、文章（説明文・要約・分析・給与の決定方針）は1日の上限の中で年収ランキングの上位から書き直す。運営者の確認を待つ工程は置かず、テストが通れば自動でマージする。
+**データの更新は、年1回の一括から毎日の差分更新へ移す**（`refresh` 施策・`docs/refresh/`・親 Issue #868。**Inception 完了。Unit は D0〜D10 = #870〜#880 で、D0（#870）・D1（#871）・D2（#872）・D3（#873）は実装済み**）。有報を出した会社だけを毎日拾い、数字を先に替え、文章（説明文・要約・分析・給与の決定方針）は1日の上限の中で年収ランキングの上位から書き直す。運営者の確認を待つ工程は置かず、テストが通れば自動でマージする。
 
 - **決まったことの一覧は親 Issue の本文**（「決まったこと」1〜17）。spec はその結果だけを書いている
 - **ADR-0017: 企業ページの ID は一度振ったら変えない**（上場・上場廃止でも）。**ADR-0018: 母集団に入るのは直近12か月、出るのは最後の有報から24か月**。**ADR-0008 の追記: 女性活躍DB の全件版に限りブラウザの User-Agent を名乗ってよい**（ロゴの取得には広げない）
@@ -630,6 +632,7 @@ Unit の実装を終えたら、次の順で進める。
   - **母集団から出る条件（最後の有報から24か月）はビルドが見る。基準日は `universe.json` の `filingWindow.to`**（データを取った日）で、ビルドを回した日ではない。外れた会社のページを残すのは D9（#879）——いまの台帳で最初に外れうるのは 2027-08-26
   - **台帳の工程ごとの書類と、各成果物の書類 ID が食い違うとビルドが落ちる**（`checkLedgerDocs`）。見るのは同じ工程の中だけ
   - **`pipeline/data/` のファイル名から `_2026` を外した**（`ranking_unified.csv` 等）。`companies.meta.version` は直書きの `"2026-06"` をやめ、中身のハッシュ（`datasetVersion`）にした
+- **D1（#871）で PR ごとの CI を入れた**（上の「開発上の約束」）。D8 はこの結果で「テストが通ったか」を判定する。ブランチ保護（必須チェック）は掛けていない——掛けるならリポジトリの設定で運営者の手が要る
 - **D3（#873）で文章の節が自分を作った有報の期を名乗り、その書類を指すようにした**（`docs/refresh/text-period/`）。要約と分析・給与の決定方針・説明文の記録は `filing`（`{ docId, period }`）を持ち、**数字の側（`companies.json` の決算期・`filings.json` の書類）を借りない**。要約の節は原文の決算期、給与の決定方針は原文の期が数字の期とずれたときだけ引用の枠の先頭にその期、「このページの出典」は行ごとにその行の書類へリンク（説明文と要約の書類が違えば AI の要約の行を分ける）。**給与の決定方針の書類が数字の書類と違うとビルドが落ちるガードは外した**
   - **いまのデータには数字と文章がずれた会社がいない。** ずれた会社の E2E（`e2e/data-period.spec.ts`）は skip になり、`tools/perturb/check.sh --e2e`（4つ目の揺らし方がその会社を作る）で走る
 - **D0（#870）でテストとビルドをいまのデータの値から切り離した**（`docs/refresh/test-invariants/`）。ビルドの社数の決め打ち（`EXPECTED_ROW_COUNT = 2961`）は「前回のビルドから5%を超えて減ったら落とす」（`checkCountDrop`）に替えた。書き直す前は、揺らしたデータで pipeline 10件・web のユニット42件・E2E 43件が落ちた。書き方の約束は「開発上の約束」のテストの項
