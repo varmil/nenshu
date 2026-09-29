@@ -1,6 +1,6 @@
 import { statsForBasis } from "@/features/company/lib/stats";
 import type { CompanyView } from "@/features/company/types";
-import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
+import { formatDecimal1, formatInt, formatManYen } from "@/features/ranking/lib/format";
 import type { PageMeta } from "./pageMeta";
 
 /**
@@ -30,9 +30,11 @@ import type { PageMeta } from "./pageMeta";
  */
 export function companyPageMeta(view: CompanyView, fiscalPeriod: string): PageMeta {
   const current = statsForBasis(view, null);
+  // 社数も順位も桁区切りを入れる。順位だけ素の数字で出していた頃は、1,000位以上で
+  // `全2,961社中1234位` と同じ文の中で書式が割れていた。
   const position =
-    `全${view.totalCount.toLocaleString("ja-JP")}社中${current.rankAll}位、` +
-    `${view.tse33}${view.industryCount}社中${current.rankIndustry}位。`;
+    `全${formatInt(view.totalCount)}社中${formatInt(current.rankAll)}位、` +
+    `${view.tse33}${formatInt(view.industryCount)}社中${formatInt(current.rankIndustry)}位。`;
 
   return {
     canonical: `/company/${view.id}`,
