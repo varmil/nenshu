@@ -3,7 +3,10 @@ import { defineConfig } from "@playwright/test";
 // dev サーバーのポート。**`astro dev` の既定は 4321 なので、明示的に渡す**
 // （F1・Issue #209。Next.js の頃は 3000 が既定だった）。既存の dev サーバーが
 // あればそれを再利用する。
-const PORT = 4321;
+//
+// **`E2E_PORT` で変えられる**（refresh の D0・Issue #870）。別の作業ツリーから同時に回すと、
+// 4321 に立っている他所の dev サーバーを再利用して、違うデータに向けて走ってしまう。
+const PORT = Number(process.env.E2E_PORT ?? 4321);
 
 // **Worker に固有のものは dev サーバーでは確かめられない**（F1・ADR-0014）。
 // `public/_headers`・`run_worker_first`・`not_found_handling` はどれも Cloudflare の
