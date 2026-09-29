@@ -1,32 +1,58 @@
+import type { Page } from "@playwright/test";
 import { test, expect } from "./appTest";
 import { collectPageRequests, waitForRankingReady } from "./network";
+import { companies, logos, pickCompany, rowOf } from "../testing/realData";
+import { rankingPageData } from "../features/ranking/lib/pageData";
+import { companyPageData } from "../features/company/lib/pageData";
+import { initialOf } from "../features/logo/lib/initial";
+import { attributionCredits, type LogoEntry } from "../features/logo/lib/credits";
+import type { RankingBootstrap } from "../features/ranking/types";
 
 /**
  * L1 企業ロゴの表示（`docs/logo/spec.md` 2. AC-7〜AC-14）。
  *
- * ロゴを持つ会社は 2,536/2,961 で、**持たない会社がある**（ADR-0008 決定3で
- * 解像度の下限を外し、明るい器で空白に見える白いロゴは落とす——#156）。混在した状態が
- * 崩れないことがこの Unit の眼目なので、両方が出るページで見る。
+ * **ロゴを持たない会社がある**（ADR-0008 決定3で解像度の下限を外し、明るい器で空白に
+ * 見える白いロゴは落とす——#156）。混在した状態が崩れないことがこの Unit の眼目なので、
+ * 両方が出るページで見る。
+ *
+ * **会社もページも名指ししない**（refresh の D0・Issue #870）。ロゴの有無は取り直すたびに、
+ * `/` のどのページに載るかは金額が動くたびに入れ替わるので、`/` の組み立て
+ * （`rankingPageData`）とロゴの表からその状態の会社・ページを選ぶ。
  */
-const WITH_LOGO = { id: "6861", name: "株式会社キーエンス" };
-/**
- * **ロゴを持たない会社は、到達率が上がるたびに入れ替わる。** 以前のキオクシアHD（285A）は
- * 公式サイトのURLを人が見つけて `PINNED` に足したので、ロゴを持つ側へ移った。
- * **選び直すときは「URLがどこにも無い271社」から採ること**——そこはサイトに届く手段が
- * 無いので当面は変わらない（日本オラクルは Wikidata に P856 が無く、gBizINFO の
- * `company_url` も null。`docs/logo/logo-pipeline/design.md`「公開後に直したもの6」）。
- */
-const WITHOUT_LOGO = { id: "4716", name: "日本オラクル株式会社", initial: "日" };
+
+/** `/` の既定の並びで `n` ページ目に載る会社（画面と同じ関数で組む）。 */
+const rankingPage = (n: number): RankingBootstrap =>
+  rankingPageData(new URLSearchParams(n === 1 ? "" : `page=${n}`)).bootstrap;
+
+const rankingUrl = (n: number) => (n === 1 ? "/" : `/?page=${n}`);
+
+/** 条件に合う `/` の最初のページ番号（`from` ページ目から探す）。無ければ落とす。 */
+function pickRankingPage(what: string, pred: (b: RankingBootstrap) => boolean, from = 1): number {
+  const first = rankingPage(1).page;
+  const pages = Math.ceil(first.totalCount / first.companies.length);
+  for (let n = from; n <= pages; n++) if (pred(rankingPage(n))) return n;
+  throw new Error(`${what}が見つからない`);
+}
+
+/** 表（PC）の中で、その会社の行。社名は他の会社の社名に含まれうるので、リンク先で引く。 */
+const tableRow = (page: Page, id: string) =>
+  page.getByRole("row").filter({ has: page.locator(`a[href="/company/${id}"]`) });
+
+/** `/` の1ページ目に載り、ロゴを持つ会社。 */
+const FIRST_PAGE_LOGOS = new Set(rankingPage(1).pageLogoIds);
+const WITH_LOGO = pickCompany("/ の1ページ目に載り、ロゴを持つ会社", ([id]) =>
+  FIRST_PAGE_LOGOS.has(id)
+);
 
 test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
   test("AC-7: ロゴを持つ会社は画像が出て、器からはみ出さず、引き伸ばされていない", async ({
     page,
   }) => {
     await page.goto("/");
-    const row = page.getByRole("row").filter({ hasText: WITH_LOGO.name });
+    const row = tableRow(page, WITH_LOGO);
     const box = row.locator('[data-logo="image"]');
     const img = box.locator("img");
-    await expect(img).toHaveAttribute("src", `/logos/${WITH_LOGO.id}.webp`);
+    await expect(img).toHaveAttribute("src", `/logos/${WITH_LOGO}.webp`);
     // 実際に読めていること（壊れた画像を「出ている」と数えない）
     await expect
       .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
@@ -58,17 +84,18 @@ test.describe("AC-7・AC-8 ロゴと頭文字の出し分け", () => {
     expect(alts.every((alt) => alt === "")).toBe(true);
   });
 
-  // **ランキングは検索で絞ってから見る。** E2 で母集団を広げてから、この会社は実測値の
-  // 42位＝1ページ目の外に出た（`/` の1ページ目は30件）。**母集団が動くたびに別の会社を
-  // 探し直さずに済むよう、行の在処を検索で固定する。**
+  // **ランキングは検索で絞ってから見る。** どのページに載るかは金額が動くたびに変わるので、
+  // 行の在処を社名の検索で固定する。
   test("AC-8: ロゴを持たない会社はランキングでも企業詳細でも頭文字マーク", async ({ page }) => {
-    await page.goto(`/?q=${encodeURIComponent(WITHOUT_LOGO.name)}`);
-    const row = page.getByRole("row").filter({ hasText: WITHOUT_LOGO.name });
-    await expect(row.locator('[data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
+    const id = pickCompany("ロゴを持たない会社", ([id]) => logos.byId[id] === undefined);
+    const [, name] = rowOf(id);
+    await page.goto(`/?q=${encodeURIComponent(name)}`);
+    const row = tableRow(page, id);
+    await expect(row.locator('[data-logo="initial"]')).toHaveText(initialOf(name));
     await expect(row.locator('[data-logo="image"]')).toHaveCount(0);
 
-    await page.goto(`/company/${WITHOUT_LOGO.id}`);
-    await expect(page.locator('header [data-logo="initial"]')).toHaveText(WITHOUT_LOGO.initial);
+    await page.goto(`/company/${id}`);
+    await expect(page.locator('header [data-logo="initial"]')).toHaveText(initialOf(name));
   });
 });
 
@@ -82,7 +109,11 @@ test.describe("AC-9 混在しても列が揃う", () => {
   test("ロゴ・頭文字が混ざっても社名の開始位置と行の高さが同じで、ロゴの器の高さが50pxで揃う", async ({
     page,
   }) => {
-    await page.goto("/");
+    const mixed = pickRankingPage(
+      "ロゴを持つ会社と持たない会社が両方載るページ",
+      (b) => b.pageLogoIds.length > 0 && b.pageLogoIds.length < b.page.companies.length
+    );
+    await page.goto(rankingUrl(mixed));
     const rows = page.getByRole("row");
     const measured = await rows.evaluateAll((els) =>
       els
@@ -150,7 +181,13 @@ test.describe("AC-11 操作でページを取り直さない", () => {
     1文字）で配っており、ずれると別の会社のロゴを出す（`features/logo/lib/mask.ts`）。
   */
   test("ページを送ると、文書を取り直さずにロゴが行と一緒に入れ替わる", async ({ page }) => {
-    await page.goto("/");
+    // 送った先のページにロゴを持つ会社が載っていないと、行との対応を何も見ないことになる。
+    const next = pickRankingPage(
+      "ロゴを持つ会社が載る2ページ目以降",
+      (b) => b.pageLogoIds.length > 0,
+      2
+    );
+    await page.goto(rankingUrl(next - 1));
     await waitForRankingReady(page);
     await page.waitForLoadState("networkidle");
     const firstLink = page.locator("tbody tr a[href^='/company/']").first();
@@ -158,7 +195,7 @@ test.describe("AC-11 操作でページを取り直さない", () => {
 
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "次のページへ" }).click();
-    await expect(page).toHaveURL(/[?&]page=2/);
+    await expect(page).toHaveURL(new RegExp(`[?&]page=${next}(&|$)`));
     await expect(firstLink).not.toHaveAttribute("href", firstHref ?? "");
 
     const rows = await page.locator("tbody tr").evaluateAll((els) =>
@@ -168,7 +205,10 @@ test.describe("AC-11 操作でページを取り直さない", () => {
       }))
     );
     const withLogo = rows.filter((row) => row.src !== null);
-    expect(withLogo.length).toBeGreaterThan(0);
+    // ロゴが出る行は、そのページでロゴを持つ会社と同じ（マスクで開いたものがデータと合う）。
+    expect(withLogo.map(({ href }) => href?.replace("/company/", ""))).toEqual(
+      rankingPage(next).pageLogoIds
+    );
     for (const { href, src } of withLogo) {
       expect(src, href ?? "").toBe(`/logos/${href?.replace("/company/", "")}.webp`);
     }
@@ -211,10 +251,16 @@ test.describe("AC-12 レイアウトが動かない", () => {
 
 test.describe("企業詳細ページ", () => {
   test("見出しと「水準が近い会社」にロゴが出る", async ({ page }) => {
-    await page.goto(`/company/${WITH_LOGO.id}`);
+    // 自身も、既定の表示基準（実測値）で並ぶ近い会社のどれかもロゴを持つ会社。
+    const id = pickCompany("自身と近い会社のどれかがロゴを持つ会社", ([id]) => {
+      if (logos.byId[id] === undefined) return false;
+      const actual = companyPageData(id).view.byBasis.find((b) => b.targetAge === null)!;
+      return actual.neighbors.some((n) => logos.byId[n.id] !== undefined);
+    });
+    await page.goto(`/company/${id}`);
     await expect(page.locator('header [data-logo="image"] img')).toHaveAttribute(
       "src",
-      `/logos/${WITH_LOGO.id}.webp`
+      `/logos/${id}.webp`
     );
     const section = page.getByRole("heading", { name: /水準が近い会社/ }).locator("..");
     await expect(section.locator('[data-logo="image"] img').first()).toBeVisible();
@@ -228,24 +274,29 @@ test.describe("AC-14 出典", () => {
     await expect(section).toContainText("Wikimedia Commons");
     await expect(section).toContainText("ロゴは各社の商標です");
     // 帰属が要るものは作者とライセンスが読める
-    await expect(section.getByText(/CC BY/).first()).toBeVisible();
+    const id = pickCompany("作者の表示が要り、作者の名前もあるロゴを持つ会社", ([id]) => {
+      const entry = logos.byId[id] as LogoEntry | undefined;
+      return entry?.attr === true && (entry.by ?? "").trim() !== "";
+    });
+    const credit = attributionCredits(companies.rows, logos.byId as Record<string, LogoEntry>).find(
+      (c) => c.id === id
+    )!;
+    const link = section.locator(`a[href="${credit.from}"]`);
+    await expect(link).toHaveText(credit.license);
+    await expect(link.locator("xpath=..")).toContainText(credit.name);
+    await expect(link.locator("xpath=..")).toContainText(credit.author);
   });
 });
 
 test.describe("ダークモードでもロゴが読める", () => {
   test("器の地はモードによらず明るい", async ({ page }) => {
     await page.goto("/");
-    const light = await page
-      .locator('[data-logo="image"]')
-      .first()
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const box = tableRow(page, WITH_LOGO).locator('[data-logo="image"]');
+    const light = await box.evaluate((el) => getComputedStyle(el).backgroundColor);
 
     await page.getByRole("button", { name: "ダークモードに切り替える" }).click();
     await expect(page.locator("html")).toHaveClass(/\bdark\b/);
-    const dark = await page
-      .locator('[data-logo="image"]')
-      .first()
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const dark = await box.evaluate((el) => getComputedStyle(el).backgroundColor);
 
     // どちらのモードでも十分に明るい面であること（ロゴが沈まない）。
     // **`getComputedStyle` は `lab()` を返す**（トークンが oklch のため）ので、
