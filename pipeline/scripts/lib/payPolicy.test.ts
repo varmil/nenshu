@@ -3,6 +3,7 @@ import { toPayPolicyRecord, type PayPolicyRow } from "./payPolicy";
 
 const row = (over: Partial<PayPolicyRow> = {}): PayPolicyRow => ({
   doc_id: "S100TEST",
+  period_end: "2026-03-31",
   edinet_code: "E00001",
   name: "テスト株式会社",
   verdict: "own",
@@ -33,6 +34,8 @@ describe("toPayPolicyRecord", () => {
       )
     ).toEqual({
       source: "section",
+      // 原文を切り出した有報（refresh の D3）。期は `YYYY-MM` にそろえる
+      filing: { docId: "S100TEST", period: "2026-03" },
       title: "②従業員給与等の決定方針",
       blocks: [
         { kind: "heading", text: "（報酬の水準）" },
@@ -92,6 +95,9 @@ describe("toPayPolicyRecord", () => {
       row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [[0, 2, 2, 1]] }] }),
       row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [[0, 0, 1, 1]] }] }),
       row({ blocks: [{ kind: "table", rows: [["A", "B"]], spans: [] }] }),
+      // 原文の書類が読めない（refresh の D3）
+      row({ doc_id: "" }),
+      row({ period_end: "2026-03" }),
     ]) {
       expect(() => toPayPolicyRecord(bad)).toThrow();
     }

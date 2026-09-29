@@ -5,6 +5,7 @@
  * 要る形へ直すだけ**で、文そのものは書き換えない——例外は下の `dropRepeatedHeadline`
  * の1つだけ。
  */
+import { filingRef, type FilingRef } from "./filing";
 
 /** 分析が参照した外部の文書（ADR-0015 決定4）。`accessed` は `YYYY-MM-DD`。 */
 export interface AnalysisSource {
@@ -29,6 +30,11 @@ export interface AnalysisRecord {
    * 読者にとって情報にならない）。
    */
   generatedAt: string;
+  /**
+   * 要約と分析の原文にした有報（refresh の D3）。**要約の節はこの決算期を名乗る**——数字の側の
+   * 決算期を借りると、数字だけが新しい書類に替わった会社で、前の期の要約が新しい期を名乗る。
+   */
+  filing: FilingRef;
 }
 
 /**
@@ -110,7 +116,15 @@ export function generatedMonth(raw: string, code: string): string {
  * 片方が落ちたら両方を空にする契約なので、ここでも同じ線で読む。
  */
 export function toAnalysisRecord(
-  line: { digest: string; headline: string; body: string; sources: string; generatedAt: string },
+  line: {
+    digest: string;
+    headline: string;
+    body: string;
+    sources: string;
+    generatedAt: string;
+    docId: string;
+    periodEnd: string;
+  },
   code: string
 ): AnalysisRecord | null {
   const digest = line.digest.trim();
@@ -123,5 +137,6 @@ export function toAnalysisRecord(
     body: dropRepeatedHeadline(headline, body),
     sources: parseSources(line.sources, code),
     generatedAt: generatedMonth(line.generatedAt, code),
+    filing: filingRef(line.docId, line.periodEnd, code),
   };
 }

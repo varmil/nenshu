@@ -8,6 +8,7 @@ import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { checkStageDocs, readLedger, selectUniverse, type Ledger } from "./lib/ledger";
 import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
+import { filingRef, type FilingRef } from "./lib/filing";
 import { toPayPolicyRecord, type PayPolicyRecord, type PayPolicyRow } from "./lib/payPolicy";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { ranks, representativeValue } from "../../web/features/company/lib/radar";
@@ -452,7 +453,24 @@ export function buildData(outDir: string) {
     filingsGzipSize,
     payPoliciesGzipSize,
     lapsed,
+    textBehind: textBehindNumbers(ledger, rows),
   };
+}
+
+/**
+ * 文章の工程が、数字より前の書類のままの社数（refresh の D3）。**ずれていること自体は正しい状態**
+ * （spec 1.5）なのでビルドは落とさないが、文章の書き直し（D6）が追いついているかは毎回目に入る
+ * ようにする。見るのは母集団の会社だけで、その工程をまだ回していない会社（空）は数えない。
+ */
+function textBehindNumbers(ledger: Ledger, rows: ReturnType<typeof parseUnifiedCsv>) {
+  const count = { description: 0, analysis: 0, payPolicy: 0 };
+  for (const row of rows) {
+    const { docs } = ledger.get(row.edinetCode)!;
+    for (const stage of ["description", "analysis", "payPolicy"] as const) {
+      if (docs[stage] !== "" && docs[stage] !== docs.numbers) count[stage]++;
+    }
+  }
+  return count;
 }
 
 /**
@@ -746,27 +764,37 @@ function buildSummaries(
   const header = table[0] ?? [];
   const codeIndex = header.indexOf("edinet_code");
   const summaryIndex = header.indexOf("summary");
-  if (codeIndex === -1 || summaryIndex === -1) {
+  const docIndex = header.indexOf("source_doc_id");
+  const periodIndex = header.indexOf("source_period_end");
+  if (codeIndex === -1 || summaryIndex === -1 || docIndex === -1 || periodIndex === -1) {
     throw new Error(
-      "data/company_summary.csv に edinet_code / summary の列がありません。" +
+      "data/company_summary.csv に edinet_code / summary / source_doc_id / source_period_end の列がありません。" +
         "pipeline/summary/generate.py の merge を確認すること"
     );
   }
 
-  const byEdinetCode = new Map<string, string>();
+  const byEdinetCode = new Map<string, { summary: string; filing: FilingRef }>();
   for (const line of table.slice(1)) {
     const summary = line[summaryIndex] ?? "";
     if (summary === "") continue;
-    byEdinetCode.set(line[codeIndex] ?? "", summary);
+    const code = line[codeIndex] ?? "";
+    byEdinetCode.set(code, {
+      summary,
+      filing: filingRef(line[docIndex] ?? "", line[periodIndex] ?? "", code),
+    });
   }
 
+  // **説明文を作った書類は別の辞書に置く**（refresh の D3）。説明文は島の props に載る
+  // （`CompanyPageData.summary`）が、書類は「このページの出典」（島の外）だけが使う。
   const byId: Record<string, string> = {};
+  const filingById: Record<string, FilingRef> = {};
   let matched = 0;
   rows.forEach((row, i) => {
-    const summary = byEdinetCode.get(row.edinetCode);
-    if (summary === undefined) return;
+    const entry = byEdinetCode.get(row.edinetCode);
+    if (entry === undefined) return;
     matched++;
-    byId[companyRows[i][0] as string] = summary;
+    byId[companyRows[i][0] as string] = entry.summary;
+    filingById[companyRows[i][0] as string] = entry.filing;
   });
 
   // **突合が全件当たることを確かめる**（`buildWorklife` と同じガード）。CSV に
@@ -779,7 +807,7 @@ function buildSummaries(
     );
   }
 
-  return { byId };
+  return { byId, filingById };
 }
 
 /**
@@ -813,6 +841,8 @@ function buildAnalyses(
   const analysisIndex = col("analysis");
   const sourcesIndex = col("sources");
   const generatedAtIndex = col("generated_at");
+  const docIndex = col("source_doc_id");
+  const periodIndex = col("source_period_end");
 
   const byEdinetCode = new Map<string, AnalysisRecord>();
   for (const line of table.slice(1)) {
@@ -824,6 +854,8 @@ function buildAnalyses(
         body: line[analysisIndex] ?? "",
         sources: line[sourcesIndex] ?? "",
         generatedAt: line[generatedAtIndex] ?? "",
+        docId: line[docIndex] ?? "",
+        periodEnd: line[periodIndex] ?? "",
       },
       code
     );
@@ -874,16 +906,11 @@ function buildPayPolicies(
     if (policy === undefined) return;
     matched++;
     /*
-     * **原文を切り出した書類が、いま平均年間給与を取っている書類と同じであることを確かめる。**
-     * 母集団を作り直して書類が入れ替わった会社で、古い書類の方針を新しい数字の隣に出さない。
-     * 食い違ったら C18 を回し直す（`plan` は原文の変わった会社を選ぶ）。
+     * **原文の書類が数字の書類と違っても落とさない**（refresh の D3・spec 1.5）。以前（C19）は
+     * 「古い書類の方針を新しい数字の隣に出さない」ために落としていたが、毎日の更新では数字が先に
+     * 新しい書類へ替わり、給与の決定方針は書き直すまで前の書類のまま出る。節はその書類を指し、
+     * ずれていればその期を名乗る（`web/features/company/lib/payPolicy.ts`）。
      */
-    if (policy.doc_id !== row.docId) {
-      throw new Error(
-        `${row.name} の給与の決定方針は ${policy.doc_id} から取ったが、いまの書類は ${row.docId} です。` +
-          "pipeline/paypolicy で C18 を回し直すこと"
-      );
-    }
     const record = toPayPolicyRecord(policy);
     if (record !== null) byId[companyRows[i][0] as string] = record;
   });
@@ -1271,6 +1298,11 @@ if (isMain) {
         .slice(0, 5)
         .map((r) => ` ${r.name}`)
         .join("")
+  );
+  const behind = result.textBehind;
+  console.log(
+    `数字より前の書類のままの文章: 説明文 ${behind.description}社・要約と分析 ${behind.analysis}社・` +
+      `給与の決定方針 ${behind.payPolicy}社`
   );
   console.log(result.curvesPath);
   console.log(

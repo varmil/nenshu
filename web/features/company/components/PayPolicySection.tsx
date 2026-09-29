@@ -24,10 +24,13 @@ import { FilingLink } from "./FilingLink";
  * - **段落の中の改行は残す**（`whitespace-pre-line`）。原文の行の区切りのまま読ませる
  * - **「生成AI」の語を置かない。** 文そのものを AI が書いたように読める。範囲の判定に生成AIを
  *   使ったことは「このページの出典」と `/about` が言う（spec 1.23）
- * - **決算期を書かない。** 企業詳細の決算期は Q&A の説明と要約の説明の2か所（site-chrome spec 5.1）
+ * - **決算期は、数字の決算期とずれたときだけ書く**（refresh の D3）。そろっていれば企業詳細の
+ *   決算期は Q&A の説明と要約の説明の2か所（site-chrome spec 5.1）。ずれていれば、引用の枠の先頭に
+ *   「{期}の有価証券報告書の「◯◯」から」と原文の期を出す
+ * - **引用の `cite` と下辺の帯は、原文を切り出した書類を指す**（数字の書類ではない。refresh の D3）
  * - **下辺に EDINET の帯**（C13 と同じ）。原文の枠は下の角を丸めず、帯が枠の続きとして下の角を持つ
  */
-export function PayPolicySection({ view, docId }: { view: PayPolicyView; docId: string }) {
+export function PayPolicySection({ view }: { view: PayPolicyView }) {
   return (
     <section className="flex flex-col gap-2" data-testid="company-pay-policy">
       <h2 className="text-lg font-bold">{view.heading}</h2>
@@ -39,10 +42,13 @@ export function PayPolicySection({ view, docId }: { view: PayPolicyView; docId: 
       </p>
       <div className="flex flex-col">
         <blockquote
-          cite={edinetDocumentUrl(docId)}
+          cite={edinetDocumentUrl(view.docId)}
           className="border-border flex flex-col gap-2.5 rounded-t-lg border px-4 py-3.5"
         >
-          <p className="text-muted-foreground text-[11px] leading-4">「{view.sourceLabel}」から</p>
+          <p data-pay-source className="text-muted-foreground text-[11px] leading-4">
+            {view.fiscalPeriod !== null && `${view.fiscalPeriod}の有価証券報告書の`}「
+            {view.sourceLabel}」から
+          </p>
           {view.title !== null && (
             <p data-pay-title className="text-sm leading-[1.8] font-semibold whitespace-pre-line">
               {view.title}
@@ -74,7 +80,7 @@ export function PayPolicySection({ view, docId }: { view: PayPolicyView; docId: 
             </details>
           )}
         </blockquote>
-        <FilingLink docId={docId} testId="company-pay-policy-filing" />
+        <FilingLink docId={view.docId} testId="company-pay-policy-filing" />
       </div>
     </section>
   );

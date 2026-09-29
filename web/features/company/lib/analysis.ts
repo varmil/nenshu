@@ -9,6 +9,9 @@
  * 変わらない（AC-30）ので、クライアントが持つ理由が無い。
  */
 
+import type { FilingRef } from "@/lib/data/sources";
+import { periodLabel } from "@/lib/data/period";
+
 /** 分析が参照した外部の文書。`accessed` は `YYYY-MM-DD`。 */
 export interface AnalysisSource {
   url: string;
@@ -24,6 +27,8 @@ export interface AnalysisRecord {
   sources: AnalysisSource[];
   /** 分析を書いた年月（`YYYY-MM`・日本時間）。 */
   generatedAt: string;
+  /** 要約と分析の原文にした有報（refresh の D3）。 */
+  filing: FilingRef;
 }
 
 export interface AnalysisView {
@@ -36,6 +41,14 @@ export interface AnalysisView {
   sources: AnalysisSourceView[];
   /** 分析を書いた時点。`2026年9月時点`。 */
   asOf: string;
+  /** 要約と分析の原文にした有報の書類 ID。「このページの出典」の AI の2行がここを指す。 */
+  docId: string;
+  /**
+   * 要約の原文の決算期（`2026年3月期`）。**要約の節はこれを名乗る**（refresh の D3・spec 1.5）
+   * ——数字の側の決算期を借りると、数字だけが新しい書類に替わった会社で、前の期の要約が
+   * 新しい期を名乗る。
+   */
+  fiscalPeriod: string;
 }
 
 export interface AnalysisSourceView {
@@ -66,6 +79,8 @@ export function buildAnalysisView(record: AnalysisRecord | null | undefined): An
       meta: sourceMeta(source),
     })),
     asOf: asOfLabel(record.generatedAt),
+    docId: record.filing.docId,
+    fiscalPeriod: periodLabel(record.filing.period),
   };
 }
 
@@ -113,8 +128,8 @@ export function analysisNote(asOf: string): string {
  * `docs/site-chrome/spec.md` 5.1）。どの年度の有報を要約したのかが節の中で読めることが
  * 信頼性に効く。決算期を持つもう1つの節は直後の「年収に関するQ&A」（C16・#838。C15 までは
  * 離れた位置の「有価証券報告書の実測値」の見出し）で、それぞれが自分の節の中身の時点を言う。
- * 値は Q&A の説明と同じ `fiscalPeriod`（`pageData.ts`）で、要約の原文の書類は実測値と同じ
- * 書類なので食い違わない（C8 が同じ `doc_id` から落としている）。
+ * **値は要約の原文の決算期**（`AnalysisView.fiscalPeriod`。refresh の D3）。Q&A の決算期とは
+ * 違いうる——毎日の更新では数字が先に新しい書類へ替わり、要約は書き直すまで前の書類のまま出る。
  */
 export function digestNote(fiscalPeriod: string): string {
   return `${fiscalPeriod}の有価証券報告書のうち「経営成績の分析」「事業等のリスク」「対処すべき課題」「サステナビリティ」の4節に書いてある事実だけをまとめたものです。`;

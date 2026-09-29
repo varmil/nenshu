@@ -23,6 +23,7 @@ const record: AnalysisRecord = {
     },
   ],
   generatedAt: "2026-09",
+  filing: { docId: "S100TEST", period: "2025-03" },
 };
 
 describe("buildAnalysisView（AC-28）", () => {
@@ -32,6 +33,14 @@ describe("buildAnalysisView（AC-28）", () => {
     expect(view.headline).toBe("一言。");
     expect(view.sources[0].meta).toBe("www.mitsui.com・2026年9月8日に参照");
     expect(view.asOf).toBe("2026年9月時点");
+  });
+
+  // refresh の D3（spec 1.5・AC-3）。要約の節は数字の側ではなく、要約の原文の期を名乗る。
+  it("原文にした有報の書類と決算期を持つ", () => {
+    const view = buildAnalysisView(record)!;
+    expect(view.docId).toBe("S100TEST");
+    expect(view.fiscalPeriod).toBe("2025年3月期");
+    expect(digestNote(view.fiscalPeriod)).toMatch(/^2025年3月期の有価証券報告書のうち/);
   });
 
   it("記録が無い会社では null（節ごと出さない）", () => {

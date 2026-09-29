@@ -74,6 +74,8 @@ describe("toAnalysisRecord（AC-28）", () => {
     body: "本文。",
     sources: "[]",
     generatedAt: "2026-09-08T06:47:16+00:00",
+    docId: "S100TEST",
+    periodEnd: "2026-03-31",
   };
 
   it("要約と分析がそろっていれば記録を作る", () => {
@@ -83,7 +85,14 @@ describe("toAnalysisRecord（AC-28）", () => {
       body: "本文。",
       sources: [],
       generatedAt: "2026-09",
+      // 要約と分析の原文にした有報（refresh の D3）。要約の節はこの期を名乗る
+      filing: { docId: "S100TEST", period: "2026-03" },
     });
+  });
+
+  it("原文の書類が読めなければ落とす（期の無い要約を配らない）", () => {
+    expect(() => toAnalysisRecord({ ...line, docId: "" }, "x")).toThrow(/原文の書類/);
+    expect(() => toAnalysisRecord({ ...line, periodEnd: "2026/03/31" }, "x")).toThrow(/原文の書類/);
   });
 
   it("どちらかが空なら対で落とす", () => {

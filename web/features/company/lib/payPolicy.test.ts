@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { payPolicies as payPoliciesData, pickCompany, rowOf } from "@/testing/realData";
+import { companies, payPolicies as payPoliciesData, pickCompany, rowOf } from "@/testing/realData";
 import {
   blockChars,
   buildPayPolicyView,
@@ -10,12 +10,18 @@ import {
 } from "./payPolicy";
 
 const payPolicies = payPoliciesData.byId;
+/** 実データの会社の、数字の決算期（`YYYY-MM`）。 */
+const numbersPeriodOf = (id: string) => companies.periods[rowOf(id)[9]];
 
 const para = (chars: number, ch = "あ"): PayPolicyBlock => ({
   kind: "para",
   text: ch.repeat(chars),
 });
 const heading = (text: string): PayPolicyBlock => ({ kind: "heading", text });
+
+/** 合成の記録が持つ原文の書類。数字の決算期（`NUMBERS`）とそろえてある。 */
+const NUMBERS = "2026-03";
+const filing = { docId: "S100TEST", period: NUMBERS };
 
 describe("buildPayPolicyView", () => {
   it("見出しは社名から始まり、会社の小見出しと出どころの節を持ち、畳まない", () => {
@@ -28,20 +34,43 @@ describe("buildPayPolicyView", () => {
       );
     });
     const name = rowOf(id)[1];
-    expect(buildPayPolicyView(name, payPolicies[id])).toEqual({
+    expect(buildPayPolicyView(name, payPolicies[id], numbersPeriodOf(id))).toEqual({
       heading: `${name}の給与の決定方針`,
       sourceLabel: "人材戦略に関する基本方針等",
       title: payPolicies[id].title,
       open: payPolicies[id].blocks,
       folded: [],
       foldedChars: 0,
+      docId: payPolicies[id].filing.docId,
+      // 数字と同じ有報から切り出した会社では期を持たない（refresh の D3）
+      fiscalPeriod:
+        payPolicies[id].filing.period === numbersPeriodOf(id) ? null : expect.any(String),
+    });
+  });
+
+  /*
+   * refresh の D3（spec 1.5・AC-3）。数字だけが新しい有報に替わり、給与の決定方針がまだ前の有報の
+   * ままの会社。**節は原文の書類を指し、原文の期を名乗る。** そろっていれば期を持たない——直後の
+   * 「年収に関するQ&A」の説明が同じ期を言っている（site-chrome spec 5.1）。
+   */
+  it("原文の書類を指し、数字の決算期とずれたときだけ原文の期を持つ", () => {
+    const record = { source: "section" as const, filing, title: null, blocks: [para(10)] };
+    expect(buildPayPolicyView("x", record, NUMBERS)).toMatchObject({
+      docId: "S100TEST",
+      fiscalPeriod: null,
+    });
+    expect(buildPayPolicyView("x", record, "2027-03")).toMatchObject({
+      docId: "S100TEST",
+      fiscalPeriod: "2026年3月期",
     });
   });
 
   it("本文の無い会社は null（節ごと出さない）", () => {
     const id = pickCompany("給与の決定方針の本文が無い会社", (row) => !(row[0] in payPolicies));
-    expect(buildPayPolicyView(rowOf(id)[1], payPolicies[id])).toBeNull();
-    expect(buildPayPolicyView("x", { source: "section", title: null, blocks: [] })).toBeNull();
+    expect(buildPayPolicyView(rowOf(id)[1], payPolicies[id], numbersPeriodOf(id))).toBeNull();
+    expect(
+      buildPayPolicyView("x", { source: "section", filing, title: null, blocks: [] }, NUMBERS)
+    ).toBeNull();
   });
 
   it("参照先の節から取った会社は、その節の名前を出す", () => {
@@ -49,26 +78,34 @@ describe("buildPayPolicyView", () => {
       "給与の決定方針をサステナビリティの節から取った会社",
       (row) => payPolicies[row[0]]?.source === "sustainability"
     );
-    expect(buildPayPolicyView(rowOf(id)[1], payPolicies[id])?.sourceLabel).toBe(
-      "サステナビリティに関する考え方及び取組"
-    );
     expect(
-      buildPayPolicyView("x", { source: "employees", title: null, blocks: [para(10)] })?.sourceLabel
+      buildPayPolicyView(rowOf(id)[1], payPolicies[id], numbersPeriodOf(id))?.sourceLabel
+    ).toBe("サステナビリティに関する考え方及び取組");
+    expect(
+      buildPayPolicyView(
+        "x",
+        { source: "employees", filing, title: null, blocks: [para(10)] },
+        NUMBERS
+      )?.sourceLabel
     ).toBe("従業員の状況");
   });
 
   it("1,000字までは畳まない", () => {
-    const view = buildPayPolicyView("x", {
-      source: "section",
-      title: null,
-      blocks: [para(500), para(500)],
-    })!;
+    const view = buildPayPolicyView(
+      "x",
+      { source: "section", filing, title: null, blocks: [para(500), para(500)] },
+      NUMBERS
+    )!;
     expect(view.folded).toEqual([]);
   });
 
   it("1,000字を超えたら、400字に届いた塊で切り、残りの字数を数える", () => {
     const blocks = [para(250), para(200), para(300), para(300)];
-    const view = buildPayPolicyView("x", { source: "section", title: null, blocks })!;
+    const view = buildPayPolicyView(
+      "x",
+      { source: "section", filing, title: null, blocks },
+      NUMBERS
+    )!;
     expect(view.open).toEqual(blocks.slice(0, 2));
     expect(view.folded).toEqual(blocks.slice(2));
     expect(view.foldedChars).toBe(600);
@@ -76,13 +113,21 @@ describe("buildPayPolicyView", () => {
 
   it("開いている部分を小見出しで終わらせない", () => {
     const blocks = [para(390), heading("（賞与）"), para(300), para(400)];
-    const view = buildPayPolicyView("x", { source: "section", title: null, blocks })!;
+    const view = buildPayPolicyView(
+      "x",
+      { source: "section", filing, title: null, blocks },
+      NUMBERS
+    )!;
     expect(view.open).toEqual(blocks.slice(0, 3));
     expect(view.folded).toEqual(blocks.slice(3));
   });
 
   it("畳む部分が空になるなら畳まない", () => {
-    const view = buildPayPolicyView("x", { source: "section", title: null, blocks: [para(1200)] })!;
+    const view = buildPayPolicyView(
+      "x",
+      { source: "section", filing, title: null, blocks: [para(1200)] },
+      NUMBERS
+    )!;
     expect(view.open).toHaveLength(1);
     expect(view.folded).toEqual([]);
   });
@@ -94,7 +139,7 @@ describe("buildPayPolicyView", () => {
   it("全社で、開く部分と畳む部分をつなぐと元の本文に戻り、畳むのは1,000字を超える会社だけ", () => {
     let folded = 0;
     for (const [id, record] of Object.entries(payPolicies)) {
-      const view = buildPayPolicyView("x", record)!;
+      const view = buildPayPolicyView("x", record, record.filing.period)!;
       expect([...view.open, ...view.folded], id).toEqual(record.blocks);
       const total = record.blocks.reduce((sum, b) => sum + blockChars(b), 0);
       if (view.folded.length > 0) {

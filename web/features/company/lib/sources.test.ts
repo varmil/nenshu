@@ -1,15 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { PRIMARY_SOURCES, edinetDocumentUrl } from "@/lib/data/sources";
-import { buildSourceRows, type PagePresence, type SourceSegment } from "./sources";
+import { buildSourceRows, type PageSources, type SourceSegment } from "./sources";
 
-const ALL: PagePresence = {
+/** すべての節がそろい、文章も数字と同じ有報から作った会社。 */
+const ALL: PageSources = {
   history: true,
   tenureHistory: true,
-  summary: true,
-  analysis: true,
-  payPolicy: true,
   filingDocId: "S100YAHE",
+  summaryDocId: "S100YAHE",
+  analysisDocId: "S100YAHE",
+  payPolicyDocId: "S100YAHE",
 };
+
+/** 行の出典の中の、有報の書類へのリンク。 */
+const docLinks = (row: ReturnType<typeof buildSourceRows>[number]) =>
+  row.source.flatMap((s) => (typeof s !== "string" && "url" in s ? [s.url] : []));
 
 const byKind = (rows: ReturnType<typeof buildSourceRows>, kind: string) =>
   rows.find((r) => r.kind === kind)!;
@@ -38,13 +43,45 @@ describe("buildSourceRows（C12・AC-16）", () => {
     const linked = buildSourceRows(ALL).flatMap((r) =>
       r.source.flatMap((s) => (typeof s === "string" ? [] : ["source" in s ? s.source : s.url]))
     );
-    // 原文と実測値の「有価証券報告書」は、どちらもその会社の同じ書類を指す。
+    // 有報を挙げる行（原文・実測値・AIの要約・AIの評価）は、どれもその会社の書類を指す。
     expect(linked).toEqual([
       edinetDocumentUrl("S100YAHE"),
       edinetDocumentUrl("S100YAHE"),
       "wageCensus",
       "positiveDb",
+      edinetDocumentUrl("S100YAHE"),
+      edinetDocumentUrl("S100YAHE"),
     ]);
+  });
+
+  /*
+   * refresh の D3（spec 1.5・AC-3）。数字だけが新しい有報に替わり、文章がまだ前の有報のままの会社。
+   * **行ごとに、その行の中身を作った書類を指す。**
+   */
+  it("数字と文章の書類がずれた会社では、行ごとにその中身を作った書類を指す", () => {
+    const rows = buildSourceRows({
+      ...ALL,
+      filingDocId: "S100NEW1",
+      summaryDocId: "S100OLD1",
+      analysisDocId: "S100OLD1",
+      payPolicyDocId: "S100OLD1",
+    });
+    expect(docLinks(byKind(rows, "measured"))).toEqual([edinetDocumentUrl("S100NEW1")]);
+    for (const kind of ["original", "aiDigest", "aiAnalysis"]) {
+      expect(docLinks(byKind(rows, kind)), kind).toEqual([edinetDocumentUrl("S100OLD1")]);
+    }
+  });
+
+  it("説明文と要約の書類が違えば、AIの要約の行を分ける（1行ではどちらの書類か読めない）", () => {
+    const digest = buildSourceRows({ ...ALL, summaryDocId: "S100OLD1" }).filter(
+      (r) => r.kind === "aiDigest"
+    );
+    expect(digest.map((r) => [r.covers, docLinks(r)])).toEqual([
+      ["社名の下の説明文", [edinetDocumentUrl("S100OLD1")]],
+      ["「有価証券報告書の要約」", [edinetDocumentUrl("S100YAHE")]],
+    ]);
+    // 同じ書類なら1行に束ねる
+    expect(buildSourceRows(ALL).filter((r) => r.kind === "aiDigest")).toHaveLength(1);
   });
 
   it("実測値の行の「有価証券報告書」が、渡した書類 ID の閲覧ページを指す", () => {
@@ -89,18 +126,20 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("説明文の無い会社では、AIの要約に説明文を挙げない", () => {
-    const digest = buildSourceRows({ ...ALL, summary: false }).find((r) => r.kind === "aiDigest");
+    const digest = buildSourceRows({ ...ALL, summaryDocId: null }).find(
+      (r) => r.kind === "aiDigest"
+    );
     expect(digest?.covers).toBe("「有価証券報告書の要約」");
   });
 
   it("要約と分析の無い会社では、AIの評価の行を出さず、AIの要約は説明文だけになる", () => {
-    const rows = buildSourceRows({ ...ALL, analysis: false });
+    const rows = buildSourceRows({ ...ALL, analysisDocId: null });
     expect(rows.map((r) => r.kind)).not.toContain("aiAnalysis");
     expect(rows.find((r) => r.kind === "aiDigest")?.covers).toBe("社名の下の説明文");
   });
 
   it("AIの文章が1つも無い会社では、AIの2区分とも出さない", () => {
-    const rows = buildSourceRows({ ...ALL, summary: false, analysis: false });
+    const rows = buildSourceRows({ ...ALL, summaryDocId: null, analysisDocId: null });
     expect(rows.map((r) => r.label)).toEqual(["原文", "実測値", "計算値", "推定値", "自己申告値"]);
   });
 
@@ -109,7 +148,7 @@ describe("buildSourceRows（C12・AC-16）", () => {
    * だけが言う**——給与の決定方針の節の中には「生成AI」の語を置かない。
    */
   it("給与の決定方針のある会社では原文を先頭に置き、有報の書類へリンクし、範囲の判定に生成AIを使ったと書く", () => {
-    const original = buildSourceRows({ ...ALL, filingDocId: "S100YBLA" })[0];
+    const original = buildSourceRows({ ...ALL, payPolicyDocId: "S100YBLA" })[0];
     expect(original.kind).toBe("original");
     expect(original.covers).toBe("給与の決定方針");
     expect(text(original.source)).toBe(
@@ -122,7 +161,7 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   it("給与の決定方針の無い会社（改正前の様式・空）では原文の行を出さない", () => {
-    expect(buildSourceRows({ ...ALL, payPolicy: false }).map((r) => r.label)).toEqual([
+    expect(buildSourceRows({ ...ALL, payPolicyDocId: null }).map((r) => r.label)).toEqual([
       "実測値",
       "計算値",
       "推定値",

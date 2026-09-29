@@ -22,7 +22,11 @@ export function SourcesSection({ rows }: { rows: SourceRow[] }) {
       <h2 className="text-lg font-bold">このページの出典</h2>
       <dl className="border-border divide-border divide-y border-t border-b text-xs leading-normal">
         {rows.map((row) => (
-          <div key={row.kind} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 py-1.5">
+          // AIの要約は、説明文と要約の書類が違えば2行になる（refresh の D3）ので、区分だけでは鍵にならない
+          <div
+            key={`${row.kind}:${row.covers}`}
+            className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 py-1.5"
+          >
             <dt className="font-semibold">{row.label}</dt>
             <dd>
               {row.covers}

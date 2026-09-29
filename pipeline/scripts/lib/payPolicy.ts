@@ -5,6 +5,7 @@
  * **表示に要る形へ直すだけで、文は1字も書き換えない**。落とすのは画面が使わない鍵（範囲の番号・
  * 字数・判定のメモなど）と、画像の代替テキストだけ。
  */
+import { filingRef, type FilingRef } from "./filing";
 
 /**
  * 本文の塊。`heading` は「句点で終わらない短い行」で、見出しとは限らない（C18 の design.md）。
@@ -26,6 +27,11 @@ export type PayPolicySource = "section" | "sustainability" | "employees";
 
 export interface PayPolicyRecord {
   source: PayPolicySource;
+  /**
+   * 原文を切り出した有報（refresh の D3）。節の引用と EDINET の帯はこの書類を指す。数字の書類とは
+   * 違いうる——数字は新しい有報が出た翌日に替わり、給与の決定方針は書き直すまで前の書類のまま。
+   */
+  filing: FilingRef;
   /** 給与の決定方針そのものに会社が付けた小見出し。無ければ `null`。引用の先頭に出す（spec 1.23）。 */
   title: string | null;
   blocks: PayPolicyBlock[];
@@ -34,6 +40,7 @@ export interface PayPolicyRecord {
 /** C18 の成果物の1行（使う鍵だけ）。 */
 export interface PayPolicyRow {
   doc_id: string;
+  period_end: string;
   edinet_code: string;
   name: string;
   verdict: string;
@@ -65,6 +72,7 @@ export function toPayPolicyRecord(row: PayPolicyRow): PayPolicyRecord | null {
   }
   return {
     source: row.source as PayPolicySource,
+    filing: filingRef(row.doc_id, row.period_end, where),
     title: row.title,
     blocks: row.blocks.map((block) => toBlock(block, where)),
   };

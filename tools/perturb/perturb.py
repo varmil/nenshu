@@ -11,11 +11,12 @@
 2. 全社の平均年収を、会社ごとに ±1〜9% 動かす（その書類の10年推移の行も同じだけ）
 3. 新しい会社を2社足す。上場（証券コードあり）と非上場（EDINETコードだけ）を1社ずつ。
    10年推移はその年の1行だけで、ロゴ・働きやすさ・稼ぐ力・文章は持たない
-4. 決算期がいちばん新しい会社の1社を、翌月の決算期の新しい書類に替える
+4. 決算期がいちばん新しい会社の1社を、翌月の決算期の新しい書類に替える。**替えるのは
+   数字の書類だけ**で、説明文・要約と分析・給与の決定方針は前の書類のまま残す——毎日の
+   更新で実際に起きる「数字は新しく、文章は前の期」の会社になる（refresh の D3）
 
-**揺らさないもの。** 給与の決定方針のある会社の書類 ID（替えると D3 のガードで
-ビルドが落ちる）と、掲載から外れた会社の横持ちデータの行（D9 が扱う）。どちらも
-D0 の範囲の外で、ここで触るとそちらの失敗が混ざる。
+**揺らさないもの。** 掲載から外れた会社の横持ちデータの行（D9 が扱う）。D0 の範囲の外で、
+ここで触るとそちらの失敗が混ざる。
 
 **更新台帳（`pipeline/data/ledger.csv`・D2）も同じように動かす。** 足す2社の ID は
 台帳の規則（`ledger.admit`）で振り、書類を替えた会社は台帳の数字の書類と提出日も替える。
@@ -163,15 +164,18 @@ def next_month_end(period_end):
 def newer_period(rows, history, book, as_of):
     """1社を、いまのいちばん新しい決算期の翌月の決算期の、新しい書類に替える。
 
-    選ぶのは給与の決定方針を持たない会社のうち決算期がいちばん新しい会社。いちばん新しい
-    決算期の会社は、改正後の様式でほぼ全社が給与の決定方針を持っている。
+    **選ぶのは文章の節（説明文・要約と分析・給与の決定方針）をすべて持つ会社**のうち、決算期が
+    いちばん新しい会社。数字だけが新しい書類になり、文章の節はどれも前の書類のまま残るので、
+    各節が自分の書類の期を名乗るか（refresh の D3・spec 1.5）を E2E がこの会社で見る。
     """
     policies = json.loads((DATA / "pay_policy.json").read_text(encoding="utf-8"))
-    with_policy = {p["edinet_code"] for p in policies}
+    with_policy = {p["edinet_code"] for p in policies if p["blocks"]}
+    _, summaries = read_csv(DATA / "company_summary.csv")
+    with_summary = {r["edinet_code"] for r in summaries if r["summary"]}
     original = [r for r in rows if not r["edinet_code"].startswith("E9999")]
     latest = max(r["period_end"] for r in original)
     target = max(
-        (r for r in original if r["edinet_code"] not in with_policy),
+        (r for r in original if r["edinet_code"] in with_policy and r["edinet_code"] in with_summary),
         key=lambda r: (r["period_end"], r["edinet_code"]),
     )
     new_period, new_doc = next_month_end(latest), "S1ZZZZ09"

@@ -19,6 +19,7 @@ import type {
 } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { companyFiscalPeriodLabel } from "@/lib/data/period";
+import type { FilingRef } from "@/lib/data/sources";
 import companiesData from "@/public/data/companies.json" with { type: "json" };
 import curvesData from "@/public/data/curves.json" with { type: "json" };
 import statsData from "@/public/data/stats.json" with { type: "json" };
@@ -103,6 +104,11 @@ const logoIds = logosData.byId as Record<string, unknown>;
  * `buildSummaryView` で `null` になり、節ごと出ない（AC-21）。
  */
 const summaries = summariesData.byId as Record<string, string>;
+/**
+ * 説明文を作った有報（refresh の D3）。「このページの出典」の説明文の行がこの書類を指す。
+ * **説明文とは別の辞書**——説明文は島の props に載るが、書類は島の外の出典の節だけが使う。
+ */
+const summaryFilings = summariesData.filingById as Record<string, FilingRef>;
 const analyses = analysesData.byId as Record<string, AnalysisRecord>;
 
 /**
@@ -333,7 +339,22 @@ export function companyAnalysisFor(id: string): AnalysisView | null {
  * `[id].astro` が静的な HTML にして名前付きスロットで島に差し込む。社名は見出しに使う。
  */
 export function companyPayPolicyFor(id: string, name: string): PayPolicyView | null {
-  return buildPayPolicyView(name, payPolicies[id]);
+  return buildPayPolicyView(name, payPolicies[id], numbersPeriodOf(id));
+}
+
+/** 数字（実測値の4項目）の決算期（`YYYY-MM`）。文章の原文の期と比べるのに使う（refresh の D3）。 */
+function numbersPeriodOf(id: string): string {
+  const index = findRowIndex(companies, id);
+  if (index === -1) throw new Error(`企業ID ${id} が companies.json にありません`);
+  return companies.periods[companies.rows[index][9]];
+}
+
+/**
+ * 説明文を作った有報の書類 ID（refresh の D3）。説明文の無い会社は `null`。**`companyPageData` に
+ * 入れない**——使うのは島の外で描く「このページの出典」だけ（`companyFilingDocId` と同じ）。
+ */
+export function companySummaryDocId(id: string): string | null {
+  return summaryFilings[id]?.docId ?? null;
 }
 
 /** 事前生成する全社のID（Astro の `getStaticPaths`）。 */

@@ -79,21 +79,12 @@ export function AnalysisSection({ name, view }: { name: string; view: AnalysisVi
  * 「{社名}の有価証券報告書の要約」。**稼ぐ力の推移の後ろ・この数字の作り方の前**。
  * 1文目が事業の説明になりやすく、ページ上部の説明文（C7）と内容が重なるので離して置く。
  */
-export function DigestSection({
-  name,
-  view,
-  fiscalPeriod,
-}: {
-  name: string;
-  view: AnalysisView;
-  /** その会社の決算期（`2026年3月期`）。直後の「年収に関するQ&A」の説明と同じ値。 */
-  fiscalPeriod: string;
-}) {
+export function DigestSection({ name, view }: { name: string; view: AnalysisView }) {
   return (
     <section className="flex flex-col" data-testid="company-digest">
       <h2 className="text-lg font-bold">{name}の有価証券報告書の要約</h2>
       <p className="text-muted-foreground mt-1 mb-2.5 text-xs leading-relaxed">
-        {digestNote(fiscalPeriod)}
+        {digestNote(view.fiscalPeriod)}
       </p>
       <p className="text-[13px] leading-[1.85] text-pretty sm:text-sm">{view.digest}</p>
     </section>
