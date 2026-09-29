@@ -12,8 +12,8 @@ import type { CompanyRow, RankedCompany, TargetAge } from "../types";
 const facts = buildAboutFacts(companies, curves);
 
 /*
- * 本文の実例は `aboutFacts.ts` が社名で引く2社（みずほFG・みずほ銀行）。ここでは ID で
- * 引いて突き合わせる——ID は一度振ったら変わらない（ADR-0017）。
+ * 本文の実例は `aboutFacts.ts` が ID で引く2社（みずほFG・みずほ銀行）。ID は一度振ったら
+ * 変わらない（ADR-0017）ので、名指しは「居る」ことだけを前提にしている。
  */
 const HOLDING_ID = "8411";
 const OPERATING_ID = "E03532";
@@ -81,9 +81,9 @@ describe("buildAboutFacts", () => {
   it("実例の会社がデータから消えたら throw する（本文が静かに壊れるのを防ぐ）", () => {
     const without = {
       ...companies,
-      rows: companies.rows.filter((r) => r[1] !== "株式会社みずほ銀行"),
+      rows: companies.rows.filter((r) => r[0] !== OPERATING_ID),
     };
-    expect(() => buildAboutFacts(without, curves)).toThrow("株式会社みずほ銀行");
+    expect(() => buildAboutFacts(without, curves)).toThrow(OPERATING_ID);
   });
 });
 
