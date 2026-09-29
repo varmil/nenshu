@@ -1,21 +1,69 @@
 import type { Page } from "@playwright/test";
 import { test, expect } from "./appTest";
 import { collectPageRequests } from "./network";
+import { industryOf, pickCompany, rowOf, summaries } from "../testing/realData";
+import {
+  companyAnalysisFor,
+  companyFilingDocId,
+  companyPageData,
+  companyPayPolicyFor,
+} from "../features/company/lib/pageData";
+import { rankingPageData } from "../features/ranking/lib/pageData";
+import { buildActualsQa } from "../features/company/lib/actualsQa";
+import { companyBreadcrumb } from "../features/company/lib/breadcrumb";
+import { buildCardFacts, buildCardLead } from "../features/company/lib/cardFacts";
+import { buildCurveSummary } from "../features/company/lib/highlights";
+import { formatDeviation, statsForBasis } from "../features/company/lib/stats";
+import { buildTenureChart } from "../features/company/lib/tenureHistory";
+import { formatInt, formatManYen, toManYen } from "../features/ranking/lib/format";
+import { DEFAULT_TARGET_AGE } from "../features/ranking/lib/urlState";
+import { edinetDocumentUrl } from "../lib/data/sources";
 
 /**
  * 企業詳細ページ（C1）の骨格——表示基準の切替・年齢スイッチ・URL と履歴・ID・初期 HTML・
  * ランキングとの行き来。
  *
- * **金額・順位・偏差値の値そのものは `features/company/lib/view.test.ts` と
- * `cardFacts.test.ts` が spec（`docs/company/spec.md` §3）の数値で固定している。** ここは
- * 操作が画面に届くことを、キーエンス（6861）の数値を手がかりに見る。
+ * **金額・順位・偏差値の計算の正しさは `features/company/lib/view.test.ts` と
+ * `cardFacts.test.ts` が見ている。** ここは操作が画面に届くことを見る。**期待値はいまの
+ * データの値を書き写さず、画面と同じデータ組み立て（`companyPageData`）と整形関数から作る**
+ * （refresh の D0・#870。毎日の更新で金額も順位も社数も動く）。
  *
  * **`/company/6861?age=35` を直接開く形はもう使えない**（R1・ADR-0012）。企業詳細は
  * 全社を事前生成しており、表示基準は URL に出さずクライアントの状態としてだけ持つ。
  * 「年齢そろえ」の初期値は35歳（`DEFAULT_TARGET_AGE`）。
  */
 
-const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAHE,,";
+/**
+ * **居ることだけを前提にする会社**（企業 ID は変わらない・ADR-0017）。社名・金額・順位・業種は
+ * データから引く。状態（説明文がある・社名が長い 等）を前提にするテストは `pickCompany` で選ぶ。
+ */
+const KEYENCE = "6861";
+const keyence = companyPageData(KEYENCE);
+
+/** HTML のテキストとして書かれた形。社名の `&` 等（「Q&A」も）は escape されて届く。 */
+const htmlText = (text: string) =>
+  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+/**
+ * 表示基準と独立な節をすべて持つ会社（AC-3・AC-10 が各節の中身を見る）。説明文の無い会社・
+ * 推移の欠けた会社があるので名指ししない。
+ */
+const FULL = pickCompany(
+  "説明文・要約と分析・3つの推移・在籍年数の業種の中央値がそろった会社",
+  ([id]) => {
+    const data = companyPageData(id);
+    return (
+      data.summary !== null &&
+      companyAnalysisFor(id) !== null &&
+      data.history !== null &&
+      data.tenureHistory !== null &&
+      buildTenureChart(data.tenureHistory).medianLabel !== null &&
+      data.profitHistory !== null &&
+      data.profitHistory.income.some((value) => value !== null)
+    );
+  }
+);
+const full = companyPageData(FULL);
 
 /**
  * 大カードの順位の段（業界内順位・全体順位）。**何番目かでは引かず、中身で引く**
@@ -25,6 +73,13 @@ const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100
 const card = (page: Page) => page.locator('[data-slot="card"] dl').filter({ hasText: "全体順位" });
 
 /**
+ * 平均年収カードそのもの。**金額はカードの中で探す**——同じ金額が年齢別の表にも出ているので、
+ * ページ全体で探すとカードが切り替わらなくても表の側で通ってしまう。
+ */
+const salaryCard = (page: Page) =>
+  page.locator('[data-slot="card"]').filter({ has: page.getByText("全体順位", { exact: true }) });
+
+/**
  * 表示基準と独立な節の中身（spec AC-23・AC-30・AC-14・AC-34・timeseries AC-8・AC-22・performance AC-11）。
  * 名前つきで返すので、どれが動いたかが差分に出る。
  */
@@ -32,9 +87,7 @@ async function independentSections(page: Page): Promise<Record<string, string | 
   const byHeading = (name: string) =>
     page.getByRole("heading", { name }).locator("xpath=..").textContent();
   return {
-    説明文: await page
-      .getByText("電子応用機器の開発、製造及び販売を主な事業とする。")
-      .textContent(),
+    説明文: await page.getByText(full.summary!.text, { exact: true }).textContent(),
     分析: await page.getByTestId("company-analysis").textContent(),
     要約: await page.getByTestId("company-digest").textContent(),
     年齢別の説明文: await page
@@ -59,17 +112,17 @@ test.describe("企業詳細ページ", () => {
   test("AC-1・AC-9: 既定は有報の実測値で「推定」を出さず、年齢そろえでは推定であることと計算方法への導線を出す", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    await page.goto(`/company/${KEYENCE}`);
 
-    await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
-    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
-    await expect(page.getByText("2,178万円", { exact: true }).first()).toBeVisible();
-    // 金額の直下は有報の値を言い直す1文。全体平均との差は置かない（C15・#821）。
     await expect(
-      page.getByText(
-        "株式会社キーエンスの最新の有価証券報告書に基づく平均年収は 約2,178万円（平均年齢35.0歳）です。"
-      )
+      page.getByRole("heading", { name: keyence.view.name, level: 1, exact: true })
     ).toBeVisible();
+    await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
+    await expect(
+      salaryCard(page).getByText(formatManYen(keyence.view.avgSalary), { exact: true })
+    ).toBeVisible();
+    // 金額の直下は有報の値を言い直す1文。全体平均との差は置かない（C15・#821）。
+    await expect(page.getByText(buildCardLead(keyence.view), { exact: true })).toBeVisible();
     await expect(page.getByText(/全体平均 [\d,]+万円 に対して/)).toHaveCount(0);
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
@@ -105,7 +158,7 @@ test.describe("企業詳細ページ", () => {
   test("AC-11: 実測値では年齢の帯が残り、スイッチは無効で、押しても状態が変わらない", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    await page.goto(`/company/${KEYENCE}`);
 
     // **`exact` が要る。** W1（#150）の節の説明文が本文で「見せ方」を参照している。
     await expect(page.getByText("見せ方", { exact: true })).toBeVisible();
@@ -116,7 +169,7 @@ test.describe("企業詳細ページ", () => {
     const age25 = page.getByRole("button", { name: "25歳" });
     await expect(age25).toBeDisabled();
     await age25.click({ force: true });
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(new RegExp(`/company/${KEYENCE}$`));
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
   });
 
@@ -133,7 +186,9 @@ test.describe("企業詳細ページ", () => {
   test("AC-3: 年齢そろえと年齢スイッチで推定年収だけが変わり、独立な節もネットワークも URL も動かない", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    const at25 = statsForBasis(full.view, 25);
+    const at60 = statsForBasis(full.view, 60);
+    await page.goto(`/company/${FULL}`);
     const before = await independentSections(page);
     const requests = collectPageRequests(page);
 
@@ -143,18 +198,24 @@ test.describe("企業詳細ページ", () => {
 
     await page.getByRole("button", { name: "25歳" }).click();
     await expect(page.getByText("25歳時点の推定年収")).toBeVisible();
-    await expect(page.getByText("788万円", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("偏差値 125.7", { exact: true })).toBeVisible();
+    await expect(
+      salaryCard(page).getByText(formatManYen(at25.salary), { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText(`偏差値 ${formatDeviation(at25.deviation)}`, { exact: true })
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "60歳" }).click();
     await expect(page.getByRole("button", { name: "60歳" })).toHaveAttribute(
       "aria-pressed",
       "true"
     );
-    await expect(page.getByText("2,213万円", { exact: true }).first()).toBeVisible();
+    await expect(
+      salaryCard(page).getByText(formatManYen(at60.salary), { exact: true })
+    ).toBeVisible();
 
     expect(requests).toHaveLength(0);
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(new RegExp(`/company/${FULL}$`));
     expect(await independentSections(page)).toEqual(before);
   });
 
@@ -167,16 +228,32 @@ test.describe("企業詳細ページ", () => {
    * `e2e/ranking-refresh.spec.ts` と `e2e/about.spec.ts` が持つ。
    */
   test("AC-2: 偏差値は数字だけを出し、順位と位置バーが同じ視界にある", async ({ page }) => {
-    await page.goto("/company/6861");
+    const current = statsForBasis(keyence.view, DEFAULT_TARGET_AGE);
+    const rankAll = buildCardFacts(keyence.view, current).standing.find(
+      (fact) => fact.label === "全体順位"
+    )!;
+    await page.goto(`/company/${KEYENCE}`);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
 
-    await expect(page.getByText("偏差値 149.5", { exact: true })).toBeVisible();
-    await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
+    await expect(
+      page.getByText(`偏差値 ${formatDeviation(current.deviation)}`, { exact: true })
+    ).toBeVisible();
+    // 「上位◯%」は順位を出す2か所（h1 の下の行・カード）で見る。**ページ全体では見ない**
+    // ——会社の分析の本文には「上位◯%」を含むものがあり、どの会社がそうかは更新で変わる。
+    const heading = page.getByRole("heading", { level: 1 });
+    for (const area of [page.locator("header", { has: heading }), salaryCard(page)]) {
+      await expect(area).toHaveCount(1);
+      await expect(area.getByText(/上位[\d.]+%/)).toHaveCount(0);
+    }
     // 注記の言い回しはランキング側で変わりうるので、「100を超える」の一語で見る。
     await expect(page.getByText(/100を超え/)).toHaveCount(0);
 
-    await expect(card(page).getByText("2位 /2,961社")).toBeVisible();
-    await expect(page.getByText("全体2,961社の中の位置")).toBeVisible();
+    await expect(
+      card(page).getByText(`${rankAll.value} ${rankAll.total}`, { exact: true })
+    ).toBeVisible();
+    await expect(
+      page.getByText(`全体${formatInt(keyence.view.totalCount)}社の中の位置`, { exact: true })
+    ).toBeVisible();
   });
 
   /*
@@ -185,17 +262,17 @@ test.describe("企業詳細ページ", () => {
    * （親 Issue #130 が報告したのはこの形）。`replaceState` なので履歴は増えない。
    */
   test("古い `?age=N` のリンクは実測値で開き、URLから age が落ちる", async ({ page }) => {
-    await page.goto("/company/6861?age=60");
+    await page.goto(`/company/${KEYENCE}?age=60`);
 
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(new RegExp(`/company/${KEYENCE}$`));
     await expect(page.getByRole("button", { name: "60歳" })).toBeDisabled();
   });
 
   // 表示基準はクライアントの状態だけで持ち、URL にも履歴にも出さない（ADR-0012）。
   test("表示基準を切り替えても履歴は増えない", async ({ page }) => {
     await page.goto("/about");
-    await page.goto("/company/6861");
+    await page.goto(`/company/${KEYENCE}`);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await page.getByRole("button", { name: "45歳" }).click();
@@ -216,7 +293,7 @@ test.describe("企業詳細ページ", () => {
   test("AC-4: 25〜60歳のチャートが8点ぶんの金額を持ち、選んだ年齢だけを強調する", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    await page.goto(`/company/${KEYENCE}`);
     const chart = page.getByRole("img", { name: /年齢別の推定年収/ });
     await expect(chart.locator("circle")).toHaveCount(8);
     await expect(chart.locator("circle[r='6']")).toHaveCount(0);
@@ -224,7 +301,11 @@ test.describe("企業詳細ページ", () => {
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(chart.locator("circle[r='6']")).toHaveCount(1);
-    await expect(chart.locator("text").filter({ hasText: /^2,178$/ })).toHaveCount(1);
+    // 8点それぞれの金額（万円の数字だけ）が図の中の文字として出ている。
+    const labels = await chart.locator("text").allTextContents();
+    for (const stats of keyence.view.byBasis.filter((s) => s.targetAge !== null)) {
+      expect(labels, `${stats.targetAge}歳`).toContain(formatInt(toManYen(stats.salary)));
+    }
   });
 
   /*
@@ -234,30 +315,32 @@ test.describe("企業詳細ページ", () => {
   test("AC-5・AC-7: EDINETコードのIDで開け、存在しないIDと旧形式の書類IDは404", async ({
     request,
   }) => {
-    const mizuho = await request.get("/company/E03532");
-    expect(mizuho.status()).toBe(200);
-    expect(await mizuho.text()).toContain("株式会社みずほ銀行");
+    const unlisted = pickCompany("EDINETコードを ID にする会社", ([id]) => /^E\d{5}$/.test(id));
+    const response = await request.get(`/company/${unlisted}`);
+    expect(response.status()).toBe(200);
+    expect(await response.text()).toContain(htmlText(rowOf(unlisted)[1]));
 
     expect((await request.get("/company/s100yfah")).status()).toBe(404);
     expect((await request.get("/company/does-not-exist")).status()).toBe(404);
   });
 
   /*
-   * 単体が連結の10%未満の会社（244社）だけ、平均年収の回答に断りが入る。文言と、断りの無い
+   * 単体が連結の10%未満の会社（`hasBadge`）だけ、平均年収の回答に断りが入る。文言と、断りの無い
    * 会社の文は `lib/actualsQa.test.ts`。ここではページが `hasBadge` を Q&A まで渡していることを見る。
    * 2026-09-28 までは社名の隣の「本社のみ」バッジとフッタの注記がこの役だった。
    */
-  test("AC-6: 単体が連結の10%未満の三菱商事は、Q&A の平均年収の回答に断りがある", async ({
-    page,
-  }) => {
-    await page.goto("/company/8058");
+  test("AC-6: 単体が連結の10%未満の会社は、Q&A の平均年収の回答に断りがある", async ({ page }) => {
+    const id = pickCompany("単体が連結の10%未満の会社（hasBadge）", (row) => row[8] === 1);
+    const { view, fiscalPeriod } = companyPageData(id);
+    // 期待する文が断りの入った形であること（ここが偽だと、断りの無い文どうしを比べて通る）。
+    expect(view.hasBadge).toBe(true);
+    const { answer } = buildActualsQa(view, fiscalPeriod).items[0];
+    await page.goto(`/company/${id}`);
 
     const salaryAnswer = page.getByTestId("company-qa-list").locator("p").first();
-    await expect(salaryAnswer).toHaveText(
-      "三菱商事株式会社の平均年収は2,113万円です（提出会社単体の4,456人の平均で、グループ全体の平均ではありません）。"
-    );
+    await expect(salaryAnswer).toHaveText(`${answer.before}${answer.value}${answer.after}`);
     // 太字は金額だけ（C16）。断りまで太くしない。
-    await expect(salaryAnswer.locator("strong")).toHaveText("2,113万円");
+    await expect(salaryAnswer.locator("strong")).toHaveText(answer.value);
   });
 
   /*
@@ -272,34 +355,36 @@ test.describe("企業詳細ページ", () => {
   test("AC-10: JS実行前のHTMLに各節の中身が入り、送るのはその会社の1社ぶんだけ（/ には入らない）", async ({
     request,
   }) => {
-    const response = await request.get("/company/6861");
+    const { view, fiscalPeriod, summary } = full;
+    const qa = buildActualsQa(view, fiscalPeriod);
+    const byAge = view.byBasis.filter((s) => s.targetAge !== null);
+    const response = await request.get(`/company/${FULL}`);
     expect(response.status()).toBe(200);
     const html = await response.text();
 
+    expect(html, "年齢別の折れ線（C1）").toContain("<polyline");
     for (const [label, text] of [
-      ["社名", "株式会社キーエンス"],
-      ["実測値の金額（C1）", "2,178万円"],
-      ["年齢別の折れ線（C1）", "<polyline"],
-      ["到達年齢の文（C4）", "30歳で1,200万円"],
+      ["社名", view.name],
+      ["実測値の金額（C1）", formatManYen(view.avgSalary)],
+      ["年齢別の説明文（C4）", buildCurveSummary(byAge, view.name).join("")],
       // 年収に関するQ&A（C16 AC-34）。回答は値だけが `strong` なので、値を挟んだ前後で見る。
-      ["Q&A の見出し（C16）", "株式会社キーエンスの年収に関するQ&amp;A"],
-      ["Q&A の質問（C16）", "株式会社キーエンスの平均年収はいくらですか？"],
-      ["Q&A の質問（C16）", "株式会社キーエンスの平均年齢は何歳ですか？"],
-      ["Q&A の質問（C16）", "株式会社キーエンスの平均勤続年数は何年ですか？"],
-      ["Q&A の質問（C16）", "株式会社キーエンスの従業員数は何人ですか？"],
-      ["Q&A の回答の書き出し（C16）", "株式会社キーエンスの平均勤続年数は"],
-      ["Q&A の回答の値（C16）", "11.3年"],
-      ["Q&A の従業員数の断り（C16）", "です（提出会社単体。連結子会社の従業員は含みません）。"],
-      ["説明文（C7 AC-21）", "電子応用機器の開発、製造及び販売を主な事業とする。"],
+      ["Q&A の見出し（C16）", qa.heading],
+      ...qa.items.flatMap(({ question, answer }) => [
+        ["Q&A の質問（C16）", question],
+        ["Q&A の回答の書き出し（C16）", answer.before],
+        ["Q&A の回答の値（C16）", answer.value],
+        ["Q&A の回答の結び（C16）", answer.after],
+      ]),
+      ["説明文（C7 AC-21）", summary!.text],
       ["このページの出典（C12 AC-16）", "このページの出典"],
-      ["有報への直リンク（C13 AC-31）", KEYENCE_DOC_URL],
+      ["有報への直リンク（C13 AC-31）", edinetDocumentUrl(companyFilingDocId(FULL))],
       ["有報への直リンクの文言（C13 AC-31）", "この会社の有価証券報告書"],
       ["在籍年数の推移（T4）", "在籍年数推移（過去10年間）"],
       ["在籍年数の業種の中央値（T4）", "業種の中央値"],
       ["稼ぐ力の推移（P2）", "稼ぐ力の推移（過去10年間）"],
       ["稼ぐ力の経常利益（P2）", "億円"],
-    ] as const) {
-      expect(html, label).toContain(text);
+    ]) {
+      expect(html, label).toContain(htmlText(text));
     }
 
     // 本文の先頭は平均年収カードで、レーダーはその後ろ（C15・spec AC-33）。カードには見出しが
@@ -316,22 +401,34 @@ test.describe("企業詳細ページ", () => {
     expect(html, "この数字の作り方（AC-16）").not.toContain("この数字の作り方");
 
     /*
-     * **クライアントに渡すのは当該1社ぶんだけ**（AC-23）。`summaries.json` は 2,951社ぶん
-     * （gzip 273.7KB）あり、丸ごと props に載せるとページの予算を超える。他社の説明文の
-     * 書き出しが混じっておらず、出典の1行（説明文と対）が1回だけ。
+     * **クライアントに渡すのは当該1社ぶんだけ**（AC-23）。`summaries.json` は全社ぶんあり、
+     * 丸ごと props に載せるとページの予算を超える。他社の説明文が混じっておらず、出典の1行
+     * （説明文と対）が1回だけ。
      */
-    expect(html, "他社の説明文").not.toContain("自動車の生産及び販売");
+    const other = pickCompany(
+      "説明文のある別の会社",
+      ([id]) => id !== FULL && summaries.byId[id] !== undefined
+    );
+    expect(html, "他社の説明文").not.toContain(htmlText(summaries.byId[other]));
     expect(html.split("をもとに要約").length - 1, "説明文の出典の1行").toBe(1);
 
     // 企業詳細だけが読むデータは、トップページの HTML に入らない（AC-30・AC-31）。
+    const paragraphs = (id: string) =>
+      (companyPayPolicyFor(id, rowOf(id)[1])?.open ?? []).flatMap((block) =>
+        block.kind === "para" ? [block.text] : []
+      );
+    const policy = pickCompany(
+      "給与の決定方針に段落のある会社",
+      ([id]) => paragraphs(id).length > 0
+    );
     const top = await (await request.get("/")).text();
     for (const [label, text] of [
-      ["書類 ID（C13）", "S100YAHE"],
+      ["書類 ID（C13）", companyFilingDocId(FULL)],
       ["EDINET の閲覧ページ（C13）", "WZEK0040"],
       ["分析の見出し（C10）", "の現状と今後"],
-      ["説明文（C7）", "電子応用機器の開発"],
-      // トヨタの給与の決定方針の原文（C19・AC-36）。
-      ["給与の決定方針（C19）", "安心感醸成のため"],
+      ["説明文（C7）", htmlText(summary!.text)],
+      // 給与の決定方針の原文（C19・AC-36）。
+      ["給与の決定方針（C19）", htmlText(paragraphs(policy)[0])],
       ["給与の決定方針の見出し（C19）", "の給与の決定方針"],
     ] as const) {
       expect(top, label).not.toContain(text);
@@ -339,41 +436,55 @@ test.describe("企業詳細ページ", () => {
   });
 
   test("AC-8: ランキングの会社名から企業詳細ページへ遷移できる", async ({ page }) => {
+    // `/` の1ページ目の先頭の会社（誰が来るかは更新で変わる）。
+    const [first] = rankingPageData(new URLSearchParams()).bootstrap.page.companies;
     await page.goto("/");
-    await page.getByRole("link", { name: "株式会社キーエンス" }).click();
+    await page.getByRole("link", { name: first.name, exact: true }).click();
 
-    await expect(page).toHaveURL(/\/company\/6861$/);
-    await expect(page.getByRole("heading", { name: "株式会社キーエンス", level: 1 })).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/company/${first.id}$`));
+    await expect(
+      page.getByRole("heading", { name: first.name, level: 1, exact: true })
+    ).toBeVisible();
   });
 
   /*
    * パンくずの末尾は現在地なのでリンクにしない（アートボード 4b）。業種はランキングの
-   * 業種フィルタへ戻る道（spec 4. で比較表の代わりに決めた導線）。C3 で
-   * 「電気機器193社をすべて見る」が増えたため、パンくずのほうを `exact` で指す。
+   * 業種フィルタへ戻る道（spec 4. で比較表の代わりに決めた導線）。C3 でサイドバーに
+   * 「（業種）N社をすべて見る」が増えたため、パンくずのほうを `exact` で指す。
    */
   test("パンくずの末尾は社名でリンクではなく、業種からランキングの業種フィルタへ戻れる", async ({
     page,
   }) => {
-    await page.goto("/company/6861");
+    const { name, tse33 } = keyence.view;
+    await page.goto(`/company/${KEYENCE}`);
     const nav = page.getByRole("navigation").first();
-    await expect(nav).toContainText("株式会社キーエンス");
-    await expect(nav.getByRole("link", { name: "株式会社キーエンス" })).toHaveCount(0);
+    await expect(nav).toContainText(name);
+    await expect(nav.getByRole("link", { name })).toHaveCount(0);
 
-    await nav.getByRole("link", { name: "電気機器", exact: true }).click();
+    await nav.getByRole("link", { name: tse33, exact: true }).click();
     await expect(page).toHaveURL(/[?&]ind=/);
-    await expect(page.getByRole("combobox", { name: "業種" })).toContainText("電気機器");
+    await expect(page.getByRole("combobox", { name: "業種" })).toContainText(tse33);
   });
 
   /*
    * パンくずは常に1行で、収まらないぶんは器の中で横に送る。折り返していた頃は 2760 の
    * 社名が 390px で2行目に落ちていた。文書が横にはみ出さないことは
    * `company-refresh.spec.ts` の AC-15 のループが見る（9413 のパンくずも器からはみ出す）。
+   *
+   * **会社はパンくずの字数で選ぶ。** 375px の器（343px）に 14px の字で、段の名前を合わせて
+   * 26字あれば区切りと隙間を足さなくても溢れ、社名が20字までなら社名だけは器に収まる
+   * （末尾まで送ったときに社名が切れない）。幅の狭い半角を含む社名は外す。
    */
   test("パンくずは社名が長くても1行に収まり、はみ出すぶんは器の中で横に送れる", async ({
     page,
   }) => {
+    const id = pickCompany("パンくずが375pxで1行に収まらず、社名は器に収まる会社", ([id, name]) => {
+      const crumbs = companyBreadcrumb({ id, name, tse33: industryOf(id) });
+      const chars = crumbs.reduce((sum, crumb) => sum + crumb.name.length, 0);
+      return chars >= 26 && name.length <= 20 && !/[\x20-\x7e]/.test(name);
+    });
     await page.setViewportSize({ width: 375, height: 844 });
-    await page.goto("/company/2760");
+    await page.goto(`/company/${id}`);
     const nav = page.locator('nav:has([aria-current="page"])');
 
     // 折り返すと、末尾の社名だけが下の行に落ちる。
@@ -395,7 +506,7 @@ test.describe("企業詳細ページ", () => {
       element.scrollLeft = element.scrollWidth;
     });
     const current = nav.locator('[aria-current="page"]');
-    await expect(current).toHaveText("東京エレクトロンデバイス株式会社");
+    await expect(current).toHaveText(rowOf(id)[1]);
     const [navBox, currentBox] = [(await nav.boundingBox())!, (await current.boundingBox())!];
     expect(currentBox.x).toBeGreaterThanOrEqual(navBox.x);
     expect(currentBox.x + currentBox.width).toBeLessThanOrEqual(navBox.x + navBox.width);
@@ -438,7 +549,7 @@ test.describe("企業詳細ページ", () => {
  */
 test.describe("ランキングとの行き来", () => {
   test("年齢そろえにしてランキングへ行き、戻ると実測値で開く", async ({ page }) => {
-    await page.goto("/company/6861");
+    await page.goto(`/company/${KEYENCE}`);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
     await expect(page.getByText("35歳時点の推定年収")).toBeVisible();
 
@@ -447,7 +558,7 @@ test.describe("ランキングとの行き来", () => {
 
     await page.goBack();
 
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(new RegExp(`/company/${KEYENCE}$`));
     await expect(page.getByText("平均年収（有価証券報告書・単体）")).toBeVisible();
   });
 });
