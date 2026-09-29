@@ -64,7 +64,9 @@ describe("断りと文言", () => {
 
   it("カードは「最新の」と書かず、順位の段を持たない", () => {
     expect(lapsedCardLead(company)).not.toContain("最新");
-    expect(lapsedCardLead(company)).toContain("最後の有価証券報告書（2026年6月期）");
+    expect(lapsedCardLead(company)).toContain("最後の有価証券報告書に載っている");
+    // 決算期は断りが言う（企業詳細で決算期を出すのは2か所まで。S3）
+    expect(lapsedCardLead(company)).not.toMatch(/\d{4}年\d{1,2}月期/);
     expect(lapsedCardFacts(company).map((f) => f.label)).toEqual(["平均年齢", "従業員数（単体）"]);
   });
 

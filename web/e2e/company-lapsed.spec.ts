@@ -29,6 +29,9 @@ test.describe("AC-7 母集団から外れた会社のページ", () => {
     await expect(box).toContainText(notice.heading);
     await expect(box).toContainText(company.fiscalPeriod);
     await expect(box).toContainText(company.filed);
+    // 決算期は断りと Q&A の説明の2か所だけ（S3。カードの1文には書かない）
+    const count = (await page.locator("body").innerText()).split(company.fiscalPeriod).length - 1;
+    expect(count).toBe(2);
 
     // 最後の有報の金額と、その有報の Q&A は残る
     await expect(

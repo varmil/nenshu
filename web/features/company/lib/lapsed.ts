@@ -85,10 +85,14 @@ export function lapsedNotice(company: LapsedCompany): { heading: string; body: s
   };
 }
 
-/** カードの金額の下の1文。**「最新の」とは書かない**（通常の `buildCardLead` との違い）。 */
+/**
+ * カードの金額の下の1文。**「最新の」とは書かない**（通常の `buildCardLead` との違い）。
+ * **決算期は書かない**——すぐ上の断りが言っており、企業詳細で決算期を出すのは2か所まで
+ * （`docs/site-chrome/spec.md` 5.1。この画面では断りと Q&A の説明）。
+ */
 export function lapsedCardLead(company: LapsedCompany): string {
   return (
-    `${company.name}の最後の有価証券報告書（${company.fiscalPeriod}）に載っている平均年収は ` +
+    `${company.name}の最後の有価証券報告書に載っている平均年収は ` +
     `約${formatManYen(company.avgSalary)}（平均年齢${formatDecimal1(company.avgAge)}歳）です。`
   );
 }
