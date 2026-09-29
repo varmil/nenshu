@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parent
 def universe():
     """現行CSVの edinet_code。ここに無い会社は落とさない。"""
     codes = set()
-    with open(ROOT / "../data/ranking_unified_2026.csv", encoding="utf-8-sig") as f:
+    with open(ROOT / "../data/ranking_unified.csv", encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
             if row.get("edinet_code"):
                 codes.add(row["edinet_code"])

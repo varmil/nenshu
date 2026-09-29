@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv, parseSalaryHistoryCsv, parsePerformanceHistoryCsv } from "./lib/csv";
 import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
-import { makeId } from "./lib/slug";
+import { checkStageDocs, readLedger, selectUniverse, type Ledger } from "./lib/ledger";
 import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
 import { toPayPolicyRecord, type PayPolicyRecord, type PayPolicyRow } from "./lib/payPolicy";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
@@ -67,8 +68,10 @@ const FILINGS_JSON_GZIP_LIMIT_BYTES = 20 * 1024;
 // **上限は気づくための線**で、`summaries.json`・`analyses.json` と同じく `/company/[id]` の
 // ビルド時に読まれて HTML になるだけ（`/` からは読まない・Worker バンドルにも入らない）。
 const PAY_POLICIES_JSON_GZIP_LIMIT_BYTES = 700 * 1024;
-const DATA_VERSION = "2026-06";
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
+
+/** 決算期の幅の上限（か月）。`fiscalPeriodRange` のガード。 */
+export const MAX_PERIOD_RANGE_MONTHS = 36;
 
 /**
  * 掲載データの決算期の**幅**（`YYYY-MM` の最古と最新）を CSV の `period_end` から
@@ -100,16 +103,19 @@ export function fiscalPeriodRange(rows: { periodEnd: string }[]): {
     if (to === "" || period > to) to = period;
   }
 
-  // **代表の過半チェックを外したぶん、幅そのものをガードにする。** 母集団は
-  // 「直近12か月に有報を出した会社」（ADR-0011）なので、決算期の幅は普通なら
-  // 12か月に収まり、提出が遅れた会社が混じっても15か月程度で止まる（拡大後の
-  // 実測が 2025-03〜2026-05 = 15か月）。**24か月を超えるのは取得側の異常**で、
-  // 黙って通すと何年も前の数字が同じ表に並ぶ。
+  // **代表の過半チェックを外したぶん、幅そのものをガードにする。** 母集団は「最後の有報から
+  // 24か月たっていない会社」（ADR-0018）なので、最古の決算期は基準日から「24か月＋期末から
+  // 提出までの間」より前には来ない。提出の期限は期末から3か月で、大きく遅れた会社を見込んでも
+  // 12か月で足りる——**36か月を超えるのは取得側の異常**で、黙って通すと何年も前の数字が
+  // 同じ表に並ぶ。普段の幅は12〜15か月（拡大後の実測が 2025-03〜2026-05 = 15か月）。
+  //
+  // 以前の線は24か月だった（母集団が「直近12か月に有報を出した会社」だった頃。ADR-0011）。
+  // 猶予中の会社が混ざると超えうるので引き直した（ADR-0018「結果」・refresh の D2）。
   const months = monthsBetween(from, to);
-  if (months > 24) {
+  if (months > MAX_PERIOD_RANGE_MONTHS) {
     throw new Error(
       `決算期の幅が広すぎます（${from} 〜 ${to} = ${months}か月）。` +
-        `取得の窓（docs/adr/0011-company-universe-twelve-month-window.md）を確認すること。`
+        `母集団の出入り（docs/adr/0018-universe-entry-exit.md）と取得の窓を確認すること。`
     );
   }
   return { from, to };
@@ -120,6 +126,20 @@ function monthsBetween(from: string, to: string): number {
   const [fy, fm] = from.split("-").map(Number);
   const [ty, tm] = to.split("-").map(Number);
   return (ty - fy) * 12 + (tm - fm);
+}
+
+/**
+ * `companies.json` の版（refresh の D2・#872）。**中身から決める**——`version` と `generatedAt` を
+ * 除いた `companies.json` の SHA-256 の先頭12桁。
+ *
+ * 版は、キャッシュに残った古い HTML が新しい `companies.json` を引いたときに、クライアントが
+ * 引き継ぎをやめるための突き合わせに使う（E0・ADR-0013・`web/features/ranking/lib/dataset.ts`）。
+ * 以前は `"2026-06"`（提出期）の直書きで、年1回の更新ならそれで足りた。**毎日データが動くと、
+ * 行の並びが変わっても版が同じまま**になり、別の会社の順位やロゴを出す組み合わせを見逃す。
+ * `generatedAt` にしないのは、同じ入力から作り直しても版が変わってしまうため。
+ */
+export function datasetVersion(content: unknown): string {
+  return createHash("sha256").update(JSON.stringify(content)).digest("hex").slice(0, 12);
 }
 
 /**
@@ -151,6 +171,30 @@ function readUniverse(): Universe {
 }
 
 /**
+ * 台帳の工程ごとの書類 ID が、各工程の成果物の書類 ID と一致するかを検める（refresh の D2）。
+ * 台帳は成果物を写したもので、**食い違ったら片方だけ書いた回がある。** 見るのは同じ工程の
+ * 中だけで、工程どうしのずれ（数字は新しい書類・文章は前の書類）は正しい状態として通す。
+ */
+function checkLedgerDocs(ledger: Ledger, rows: ReturnType<typeof parseUnifiedCsv>) {
+  checkStageDocs(ledger, "numbers", new Map(rows.map((r) => [r.edinetCode, r.docId])));
+  const sourceDocs = (file: string) => {
+    const [header = [], ...lines] = parseCsv(readFileSync(resolve(ROOT, file), "utf-8"));
+    const code = header.indexOf("edinet_code");
+    const doc = header.indexOf("source_doc_id");
+    if (code === -1 || doc === -1) {
+      throw new Error(`${file} に edinet_code / source_doc_id の列がありません`);
+    }
+    return new Map(lines.filter((line) => line.length > 1).map((line) => [line[code], line[doc]]));
+  };
+  checkStageDocs(ledger, "description", sourceDocs("data/company_summary.csv"));
+  checkStageDocs(ledger, "analysis", sourceDocs("data/company_analysis.csv"));
+  const policies = JSON.parse(
+    readFileSync(resolve(ROOT, "data/pay_policy.json"), "utf-8")
+  ) as PayPolicyRow[];
+  checkStageDocs(ledger, "payPolicy", new Map(policies.map((p) => [p.edinet_code, p.doc_id])));
+}
+
+/**
  * 前回のビルド（書き出し先にいまある `companies.json`）より社数が `MAX_COUNT_DROP_RATIO` を
  * 超えて減っていたら落とす。前回が無ければ見ない（初回と、テストが一時ディレクトリへ書くとき）。
  */
@@ -167,9 +211,18 @@ export function checkCountDrop(previousPath: string, count: number) {
 }
 
 export function buildData(outDir: string) {
-  const csvText = readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8");
-  const rows = parseUnifiedCsv(csvText);
+  const csvText = readFileSync(resolve(ROOT, "data/ranking_unified.csv"), "utf-8");
+  const allRows = parseUnifiedCsv(csvText);
   const universe = readUniverse();
+  // **ID は台帳から引き、母集団は台帳の提出日で決める**（refresh の D2・ADR-0017・ADR-0018）。
+  // 基準日は取得の窓の終わり（データを取った日）で、ビルドを回した日ではない。
+  const ledger = readLedger();
+  checkLedgerDocs(ledger, allRows);
+  const {
+    rows,
+    ids: companyIds,
+    lapsed,
+  } = selectUniverse(allRows, ledger, universe.filingWindow.to);
   checkCountDrop(resolve(outDir, "companies.json"), rows.length);
 
   const curvesRaw = JSON.parse(readFileSync(resolve(ROOT, "data/annual_curves.json"), "utf-8"));
@@ -186,13 +239,8 @@ export function buildData(outDir: string) {
   // **実測でトップページの HTML が gzip +1,301 B**（そのまま並べると4倍以上）。
   const periods = Array.from(new Set(rows.map((r) => r.periodEnd.slice(0, 7)))).sort();
 
-  const ids = new Set<string>();
-  const companyRows = rows.map((row) => {
-    const id = makeId(row);
-    if (ids.has(id)) {
-      throw new Error(`id が重複しています: ${id}`);
-    }
-    ids.add(id);
+  const companyRows = rows.map((row, i) => {
+    const id = companyIds[i];
 
     const tse33Idx = industries.indexOf(row.tse33);
     const curveIdx = curveKeys.indexOf(row.industry);
@@ -216,28 +264,34 @@ export function buildData(outDir: string) {
     ] as const;
   });
 
-  const companies = {
-    meta: {
-      version: DATA_VERSION,
-      count: companyRows.length,
-      // 掲載データの決算期の**幅**（E1・`docs/expansion/spec.md` 1.4）。web 側は
-      // この2つの値から「2026年3月期〜4月期」を組み立てる（`web/lib/data/period.ts`）。
-      fiscalPeriodRange: fiscalPeriodRange(rows),
-      // 取得の窓と、掲載条件で省いた社数（E2・`docs/expansion/spec.md` 1.3）。
-      // **どちらも CSV の行からは出せない**——窓は行に残らず、落とした会社は
-      // そもそも行にならない。`unified.py` が書いた内訳を読む。
-      filingWindow: universe.filingWindow,
-      excluded: {
-        minEmployees: universe.minEmployees,
-        byEmployees: universe.excludedByEmployees,
-      },
-      generatedAt: new Date().toISOString(),
+  const companiesMeta = {
+    count: companyRows.length,
+    // 掲載データの決算期の**幅**（E1・`docs/expansion/spec.md` 1.4）。web 側は
+    // この2つの値から「2026年3月期〜4月期」を組み立てる（`web/lib/data/period.ts`）。
+    fiscalPeriodRange: fiscalPeriodRange(rows),
+    // 取得の窓と、掲載条件で省いた社数（E2・`docs/expansion/spec.md` 1.3）。
+    // **どちらも CSV の行からは出せない**——窓は行に残らず、落とした会社は
+    // そもそも行にならない。`unified.py` が書いた内訳を読む。
+    filingWindow: universe.filingWindow,
+    excluded: {
+      minEmployees: universe.minEmployees,
+      byEmployees: universe.excludedByEmployees,
     },
+  };
+  const companiesBody = {
     industries,
     curveKeys,
     // 会社ごとの決算期（`YYYY-MM`・昇順）。`rows` の末尾がこの添字を持つ。
     periods,
     rows: companyRows,
+  };
+  const companies = {
+    meta: {
+      version: datasetVersion({ meta: companiesMeta, ...companiesBody }),
+      ...companiesMeta,
+      generatedAt: new Date().toISOString(),
+    },
+    ...companiesBody,
   };
 
   const curves = {
@@ -397,6 +451,7 @@ export function buildData(outDir: string) {
     analysesGzipSize,
     filingsGzipSize,
     payPoliciesGzipSize,
+    lapsed,
   };
 }
 
@@ -645,7 +700,7 @@ function limitLabel(bytes: number): string {
 /**
  * 有報の書類 ID（`filings.json`）。C13・Issue #814（`docs/company/spec.md` 1.20）。
  *
- * **実測値の4項目を取った書類そのもの**（`ranking_unified_2026.csv` の `doc_id`）。企業詳細は
+ * **実測値の4項目を取った書類そのもの**（`ranking_unified.csv` の `doc_id`）。企業詳細は
  * これを EDINET の書類閲覧ページへのリンクにする。**持つのは ID だけで、URL は持たない**——
  * 閲覧ページの URL は公開 API ではなく EDINET の画面の URL なので、変わったときに作り直すのが
  * データではなく web の関数1つで済むようにする（`web/lib/data/sources.ts`）。
@@ -686,14 +741,14 @@ function buildSummaries(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
 ) {
-  const csvText = readFileSync(resolve(ROOT, "data/company_summary_2026.csv"), "utf-8");
+  const csvText = readFileSync(resolve(ROOT, "data/company_summary.csv"), "utf-8");
   const table = parseCsv(csvText);
   const header = table[0] ?? [];
   const codeIndex = header.indexOf("edinet_code");
   const summaryIndex = header.indexOf("summary");
   if (codeIndex === -1 || summaryIndex === -1) {
     throw new Error(
-      "data/company_summary_2026.csv に edinet_code / summary の列がありません。" +
+      "data/company_summary.csv に edinet_code / summary の列がありません。" +
         "pipeline/summary/generate.py の merge を確認すること"
     );
   }
@@ -719,8 +774,8 @@ function buildSummaries(
   // 「説明文の無い会社」として配ると、突合キーを間違えても気づけない。**
   if (matched !== byEdinetCode.size) {
     throw new Error(
-      `company_summary_2026.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
-        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+      `company_summary.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified.csv）と突合キー（edinet_code）を確認すること"
     );
   }
 
@@ -740,14 +795,14 @@ function buildAnalyses(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[]
 ) {
-  const csvText = readFileSync(resolve(ROOT, "data/company_analysis_2026.csv"), "utf-8");
+  const csvText = readFileSync(resolve(ROOT, "data/company_analysis.csv"), "utf-8");
   const table = parseCsv(csvText);
   const header = table[0] ?? [];
   const col = (name: string) => {
     const index = header.indexOf(name);
     if (index === -1) {
       throw new Error(
-        `data/company_analysis_2026.csv に ${name} の列がありません。pipeline/analysis/generate.py の merge を確認すること`
+        `data/company_analysis.csv に ${name} の列がありません。pipeline/analysis/generate.py の merge を確認すること`
       );
     }
     return index;
@@ -787,8 +842,8 @@ function buildAnalyses(
   // **突合が全件当たることを確かめる**（`buildSummaries` と同じガード）。
   if (matched !== byEdinetCode.size) {
     throw new Error(
-      `company_analysis_2026.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
-        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+      `company_analysis.csv の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified.csv）と突合キー（edinet_code）を確認すること"
     );
   }
 
@@ -797,7 +852,7 @@ function buildAnalyses(
 
 /**
  * 給与の決定方針の原文（C19・#852、`docs/company/spec.md` 1.23）。C18（#851）が有報から切り出した
- * `data/pay_policy_2026.json` を、企業 ID の辞書にする。**本文のある会社だけ**を持ち、無い会社は
+ * `data/pay_policy.json` を、企業 ID の辞書にする。**本文のある会社だけ**を持ち、無い会社は
  * キーごと落とす（節ごと出さない）。
  *
  * **行の配列ではなく ID の辞書**（`summaries.json` と同じ）。全社を舐める場面が無く、行がずれると
@@ -808,7 +863,7 @@ function buildPayPolicies(
   companyRows: readonly (readonly (string | number)[])[]
 ) {
   const source = JSON.parse(
-    readFileSync(resolve(ROOT, "data/pay_policy_2026.json"), "utf-8")
+    readFileSync(resolve(ROOT, "data/pay_policy.json"), "utf-8")
   ) as PayPolicyRow[];
   const byEdinetCode = new Map(source.map((row) => [row.edinet_code, row]));
 
@@ -836,8 +891,8 @@ function buildPayPolicies(
   // **突合が全件当たることを確かめる**（`buildSummaries` と同じガード）。
   if (matched !== byEdinetCode.size) {
     throw new Error(
-      `pay_policy_2026.json の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
-        "母集団（ranking_unified_2026.csv）と突合キー（edinet_code）を確認すること"
+      `pay_policy.json の ${byEdinetCode.size}社のうち ${matched}社しか掲載社に当たりません。` +
+        "母集団（ranking_unified.csv）と突合キー（edinet_code）を確認すること"
     );
   }
 
@@ -972,7 +1027,7 @@ export const TENURE_MEDIAN_MIN_COMPANIES = 3;
  * 数値だけを読む場面で長い文字列を跨がずに済む。
  */
 function loadWorklifeCells(): Map<string, Record<string, string>> {
-  const csvText = readFileSync(resolve(ROOT, "data/worklife_2026.csv"), "utf-8");
+  const csvText = readFileSync(resolve(ROOT, "data/worklife.csv"), "utf-8");
   const table = parseCsv(csvText);
   const header = table[0] ?? [];
   const byId = new Map<string, Record<string, string>>();
@@ -1004,7 +1059,7 @@ function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
   }
   if (matched !== byId.size) {
     throw new Error(
-      `worklife_2026.csv の${byId.size}行のうち${matched}行しか companies に紐づきませんでした`
+      `worklife.csv の${byId.size}行のうち${matched}行しか companies に紐づきませんでした`
     );
   }
 
@@ -1207,6 +1262,15 @@ if (isMain) {
   console.log(
     `${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB` +
       `, 決算期 ${from}〜${to}（${result.companies.periods.length}種類）`
+  );
+  // 最後の有報から24か月を過ぎて母集団から外れた会社（ADR-0018）。**企業ページは D9 が残す**
+  // ——それまでは、外れた会社のページも一覧から消える。
+  console.log(
+    `母集団から外れた会社（最後の有報から24か月）: ${result.lapsed.length}社` +
+      result.lapsed
+        .slice(0, 5)
+        .map((r) => ` ${r.name}`)
+        .join("")
   );
   console.log(result.curvesPath);
   console.log(

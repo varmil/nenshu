@@ -39,7 +39,7 @@ class ReadCsv(unittest.TestCase):
                              ["E00001", "E00002"])
 
     def test_gzを展開しながら読む(self):
-        # **切った版は `.gz` で git に置いてある**（`analysis_text_cut…_2026.csv.gz`）。
+        # **切った版は `.gz` で git に置いてある**（`analysis_text_cut….csv.gz`）。
         with TemporaryDirectory() as d:
             p = Path(d) / "a.csv.gz"
             _write(p, ROWS, gzipped=True)
@@ -54,8 +54,8 @@ class SourcePath(unittest.TestCase):
     def setUp(self):
         self._dir = TemporaryDirectory()
         self._saved = (generate.SOURCE, generate.CUT_SOURCE)
-        generate.SOURCE = Path(self._dir.name) / "analysis_text_2026.csv"
-        generate.CUT_SOURCE = Path(self._dir.name) / "analysis_text_cut_2026.csv.gz"
+        generate.SOURCE = Path(self._dir.name) / "analysis_text.csv"
+        generate.CUT_SOURCE = Path(self._dir.name) / "analysis_text_cut.csv.gz"
 
     def tearDown(self):
         generate.SOURCE, generate.CUT_SOURCE = self._saved

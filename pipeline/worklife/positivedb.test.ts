@@ -16,13 +16,10 @@ import {
 import { parseCsv } from "./csv";
 import { WORKLIFE_HEADER } from "./extract";
 import { parseUnifiedCsv } from "../scripts/lib/csv";
-import { makeId } from "../scripts/lib/slug";
+import { companyIdOf, readLedger } from "../scripts/lib/ledger";
 
-const DATA = resolve(dirname(fileURLToPath(import.meta.url)), "../data/worklife_2026.csv");
-const UNIFIED = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  "../data/ranking_unified_2026.csv"
-);
+const DATA = resolve(dirname(fileURLToPath(import.meta.url)), "../data/worklife.csv");
+const UNIFIED = resolve(dirname(fileURLToPath(import.meta.url)), "../data/ranking_unified.csv");
 
 /** 236列の空行に、見出し番号（1始まり）で値を差す。 */
 function row(values: Record<number, string>): string[] {
@@ -196,7 +193,7 @@ describe("hasAnyMetric", () => {
  * 野村総合研究所）は、この CSV から作って実際に配る `worklife.json` を web の読み手で読む
  * `web/lib/data/worklife.test.ts` が固定している。** ここは CSV 全体に効く性質だけを見る。
  */
-describe("worklife_2026.csv（取り込み済みの実データ）", () => {
+describe("worklife.csv（取り込み済みの実データ）", () => {
   const rows = parseCsv(readFileSync(DATA, "utf-8"));
   const header = rows[0];
   const body = rows.slice(1);
@@ -261,8 +258,12 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
    * ことで見る（全行）。会社を名指ししない——持株会社が自社で登録すれば行ができる。
    */
   it("行の法人番号は、その id の会社の法人番号と一致する（子会社で代用しない。ADR-0009）", () => {
+    const ledger = readLedger();
     const numberById = new Map(
-      parseUnifiedCsv(readFileSync(UNIFIED, "utf-8")).map((r) => [makeId(r), r.corporateNumber])
+      parseUnifiedCsv(readFileSync(UNIFIED, "utf-8")).map((r) => [
+        companyIdOf(ledger, r),
+        r.corporateNumber,
+      ])
     );
     const mismatched = body.filter(
       (r) => numberById.get(r[col("id")]) !== r[col("corporate_number")]

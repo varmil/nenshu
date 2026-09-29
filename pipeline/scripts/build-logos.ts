@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv } from "./lib/csv";
-import { makeId } from "./lib/slug";
+import { companyIdOf, readLedger } from "./lib/ledger";
 import { Fetcher, fetchSite, mapLimit } from "./lib/logo/fetcher";
 import { lookupByHoujin, WikidataHit } from "./lib/logo/wikidata";
 import { readToken, lookupUrls } from "./lib/logo/gbiz";
@@ -88,17 +88,18 @@ async function main() {
   const fetcher = new Fetcher(CACHE);
 
   // 1. 名寄せの土台
-  const rows = parseUnifiedCsv(
-    readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8")
-  );
+  const rows = parseUnifiedCsv(readFileSync(resolve(ROOT, "data/ranking_unified.csv"), "utf-8"));
   // 法人番号は CSV の `corporate_number` 列から引く（W0・ADR-0009）。
   // **`Edinetcode.zip` を別途読まない**——同じ列を2箇所から引くと、片方だけ古い
   // スナップショットを見る状態を作れてしまう。値が一致することは確認済み（全1,867社）。
+  // 企業 ID は更新台帳から引く（refresh の D2・ADR-0017）。ロゴは母集団から外れた会社の
+  // ページ（D9）でも使うので、出る条件では絞らない。
+  const ledger = readLedger();
   const companies: Company[] = rows.map((row) => {
     if (!row.corporateNumber) {
       throw new Error(`${row.name}（${row.edinetCode}）の法人番号がありません`);
     }
-    return { id: makeId(row), name: row.name, houjin: row.corporateNumber };
+    return { id: companyIdOf(ledger, row), name: row.name, houjin: row.corporateNumber };
   });
   const targets = only
     ? pickOnly(companies, only)

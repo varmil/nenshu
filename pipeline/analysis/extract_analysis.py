@@ -3,7 +3,7 @@
 C8（[#240](https://github.com/varmil/nenshu/issues/240)・親 #214・ADR-0015・
 `docs/company/spec.md` AC-24）。**要約も分析もここでは作らない**（C9）。**表示も変わらない。**
 
-読むのは `ranking_unified_2026.csv` に載っている会社の `doc_id` ——**平均年間給与を
+読むのは `ranking_unified.csv` に載っている会社の `doc_id` ——**平均年間給与を
 拾ったのと同じ書類**なので、母集団の定義がこの Unit でずれることがない。ZIP は
 `fetch.py` が落としてある前提で、**ここでは EDINET に一切リクエストしない**
 （C5 の `extract.py` と同じ）。
@@ -15,12 +15,12 @@ C8（[#240](https://github.com/varmil/nenshu/issues/240)・親 #214・ADR-0015�
 
 | ファイル | 大きさ | git |
 | --- | --- | --- |
-| `analysis_text_2026.csv`（切らない原文） | 167MB | **置かない** |
-| `analysis_text_cut2200-1500-3000-1500_2026.csv.gz`（節ごとに切った版） | gzip 約18MB | **置く** |
-| `analysis_text_manifest_2026.csv`（節ごとの字数と SHA-1） | 740KB | **置く** |
+| `analysis_text.csv`（切らない原文） | 167MB | **置かない** |
+| `analysis_text_cut2200-1500-3000-1500.csv.gz`（節ごとに切った版） | gzip 約18MB | **置く** |
+| `analysis_text_manifest.csv`（節ごとの字数と SHA-1） | 740KB | **置く** |
 
 **切らない原文は git に置けない。** 実測で167MB（gzip 46.6MB）あり、`pipeline/data/` の
-最大である `business_text_2026.csv` の15.2MB とは桁が違う。
+最大である `business_text.csv` の15.2MB とは桁が違う。
 
 **切った版を置くのは、C9 のセッションを持ち運べるようにするため**（2026-08-28・運営者の
 判断）。**ZIP キャッシュ（326MB）はコンテナが変わると消える**ので、置かないと C9 の
@@ -43,9 +43,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "salary"))
 import edinet  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
-UNIVERSE = ROOT / "../data/ranking_unified_2026.csv"
-OUT = ROOT / "../data/analysis_text_2026.csv"
-MANIFEST = ROOT / "../data/analysis_text_manifest_2026.csv"
+UNIVERSE = ROOT / "../data/ranking_unified.csv"
+OUT = ROOT / "../data/analysis_text.csv"
+MANIFEST = ROOT / "../data/analysis_text_manifest.csv"
 
 KEYS = [s.key for s in edinet.ANALYSIS_SECTIONS]
 LABELS = {s.key: s.label for s in edinet.ANALYSIS_SECTIONS}
@@ -72,7 +72,7 @@ LABELS = {s.key: s.label for s in edinet.ANALYSIS_SECTIONS}
 # **この表からファイル名を組む**ので、長さを変えれば別名になり、古い版と混ざらない。
 CUT_CHARS = {"mdna": 2200, "risks": 1500, "issues": 3000, "sustainability": 1500}
 CUT_SIG = "-".join(str(CUT_CHARS[k]) for k in KEYS)
-CUT_OUT = ROOT / f"../data/analysis_text_cut{CUT_SIG}_2026.csv.gz"
+CUT_OUT = ROOT / f"../data/analysis_text_cut{CUT_SIG}.csv.gz"
 
 # EDINET 側の打ち切り。**ここでは復元しない**——原本の XBRL（`type=1`）を読めば伸びるが、
 # この Unit の範囲は「平均年間給与を拾ったのと同じ書類から拾う」ことに閉じている。

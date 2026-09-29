@@ -1,7 +1,7 @@
 """有報のZIPを取得する。抽出は `extract.py` が行う。
 
 C5（#159・親 #158）。**新しい取得作業ではない。** 落とすのは
-`ranking_unified_2026.csv` に載っている会社の、**その行が採った書類そのもの**で、
+`ranking_unified.csv` に載っている会社の、**その行が採った書類そのもの**で、
 平均年間給与を拾ったのと同じ1件から「事業の内容」も出てくる。書類一覧
 （`list_*.json`）は引き直さない。
 
@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "salary"))
 import edinet  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
-UNIVERSE = ROOT / "../data/ranking_unified_2026.csv"
+UNIVERSE = ROOT / "../data/ranking_unified.csv"
 
 
 def targets():

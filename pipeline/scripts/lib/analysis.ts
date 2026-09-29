@@ -1,7 +1,7 @@
 /**
  * 有報の要約と AI 分析（`analyses.json`）を組む純関数。C10・Issue #242（親 #214・ADR-0015）。
  *
- * 生成物（`pipeline/data/company_analysis_2026.csv`）は C9 が作った。ここでは**表示に
+ * 生成物（`pipeline/data/company_analysis.csv`）は C9 が作った。ここでは**表示に
  * 要る形へ直すだけ**で、文そのものは書き換えない——例外は下の `dropRepeatedHeadline`
  * の1つだけ。
  */

@@ -7,7 +7,7 @@
     python3 pick.py plan --size 40 --batches 3     # work/batch_0001.json …
     （エージェントが prompts/pick.md に従って work/pick_0001.jsonl を書く）
     python3 pick.py gate                           # 範囲を確かめて work/gated_0001.json …
-    python3 pick.py merge                          # → ../data/pay_policy_2026.json
+    python3 pick.py merge                          # → ../data/pay_policy.json
     python3 pick.py plan --referenced ...          # 参照だけの会社を、サステナビリティの節で回す
     python3 pick.py compare                        # 起票前に読んだ40社と突き合わせる
     python3 pick.py verify                         # AC-35 の実行ログ（社数・空の理由・原文との突き合わせ）
@@ -44,7 +44,7 @@ import blocks as B  # noqa: E402
 import fetch  # noqa: E402
 
 WORK = ROOT / "work"
-OUT = ROOT / "../data/pay_policy_2026.json"
+OUT = ROOT / "../data/pay_policy.json"
 SAMPLE40 = ROOT / "../../docs/company/pay-policy-text/sample40.json"
 
 VERDICTS = {"own", "referenced", "none"}
@@ -57,7 +57,7 @@ ANCHORS = ("7203", "6501", "9433", "9501")
 
 
 def companies():
-    """対象の会社を書類 ID で引く辞書。`ranking_unified_2026.csv` の並びのまま。"""
+    """対象の会社を書類 ID で引く辞書。`ranking_unified.csv` の並びのまま。"""
     return {r["doc_id"]: r for r in fetch.targets()}
 
 
@@ -439,7 +439,7 @@ def cmd_relocate(args):
 
 
 def write_out(out, comp):
-    """1社1行で書く（差分が会社ごとに出るように）。並びは `ranking_unified_2026.csv` のまま。"""
+    """1社1行で書く（差分が会社ごとに出るように）。並びは `ranking_unified.csv` のまま。"""
     order = {d: i for i, d in enumerate(comp)}
     rows = sorted(out.values(), key=lambda x: order.get(x["doc_id"], len(order)))
     OUT.write_text("[\n" + ",\n".join(json.dumps(x, ensure_ascii=False) for x in rows) + "\n]\n",

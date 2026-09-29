@@ -10,7 +10,7 @@ import { decodeWorklife, type WorklifeRecord, type WorklifeUnit } from "./workli
  * **合成データでテストしても写し違いを検出できない**（両側が同じ勘違いをしていれば
  * 通ってしまう）。
  *
- * 期待値は取り込み元の `pipeline/data/worklife_2026.csv` から**列の名前で**組む。
+ * 期待値は取り込み元の `pipeline/data/worklife.csv` から**列の名前で**組む。
  * `worklife.json` はこの CSV を添字の並びに詰めたものなので、読み戻した値が列の名前
  * どおりに戻れば、並びの写し違いは無い。値は書き写さない（毎日の更新で動く）。
  * spec.md の AC-6〜AC-8・AC-10 が見る状態は、その状態の会社をデータから選んで見る。
@@ -23,7 +23,7 @@ type Cells = Record<string, string>;
 /** 取り込み元の CSV を ID で引く。読み方は `pipeline/scripts/build-data.ts` と同じ。 */
 const csvById: Map<string, Cells> = (() => {
   const text = readFileSync(
-    new URL("../../../pipeline/data/worklife_2026.csv", import.meta.url),
+    new URL("../../../pipeline/data/worklife.csv", import.meta.url),
     "utf-8"
   );
   const [header, ...lines] = parseCsv(text);
