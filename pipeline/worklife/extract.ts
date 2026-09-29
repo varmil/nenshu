@@ -30,8 +30,6 @@ const PIPELINE = resolve(HERE, "..");
 const SOURCE_DIR = resolve(HERE, "source");
 const MANIFEST = resolve(HERE, "manifest.json");
 const OUT_CSV = resolve(PIPELINE, "data/worklife_2026.csv");
-/** 有報の掲載社数（＝CSV の行数）。E2（#173）で 1,867 → 2,961社になった。 */
-const EXPECTED_COMPANY_COUNT = 2961;
 
 /** 出力の列。**注釈は改行・カンマ・引用符を含む**ので、書き出しは `toCsv` を通す。 */
 export const WORKLIFE_HEADER = [
@@ -98,9 +96,9 @@ export function extract() {
   const unified = parseUnifiedCsv(
     readFileSync(resolve(PIPELINE, "data/ranking_unified_2026.csv"), "utf-8")
   );
-  if (unified.length !== EXPECTED_COMPANY_COUNT) {
-    throw new Error(`有報は${EXPECTED_COMPANY_COUNT}社の想定ですが${unified.length}社でした`);
-  }
+  // **社数は固定しない**（refresh の D0・#870）。毎日の更新で社数は動く。以前は 2,961 で
+  // 決め打ちしており、1社動いただけで取り込みが落ちた。空の CSV だけは止める。
+  if (unified.length === 0) throw new Error("ranking_unified_2026.csv に会社がありません");
   const idByNumber = new Map<string, string>();
   for (const row of unified) {
     if (!row.corporateNumber) {
@@ -186,6 +184,7 @@ export function extract() {
     zipPath,
     sha256,
     sourceRows,
+    companies: unified.length,
     matched: picked.size,
     written: rows.length,
     withoutMetrics,
@@ -197,7 +196,7 @@ export function extract() {
 const isMain = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
 if (isMain) {
   const r = extract();
-  const pct = (n: number) => `${((n / EXPECTED_COMPANY_COUNT) * 100).toFixed(1)}%`;
+  const pct = (n: number) => `${((n / r.companies) * 100).toFixed(1)}%`;
   console.log(`${basename(r.zipPath)}  sha256 ${r.sha256.slice(0, 16)}…  ${r.sourceRows}行`);
   console.log(`法人番号で突合: ${r.matched}社 (${pct(r.matched)})`);
   console.log(`  うち3指標のいずれも無い: ${r.withoutMetrics}社（行を作らない）`);
