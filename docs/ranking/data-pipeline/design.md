@@ -15,7 +15,7 @@ pipeline/
   scripts/
     build-data.ts            # CLI 本体
     lib/
-      csv.ts                 # data/ranking_unified_2026.csv の最小パーサ
+      csv.ts                 # data/ranking_unified.csv の最小パーサ
       curve.ts               # 区分線形補間
       slug.ts                 # id 生成
     build-data.test.ts        # Vitest
@@ -27,7 +27,7 @@ pipeline/
 
 ## データソースの再確認
 
-- `data/ranking_unified_2026.csv`: 1,867行、BOM付き・カンマ区切り・クォートなし（社名にカンマを含む行は0件、確認済み）。21列。
+- `data/ranking_unified.csv`: 1,867行、BOM付き・カンマ区切り・クォートなし（社名にカンマを含む行は0件、確認済み）。21列。
 - 18列目の `industry` 列が産業大分類（賃金カーブのキー）をすでに保持している。`salary/curves.py` の `TSE33_TO_INDUSTRY` 表を TypeScript に再実装する必要はない。CSV の `industry` 列をそのまま使えば、`salary35` 列を計算したときと同じ産業キーが保証される。
 - `sec_code` が空の行は107件（非上場）。名前の重複は全体で2件（日本瓦斯株式会社、株式会社バッファロー）だが、どちらも sec_code 空欄側では重複していない（確認済み）。
 - `tse33` の値は33種類。`data/annual_curves.json` の `ANNUAL_INDUSTRY` は17キー（現在のデータに出現しない産業も含む。将来のデータ更新で出現しうるので17キーすべてを `curves.json` に残す）。
@@ -57,7 +57,7 @@ export function makeId(row: { secCode: string; name: string; docId: string }): s
 
 ## `scripts/build-data.ts`
 
-1. `data/ranking_unified_2026.csv` を読み、BOM を落として `lib/csv.ts` でパース（1,867行になることをアサート、ならなければ例外で落とす）。
+1. `data/ranking_unified.csv` を読み、BOM を落として `lib/csv.ts` でパース（1,867行になることをアサート、ならなければ例外で落とす）。
 2. `data/annual_curves.json` を読み、`ANNUAL_INDUSTRY` を取り出す（17キー）。
 3. `industries` = CSV の `tse33` 列のユニーク値を `localeCompare('ja')` でソート（手打ちの固定表は転記ミスのリスクがあるため避ける。データから再現可能な形にする）。
 4. `curveKeys` = `Object.keys(ANNUAL_INDUSTRY)`（JS のオブジェクトキー順は文字列キーなら挿入順で確定するため、`annual_curves.json` に書かれた順がそのまま使える）。
@@ -71,7 +71,7 @@ export function makeId(row: { secCode: string; name: string; docId: string }): s
 6. `id` の重複がないことをアサート（防御的。doc_id/sec_code の一意性に依存しているが、テストでも別途固定する）。
 7. `<out>/companies.json`（`meta`, `industries`, `curveKeys`, `rows`）と `<out>/curves.json`（`agePoints: [22,27,32,37,42,47,52,57,62,67]`, `curves: ANNUAL_INDUSTRY`）を書き出す。
 8. `companies.json` を gzip して 100KB を超えたら非ゼロ終了で失敗させる（Issue の完了条件）。
-9. `meta.version` は `"2026-06"` 固定値（`docs/product/product.md` の「2026年6〜7月提出」に対応する今回のデータの版）、`generatedAt` は実行時刻の ISO 文字列。
+9. `meta.version` は `companies.json` の中身のハッシュ（`datasetVersion`。refresh の D2 で `"2026-06"` の固定値から替えた——`docs/refresh/ledger/design.md`）、`generatedAt` は実行時刻の ISO 文字列。
 
 ## `scripts/build-data.test.ts`（Vitest）
 

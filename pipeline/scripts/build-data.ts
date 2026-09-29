@@ -71,7 +71,7 @@ const PAY_POLICIES_JSON_GZIP_LIMIT_BYTES = 700 * 1024;
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
 /** 決算期の幅の上限（か月）。`fiscalPeriodRange` のガード。 */
-export const MAX_PERIOD_RANGE_MONTHS = 36;
+const MAX_PERIOD_RANGE_MONTHS = 36;
 
 /**
  * 掲載データの決算期の**幅**（`YYYY-MM` の最古と最新）を CSV の `period_end` から

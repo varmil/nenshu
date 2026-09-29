@@ -15,7 +15,7 @@ pipeline/
     cache/              # gitignore。{書類ID}.json（節の HTML）
     work/               # gitignore。バッチ・答え・確かめた結果
   data/
-    pay_policy_2026.json  # この Unit の成果物
+    pay_policy.json  # この Unit の成果物
 docs/company/pay-policy-text/
   sample40.json         # 起票前に1社ずつ読んだ40社。答え合わせの材料
 ```
@@ -25,12 +25,12 @@ docs/company/pay-policy-text/
 ## 流れ
 
 ```
-ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
+ranking_unified.csv（決算期末 ≧ 2026-03-31 の doc_id）
   → fetch.py        EDINET API v2 type=1 → cache/{doc}.json
   → pick.py plan    節を塊と文に分けて番号を振る → work/batch_NNNN.json
   → エージェント     prompts/pick.md に従って番号だけを答える → work/pick_NNNN.jsonl
   → pick.py gate    番号の形と位置を確かめ、原文から本文を組み立てる → work/gated_NNNN.json
-  → pick.py merge   → data/pay_policy_2026.json
+  → pick.py merge   → data/pay_policy.json
   → pick.py plan --referenced（参照の会社だけ、参照先の節で同じことをもう1回）
   → pick.py verify  AC-35 の実行ログ。社数・空の理由と、全社の本文を原文と突き合わせる
 ```
@@ -112,9 +112,9 @@ ranking_unified_2026.csv（決算期末 ≧ 2026-03-31 の doc_id）
 
 `gate` が機械で落とすのは番号の矛盾だけ（形・範囲外・始まりが後ろ・節の見出しを含む・題が小見出しでない・題が始まりより後ろ）と、**エージェントに見せた番号の列（バッチの `units`）がいまの分解と違うもの**。分解の規則を変えたあとに古いバッチを確かめ直すと、ずれた番号で黙って別の範囲を切るため。**範囲の取り違えは機械では判定できない**ので、40社との突き合わせと目視で見る。
 
-## データ（`pipeline/data/pay_policy_2026.json`）
+## データ（`pipeline/data/pay_policy.json`）
 
-配列。1社1行（行ごとの差分が読めるように、1社を1行の JSON にしている）。並びは `ranking_unified_2026.csv` のまま。
+配列。1社1行（行ごとの差分が読めるように、1社を1行の JSON にしている）。並びは `ranking_unified.csv` のまま。
 
 | 鍵 | 中身 |
 | --- | --- |

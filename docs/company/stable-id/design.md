@@ -11,7 +11,7 @@ Edinetcode.zip（公開・APIキー不要）
 unified.py  backfill_edinet_code()
         │  edinet_code 列を埋める
         ▼
-data/ranking_unified_2026.csv
+data/ranking_unified.csv
         │  parseUnifiedCsv() → UnifiedRow.edinetCode
         ▼
 scripts/lib/slug.ts  makeId()

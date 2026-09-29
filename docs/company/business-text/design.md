@@ -13,17 +13,17 @@ pipeline/
     test_businesstext.py
   summary/               # 会社説明文のデータセット。**要約（C6）もここに入る**
     fetch.py             # 母集団ぶんの ZIP を落とす（キャッシュがあれば0件）
-    extract.py           # ZIP → business_text_2026.csv
+    extract.py           # ZIP → business_text.csv
     test_extract.py
   data/
-    business_text_2026.csv   # この Unit の成果物
+    business_text.csv   # この Unit の成果物
 ```
 
 **`web/` は1バイトも触らない。** 画面もデータも変わらない（AC-18 の3つ目）。
 
 ## データモデル
 
-`pipeline/data/business_text_2026.csv`。1社1行、母集団（`ranking_unified_2026.csv`）の並びのまま。
+`pipeline/data/business_text.csv`。1社1行、母集団（`ranking_unified.csv`）の並びのまま。
 
 | 列 | 中身 |
 | --- | --- |
@@ -116,11 +116,11 @@ pipeline/
 ## 取得の経路
 
 ```
-ranking_unified_2026.csv（doc_id 2,961件）
+ranking_unified.csv（doc_id 2,961件）
         │
         ├─ fetch.py ──→ salary/cache/<docID>.zip     （既にあれば EDINET を叩かない）
         │
-        └─ extract.py ─→ edinet.parse_csv_zip → edinet.to_record → business_text_2026.csv
+        └─ extract.py ─→ edinet.parse_csv_zip → edinet.to_record → business_text.csv
 ```
 
 **落とすのは平均年間給与を拾ったのと同じ書類。** 母集団の定義がこの Unit でずれない。

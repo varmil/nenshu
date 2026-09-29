@@ -16,10 +16,10 @@ pipeline/
     csv.ts         引用符と改行を含む CSV の読み書き
     positivedb.ts  236列の検証・位置での読み取り・正規化
     json.ts        worklife.json の並び（エンコード／デコード）
-    extract.ts     ZIP → data/worklife_2026.csv
+    extract.ts     ZIP → data/worklife.csv
   data/
-    worklife_2026.csv   1,548行。コミットする
-  scripts/build-data.ts  worklife_2026.csv → web/public/data/worklife.json
+    worklife.csv   1,548行。コミットする
+  scripts/build-data.ts  worklife.csv → web/public/data/worklife.json
 ```
 
 **ディレクトリは「作るデータセット」で切り、ソースはファイル名で表す。** `salary/` が EDINET と e-Stat の2ソースを使うのと同じで、`worklife/` も将来ソースが増えうる（若者雇用促進総合サイト）。ソース名でディレクトリを切ると、そのとき割れる。
@@ -33,11 +33,11 @@ Edinetcode.zip ─→ run.load_edinet_codelist()（提出者法人番号を追�
                      ↓
                   unified.py --backfill-corporate-number
                      ↓
-      data/ranking_unified_2026.csv（corporate_number 列が増えて22列）
+      data/ranking_unified.csv（corporate_number 列が増えて22列）
                      ↓                         ↓
 女性活躍DB ZIP ─→ worklife/extract.ts ──────────┘（法人番号で内部結合）
                      ↓
-      data/worklife_2026.csv（1,548行・33列）
+      data/worklife.csv（1,548行・33列）
                      ↓
       scripts/build-data.ts の buildWorklife()
                      ↓
@@ -111,7 +111,7 @@ notes[i] = 0 | "自由記述"                     ← 716社だけ持つ
 4e6b3d07-99_20260820_utf8_bom.zip  sha256 8fbe973ba01f11d4…  64879行
 法人番号で突合: 1690社 (90.5%)
   うち3指標のいずれも無い: 142社（行を作らない）
-data/worklife_2026.csv: 1548行
+data/worklife.csv: 1548行
   平均残業時間        1037社（突合比 61.4% / 全社比 55.5%）
   年次有給休暇の取得率 1032社（突合比 61.1% / 全社比 55.3%）
   男女の賃金の差異    1475社（突合比 87.3% / 全社比 79.0%）

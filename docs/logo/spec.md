@@ -78,7 +78,7 @@ ICO は内包する最大サイズを採る。
 #### AC-1 名寄せ
 
 ```gherkin
-Given EDINETコード一覧と ranking_unified_2026.csv がある
+Given EDINETコード一覧と ranking_unified.csv がある
 When 法人番号で Wikidata の項目を引く
 Then 1,600社以上が項目に到達する
 And 到達しなかった会社は「ロゴなし」として記録される

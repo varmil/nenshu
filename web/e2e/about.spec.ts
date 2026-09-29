@@ -8,6 +8,7 @@ import {
   toManYen,
 } from "../features/ranking/lib/format";
 import { formatDeviation } from "../features/company/lib/stats";
+import { filingWindowLabel } from "../lib/data/period";
 import { companies, curves } from "../testing/realData";
 
 /*
@@ -50,6 +51,13 @@ test.describe("計算方法ページ（/about）", () => {
     await expect(
       page.getByText(`${formatInt(companies.rows.length)}社`, { exact: true })
     ).toBeVisible();
+    // 入る条件（取得の窓）と出る条件（最後の提出から24か月）は別の行（ADR-0018・refresh の D2）。
+    // 猶予中の会社は窓より前に提出しているので、窓を全社の提出日として書かない。
+    const entry = page.getByText(
+      `新しく載るのは、EDINET に${filingWindowLabel(companies.meta)}に有価証券報告書を提出した会社です`
+    );
+    await expect(entry).toBeVisible();
+    await expect(entry).toContainText("最後の提出から24か月たつまで");
 
     // 限界
     await expect(page.getByRole("heading", { name: "この方法の限界" })).toBeVisible();

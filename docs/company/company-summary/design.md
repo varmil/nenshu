@@ -14,7 +14,7 @@ pipeline/summary/
   test_gate.py
   work/                # 中間ファイル（gitignore）
 pipeline/data/
-  company_summary_2026.csv   # 成果物
+  company_summary.csv   # 成果物
 ```
 
 **`web/` は触らない。** 表示は C7。
@@ -26,7 +26,7 @@ pipeline/data/
 生成と検証はセッションのエージェントが担う。
 
 ```
-company_summary_2026.csv に無い会社（＋原文のSHA-1が変わった会社）
+company_summary.csv に無い会社（＋原文のSHA-1が変わった会社）
         │
    plan │ → work/batch_NNNN.json（1本20社）
         ↓
@@ -36,7 +36,7 @@ company_summary_2026.csv に無い会社（＋原文のSHA-1が変わった会�
         ↓
    〔エージェント：prompts/verify.md〕 → work/verify_NNNN.jsonl
         │
-  merge │ → company_summary_2026.csv（verdict が ok 以外は summary を空にする）
+  merge │ → company_summary.csv（verdict が ok 以外は summary を空にする）
   clear │ → work/ を空にする
 ```
 
@@ -45,7 +45,7 @@ company_summary_2026.csv に無い会社（＋原文のSHA-1が変わった会�
 
 ## データモデル
 
-`pipeline/data/company_summary_2026.csv`。1社1行。
+`pipeline/data/company_summary.csv`。1社1行。
 
 | 列 | 中身 |
 | --- | --- |
@@ -193,7 +193,7 @@ API を使わなくなった時点で消えている。代わりに効くのは*
 事情を知らなくてよい。**
 
 **再開の単位は3つある。** ①`gen_*.jsonl` が書けていればゲートから続けられる ②書けていなければ
-そのバッチだけ回し直せばよい（`plan` は `company_summary_2026.csv` を見るので、既に取り込んだ
+そのバッチだけ回し直せばよい（`plan` は `company_summary.csv` を見るので、既に取り込んだ
 社は選ばれない） ③セッションごと落ちても `status` が残りを出す。
 
 ## 全社を回した結果（2026-08-27）
@@ -236,7 +236,7 @@ rejected の内訳は **説明文が空 61社・検証パス 93社・機械ゲ�
 ## 目視レビュー（AC-7・2026-08-27）
 
 **無作為50社と年収上位50社を読んだ**（`random.seed(158)`。年収は
-`ranking_unified_2026.csv` の `avg_salary` 降順）。読んで意味が通らないもの・会社が
+`ranking_unified.csv` の `avg_salary` 降順）。読んで意味が通らないもの・会社が
 何をやっているか伝わらないものは、次の1型を除いて無かった。
 
 **型⑪（セグメントの区分やグループの構成だけを述べた）が見つかった。** 東京海上
