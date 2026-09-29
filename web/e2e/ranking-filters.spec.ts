@@ -1,4 +1,8 @@
 import { test, expect } from "./appTest";
+import { rankingPageData } from "../features/ranking/lib/pageData";
+import { pageRange } from "../features/ranking/lib/pagination";
+import { formatInt } from "../features/ranking/lib/format";
+import { PAGE_SIZE } from "../features/ranking/types";
 
 /**
  * 絞り込み4種とフリーワード検索（U3・U4）。
@@ -12,7 +16,28 @@ import { test, expect } from "./appTest";
  * モバイル幅の横スクロールは `ranking-refresh.spec.ts` の
  * 「モバイルの行が縮んでも数値が残る」にまとめてある（U3 で実際に検出したバグ）。
  * 操作でネットワークが起きないことは `ranking-url-sync.spec.ts` にある。
+ *
+ * **絞り込みが効いたかは、件数表示をそのURLのデータと突き合わせて見る**
+ * （`rankingPageData`＝`/` が画面を組むのと同じ関数）。社数を書き写すと、毎日の更新で
+ * 1社動いただけで落ちる（refresh の D0・Issue #870）。行数は PAGE_SIZE で頭打ちなので
+ * 判定に使わない（Issue #103）。
  */
+
+/** そのURLで `/` が描く1ページぶん。 */
+const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
+
+/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
+function countLabel(query: string): string {
+  const { bootstrap, initialState } = pageDataOf(query);
+  const total = bootstrap.page.totalCount;
+  if (total === 0) return "0社";
+  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
+  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
+}
+
+/** 件数表示の要素。完全一致で引く（桁の少ない件数が、桁の多い件数に部分一致しないように）。 */
+const countText = (page: import("@playwright/test").Page, query: string) =>
+  page.getByText(countLabel(query), { exact: true });
 
 /**
  * 業種セレクトを開いて選択肢をクリックする。
@@ -70,14 +95,14 @@ test.describe("フィルタ", () => {
    * **2ページ目から選ぶ。** `page` を1に戻すのは `RankingApp` の `applyFilter` 1か所で、
    * 並び替え・表示基準も同じ経路を通る（`ranking-refresh.spec.ts` の並び替えでも見ている）。
    */
-  test("AC-3: 業種で「海運業」を選ぶと9社になり、順位が振り直され、1ページ目に戻る", async ({
+  test("AC-3: 業種で「海運業」を選ぶと海運業の会社に絞られ、順位が振り直され、1ページ目に戻る", async ({
     page,
   }) => {
     await page.goto("/?page=2");
     await selectOption(page, "業種", "海運業");
 
     await expect(page).toHaveURL(/\/\?ind=%E6%B5%B7%E9%81%8B%E6%A5%AD$/);
-    await expect(rows(page)).toHaveCount(9);
+    await expect(countText(page, "ind=海運業")).toBeVisible();
     // 順位はロゴ左上のバッジ。読み上げ用の「位」が textContent に付く。
     await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1位");
   });
@@ -86,13 +111,13 @@ test.describe("フィルタ", () => {
    * 1ページの行数は PAGE_SIZE で頭打ちなので、効いたかどうかは件数表示で見る
    * （Issue #103）。解除して全社に戻ることも同じ表示で見る。
    */
-  test("AC-4: 従業員数で「1,000人以上」を選ぶと803社に絞られ、もう一度押すと解除される", async ({
+  test("AC-4: 従業員数で「1,000人以上」を選ぶとその区分の会社に絞られ、もう一度押すと解除される", async ({
     page,
   }) => {
     await page.goto("/");
     await pressToggle(page, "従業員数", "1,000人以上");
 
-    await expect(page.getByText("803社 中 1〜30社目")).toBeVisible();
+    await expect(countText(page, "emp=1000-")).toBeVisible();
     // 列は3つで、従業員数は社名の下の meta 行にある（順位の列は無い）。
     const metaCells = await rows(page).locator("td").first().allTextContents();
     for (const cell of metaCells) {
@@ -104,17 +129,15 @@ test.describe("フィルタ", () => {
     await expect(
       page.getByRole("group", { name: "従業員数" }).getByRole("button", { name: "1,000人以上" })
     ).toHaveAttribute("aria-pressed", "false");
-    await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
+    await expect(countText(page, "")).toBeVisible();
   });
 
   /*
    * キーボードだけで3種類の部品を操作できる（CLAUDE.md「開発上の約束」のキーボード操作）。
    *
-   * - 業種: **行数では判定できない**——1ページは PAGE_SIZE 件で頭打ちなので、
-   *   絞り込みが効いていなくても行数は同じ。総件数の表示が減ったかで見る（Issue #103）。
-   * - 従業員数: 3区分（1,049/1,109/803）はいずれも PAGE_SIZE より多いので、キーエンス
-   *   （3,306人、「〜300人」には該当しない）が表から外れるかで見る。**1位の行では
-   *   見ない**——E2 で1位になったヒューリックは234人で、「〜300人」でも残ってしまう。
+   * どれも**行数では判定できない**——1ページは PAGE_SIZE 件で頭打ちなので、絞り込みが
+   * 効いていなくても行数は同じ。件数表示が、そのURLのデータから数えた件数になるかで
+   * 見る（Issue #103）。業種はキーボードで選んだ先を書き写さず、遷移した URL から引く。
    */
   test("キーボードだけで業種・従業員数・検索欄を操作できる", async ({ page }) => {
     await page.goto("/");
@@ -124,8 +147,7 @@ test.describe("フィルタ", () => {
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/[?&]ind=/);
-    await expect(page.getByText("2,961社 中")).toHaveCount(0);
-    expect(await rows(page).count()).toBeGreaterThan(0);
+    await expect(countText(page, new URL(page.url()).search)).toBeVisible();
 
     await page.goto("/");
     const group = page.getByRole("group", { name: "従業員数" });
@@ -135,20 +157,34 @@ test.describe("フィルタ", () => {
       "aria-pressed",
       "true"
     );
-    await expect(page.getByRole("table")).not.toContainText("株式会社キーエンス");
+    await expect(countText(page, "emp=-300")).toBeVisible();
 
     await page.goto("/");
     await page.getByRole("searchbox", { name: "会社名で検索" }).focus();
     await page.keyboard.type("商船三井");
-    await expect(rows(page)).toHaveCount(1);
+    await expect(countText(page, "q=商船三井")).toBeVisible();
   });
 });
 
-// 表記ゆれ（半角カナ・全角空白）の照合は `lib/search.test.ts` が持つ。
-test("AC-6: 検索欄に「商船三井」と打つと「株式会社　商船三井」だけが残る", async ({ page }) => {
+/*
+ * 表記ゆれ（半角カナ・全角空白）の照合は `lib/search.test.ts` が持つ。
+ *
+ * 残る会社は書き写さず、同じ語で絞ったデータと突き合わせる。何社残るかは社名の
+ * 並び次第なので決め打ちしない——**1社も残らなければ前提が崩れているので落とす**
+ * （商船三井が掲載から外れたとき、0件の画面で空振りして通らないように）。
+ */
+test("AC-6: 検索欄に「商船三井」と打つと、社名に「商船三井」を含む会社だけが残る", async ({
+  page,
+}) => {
+  const expected = pageDataOf("q=商船三井").bootstrap.page.companies;
+  expect(expected.length, "社名に「商船三井」を含む会社").toBeGreaterThan(0);
+
   await page.goto("/");
   await page.getByRole("searchbox", { name: "会社名で検索" }).fill("商船三井");
 
-  await expect(rows(page)).toHaveCount(1);
-  await expect(rows(page).first()).toContainText("株式会社　商船三井");
+  await expect(countText(page, "q=商船三井")).toBeVisible();
+  await expect(rows(page)).toHaveCount(expected.length);
+  for (const [i, company] of expected.entries()) {
+    await expect(rows(page).nth(i)).toContainText(company.name);
+  }
 });

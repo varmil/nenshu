@@ -1,4 +1,8 @@
 import { test, expect } from "./appTest";
+import { rankingPageData } from "../features/ranking/lib/pageData";
+import { pageRange } from "../features/ranking/lib/pagination";
+import { formatInt } from "../features/ranking/lib/format";
+import { PAGE_SIZE } from "../features/ranking/types";
 
 /**
  * 0件・端の状態とページ送り（U6・U17）。
@@ -9,7 +13,23 @@ import { test, expect } from "./appTest";
  *
  * JS 実行前の HTML（`/?page=2`・範囲外の `page`）は `ranking-url-sync.spec.ts` の
  * SSR の表に、操作でネットワークが起きないことは同じファイルの流れにまとめてある。
+ *
+ * **社数・件数表示・どの会社が先頭に来るかは、そのURLのデータから取る**
+ * （`rankingPageData`＝`/` が画面を組むのと同じ関数）。いまのデータの値を書き写すと、
+ * 毎日の更新で1社動いただけで落ちる（refresh の D0・Issue #870）。
  */
+
+/** そのURLで `/` が描く1ページぶん。 */
+const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
+
+/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
+function countLabel(query: string): string {
+  const { bootstrap, initialState } = pageDataOf(query);
+  const total = bootstrap.page.totalCount;
+  if (total === 0) return "0社";
+  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
+  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
+}
 test.describe("0件・端の状態と段階表示", () => {
   test("AC-8: 0件のとき条件を緩める案内が出る（エラー表示にはならない）", async ({ page }) => {
     await page.goto("/?ind=鉱業");
@@ -21,19 +41,26 @@ test.describe("0件・端の状態と段階表示", () => {
 
   // Issue #103。100件から30件に減らした。件数表示・行数・総ページ数が同じ刻みで
   // 動いていること（どれか1つだけ100のまま残っていないこと）をここで固定する。
-  test("1ページは30件で、件数表示と行数が一致し、最終ページは端数の21社になる", async ({
+  // 30 は spec の値なので書く。社数はデータから取り、総ページ数と最終ページの行数は
+  // 社数と30の関係で見る。
+  test("1ページは30件で、件数表示と行数が一致し、最終ページは残りの社数になる", async ({
     page,
   }) => {
+    const total = pageDataOf("").bootstrap.page.totalCount;
+    const lastPage = Math.ceil(total / 30);
+
     await page.goto("/");
     await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(30);
-    await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
-    // 2,961 / 30 = 99ページ。末尾のページ番号がそのまま総ページ数になる。
+    await expect(page.getByText(countLabel(""), { exact: true })).toBeVisible();
+    // 末尾のページ番号がそのまま総ページ数になる。
     // `PaginationLink` は `<a role="button">` なので role は button で引く。
-    await expect(page.getByRole("button", { name: "99", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: String(lastPage), exact: true })).toBeVisible();
 
-    await page.goto("/?page=99");
-    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(21);
-    await expect(page.getByText("2,961社 中 2,941〜2,961社目")).toBeVisible();
+    await page.goto(`/?page=${lastPage}`);
+    await expect(page.getByRole("table").locator("tbody tr")).toHaveCount(
+      total - 30 * (lastPage - 1)
+    );
+    await expect(page.getByText(countLabel(`page=${lastPage}`), { exact: true })).toBeVisible();
   });
 
   /*
@@ -43,9 +70,13 @@ test.describe("0件・端の状態と段階表示", () => {
   test("ページ送りを押すと次の30社に入れ替わり、URLに page=2 が出て、最上部へ戻る", async ({
     page,
   }) => {
+    const [top] = pageDataOf("").bootstrap.page.companies;
+    // 既定は実測値なので、2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社になる。
+    const [second] = pageDataOf("page=2").bootstrap.page.companies;
+
     await page.goto("/");
     const firstRow = page.getByRole("table").locator("tbody tr").first();
-    await expect(firstRow).toContainText("ヒューリック株式会社");
+    await expect(firstRow).toContainText(top.name);
 
     const next = page.getByRole("button", { name: "次のページへ" });
     await next.scrollIntoViewIfNeeded();
@@ -54,9 +85,8 @@ test.describe("0件・端の状態と段階表示", () => {
     await next.click();
 
     await expect(page).toHaveURL(/[?&]page=2/);
-    // 既定は実測値なので、2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社になる。
-    await expect(firstRow).toContainText("ジャフコ　グループ株式会社");
-    await expect(firstRow).not.toContainText("ヒューリック株式会社");
+    await expect(firstRow).toContainText(second.name);
+    await expect(firstRow).not.toContainText(top.name);
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   });
 
@@ -66,7 +96,7 @@ test.describe("0件・端の状態と段階表示", () => {
     page,
   }) => {
     await page.goto("/?page=10");
-    await expect(page.getByText("2,961社 中 271〜300社目")).toBeVisible();
+    await expect(page.getByText(countLabel("page=10"), { exact: true })).toBeVisible();
 
     const pageButton = (n: number) => page.getByRole("button", { name: String(n), exact: true });
     for (const n of [8, 9, 11, 12]) await expect(pageButton(n)).toBeVisible();
@@ -77,7 +107,7 @@ test.describe("0件・端の状態と段階表示", () => {
     await pageButton(12).click();
 
     await expect(page).toHaveURL(/[?&]page=12(&|$)/);
-    await expect(page.getByText("2,961社 中 331〜360社目")).toBeVisible();
+    await expect(page.getByText(countLabel("page=12"), { exact: true })).toBeVisible();
     await expect(pageButton(12)).toHaveAttribute("aria-current", "page");
   });
 
@@ -90,13 +120,15 @@ test.describe("0件・端の状態と段階表示", () => {
      * だから横スクロールの有無ではなく、並びの左右の端を本文の器と突き合わせる。
      *
      * 測るのは並びが一番長くなるページ（前後2ページの両側に省略記号が出る位置）。
-     * 1ページ目や最終ページは短いので、見ても何も守らない。5 と 95 は隠すのが
-     * 1ページだけの位置（数字にせず省略記号にしている）、10 はその間。
+     * 1ページ目や最終ページは短いので、見ても何も守らない。5 と最終の4つ前は隠すのが
+     * 1ページだけの位置（数字にせず省略記号にしている）、10 はその間。最終ページは
+     * 社数で動くので、データから取る。
      */
-    test("360px で並びが最も長くなるページ（5・10・95）でも本文の幅からはみ出さない", async ({
+    test("360px で並びが最も長くなるページ（5・10・最終の4つ前）でも本文の幅からはみ出さない", async ({
       page,
     }) => {
-      for (const n of [5, 10, 95]) {
+      const { totalPages } = pageRange(1, pageDataOf("").bootstrap.page.totalCount, PAGE_SIZE);
+      for (const n of [5, 10, totalPages - 4]) {
         await page.goto(`/?page=${n}`);
 
         const nav = page.getByRole("navigation", { name: "ページネーション", exact: true });

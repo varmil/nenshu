@@ -1,5 +1,13 @@
 import { test, expect } from "./appTest";
 import type { Locator, Page } from "@playwright/test";
+import { rankingPageData } from "../features/ranking/lib/pageData";
+import { displaySalary } from "../features/ranking/lib/rank";
+import { populationForBasis } from "../features/ranking/lib/population";
+import { pageRange } from "../features/ranking/lib/pagination";
+import { formatDecimal1, formatInt, formatManYen } from "../features/ranking/lib/format";
+import { deviationScore, formatDeviation } from "../features/company/lib/stats";
+import { PAGE_SIZE, type TargetAge } from "../features/ranking/types";
+import { companies } from "../testing/realData";
 
 /**
  * U12（Issue #80）で足したもの——並び替え・年収バー・偏差値・サイドバー・
@@ -15,9 +23,44 @@ import type { Locator, Page } from "@playwright/test";
  * 変わること、描かれた形が崩れていないこと（切り詰め・折り返し・重なり・列のずれ・
  * 横スクロール）。状態遷移の組み合わせ（`lib/sort.test.ts`・`lib/urlState.test.ts`）と
  * 並びの正しさ（`lib/rank.test.ts`）は単体テストが持っている。
+ *
+ * **どの会社がどこに来るか・金額・偏差値・社数は、そのURLのデータから取る**
+ * （`rankingPageData`＝`/` が画面を組むのと同じ関数）。いまのデータの値を書き写すと、
+ * 毎日の更新で1社動いただけで落ちる（refresh の D0・Issue #870）。
  */
 
 const rows = (page: Page) => page.getByRole("table").locator("tbody tr");
+
+/** そのURLで `/` が描く1ページぶん。 */
+const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
+
+/** そのURLの1行目の会社。 */
+const firstOf = (query: string) => pageDataOf(query).bootstrap.page.companies[0];
+
+/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
+function countLabel(query: string): string {
+  const { bootstrap, initialState } = pageDataOf(query);
+  const total = bootstrap.page.totalCount;
+  if (total === 0) return "0社";
+  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
+  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
+}
+
+/**
+ * その順位が出るページ。1ページ30社なので順位から逆算し、そのページのデータに
+ * 実際に居ることを確かめる（居なければ落とす——社数が足りず、その桁の順位が無い）。
+ */
+function rankSample(rank: number): { url: string; rank: string } {
+  const pageNumber = Math.ceil(rank / PAGE_SIZE);
+  const query = pageNumber === 1 ? "" : `page=${pageNumber}`;
+  if (!pageDataOf(query).bootstrap.page.companies.some((c) => c.rank === rank)) {
+    throw new Error(`${rank}位の会社が居ない（${companies.rows.length}社）`);
+  }
+  return { url: query ? `/?${query}` : "/", rank: String(rank) };
+}
+
+/** 順位バッジの数字と一致するもの。読み上げ用の「位」が textContent に付く。 */
+const rankText = (rank: string) => new RegExp(`^${rank}位$`);
 
 /**
  * 表は3列（順位・会社名 / 金額 / 偏差値）。平均年齢・在籍年数・従業員数は社名の下の
@@ -117,10 +160,13 @@ test.describe("AC-12 並び替え", () => {
       await expect(group.getByRole("button", { name })).toBeVisible();
     }
 
-    // 既定の並びで「平均年収」を押すと低い順になる。先頭は最下位（読み上げ用の「位」が付く）。
+    // 既定の並びで「平均年収」を押すと低い順になる。先頭は金額がいちばん低い会社で、
+    // 順位は振り直さずその会社の順位のまま（読み上げ用の「位」が付く）。
     await group.getByRole("button", { name: "平均年収 高い順" }).click();
     await expect(page).toHaveURL(/\/\?sort=salary-asc$/);
-    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("2961位");
+    await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText(
+      `${firstOf("sort=salary-asc").rank}位`
+    );
   });
 });
 
@@ -138,10 +184,15 @@ test.describe("AC-13 年収バー", () => {
    * 残るのが一番気づきにくい壊れ方なので、単体・E2E の両方で固定している（CLAUDE.md）。
    */
   test("そのページの1位を100%とし、表示基準やページが変わると取り直す", async ({ page }) => {
+    // 1位より金額の低い最初の行。1位と同額の行は同じ100%になるので飛ばす。
+    const top = pageDataOf("").bootstrap.page.companies;
+    const lower = top.findIndex((c) => displaySalary(c) < displaySalary(top[0]));
+    expect(lower, "1ページ目に1位より金額の低い会社が居る").toBeGreaterThan(0);
+
     await page.goto("/");
     await expect(page.getByRole("table").locator("caption")).toContainText("このページの1位を100%");
     expect(await barWidth(page, 0)).toBe(100);
-    const second = await barWidth(page, 1);
+    const second = await barWidth(page, lower);
     expect(second).toBeLessThan(100);
     expect(second).toBeGreaterThan(0);
     const before = await barWidth(page, 5);
@@ -154,7 +205,7 @@ test.describe("AC-13 年収バー", () => {
     // 2ページ目の先頭がまた100%になる（全体の最大で割っていれば100%に届かない）。
     await page.getByRole("button", { name: "次のページへ" }).click();
     await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(rows(page).first()).not.toContainText("Ｍ＆Ａキャピタルパートナーズ");
+    await expect(rows(page).first()).toContainText(firstOf("age=35&page=2").name);
     expect(await barWidth(page, 0)).toBe(100);
   });
 
@@ -166,11 +217,17 @@ test.describe("AC-13 年収バー", () => {
    * 寸法や色の値は写さず、見えるための条件を2つ見る——**棒の上下にはみ出している**
    * ことと、**はみ出したぶんが載る行の地に対して3:1以上**（WCAG 1.4.11 の非テキストの
    * 基準）であること。2つそろえば塗りの色によらず見える。2ページ目を使うのは、
-   * 全行が平均を上回り、縦線が必ず塗りの上に来るため。
+   * 全行が平均を上回り、縦線が必ず塗りの上に来るため——その前提はデータで確かめる。
    */
   test("全体平均の縦線は棒の上下にはみ出し、行の地に対して3:1以上ある（PC・モバイル × ライト・ダーク）", async ({
     page,
   }) => {
+    const { bootstrap, population } = pageDataOf("page=2");
+    expect(
+      Math.min(...bootstrap.page.companies.map(displaySalary)),
+      "2ページ目の全行が全体平均を上回る"
+    ).toBeGreaterThan(populationForBasis(population, null)!.mean);
+
     for (const colorScheme of ["light", "dark"] as const) {
       for (const viewport of [
         { width: 1280, height: 900 },
@@ -246,31 +303,45 @@ test.describe("AC-13 年収バー", () => {
 
 test.describe("AC-14 偏差値", () => {
   /*
-   * 1位は基準ごとに違う（E2 で母集団を広げた後）——実測値はヒューリック、
-   * 35歳そろえはＭ＆Ａキャピタルパートナーズ。**偏差値も基準ごとの母集団で出す。**
+   * **偏差値は基準ごとの母集団で出す。** 1位も基準ごとに違いうる（2026-09 時点では
+   * 実測値と35歳そろえで別の会社）。期待値は、そのURLの1行目の金額と、全社の分布
+   * （`stats.json` の `population`＝`pickPopulationStats` が `/` に渡すもの）から出す。
    *
-   * **母集団は絞り込み後ではなく全2,961社。** 海運業9社に絞ったときの1位が
-   * 「50.0」付近になったら、絞り込んだ集団で計算してしまっている。
+   * **母集団は絞り込み後ではなく全社。** 小さな業種に絞ったときの1位が「50.0」付近に
+   * なったら、絞り込んだ集団で計算してしまっている。
    *
    * **上位◯%は併記しない**（運営者の指示。モックに無いものを足さない）。セルの文字が
    * 数字だけであることを `toHaveText` の完全一致で見る。
    */
+  const topDeviation = (query: string, targetAge: TargetAge | null) => {
+    const { bootstrap, population } = pageDataOf(query);
+    const top = bootstrap.page.companies[0];
+    const { mean, sd } = populationForBasis(population, targetAge)!;
+    return {
+      name: top.name,
+      deviation: formatDeviation(deviationScore(displaySalary(top), mean, sd)),
+    };
+  };
+
   test("表示基準ごとの全社の分布で出し、列には数字だけを出す", async ({ page }) => {
     await page.goto("/");
     // 偏差値は3列目（index 2）。順位の列を廃した（アートボード 4d）ぶん1つ左。
-    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
-    await expect(rows(page).first().locator("td").nth(2)).toHaveText("130.7");
+    const raw = topDeviation("", null);
+    await expect(rows(page).first()).toContainText(raw.name);
+    await expect(rows(page).first().locator("td").nth(2)).toHaveText(raw.deviation);
     await expect(page.getByText(/上位[\d.]+%/)).toHaveCount(0);
     await expect(page.getByRole("table").locator("caption")).toContainText("100を超える");
 
     await page.goto("/?age=35");
-    await expect(rows(page).first()).toContainText("Ｍ＆Ａキャピタルパートナーズ株式会社");
-    await expect(rows(page).first().locator("td").nth(2)).toHaveText("159.1");
+    const age35 = topDeviation("age=35", 35);
+    await expect(rows(page).first()).toContainText(age35.name);
+    await expect(rows(page).first().locator("td").nth(2)).toHaveText(age35.deviation);
 
     await page.goto("/?ind=海運業");
-    await expect(rows(page)).toHaveCount(9);
+    const shipping = topDeviation("ind=海運業", null);
     await expect(rows(page).first().locator("[data-rank-badge]")).toHaveText("1位");
-    await expect(rows(page).first().locator("td").nth(2)).toHaveText("98.7");
+    await expect(rows(page).first()).toContainText(shipping.name);
+    await expect(rows(page).first().locator("td").nth(2)).toHaveText(shipping.deviation);
   });
 });
 
@@ -308,20 +379,28 @@ test.describe("サイドバーと適用中のチップ", () => {
 
 test.describe("業種チップ", () => {
   /*
-   * 33件の `<a href="/?ind=…">` はクローラの経路（ADR-0006）。左クリックを横取りして
+   * 業種ごとの `<a href="/?ind=…">` はクローラの経路（ADR-0006）。左クリックを横取りして
    * 遷移させないことは `ranking-url-sync.spec.ts` のネットワークの流れで見ている。
+   * 業種の数と社数はデータから取る（`bootstrap.industries`・`industryCounts`）。
    */
-  test("33件が社数つきで本文カラムの中に並び、href はクロールできる形をしている", async ({
+  test("全業種が社数つきで本文カラムの中に並び、href はクロールできる形をしている", async ({
     page,
   }) => {
+    const { industries, industryCounts } = pageDataOf("").bootstrap;
+
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
     const nav = page.getByRole("navigation", { name: "業種から見る" });
     const chips = nav.getByRole("link");
-    await expect(chips).toHaveCount(33);
+    await expect(chips).toHaveCount(industries.length);
     await expect(chips.first()).toHaveAttribute("href", /^\/\?ind=/);
-    await expect(nav.getByRole("link", { name: "海運業 9社", exact: true })).toBeVisible();
+    await expect(
+      nav.getByRole("link", {
+        name: `${industries[0]} ${formatInt(industryCounts[0])}社`,
+        exact: true,
+      })
+    ).toBeVisible();
 
     // 表と左端が揃っている＝サイドバーの下ではなく本文カラムの中にいる。
     const navBox = (await nav.boundingBox())!;
@@ -340,7 +419,8 @@ test.describe("ヘッダの検索", () => {
     await search.press("Enter");
 
     await expect(page).toHaveURL(/\/\?q=/);
-    await expect(rows(page)).toHaveCount(1);
+    // 遷移先で絞り込まれている。件数表示を同じ語で絞ったデータと突き合わせる。
+    await expect(page.getByText(countLabel("q=商船三井"), { exact: true })).toBeVisible();
     await expect(search).toHaveValue("商船三井");
   });
 
@@ -366,7 +446,7 @@ test.describe("ヘッダの検索", () => {
     await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
 
     await expect(page).toHaveURL(/\/$/);
-    await expect(rows(page).first()).toContainText("ヒューリック株式会社");
+    await expect(rows(page).first()).toContainText(firstOf("").name);
     await expect(search).toHaveValue("");
   });
 });
@@ -397,16 +477,21 @@ test.describe("U13 モックとの一致", () => {
    * 業種は meta 行に出さない（運営者の指示。行が長くなって末尾が見切れていた）。
    * **年齢そろえでも同じ1行のまま**——PC の末尾に付けていた「実績 ◯万円」は冗長なので
    * 外した（8巡目・運営者の指示）。同じ会社を両方の表示基準で開き、完全一致で見る。
+   * 会社は実測値の1位をデータから選び、社名で検索して開く。期待する1行はその会社の
+   * 値をアプリの整形関数に通して組む。
    */
   test("meta 行は平均年齢・在籍年数・従業員数の1行で、表示基準によらず同じ中身", async ({
     page,
   }) => {
-    for (const path of ["/?q=ヒューリック", "/?q=ヒューリック&age=35"]) {
+    const target = firstOf("");
+    const meta = `平均${formatDecimal1(target.avgAge)}歳 ・ 在籍${formatDecimal1(target.avgTenure)}年 ・ ${formatInt(target.employees)}人`;
+    const q = `q=${encodeURIComponent(target.name)}`;
+    for (const path of [`/?${q}`, `/?${q}&age=35`]) {
       await page.goto(path);
-      await expect(
-        rows(page).first().getByText("平均39.0歳 ・ 在籍7.0年 ・ 234人", { exact: true }),
-        path
-      ).toBeVisible();
+      const row = rows(page).filter({
+        has: page.getByRole("link", { name: target.name, exact: true }),
+      });
+      await expect(row.getByText(meta, { exact: true }), path).toBeVisible();
     }
   });
 
@@ -460,23 +545,21 @@ test.describe("U13 モックとの一致", () => {
  * 「**桁数が変わっても左端・上端が動かない**」こと——バッジは右へだけ伸びる。
  */
 test.describe("順位バッジ", () => {
-  /** 1桁・2桁・3桁・4桁がそれぞれ出るページ。1ページ30社なので順位から逆算できる。 */
-  const RANKS = [
-    ["/", "1"],
-    ["/?page=4", "98"],
-    ["/?page=32", "946"],
-    ["/?page=63", "1866"],
-  ] as const;
-
-  test("1 / 98 / 946 / 1866 のどれでも左端・上端が揃い、4桁でも社名・金額に届かない", async ({
+  /*
+   * 1桁・2桁・3桁・4桁の順位。各桁のいちばん小さい順位（1・10・100・1000）を使い、
+   * 出るページは `rankSample` がデータで確かめる。順位は金額の並びでの位置（1から
+   * 連番）なので、社数がその順位に届いていれば必ず居る。
+   */
+  test("1桁・2桁・3桁・4桁の順位のどれでも左端・上端が揃い、4桁でも社名・金額に届かない", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
+    const RANKS = [1, 10, 100, 1000].map(rankSample);
 
     const offsets = [];
-    for (const [url, rank] of RANKS) {
+    for (const { url, rank } of RANKS) {
       await page.goto(url);
-      const badge = page.locator("tbody tr [data-rank-badge]", { hasText: rank }).first();
+      const badge = page.locator("tbody tr [data-rank-badge]", { hasText: rankText(rank) });
       const row = badge.locator("xpath=ancestor::tr");
       const badgeBox = (await badge.boundingBox())!;
       const rowBox = (await row.boundingBox())!;
@@ -499,8 +582,8 @@ test.describe("順位バッジ", () => {
 
     // 左端・上端は1pxも動かない（min-width が下限で、伸びるのは右だけ）。
     for (const [i, offset] of offsets.entries()) {
-      expect(offset.dx, RANKS[i][1]).toBeCloseTo(offsets[0].dx, 1);
-      expect(offset.dy, RANKS[i][1]).toBeCloseTo(offsets[0].dy, 1);
+      expect(offset.dx, RANKS[i].rank).toBeCloseTo(offsets[0].dx, 1);
+      expect(offset.dy, RANKS[i].rank).toBeCloseTo(offsets[0].dy, 1);
     }
     // 1桁と2桁は min-width で同じ幅、4桁はそれより広い。
     expect(offsets[1].width).toBeCloseTo(offsets[0].width, 1);
@@ -512,12 +595,13 @@ test.describe("順位バッジ", () => {
  * リード文の掲載条件（運営者の指示 2026-08-27）と金額の出どころ。**どちらも PC でも
  * モバイルでも出す**——`hidden md:inline` に入れると、狭い画面の読者にだけ「なぜ数人の
  * 持株会社が載っていないのか」「何の金額か」が届かない（年齢そろえの「有価証券報告書」は
- * 実際に PC でだけ出ていた）。数は `meta.excluded.minEmployees` から引くので、実データの
- * 値（100）で固定する。**表示基準を切り替えても消えない**ことも見る。
+ * 実際に PC でだけ出ていた）。数は `meta.excluded.minEmployees` から引くので、期待値も
+ * 同じところから取る。**表示基準を切り替えても消えない**ことも見る。
  */
-test("リード文の掲載条件（従業員100人以上）と有価証券報告書は PC・モバイルの両方、どちらの表示基準でも出る", async ({
+test("リード文の掲載条件（従業員数の下限）と有価証券報告書は PC・モバイルの両方、どちらの表示基準でも出る", async ({
   page,
 }) => {
+  const condition = `従業員${formatInt(companies.meta.excluded.minEmployees)}人以上が対象。`;
   for (const [label, width] of [
     ["PC", 1280],
     ["モバイル", 390],
@@ -530,7 +614,7 @@ test("リード文の掲載条件（従業員100人以上）と有価証券報�
       await page.goto(path);
       // `useInnerText`: 既定の `textContent` は `hidden md:inline` で消えた字も拾う。
       const lead = page.locator("h1 + p");
-      for (const text of ["従業員100人以上が対象。", "有価証券報告書の平均年間給与"]) {
+      for (const text of [condition, "有価証券報告書の平均年間給与"]) {
         await expect(lead, `${label}・${basis}`).toContainText(text, { useInnerText: true });
       }
     }
@@ -598,11 +682,7 @@ test.describe("モバイルの行（390px）", () => {
     expect(Math.abs(brandBox.y - aboutBox.y), "ヘッダが1段").toBeLessThanOrEqual(4);
 
     expect(await renderedLines(page.getByRole("heading", { level: 1 })), "見出し").toHaveLength(1);
-    expect(
-      (await renderedLines(page.getByText("有価証券報告書の平均年間給与（単体）で比べた2,961社。")))
-        .length,
-      "説明文"
-    ).toBeLessThanOrEqual(2);
+    expect((await renderedLines(page.locator("h1 + p"))).length, "説明文").toBeLessThanOrEqual(2);
     expect(
       await renderedLines(page.getByText("有価証券報告書の数値のまま。")),
       "帯のヒント"
@@ -622,7 +702,7 @@ test.describe("モバイルの行（390px）", () => {
 
     const logo = row.locator('[data-logo="image"], [data-logo="initial"]');
     const name = row.getByRole("link").first();
-    const salary = row.getByText("2,295万円");
+    const salary = row.getByText(formatManYen(firstOf("").avgSalary));
 
     const boxes = await Promise.all(
       [logo, name, salary].map(async (l) => (await l.boundingBox())!)
@@ -655,8 +735,8 @@ test.describe("モバイルの行（390px）", () => {
    * 9行ぶんをまとめて測る。
    * - **金額の左端とバーの左端が全行で1つの値に揃う**（桁数の少ない会社でも崩れない）
    * - **金額は1行に収まる。** このサイトは webfont を持たず OS のフォントで組むので、
-   *   「2,178万円」の実測幅は環境で変わる。80px に詰めていたとき「円」だけが2行目に
-   *   落ちた（報告あり）。幅の値ではなく1行に収まっていることを見る
+   *   4桁の金額（「◯,◯◯◯万円」）の実測幅は環境で変わる。80px に詰めていたとき「円」
+   *   だけが2行目に落ちた（報告あり）。幅の値ではなく1行に収まっていることを見る
    * - **行の高さが揃う**（社名の長さによらずロゴが高さを決める）
    */
   test("9行ぶん、金額とバーの左端が揃い、金額は1行に収まり、行の高さも揃う", async ({ page }) => {
@@ -685,17 +765,17 @@ test.describe("モバイルの行（390px）", () => {
 
   // PC と同じ記号に統一してある（アートボード 3e）。
   test("順位はロゴ左上のバッジで、桁が増えても左端・上端が動かない", async ({ page }) => {
-    const offset = async (url: string, rank: string) => {
+    const offset = async ({ url, rank }: { url: string; rank: string }) => {
       await page.goto(url);
-      const badge = page.locator("div.md\\:hidden [data-rank-badge]", { hasText: rank }).first();
+      const badge = page.locator("div.md\\:hidden [data-rank-badge]", { hasText: rankText(rank) });
       const logo = badge.locator("xpath=preceding-sibling::*[1]");
       const badgeBox = (await badge.boundingBox())!;
       const logoBox = (await logo.boundingBox())!;
       return { dx: badgeBox.x - logoBox.x, dy: badgeBox.y - logoBox.y, width: badgeBox.width };
     };
 
-    const one = await offset("/", "1");
-    const four = await offset("/?page=63", "1866");
+    const one = await offset(rankSample(1));
+    const four = await offset(rankSample(1000));
 
     expect(four.dx).toBeCloseTo(one.dx, 1);
     expect(four.dy).toBeCloseTo(one.dy, 1);
@@ -714,22 +794,42 @@ test.describe("モバイルの行（390px）", () => {
  * `branding.spec.ts` にあった）も `/` の1行で見ている。状態ごとの最悪ケースを全部回す——
  * - `/`・`/?age=35`: 金額の桁が表示基準で変わる
  * - `/?sort=emp`: 並び替えのチップが選ばれた状態（390px で「絞り込み」と並ぶ幅）
- * - `?q=ジャパンエレベーター`: 390px でも切れる長い社名（金額を16pxに落として社名の幅が
- *   広がったので、「大和証券グループ本社」では切れなくなった）。両方の表示基準で見る
- * - `?ind=証券、商品先物取引業&age=60`: いちばん長い見出し（`証券、商品先物取引業の
- *   60歳年収ランキング`）とリード文。業種名は33件で最長、年齢そろえは実測値より長い
+ * - 社名がいちばん長い会社の行: 390px でも切れる長い社名（金額を16pxに落として社名の幅が
+ *   広がったので、「大和証券グループ本社」では切れなくなった）。両方の表示基準で、その会社が
+ *   出るページを開いて見る
+ * - `?ind=<業種名がいちばん長い業種>&age=60`: いちばん長い見出し（`◯◯の60歳年収ランキング`）
+ *   とリード文。年齢そろえは実測値より長い
+ *
+ * 社名と業種名はデータから選ぶ（どちらも長さで決まる最悪ケース）。長い社名の会社は
+ * `?q=` で絞らず、その会社が出るページで開く——2026-09 時点では、長い検索語が「適用中」の
+ * チップを縮めずに押し出して横スクロールを出す（社名の行とは別の崩れ）。
  *
  * **リード文はどの状態でも3行まで。** 360px では業種が無くても年齢そろえで3行になる
  * （掲載条件を両方の幅に出すと決めた代償。運営者の指示 2026-08-27）。業種で絞ると
  * 業種名と社数のぶん長くなるが、4行にはしない。
  */
-const MOBILE_PATHS = [
-  "/",
-  "/?age=35",
-  "/?sort=emp",
-  "/?q=ジャパンエレベーター",
-  "/?q=ジャパンエレベーター&age=35",
-  "/?ind=証券、商品先物取引業&age=60",
+const LONGEST_NAME = companies.rows.reduce((a, b) => (b[1].length > a[1].length ? b : a))[1];
+const LONGEST_INDUSTRY = companies.industries.reduce((a, b) => (b.length > a.length ? b : a));
+
+/**
+ * 社名がいちばん長い会社が出るページ。既定の並びでは順位＝並びの位置なので、全社の中の
+ * 順位（`populationRank`。社名で絞っても変わらない）からページを逆算する。
+ */
+function longNamePath(age: TargetAge | null): string {
+  const base: Record<string, string> = age === null ? {} : { age: String(age) };
+  const query = (params: Record<string, string>) => new URLSearchParams(params).toString();
+  const [company] = pageDataOf(query({ ...base, q: LONGEST_NAME })).bootstrap.page.companies;
+  const pageNumber = Math.ceil(company.populationRank / PAGE_SIZE);
+  return `/?${query({ ...base, page: String(pageNumber) })}`;
+}
+
+const MOBILE_CASES: { path: string; longName?: true }[] = [
+  { path: "/" },
+  { path: "/?age=35" },
+  { path: "/?sort=emp" },
+  { path: longNamePath(null), longName: true },
+  { path: longNamePath(35), longName: true },
+  { path: `/?ind=${encodeURIComponent(LONGEST_INDUSTRY)}&age=60` },
 ];
 
 for (const width of [390, 360]) {
@@ -737,7 +837,7 @@ for (const width of [390, 360]) {
     test.use({ viewport: { width, height: 844 } });
 
     test("横スクロールが出ず、社名だけが切れて偏差値と金額は切り詰められない", async ({ page }) => {
-      for (const path of MOBILE_PATHS) {
+      for (const { path, longName } of MOBILE_CASES) {
         await page.goto(path);
         expect(await horizontalOverflow(page), `${path} の横スクロール`).toBeLessThanOrEqual(0);
 
@@ -752,13 +852,15 @@ for (const width of [390, 360]) {
           expect(
             await renderedLines(page.getByRole("heading", { level: 1 })),
             `${path} の見出し`
-          ).toEqual(["証券、商品先物取引業の", "60歳年収ランキング"]);
+          ).toEqual([`${LONGEST_INDUSTRY}の`, "60歳年収ランキング"]);
         }
 
-        const row = page.locator("div.md\\:hidden > div").first();
+        const mobileRows = page.locator("div.md\\:hidden > div");
+        const nameLink = page.getByRole("link", { name: LONGEST_NAME, exact: true });
+        const row = longName ? mobileRows.filter({ has: nameLink }) : mobileRows.first();
         const rowBox = (await row.boundingBox())!;
 
-        if (path.includes("ジャパンエレベーター")) {
+        if (longName) {
           // 社名は1行で切れる。折り返していれば矩形が2つになる。
           const name = row.getByRole("link").first();
           expect(await name.evaluate((el) => el.getClientRects().length), `${path} の社名`).toBe(1);
