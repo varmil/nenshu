@@ -125,8 +125,13 @@ def check(entries):
             raise ValueError(f"{code} の提出日が YYYY-MM-DD の形ではありません: {e['filed']!r}")
 
 
-def load(path=PATH):
-    """EDINETコード → 行（列名 → 文字列）。"""
+def load(path=None):
+    """EDINETコード → 行（列名 → 文字列）。
+
+    **置き場所は呼んだ時点の `PATH` を見る**（既定の引数に束ねない）。テストが `PATH` を差し替えても、
+    既定の引数は定義した時点の値のままなので、本物の台帳を読み書きしてしまう（D4 で実際に踏んだ）。
+    """
+    path = path or PATH
     with open(path, encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         if reader.fieldnames != COLUMNS:
@@ -136,8 +141,9 @@ def load(path=PATH):
     return entries
 
 
-def save(entries, path=PATH):
+def save(entries, path=None):
     """**EDINETコードの順に1社1行で書く。** 毎日書き換わるので、差分が会社ごとに出る形にする。"""
+    path = path or PATH
     check(entries)
     with open(path, "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=COLUMNS, lineterminator="\n")

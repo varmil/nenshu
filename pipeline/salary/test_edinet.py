@@ -4,6 +4,7 @@
 """
 
 import io
+from datetime import date
 import unittest
 import zipfile
 from pathlib import Path
@@ -212,3 +213,34 @@ class AdoptSalary(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CompanyAnnualReport(unittest.TestCase):
+    """`edinet.is_company_annual_report` と、それを使う `annual_reports` の寄せ方（refresh の D4）。"""
+
+    def doc(self, doc_id, period, ordinance="010", **extra):
+        return {
+            "docID": doc_id,
+            "docTypeCode": "120",
+            "ordinanceCode": ordinance,
+            "edinetCode": "E03626",
+            "periodEnd": period,
+            **extra,
+        }
+
+    def test_会社本体の有報だけを採る(self):
+        self.assertTrue(edinet.is_company_annual_report(self.doc("S1", "2026-03-31")))
+        # ファンドの有報（特定有価証券の開示府令）
+        self.assertFalse(edinet.is_company_annual_report(self.doc("S2", "2026-05-01", "030")))
+        # 取り下げ・EDINETコードの無いもの・有報でないもの
+        self.assertFalse(edinet.is_company_annual_report(self.doc("S3", "2026-03-31", withdrawalStatus="1")))
+        self.assertFalse(edinet.is_company_annual_report(self.doc("S4", "2026-03-31", edinetCode=None)))
+        self.assertFalse(edinet.is_company_annual_report(self.doc("S5", "2026-03-31", docTypeCode="130")))
+
+    def test_期末の新しいファンドの有報が会社の有報に勝たない(self):
+        # 三菱ＵＦＪ信託銀行の形: 自社の有報（2026-03-31期）より期末が新しいファンドの有報がある
+        results = [self.doc("S100YIH8", "2026-03-31"), self.doc("S100YSQH", "2026-05-01", "030")]
+        from unittest import mock
+        with mock.patch.object(edinet, "list_documents", return_value={"results": results}):
+            docs = edinet.annual_reports(date(2026, 6, 1), date(2026, 6, 1), verbose=False)
+        self.assertEqual([d["docID"] for d in docs], ["S100YIH8"])
