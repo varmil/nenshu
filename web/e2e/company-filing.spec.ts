@@ -1,5 +1,7 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
+import { companyFilingDocId } from "../features/company/lib/pageData";
+import { edinetDocumentUrl } from "../lib/data/sources";
 
 /**
  * 有報への直リンク（C13・Issue #814、`docs/company/spec.md` 1.20・AC-31）。
@@ -12,10 +14,6 @@ import type { Page } from "@playwright/test";
  * 文書の横スクロールは `company-refresh.spec.ts` の AC-15 が見ている。
  */
 
-// キーエンスの平均年間給与を取った書類（`ranking_unified_2026.csv` の `doc_id`）。
-// 年1回のデータ更新で変わる（同じ spec の金額と同じ扱い）。
-const KEYENCE_DOC_URL = "https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?S100YAHE,,";
-
 const filing = (page: Page) => page.getByTestId("company-filing");
 // 4問の枠。帯はこの下辺に付く（C16 までは4セルの表の下辺だった）。
 const qaList = (page: Page) => page.getByTestId("company-qa-list");
@@ -24,10 +22,13 @@ test.describe("AC-31 有報への直リンク", () => {
   test("Q&A の4問の枠の下辺に、その会社の書類を別タブで開く帯があり、出典の実測値の行も同じ書類を指す", async ({
     page,
   }) => {
+    // 平均年間給与を取った書類（`filings.json`）。書類 ID は有報を出し直すたびに変わるので、
+    // データから引く（refresh の D0・Issue #870）。
+    const docUrl = edinetDocumentUrl(companyFilingDocId("6861"));
     await page.goto("/company/6861");
 
     // 帯全体が1つのリンク。押せる範囲を広げるため（spec 1.20）。
-    await expect(filing(page)).toHaveAttribute("href", KEYENCE_DOC_URL);
+    await expect(filing(page)).toHaveAttribute("href", docUrl);
     await expect(filing(page)).toHaveAttribute("target", "_blank");
     await expect(filing(page)).toContainText("この会社の有価証券報告書");
     await expect(filing(page)).toContainText("EDINETで開く");
@@ -45,10 +46,7 @@ test.describe("AC-31 有報への直リンク", () => {
     const row = page
       .getByTestId("company-sources")
       .locator("dl > div", { has: page.locator("dt", { hasText: "実測値" }) });
-    await expect(row.getByRole("link", { name: "有価証券報告書" })).toHaveAttribute(
-      "href",
-      KEYENCE_DOC_URL
-    );
+    await expect(row.getByRole("link", { name: "有価証券報告書" })).toHaveAttribute("href", docUrl);
   });
 
   test("390px でも1行に収まり、押せる高さが 44px ある", async ({ page }) => {
