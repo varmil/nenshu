@@ -4,6 +4,8 @@
 
 日付: 2026-08-21
 
+> **2026-09-29 追記（refresh 施策・Issue [#868](https://github.com/varmil/nenshu/issues/868)）**: 厚生労働省「女性の活躍推進企業データベース」のオープンデータ全件版の取得に限り、**ブラウザの User-Agent を名乗ってよい**（運営者の判断）。curl の既定の User-Agent では 403 が返り（AWS ELB が弾く）、E5 でも手作業でブラウザの User-Agent を名乗って落としている（`docs/expansion/worklife-rematch/design.md`）。決定1 が「アクセス制御の回避」として拒んだのは、画像認証や JS のチャレンジで機械の取得を明示的に止めているサイト（OpenWork・OpenMoney）で、こちらは国が再利用のために公開しているオープンデータになる。**まず自サイト名を名乗る User-Agent で試し、通らないときだけブラウザの User-Agent にする。取りに行くのは1日1回まで。** ロゴの取得（企業の公式サイト）には例外を広げない——`docs/logo/logo-pipeline/design.md` の「ブラウザの UA への偽装はしない」はそのまま。
+
 親 Issue: [#23](https://github.com/varmil/nenshu/issues/23)。施策は `docs/logo/`。
 
 `docs/product/product.md` の制約「取得したデータを再配布してよいかの判断は運営者が行う」に該当する決定である。**判断は運営者が 2026-08-21 に行い、ここに記録する。**

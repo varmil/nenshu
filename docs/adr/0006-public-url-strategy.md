@@ -4,6 +4,8 @@
 
 日付: 2026-08-18
 
+> **2026-09-29 追記（[ADR-0017](0017-stable-company-id.md)）**: 決定2 の ID の決め方（証券コードがあれば証券コード、無ければ EDINETコード）は、**初めて ID を振るときの規則**としてだけ残る。一度振った ID は、上場・上場廃止で証券コードが付いたり消えたりしても変えない。2026-09-29 時点で公開している全社の ID はそのまま。
+
 `docs/ranking/overview.md` 末尾および `docs/ranking/url-sync/design.md` で確定していた Bolt 2 のパス設計（`/age/[age]` 8枚・`/industry/[industry]` 33枚・`/company/[key]` 1,867枚）を supersede する。`/company/[id]` は残すが、ID の作り方を変える。
 
 ## 文脈
