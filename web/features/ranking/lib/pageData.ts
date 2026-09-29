@@ -10,10 +10,10 @@ import { pickPopulationStats } from "@/features/ranking/lib/population";
 import { buildRankedCompanies } from "@/features/ranking/lib/rank";
 import { INITIAL_STATE, parseSearchParams } from "@/features/ranking/lib/urlState";
 import { buildLogoMask } from "@/features/logo/lib/mask";
-import companiesData from "@/public/data/companies.json";
-import curvesData from "@/public/data/curves.json";
-import statsData from "@/public/data/stats.json";
-import logosData from "@/public/data/logos.json";
+import companiesData from "@/public/data/companies.json" with { type: "json" };
+import curvesData from "@/public/data/curves.json" with { type: "json" };
+import statsData from "@/public/data/stats.json" with { type: "json" };
+import logosData from "@/public/data/logos.json" with { type: "json" };
 
 const companies = companiesData as CompaniesData;
 const curves = curvesData as CurvesData;

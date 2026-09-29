@@ -1,6 +1,27 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
 import { collectPageRequests } from "./network";
+import {
+  companies,
+  industryOf,
+  pickCompany,
+  pickMaxCompany,
+  rowIndexOf,
+  worklife,
+} from "../testing/realData";
+import { companyPageData } from "../features/company/lib/pageData";
+import {
+  buildRadarAxes,
+  unitPickNote,
+  type RadarAxis,
+  type RadarAxisKey,
+} from "../features/company/lib/radar";
+import { statsForBasis } from "../features/company/lib/stats";
+import { formatDecimal1, formatManYen } from "../features/ranking/lib/format";
+import type { TargetAge } from "../features/ranking/types";
+import { shortIndustryLabel } from "../lib/data/industry";
+import { decodeWorklife } from "../lib/data/worklife";
+import { htmlText } from "./html";
 
 /**
  * P1（Issue #167）——企業詳細ページのレーダーチャート「公開資料による全体像」。
@@ -11,6 +32,10 @@ import { collectPageRequests } from "./network";
  * `pipeline/scripts/build-data.test.ts` が固定しているので、ここは**ブラウザでどう
  * 出るか**（欠測軸の頂点が無いこと・表示基準に追随するのが平均年収だけであること・
  * 指標リストの列が中身で動かないこと・図が潰れないこと）と、実データを通した配線を見る。
+ *
+ * **期待値はいまのデータの値を書き写さず、画面と同じ組み立て（`radarAxesOf`）から作る。
+ * 会社も状態（欠けた軸の数・先頭の区分で打った軸がある 等）で選ぶ**（refresh の D0・#870。
+ * 毎日の更新で順位も値も、どの会社がその状態かも動く）。
  */
 
 const section = (page: Page) =>
@@ -21,15 +46,85 @@ const chart = (page: Page) => section(page).locator("svg");
 const worklifeSection = (page: Page) =>
   page.getByRole("heading", { name: "残業・有給・男女の賃金の差異" }).locator("xpath=..");
 
+/** 指標リストの1行（ラベルで引く）。`dd` は 値・順位・（稼ぐ力だけ）2行目 の順。 */
+const listRow = (page: Page, label: string) =>
+  section(page)
+    .locator("dl > div")
+    .filter({ has: page.locator("dt", { hasText: label }) });
+
+/** 図の軸ラベルの下の値（`text` の2つ目の `tspan`）。ラベルで引く。 */
+const chartValue = (page: Page, label: string) =>
+  chart(page).locator("text", { hasText: label }).locator("tspan").nth(1);
+
+/**
+ * 軸ごとの数値の書き方。**`CompanyDetail` が `buildRadarAxes` に渡しているものと同じ**
+ * ——単位の付け方は画面の組み立ての側にあって、関数として取り出されていない。
+ */
+const RADAR_FORMAT: Record<RadarAxisKey, (value: number) => string> = {
+  salary: formatManYen,
+  paidLeave: (v) => `${formatDecimal1(v)}%`,
+  tenure: (v) => `${formatDecimal1(v)}年`,
+  profit: formatManYen,
+  overtime: (v) => `${formatDecimal1(v)}時間`,
+};
+
+/**
+ * 1社ぶんの5軸を、画面と同じ入力（`companyPageData`）・同じ組み立て（`buildRadarAxes`）で作る。
+ * 平均年収の軸だけが表示基準で変わる（AC-11）ので、表示基準を受け取る。
+ */
+function radarAxesOf(id: string, targetAge: TargetAge | null = null): RadarAxis[] {
+  const { view, radar } = companyPageData(id);
+  const current = statsForBasis(view, targetAge);
+  return buildRadarAxes(
+    {
+      salary: { value: current.salary, rank: current.rankAll, population: view.totalCount },
+      ...radar,
+    },
+    RADAR_FORMAT,
+    {
+      profit:
+        radar.profitIndustryMedian === null
+          ? ""
+          : `${shortIndustryLabel(view.tse33)}の中央値 ${formatManYen(radar.profitIndustryMedian)}`,
+    },
+    { profit: "1人当たり経常利益" }
+  );
+}
+
+const axisOf = (axes: RadarAxis[], key: RadarAxisKey) => axes.find((a) => a.key === key)!;
+const missingCount = (axes: RadarAxis[]) => axes.filter((a) => a.position === null).length;
+const pickedAxes = (axes: RadarAxis[]) => axes.filter((a) => a.pickedUnit !== "");
+
+/** 有給・残業の全体値と区分（`worklife.json` を画面と同じ関数で読み戻す）。 */
+function worklifeAxes(id: string) {
+  const record = decodeWorklife(worklife, rowIndexOf(id));
+  return [
+    { key: "paidLeave", all: record?.paidLeaveAll ?? null, units: record?.paidLeaveUnits ?? [] },
+    { key: "overtime", all: record?.overtimeAll ?? null, units: record?.overtimeUnits ?? [] },
+  ] as const;
+}
+
+/** **居ることだけを前提にする会社**（企業 ID は変わらない・ADR-0017）。図の寸法を見るだけに使う。 */
+const KEYENCE = "6861";
+
+/** 先頭の区分で点を打った軸が1つあり、欠けた軸の無い会社（W3 の1軸・初期 HTML）。 */
+const ONE_PICK = pickCompany("先頭の区分で打った軸が1つで、欠けた軸の無い会社", ([id]) => {
+  const axes = radarAxesOf(id);
+  return pickedAxes(axes).length === 1 && missingCount(axes) === 0;
+});
+
 test.describe("節の中身", () => {
   /*
-   * キーエンス1社で、節に出る文字をまとめて見る（AC-6・AC-8・AC-9）。
-   * 既定の 1280px では図の右に指標リストが出る（`lg` から）。
+   * 1社で、節に出る文字をまとめて見る（AC-6・AC-8・AC-9）。稼ぐ力の業種中央値を見るので、
+   * それが添わる会社を選ぶ。既定の 1280px では図の右に指標リストが出る（`lg` から）。
    */
-  test("AC-6・AC-8・AC-9 5軸のラベルと実数、断り、図の外の指標リストが出る（キーエンス）", async ({
-    page,
-  }) => {
-    await page.goto("/company/6861");
+  test("AC-6・AC-8・AC-9 5軸のラベルと実数、断り、図の外の指標リストが出る", async ({ page }) => {
+    const id = pickCompany(
+      "稼ぐ力に業種の中央値が添わる会社",
+      ([id]) => axisOf(radarAxesOf(id), "profit").note !== ""
+    );
+    const axes = radarAxesOf(id);
+    await page.goto(`/company/${id}`);
 
     /*
      * **見出しの中では先頭。** C15（#821）で平均年収カードの直後に移した（`docs/company/spec.md`
@@ -39,13 +134,13 @@ test.describe("節の中身", () => {
     const headings = await page.getByRole("heading", { level: 2 }).allInnerTexts();
     expect(headings[0]).toBe("公開資料による全体像");
 
-    // AC-6: 5軸のラベルと実数（アートボード 6a）。
+    // AC-6: 5軸のラベルと実数（アートボード 6a）。欠けた軸は「掲載なし」。
     const svg = chart(page);
     for (const label of ["平均年収（有報）", "有給の取得", "定着（在籍）", "稼ぐ力", "残業時間"]) {
       await expect(svg).toContainText(label);
     }
-    for (const value of ["2,178万円", "11.3年", "38.8%"]) {
-      await expect(svg).toContainText(value);
+    for (const { label, valueText } of axes) {
+      await expect(chartValue(page, label), label).toHaveText(valueText);
     }
     // AC-8: 男女の賃金の差異は軸にしない（数値は下の節に残る）。
     await expect(svg).not.toContainText("賃金");
@@ -56,7 +151,7 @@ test.describe("節の中身", () => {
     for (const text of [
       "その指標を公表している会社の中での相対位置",
       "1人当たり経常利益",
-      "電気機器の中央値",
+      axisOf(axes, "profit").note,
       "連結の経常利益",
       "パート・アルバイトは従業員数に含まれません",
     ]) {
@@ -74,8 +169,13 @@ test.describe("節の中身", () => {
     expect(labels).toHaveLength(expected.length);
     // 稼ぐ力は副題が後ろに付くので前方一致で見る。
     labels.forEach((label, i) => expect(label.startsWith(expected[i]), label).toBe(true));
-    await expect(list).toContainText("2,961社中3位");
-    await expect(list).toContainText("1,486社中1,461位");
+    // 各行の値と順位（掲載なしの軸は順位が空）。
+    for (const [i, label] of expected.entries()) {
+      const { valueText, rankText } = axes.find((a) => a.label === label)!;
+      const cells = list.locator(":scope > div").nth(i).locator("dd");
+      await expect(cells.nth(0), label).toHaveText(valueText);
+      await expect(cells.nth(1), label).toHaveText(rankText);
+    }
     // 「上位◯%」は使わない（上位82%が良い意味に読まれるため）。
     await expect(list).not.toContainText("上位");
   });
@@ -92,11 +192,13 @@ test.describe("AC-7 欠測軸", () => {
    */
   test("欠けた軸は頂点を打たず、ラベルと一段小さい「掲載なし」を残す", async ({ page }) => {
     const note = "公表の無い指標は頂点を打たず、残りの点で閉じています。";
-    for (const { label, id, points } of [
-      { label: "残業が欠ける（キーエンス）", id: "6861", points: 4 },
-      { label: "有給・残業が欠ける（三菱UFJ）", id: "8306", points: 3 },
-      { label: "欠けが無い（トヨタ自動車）", id: "7203", points: 5 },
+    for (const { label, absent } of [
+      { label: "欠けた軸が1つ", absent: 1 },
+      { label: "欠けた軸が2つ", absent: 2 },
+      { label: "欠けが無い", absent: 0 },
     ]) {
+      const id = pickCompany(`${label}の会社`, ([id]) => missingCount(radarAxesOf(id)) === absent);
+      const points = 5 - absent;
       await page.goto(`/company/${id}`);
       const svg = chart(page);
       await expect(svg.locator("circle"), label).toHaveCount(points);
@@ -130,35 +232,49 @@ test.describe("AC-7 欠測軸", () => {
  * ここは実データの区分名が図と断りに届くことを見る。
  */
 test.describe("AC-13・AC-17 先頭の区分で点を打つ", () => {
-  test("1軸: 先頭の区分で頂点を打ち、その区分名を断る（ラクスの有給）", async ({ page }) => {
-    // ラクスの有給は 正社員88.0 / RAM社員92.7 / 契約社員96.8 で、全体値が無い。
-    await page.goto("/company/3923");
-    const svg = chart(page);
-    await expect(svg).toContainText("88.0%");
-    // 5軸すべてに頂点がある（W2 までは有給を除く4つだった）。
-    await expect(svg.locator("circle")).toHaveCount(5);
-    await expect(section(page).locator("dl")).toContainText("1,486社中100位");
-    await expect(section(page)).toContainText("先頭の区分「正社員」の値で点を打っています");
+  test("1軸: 先頭の区分で頂点を打ち、その区分名を断る", async ({ page }) => {
+    const axes = radarAxesOf(ONE_PICK);
+    const [picked] = pickedAxes(axes);
+    await page.goto(`/company/${ONE_PICK}`);
+    await expect(chartValue(page, picked.label)).toHaveText(picked.valueText);
+    // 5軸すべてに頂点がある（W2 までは、先頭の区分で打つ軸に頂点が無く4つだった）。
+    await expect(chart(page).locator("circle")).toHaveCount(5);
+    await expect(listRow(page, picked.label).locator("dd").nth(1)).toHaveText(picked.rankText);
+    await expect(section(page)).toContainText(unitPickNote(axes)!);
     // 「区分別」の表記は無くなった（AC-13）。**節の中で見る**——会社の説明文や AI 分析の
-    // 本文には「区分別に給与体系を…」のような語が実在する（2327 ほか8社）。
+    // 本文には「区分別に給与体系を…」のような語が実在する。
     await expect(section(page)).not.toContainText("区分別");
-    // 値そのものは下の節に区分のまま出ている（先頭が 88.0）。
-    await expect(worklifeSection(page)).toContainText("92.7");
-    await expect(worklifeSection(page)).toContainText("96.8");
+    // 値そのものは下の節に区分のまま出ている（図に打ったのはその先頭）。
+    const metric = companyPageData(ONE_PICK).worklife.metrics.find((m) => m.key === picked.key)!;
+    expect(metric.rows.length).toBeGreaterThan(1);
+    for (const row of metric.rows) {
+      await expect(worklifeSection(page)).toContainText(formatDecimal1(row.value));
+    }
   });
 
   /*
-   * AC-17 の 390px の横スクロールもここで見る。断りが2軸ぶんで最も長い会社。
+   * AC-17 の 390px の横スクロールもここで見る。**断りが2軸ぶんで最も長い会社**を選ぶ。
+   * 先頭の区分が管理職でも飛ばさないことは `radar.test.ts` の `representative` が見る。
    */
-  test("2軸: 両方の区分名が1文に出て、390pxでも横スクロールが出ない（オルガノ。先頭が管理職でも飛ばさない）", async ({
+  test("2軸: 両方の区分名が1文に出て、390pxでも横スクロールが出ない（断りが最も長い会社）", async ({
     page,
   }) => {
+    const notes = new Map<string, string>();
+    for (const [id] of companies.rows) {
+      const axes = radarAxesOf(id);
+      if (pickedAxes(axes).length === 2) notes.set(id, unitPickNote(axes)!);
+    }
+    const id = pickMaxCompany(
+      "先頭の区分で打った軸が2つあり、断りが最も長い会社",
+      ([id]) => notes.get(id)?.length ?? -Infinity
+    );
+
     await page.setViewportSize({ width: 390, height: 900 });
-    await page.goto("/company/6368");
-    await expect(section(page)).toContainText("（有給は「管理職」、残業は「総合職」）");
-    const svg = chart(page);
-    await expect(svg).toContainText("48.2%");
-    await expect(svg).toContainText("16.1時間");
+    await page.goto(`/company/${id}`);
+    await expect(section(page)).toContainText(notes.get(id)!);
+    for (const { label, valueText } of pickedAxes(radarAxesOf(id))) {
+      await expect(chartValue(page, label)).toHaveText(valueText);
+    }
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth
     );
@@ -167,57 +283,90 @@ test.describe("AC-13・AC-17 先頭の区分で点を打つ", () => {
 
   /*
    * 該当しない会社には断りを出さない（W2 の「区分別」の断りは全社のページに出ていた）。
-   * 三菱商事は**全体値があれば区分がいくつあっても全体値で打つ**側（残業 全体10.5 ＋
-   * 4区分）と、区分がちょうど1つで選んでいない側（有給）。キーエンスは有給が区分1つ・
-   * 残業が掲載なし。
+   * 2通り: **全体値があれば区分がいくつあっても全体値で打つ**会社（図の値は先頭の区分の
+   * 値ではない）と、区分がちょうど1つで選んでいない会社。後者は、W2 で入力ミスとみられる
+   * 全体値（有給 100% ちょうど）を取り込み時に落とした会社の形でもある——残った区分の値が
+   * 図に出る。
    */
-  test("該当しない会社には断りが出ない（三菱商事・キーエンス）", async ({ page }) => {
-    for (const [label, id] of [
-      ["三菱商事", "8058"],
-      ["キーエンス", "6861"],
-    ] as const) {
+  test("該当しない会社には断りが出ない（全体値がある・区分が1つ）", async ({ page }) => {
+    for (const { label, matches } of [
+      {
+        label: "全体値があり、値のある区分が2つ以上で先頭の値が全体値と違う軸",
+        matches: (all: number | null, valued: number[]) =>
+          all !== null && valued.length >= 2 && formatDecimal1(valued[0]) !== formatDecimal1(all),
+      },
+      {
+        label: "全体値が無く、値のある区分がちょうど1つの軸",
+        matches: (all: number | null, valued: number[]) => all === null && valued.length === 1,
+      },
+    ]) {
+      const axisKey = (id: string) =>
+        worklifeAxes(id).find(({ all, units }) =>
+          matches(
+            all,
+            units.flatMap((u) => (u.value === null ? [] : [u.value]))
+          )
+        )?.key;
+      const id = pickCompany(
+        `${label}を持ち、先頭の区分で打った軸の無い会社`,
+        ([id]) => axisKey(id) !== undefined && pickedAxes(radarAxesOf(id)).length === 0
+      );
+      const axis = axisOf(radarAxesOf(id), axisKey(id)!);
       await page.goto(`/company/${id}`);
       // 稼ぐ力の断りは全社に出ている（節の取り違えでないことの確認）。
       await expect(section(page), label).toContainText("連結の経常利益");
       await expect(section(page), label).not.toContainText("先頭の区分");
+      // 図の値は全体値・ただ1つの区分の値そのもの。
+      await expect(chartValue(page, axis.label), label).toHaveText(axis.valueText);
     }
-    // 残業の図の値は全体値（先頭の区分「総合職」の 14.1 ではない）。
-    await page.goto("/company/8058");
-    await expect(chart(page)).toContainText("10.5時間");
   });
 });
 
 /*
- * W2（Issue 185）——女性活躍DBの入力ミスとみられる値を取り込み時に落とした（AC-14）。
- * 値そのものは `lib/data/worklife.test.ts` が実データで固定している。ここは
- * **図と節の両方で消えていること**を見る（片方だけ残ると食い違いを作る）。
+ * W2（Issue 185）——女性活躍DBの入力ミスとみられる値（残業 0.0h 等）は取り込み時に
+ * **値だけを落とし、区分の行は残す**（AC-14）。どの会社のどの値かは
+ * `lib/data/worklife.test.ts` と pipeline の `positivedb.test.ts` が見ている。ここは
+ * **行だけ残って値の無い軸が、図にも節にも値を出さないこと**を見る（片方だけ残ると
+ * 食い違いを作る）。
  */
-test("W2 入力ミスとみられる値は図にも節にも出ない（ソニーグループ・野村総合研究所）", async ({
+test("W2 区分の行だけ残って値の無い軸は、図では掲載なし・節では登録なしになる", async ({
   page,
 }) => {
-  // 有給 100% ちょうどは落とし、区分の 63.7% が出る。
-  await page.goto("/company/6758");
-  await expect(chart(page)).toContainText("63.7%");
-  await expect(page.locator("body")).not.toContainText("100.0%");
+  const emptied = (id: string) =>
+    worklifeAxes(id).find(
+      ({ all, units }) => all === null && units.length > 0 && units.every((u) => u.value === null)
+    )?.key;
+  const id = pickCompany(
+    "区分の行はあるが値が1つも無い軸を持ち、先頭の区分で打った軸の無い会社",
+    ([id]) => emptied(id) !== undefined && pickedAxes(radarAxesOf(id)).length === 0
+  );
+  const axis = axisOf(radarAxesOf(id), emptied(id)!);
+  const metric = companyPageData(id).worklife.metrics.find((m) => m.key === axis.key)!;
+  expect(axis.valueText).toBe("掲載なし");
+  expect(metric.rows).toHaveLength(0);
 
-  // 残業 0.0h は落として掲載なしにする。値が1つも残っていないので、
-  // 先頭の区分で打つ対象でもない。
-  await page.goto("/company/4307");
-  await expect(chart(page)).toContainText("掲載なし");
+  await page.goto(`/company/${id}`);
+  await expect(chartValue(page, axis.label)).toHaveText("掲載なし");
   await expect(section(page)).not.toContainText("先頭の区分");
-  await expect(worklifeSection(page)).not.toContainText("0.0h");
+  await expect(worklifeSection(page)).toContainText(metric.emptyNote);
 });
 
 test.describe("AC-11 表示基準", () => {
   test("年齢そろえで平均年収の軸だけが追随する", async ({ page }) => {
+    // 5軸とも値のある会社で見る（欠けた軸は年齢に関わらず「掲載なし」で、動かないことを見られない）。
+    const id = pickCompany("欠けた軸の無い会社", ([id]) => missingCount(radarAxesOf(id)) === 0);
+    const raw = radarAxesOf(id);
+    const at25 = radarAxesOf(id, 25);
+    // 平均年収の軸が25歳で実際に変わる会社であること（変わらなければ追随を見られない）。
+    expect(axisOf(at25, "salary").valueText).not.toBe(axisOf(raw, "salary").valueText);
+    const value = (label: string) => listRow(page, label).locator("dd").first();
+
     await page.setViewportSize({ width: 1280, height: 1000 });
     // **ハイドレーションを待つ。** この節の値は SSR の HTML で既に満たされるので、
     // `toContainText` はクリックできる状態になる前に解決してしまう。全体実行で
     // dev サーバーが重いときだけ、押したのに何も起きない形で落ちる（実際に落ちた）。
-    await page.goto("/company/6861", { waitUntil: "networkidle" });
-    const list = section(page).locator("dl");
-    await expect(list).toContainText("2,178万円");
-    await expect(list).toContainText("11.3年");
+    await page.goto(`/company/${id}`, { waitUntil: "networkidle" });
+    for (const { label, valueText } of raw) await expect(value(label), label).toHaveText(valueText);
 
     const requests = collectPageRequests(page);
     await page.getByRole("button", { name: "年齢そろえ" }).click();
@@ -226,14 +375,14 @@ test.describe("AC-11 表示基準", () => {
       .getByRole("button", { name: "25歳" })
       .click();
     // 表示基準は URL に出さない（R1・ADR-0012）。
-    await expect(page).toHaveURL(/\/company\/6861$/);
+    await expect(page).toHaveURL(new RegExp(`/company/${id}$`));
 
-    // 稼ぐ力・定着・有給は年齢補正を通さないので動かない。
-    await expect(list).toContainText("11.3年");
-    await expect(list).toContainText("4,062万円");
-    await expect(list).toContainText("38.8%");
-    // 平均年収だけが25歳の推定値に変わる。
-    await expect(list).not.toContainText("2,178万円");
+    // 平均年収だけが25歳の推定値に変わる。稼ぐ力・定着・有給・残業は年齢補正を通さないので
+    // 実測値のときのまま動かない。
+    for (const { key, label, valueText } of raw) {
+      const expected = key === "salary" ? axisOf(at25, "salary").valueText : valueText;
+      await expect(value(label), label).toHaveText(expected);
+    }
     expect(requests).toHaveLength(0);
   });
 });
@@ -258,10 +407,22 @@ test.describe("指標リストの列（PC）", () => {
 
   test("値と順位の右端が全行でそろい、器に1文字ぶんの余裕がある", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 1000 });
-    for (const [label, id] of [
-      ["4桁の順位（キーエンスの定着 1,955位）・掲載なしの行が1つ", "6861"],
-      ["最下位に近い順位（2,961社中2,960位）・掲載なしの行が2つ", "135A"],
+    // 順位の文字がいちばん長くなるのは母数も順位も4桁のとき（`N,NNN社中N,NNN位`）。
+    // 稼ぐ力の行の2行目（業種中央値）の右端も見るので、稼ぐ力に中央値が添わる会社に限る。
+    const hasWidestRank = (axes: RadarAxis[]) =>
+      axes.some((a) => /^\d,\d{3}社中\d,\d{3}位$/.test(a.rankText));
+    for (const [label, missing] of [
+      ["4桁の順位・掲載なしの行が1つ", 1],
+      ["4桁の順位・掲載なしの行が2つ", 2],
     ] as const) {
+      const id = pickCompany(`${label}の会社（稼ぐ力に業種中央値あり）`, ([id]) => {
+        const axes = radarAxesOf(id);
+        return (
+          hasWidestRank(axes) &&
+          missingCount(axes) === missing &&
+          axisOf(axes, "profit").note !== ""
+        );
+      });
       await page.goto(`/company/${id}`);
       const rows = await section(page)
         .locator("dl > div")
@@ -310,7 +471,7 @@ test.describe("指標リストの列（PC）", () => {
           MIN_SLACK
         );
       }
-      // 桁数の違う順位（`2,961社中3位` と `2,961社中1,955位`）が文字の右端でそろう。
+      // 桁数の違う順位（1桁の順位と4桁の順位）が文字の右端でそろう。
       const ranked = rows.filter((r) => r.text !== "");
       expect(ranked.length, label).toBeGreaterThan(1);
       for (const row of ranked) expect(row.rankTextRight, label).toBe(ranked[0].rankTextRight);
@@ -330,20 +491,27 @@ test.describe("指標リストの列（PC）", () => {
   });
 
   /*
-   * 業種名が長い会社（`証券、商品先物取引業`）。**中央値の注記は業種名の長さで
-   * 伸びる**ので、値と順位の器に同居させると桁そろえを壊す——実際に稼ぐ力の行
-   * だけが 9.3px 右へずれ、器の右端（296px）からはみ出していた。列は grid で
-   * 固定し、**業種名は略称にして2行目へ収めた**（`lib/data/industry.ts`）。
+   * 業種名が長い会社（`lib/data/industry.ts` で略称にする業種）。**中央値の注記は
+   * 業種名の長さで伸びる**ので、値と順位の器に同居させると桁そろえを壊す——実際に
+   * 稼ぐ力の行だけが 9.3px 右へずれ、器の右端（296px）からはみ出していた（大和証券
+   * グループ本社）。列は grid で固定し、**業種名は略称にして2行目へ収めた**。
    */
-  test("業種名が長くても値と順位の列が動かない（大和証券グループ本社）", async ({ page }) => {
+  test("業種名が長くても値と順位の列が動かない（略称で出る業種の会社）", async ({ page }) => {
+    const id = pickCompany("業種名を略称で出し、稼ぐ力に業種中央値が添わる会社", ([id]) => {
+      const industry = industryOf(id);
+      return (
+        shortIndustryLabel(industry) !== industry && axisOf(radarAxesOf(id), "profit").note !== ""
+      );
+    });
+    const industry = industryOf(id);
     await page.setViewportSize({ width: 1280, height: 1000 });
-    await page.goto("/company/8601");
+    await page.goto(`/company/${id}`);
     const list = section(page).locator("dl");
     // 略称で出る。**原文は同じ画面の他の場所（パンくず・業界内順位）に残る**
     // ので、読者は略称と原文を突き合わせられる。
-    await expect(list).toContainText("証券・商品先物の中央値");
-    await expect(list).not.toContainText("証券、商品先物取引業");
-    await expect(page.locator("body")).toContainText("証券、商品先物取引業");
+    await expect(list).toContainText(`${shortIndustryLabel(industry)}の中央値`);
+    await expect(list).not.toContainText(industry);
+    await expect(page.locator("body")).toContainText(industry);
 
     const box = await list.evaluate((dl) => {
       const rows = [...dl.querySelectorAll(":scope > div")];
@@ -408,7 +576,7 @@ test.describe("レイアウトと初期HTML", () => {
       ["モバイル", 390],
     ] as const) {
       await page.setViewportSize({ width, height: 1000 });
-      await page.goto("/company/6861");
+      await page.goto(`/company/${KEYENCE}`);
       const box = (await chart(page).boundingBox())!;
       expect(box.height / box.width, label).toBeCloseTo(RATIO, 2);
       // 器いっぱい（PC は 340px の左列、モバイルは本文幅）まで使う。
@@ -418,12 +586,16 @@ test.describe("レイアウトと初期HTML", () => {
 
   /*
    * JS実行前のHTMLに、図の値（AC-9）と先頭の区分の断り（AC-17）が入っている。
-   * 図の値は `aria-label` で見る——`88.0%` の文字だけだと下の節にも出ている。
+   * 図の値は `aria-label`（5軸のラベルと値を読点でつないだもの）で見る——値の文字だけだと
+   * 下の節にも出ている。
    */
-  test("JS実行前のHTMLに図の値と断りが入っている（ラクス）", async ({ request }) => {
-    const html = await (await request.get("/company/3923")).text();
+  test("JS実行前のHTMLに図の値と断りが入っている（先頭の区分で打った軸がある会社）", async ({
+    request,
+  }) => {
+    const axes = radarAxesOf(ONE_PICK);
+    const html = await (await request.get(`/company/${ONE_PICK}`)).text();
     expect(html).toContain("公開資料による全体像");
-    expect(html).toContain("平均年収（有報） 665万円、有給の取得 88.0%");
-    expect(html).toContain("先頭の区分「正社員」の値で点を打っています");
+    expect(html).toContain(htmlText(axes.map((a) => `${a.label} ${a.valueText}`).join("、")));
+    expect(html).toContain(htmlText(unitPickNote(axes)!));
   });
 });

@@ -109,8 +109,10 @@ export interface AboutFacts {
 /** 式の実例で使う目標年齢。ランキングの初期値と揃える。 */
 const FORMULA_EXAMPLE_TARGET_AGE = 35;
 
-const HOLDING_EXAMPLE_NAME = "株式会社みずほフィナンシャルグループ";
-const OPERATING_EXAMPLE_NAME = "株式会社みずほ銀行";
+/** 持株会社の実例（みずほフィナンシャルグループ）。 */
+const HOLDING_EXAMPLE_ID = "8411";
+/** 事業会社の実例（みずほ銀行。非上場で ID は EDINETコード）。 */
+const OPERATING_EXAMPLE_ID = "E03532";
 
 function toExample(row: CompanyRow): CompanyExample {
   const [, name, , , avgAge, , avgSalary, employees, badge] = row;
@@ -118,19 +120,20 @@ function toExample(row: CompanyRow): CompanyExample {
 }
 
 /**
- * 会社名で引く。`id`（証券コード／EDINETコード、ADR-0006）でも引けるが、
- * 実例として本文に出るのは社名なので、参照するキーと表示する値を揃えておく。
+ * 企業 ID で引く。**社名では引かない**——社名は変わる（楽天は楽天グループになった）が、
+ * ID は一度振ったら変えない（ADR-0017）。毎日の更新（`docs/refresh/spec.md`）で社名が
+ * 変わっても、本文の実例は同じ会社のまま新しい社名で出る。
  *
- * 見つからなければ throw する。計算方法ページはServer Componentなのでビルド時に
- * 落ち、実例だけが静かに消えた本文が公開されるのを防げる。
- * `pipeline/scripts/build-data.ts` がデータ異常で落とすのと同じ方針。
+ * 見つからなければ throw する。計算方法ページはビルド時に描くので落ち、実例だけが
+ * 静かに消えた本文が公開されるのを防げる。`pipeline/scripts/build-data.ts` がデータ異常で
+ * 落とすのと同じ方針。
  */
-function findByName(companies: CompaniesData, name: string): CompanyRow {
-  const row = companies.rows.find((r) => r[1] === name);
+function findById(companies: CompaniesData, id: string): CompanyRow {
+  const row = companies.rows.find((r) => r[0] === id);
   if (row === undefined) {
     throw new Error(
-      `計算方法ページの実例に使う「${name}」がデータに見つからない。` +
-        `データ更新で社名が変わったか対象から外れた可能性がある。` +
+      `計算方法ページの実例に使う ${id} がデータに見つからない。` +
+        `対象から外れた可能性がある。` +
         `features/ranking/lib/aboutFacts.ts の実例を選び直すこと。`
     );
   }
@@ -146,7 +149,7 @@ function findByName(companies: CompaniesData, name: string): CompanyRow {
  * `docs/ranking/about-page/design.md` にある。
  */
 export function buildAboutFacts(companies: CompaniesData, curves: CurvesData): AboutFacts {
-  const operatingRow = findByName(companies, OPERATING_EXAMPLE_NAME);
+  const operatingRow = findById(companies, OPERATING_EXAMPLE_ID);
   const operatingExample = toExample(operatingRow);
 
   return {
@@ -155,7 +158,7 @@ export function buildAboutFacts(companies: CompaniesData, curves: CurvesData): A
     industryCount: companies.industries.length,
     curveCount: companies.curveKeys.length,
     agePoints: curves.agePoints,
-    holdingExample: toExample(findByName(companies, HOLDING_EXAMPLE_NAME)),
+    holdingExample: toExample(findById(companies, HOLDING_EXAMPLE_ID)),
     operatingExample,
     formulaExample: buildFormulaExample(companies, curves, operatingRow, operatingExample),
     modelBias: buildModelBiasFacts(companies, curves),

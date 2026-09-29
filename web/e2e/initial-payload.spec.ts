@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { waitForHydration } from "./appTest";
+import { rankingPageData } from "../features/ranking/lib/pageData";
 
 /**
  * 全件を HTML に埋めるのをやめ、静的アセットとして1回だけ配る（E0・Issue #174・
@@ -79,16 +80,22 @@ test.describe("初回ロードのペイロード", () => {
    * 裏返しに、**全件は HTML に入っていない。** これが入り直すと（`RankingApp` に
    * 全社ぶんの配列を渡す props を1つ足すだけで起きる）、予算を割ったことに気づけない
    * まま、どのURLのHTMLにも同じ71KBが乗る。1ページ目に出ない会社の名前で数える。
+   *
+   * どの会社が1ページ目・2ページ目に来るかは `rankingPageData`（`/` が画面を組むのと
+   * 同じ関数）から取る。社名を書き写さない（refresh の D0・Issue #870）。
    */
   test("上位30社は JS 実行なしの HTML に入り、31社目以降は入っていない", async ({ request }) => {
+    const top = rankingPageData(new URLSearchParams()).bootstrap.page.companies;
+    const [next] = rankingPageData(new URLSearchParams("page=2")).bootstrap.page.companies;
+
     const response = await request.get("/");
     expect(response.status()).toBe(200);
     const html = await response.text();
 
     const tableHtml = html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
     expect(tableHtml.match(/<tr/g) ?? []).toHaveLength(31); // 見出し1行＋30社
-    expect(tableHtml).toContain("ヒューリック株式会社");
-    expect(html).not.toContain("ジャフコ　グループ株式会社"); // ページ2の先頭
+    for (const company of top) expect(tableHtml, "1ページ目の会社").toContain(company.name);
+    expect(html, "2ページ目の先頭").not.toContain(next.name);
   });
 
   /*

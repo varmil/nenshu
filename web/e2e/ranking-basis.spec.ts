@@ -1,15 +1,22 @@
 import { test, expect } from "./appTest";
+import { formatManYen } from "../features/ranking/lib/format";
+import { firstOf } from "./rankingData";
 
 /**
  * 表示基準（実測値 / 年齢そろえ）の切替。ADR-0007。
  *
  * 既定は実測値で、URL に `age` が無い状態がそれを表す。`docs/ranking/spec.md`
- * AC-1・AC-2・AC-9・AC-11。数値は 2026-06 版データの実測値。
+ * AC-1・AC-2・AC-9・AC-11。
+ *
+ * **1行目の会社と金額は `rankingPageData`（`/` が画面を組むのと同じ関数）から取る。**
+ * いまのデータの値を書き写すと、毎日の更新で1社動いただけで落ちる（refresh の D0・
+ * Issue #870）。
  *
  * `/?ind=銀行業`（`age` なし）が実測値で開くこと（AC-7）と、JS 実行前の HTML が
  * 実測値で並んでいることは `ranking-url-sync.spec.ts` に、切替でネットワークが
  * 起きないことは同じファイルの流れにまとめてある。
  */
+
 test.describe("表示基準の切替", () => {
   /*
    * AC-1 と AC-9 の実測値側。**実測値では「推定」の語を1つも出さない**（バッジも
@@ -30,9 +37,11 @@ test.describe("表示基準の切替", () => {
     const table = page.getByRole("table");
     await expect(table.getByRole("columnheader", { name: "平均年収（有報）" })).toBeVisible();
 
+    // 金額は有報の平均年間給与そのもの（`avgSalary`）。
+    const top = firstOf("");
     const firstRow = table.locator("tbody tr").first();
-    await expect(firstRow).toContainText("ヒューリック株式会社");
-    await expect(firstRow).toContainText("2,295万円");
+    await expect(firstRow).toContainText(top.name);
+    await expect(firstRow).toContainText(formatManYen(top.avgSalary));
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("推定年収（35歳）")).toHaveCount(0);
@@ -44,8 +53,8 @@ test.describe("表示基準の切替", () => {
   /*
    * 実測値では平均年齢の高い会社が上位に来る。これが「年齢そろえ」を用意する理由。
    *
-   * **1位は基準ごとに違う。** 実測値はヒューリック（平均39.0歳）、25歳・35歳では
-   * 平均32.4歳のＭ＆Ａキャピタルパートナーズが上に来る（E2 で母集団を広げた後）。
+   * **1位は基準ごとに違いうる**（2026-09 時点では実測値と25歳で別の会社）。並びが
+   * 変わることは1ページぶんの金額の列で見て、25歳の1行目はその基準の推定年収で見る。
    */
   test("AC-2: 年齢そろえに切り替えると35歳の推定に変わり、年齢スイッチで25歳を選べる", async ({
     page,
@@ -73,9 +82,10 @@ test.describe("表示基準の切替", () => {
     await age25.click();
 
     await expect(page).toHaveURL(/[?&]age=25/);
+    const top25 = firstOf("age=25");
     const firstRow = table.locator("tbody tr").first();
-    await expect(firstRow).toContainText("Ｍ＆Ａキャピタルパートナーズ株式会社");
-    await expect(firstRow).toContainText("1,028万円");
+    await expect(firstRow).toContainText(top25.name);
+    await expect(firstRow).toContainText(formatManYen(top25.estimatedSalary!));
   });
 
   // 消すと「年齢そろえ」で何が使えるようになるかが分からなくなるので、
@@ -109,7 +119,7 @@ test.describe("表示基準の切替", () => {
     await page.goto("/");
 
     const rows = page.locator("div.md\\:hidden > div");
-    await expect(rows.first()).toContainText("2,295万円");
+    await expect(rows.first()).toContainText(formatManYen(firstOf("").avgSalary));
     await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
 
     await page.getByRole("button", { name: "年齢そろえ" }).click();

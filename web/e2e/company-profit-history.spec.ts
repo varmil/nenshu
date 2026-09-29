@@ -1,12 +1,17 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
+import { pickCompany, profitHistory } from "../testing/realData";
+import { companyPageData } from "../features/company/lib/pageData";
+import { buildProfitSummary, formatSignedManYen } from "../features/company/lib/profitHistory";
 
 /**
  * P2（Issue #168）——企業詳細ページの「稼ぐ力の推移（過去10年間）」。
  * `docs/performance/spec.md` の AC-10・AC-11 に対応する。
  *
  * 値そのものは `build-data.test.ts` と `features/company/lib/profitHistory.test.ts`
- * が固定しているので、ここは**ブラウザでどう出るか**だけを見る。
+ * が固定しているので、ここは**ブラウザでどう出るか**だけを見る。会社は名指しせず、
+ * 「最新年がそろっている」「途中の年が欠けている」という状態でデータから選ぶ
+ * （refresh の D0・Issue #870）。
  *
  * 他所にあるもの: 節が「平均年収推移」「在籍年数推移」の後ろにあること（AC-10）は `company-refresh.spec.ts` の
  * 「節の並び」、表示基準と独立であること（AC-11）は `company-page.spec.ts` の AC-3、
@@ -28,13 +33,26 @@ async function rows(page: Page): Promise<string[][]> {
     );
 }
 
+/** 最新年の稼ぐ力・従業員数・経常利益がそろい、増減の1文が出る会社。 */
+const LATEST = pickCompany("稼ぐ力の推移の最新年がそろった会社", ([id]) => {
+  const last = profitHistory.years.length - 1;
+  const profit = profitHistory.profit[id];
+  return (
+    profit?.[last] != null &&
+    profitHistory.employees[id]?.[last] != null &&
+    profitHistory.income[id]?.[last] != null &&
+    profit.filter((v) => v !== null).length >= 2
+  );
+});
+
 test.describe("AC-10 稼ぐ力の推移", () => {
   test("図と4列の表と増減の1文が出て、分母の範囲が年収と違うことを断る", async ({ page }) => {
-    await page.goto("/company/6861");
+    const history = companyPageData(LATEST).profitHistory!;
+    await page.goto(`/company/${LATEST}`);
 
     const figure = section(page).locator("figure");
     await expect(figure).toBeVisible();
-    await expect(figure).toContainText("2026");
+    await expect(figure).toContainText(String(history.years[history.years.length - 1]));
     await expect(figure).toContainText("単位は万円");
 
     expect(await section(page).locator("thead th").allInnerTexts()).toEqual([
@@ -44,7 +62,7 @@ test.describe("AC-10 稼ぐ力の推移", () => {
       "経常利益",
     ]);
     const table = await rows(page);
-    expect(table).toHaveLength(10);
+    expect(table).toHaveLength(history.years.length);
     // 最新年の行に3つとも値が入る。経常利益は億円（万円だと8桁が並んで読めない）。
     const last = table[table.length - 1];
     expect(last[0]).toMatch(/^\d{4}年$/);
@@ -55,16 +73,25 @@ test.describe("AC-10 稼ぐ力の推移", () => {
     // 上の節は「提出会社単体」。ここは連結で、パート・アルバイトを含まない。
     await expect(section(page)).toContainText("連結の経常利益 ÷ 連結の従業員数");
     await expect(section(page)).toContainText("パート・アルバイトは従業員数に含まれません");
-    await expect(section(page)).toContainText(/\d+年で[＋−±][\d,]+万円/);
+    await expect(section(page)).toContainText(buildProfitSummary(history)!);
   });
 
-  // 2117 は2023・2024年の稼ぐ力を持たない（平均年収の推移も同じ2年が欠ける）。
+  // 途中の年だけが欠ける会社（前後の年には値がある）。欠けた年も行を残す。
   test("値の無い年は行ごと落とさず「データなし」と出す", async ({ page }) => {
-    await page.goto("/company/2117");
+    const id = pickCompany("稼ぐ力の推移の途中の年が欠けている会社", ([id]) => {
+      const profit = profitHistory.profit[id] ?? [];
+      const present = profit.flatMap((v, i) => (v === null ? [] : [i]));
+      return profit.some((v, i) => v === null && i > present[0] && i < present[present.length - 1]);
+    });
+    const history = companyPageData(id).profitHistory!;
+    await page.goto(`/company/${id}`);
     const byYear = new Map((await rows(page)).map((row) => [row[0], row]));
-    expect(byYear.size).toBe(10);
-    expect(byYear.get("2023年")![1]).toBe("データなし");
-    expect(byYear.get("2024年")![1]).toBe("データなし");
-    expect(byYear.get("2025年")![1]).toMatch(/万円$/);
+    expect(byYear.size).toBe(history.years.length);
+    for (const [i, year] of history.years.entries()) {
+      const value = history.profit[i];
+      expect(byYear.get(`${year}年`)![1], String(year)).toBe(
+        value === null ? "データなし" : formatSignedManYen(value)
+      );
+    }
   });
 });

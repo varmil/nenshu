@@ -28,7 +28,6 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = resolve(ROOT, "logo-cache");
-const EXPECTED_ROW_COUNT = 2961;
 /**
  * ロゴを持つ会社の下限（AC-3）。**気づくための線であって目標ではない。**
  * E2（#173）で母集団が 1,867 → 2,961社になったぶん、新しく入った会社の到達率が
@@ -92,9 +91,6 @@ async function main() {
   const rows = parseUnifiedCsv(
     readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8")
   );
-  if (rows.length !== EXPECTED_ROW_COUNT) {
-    throw new Error(`${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
-  }
   // 法人番号は CSV の `corporate_number` 列から引く（W0・ADR-0009）。
   // **`Edinetcode.zip` を別途読まない**——同じ列を2箇所から引くと、片方だけ古い
   // スナップショットを見る状態を作れてしまう。値が一致することは確認済み（全1,867社）。

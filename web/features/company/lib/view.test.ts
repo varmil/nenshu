@@ -1,16 +1,18 @@
 import { describe, it, expect } from "vitest";
-import companiesData from "../../../public/data/companies.json";
-import curvesData from "../../../public/data/curves.json";
-import statsData from "../../../public/data/stats.json";
-import type { CompaniesData, CurvesData, TargetAge } from "@/features/ranking/types";
-import type { CompanyStatsData } from "../types";
-import { formatManYen } from "@/features/ranking/lib/format";
-import { formatDeviation, statsForBasis } from "./stats";
+import type { TargetAge } from "@/features/ranking/types";
+import { curveValuesInYen } from "@/features/ranking/lib/curve";
+import { estimateSalary } from "@/features/ranking/lib/salary";
+import {
+  companies,
+  curves,
+  industryOf,
+  pickCompany,
+  rowIndexOf,
+  rowOf,
+  stats,
+} from "@/testing/realData";
+import { statsForBasis } from "./stats";
 import { buildCompanyView } from "./view";
-
-const companies = companiesData as CompaniesData;
-const curves = curvesData as CurvesData;
-const stats = statsData as CompanyStatsData;
 
 function view(id: string) {
   const v = buildCompanyView(companies, curves, stats, id);
@@ -23,99 +25,118 @@ function at(id: string, age: TargetAge | null) {
 }
 
 /**
- * `docs/company/spec.md` AC-1〜AC-6 の数値をそのまま固定する。**E2E（`e2e/company-page.spec.ts`）は
- * キーエンスの数値で操作が画面に届くことだけを見ており、トヨタ・みずほ銀行・三菱商事の値は
- * ここだけが持つ。** spec の本文は拡大前（1,867社）の数値のままなので、ここが実データの正。
+ * その表示基準での全社の金額（`companies.rows` の並び）。順位と偏差値の期待値はここから
+ * 数え直す——`stats.json` の値を書き写さず、同じ金額の並びから出す。
+ */
+const salariesCache = new Map<TargetAge | null, number[]>();
+function salariesAt(age: TargetAge | null): number[] {
+  let salaries = salariesCache.get(age);
+  if (salaries === undefined) {
+    salaries = companies.rows.map((row) =>
+      age === null
+        ? row[6]
+        : estimateSalary(
+            row[6],
+            row[4],
+            curveValuesInYen(curves.curves[companies.curveKeys[row[3]]]),
+            curves.agePoints,
+            age
+          )
+    );
+    salariesCache.set(age, salaries);
+  }
+  return salaries;
+}
+
+/**
+ * その表示基準での金額・全体順位・業界内順位が母集団と合っていること。順位は
+ * 「自分より金額が高い会社の数 ＋ 1」（同額は同順位）。
+ */
+function expectPosition(id: string, age: TargetAge | null) {
+  const s = at(id, age);
+  const salaries = salariesAt(age);
+  const industry = rowOf(id)[2];
+  expect(s.salary).toBe(salaries[rowIndexOf(id)]);
+  expect(s.rankAll).toBe(1 + salaries.filter((x) => x > s.salary).length);
+  expect(s.rankIndustry).toBe(
+    1 + salaries.filter((x, i) => companies.rows[i][2] === industry && x > s.salary).length
+  );
+}
+
+/** 偏差値 = 50 + 10 ×（金額 − 平均）÷ 標準偏差。母集団はその表示基準の全社（母標準偏差）。 */
+function expectedDeviation(age: TargetAge | null, salary: number) {
+  const salaries = salariesAt(age);
+  const mean = salaries.reduce((a, b) => a + b, 0) / salaries.length;
+  const sd = Math.sqrt(salaries.reduce((s, x) => s + (x - mean) ** 2, 0) / salaries.length);
+  return 50 + (10 * (salary - mean)) / sd;
+}
+
+/**
+ * `docs/company/spec.md` AC-1〜AC-6 を、値ではなく母集団との関係で見る。金額は同じ表示基準の
+ * 全社の並びから、順位は自分より金額が高い会社の数から、偏差値は全社の平均と標準偏差から
+ * 数え直して突き合わせる。**データが毎日動いても、この関係は崩れない**（`docs/refresh/spec.md`）。
  *
- * 上位◯%は画面に出さない（2026-08-20・運営者の判断）ので固定しない。
+ * 上位◯%は画面に出さない（2026-08-20・運営者の判断）ので見ない。
  */
 describe("buildCompanyView", () => {
-  it("AC-1: キーエンス（6861）の35歳", () => {
+  it("AC-1: キーエンス（6861）の行の値と35歳の位置", () => {
+    const [, name, industryIdx, , avgAge, avgTenure, avgSalary, employees, badge] = rowOf("6861");
     const v = view("6861");
-    expect(v.name).toBe("株式会社キーエンス");
-    expect(v.tse33).toBe("電気機器");
-    expect(v.hasBadge).toBe(false);
-    expect(v.avgSalary).toBe(21783259);
-    expect(v.avgAge).toBe(35);
-    expect(v.avgTenure).toBe(11.3);
-    expect(v.employees).toBe(3306);
-    expect(v.totalCount).toBe(2961);
-    expect(v.industryCount).toBe(193);
-
-    const s = statsForBasis(v, 35);
-    expect(formatManYen(s.salary)).toBe("2,178万円");
-    expect(s.rankAll).toBe(2);
-    expect(s.rankIndustry).toBe(1);
+    expect(v.name).toBe(name);
+    expect(v.tse33).toBe(industryOf("6861"));
+    expect(v.hasBadge).toBe(badge === 1);
+    expect(v.avgSalary).toBe(avgSalary);
+    expect(v.avgAge).toBe(avgAge);
+    expect(v.avgTenure).toBe(avgTenure);
+    expect(v.employees).toBe(employees);
+    expect(v.totalCount).toBe(companies.rows.length);
+    expect(v.industryCount).toBe(companies.rows.filter((row) => row[2] === industryIdx).length);
+    expectPosition("6861", 35);
   });
 
-  it("AC-2: キーエンスの偏差値", () => {
-    const s = at("6861", 35);
-    expect(formatDeviation(s.deviation)).toBe("149.5");
+  it("AC-2: 偏差値は 50 + 10 ×（金額 − 平均）÷ 標準偏差（9つの表示基準すべて）", () => {
+    for (const s of view("6861").byBasis) {
+      // `stats.json` の平均と標準偏差は円に丸めてあるので、小数第3位まで見る。
+      expect(s.deviation).toBeCloseTo(expectedDeviation(s.targetAge, s.salary), 3);
+    }
   });
 
-  // 実測値と年齢そろえで母集団が別なので、同じ会社でも順位が動く（平均年齢が高めのトヨタ）。
-  it("AC-2: トヨタ自動車（7203）の35歳と実測値", () => {
-    const v = view("7203");
-    expect(v.name).toBe("トヨタ自動車株式会社");
-    expect(v.tse33).toBe("輸送用機器");
-    expect(v.industryCount).toBe(79);
-
-    const s = statsForBasis(v, 35);
-    expect(formatManYen(s.salary)).toBe("859万円");
-    expect(s.rankAll).toBe(169);
-    expect(s.rankIndustry).toBe(2);
-    expect(formatDeviation(s.deviation)).toBe("65.5");
-
-    const raw = statsForBasis(v, null);
-    expect(formatManYen(raw.salary)).toBe("1,006万円");
-    expect(raw.rankAll).toBe(162);
-    expect(raw.rankIndustry).toBe(2);
-  });
-
-  it("AC-3: キーエンスの25歳と60歳", () => {
-    const s25 = at("6861", 25);
-    expect(formatManYen(s25.salary)).toBe("788万円");
-    expect(formatDeviation(s25.deviation)).toBe("125.7");
-
-    const s60 = at("6861", 60);
-    expect(formatManYen(s60.salary)).toBe("2,213万円");
+  /*
+   * 業界内順位が1の会社だけを見ていると、業界内順位を数えずに1を返しても通る。実測値と
+   * 年齢そろえで母集団が別なので、同じ会社でも両方の表示基準で数え直す。
+   */
+  it("AC-2: 業界の1位でない会社の35歳と実測値", () => {
+    const raw = stats.bases.indexOf(null);
+    const at35 = stats.bases.indexOf(35);
+    const id = pickCompany(
+      "実測値でも35歳そろえでも業界の1位でない会社",
+      (_, i) => stats.rankIndustry[i][raw] > 1 && stats.rankIndustry[i][at35] > 1
+    );
+    expectPosition(id, 35);
+    expectPosition(id, null);
   });
 
   it("AC-4: 実測値＋25〜60歳の9点がそろっている", () => {
     const v = view("6861");
     // 先頭が実測値（ADR-0007）。続いて8年齢。
     expect(v.byBasis.map((s) => s.targetAge)).toEqual([null, 25, 30, 35, 40, 45, 50, 55, 60]);
-    expect(v.byBasis.slice(1).map((s) => formatManYen(s.salary))).toEqual([
-      "788万円",
-      "1,487万円",
-      "2,178万円",
-      "2,365万円",
-      "2,493万円",
-      "2,620万円",
-      "2,699万円",
-      // 60歳で下がるのは業種カーブ自体が62歳・67歳に向けて落ちるため（既知の性質）。
-      "2,213万円",
-    ]);
+    expect(v.byBasis.map((s) => s.salary)).toEqual(
+      v.byBasis.map((s) => salariesAt(s.targetAge)[rowIndexOf("6861")])
+    );
   });
 
-  it("AC-5: みずほ銀行（E03532・非上場でIDはEDINETコード）の35歳", () => {
-    const v = view("E03532");
-    expect(v.name).toBe("株式会社みずほ銀行");
-    expect(v.tse33).toBe("銀行業");
-    expect(v.industryCount).toBe(82);
-
-    const s = statsForBasis(v, 35);
-    expect(formatManYen(s.salary)).toBe("755万円");
-    expect(s.rankAll).toBe(383);
-    expect(s.rankIndustry).toBe(17);
-    expect(formatDeviation(s.deviation)).toBe("58.9");
+  it("AC-5: IDがEDINETコードの会社（非上場）も組み立てられる", () => {
+    const id = pickCompany("IDがEDINETコードの会社", (row) => /^E\d{5}$/.test(row[0]));
+    const v = view(id);
+    expect(v.id).toBe(id);
+    expect(v.name).toBe(rowOf(id)[1]);
+    expect(v.tse33).toBe(industryOf(id));
+    expectPosition(id, 35);
   });
 
-  it("AC-6: 三菱商事（8058）は「本社のみ」", () => {
-    const v = view("8058");
-    expect(v.name).toBe("三菱商事株式会社");
-    expect(v.hasBadge).toBe(true);
-    expect(statsForBasis(v, 35).rankAll).toBe(5);
+  it("AC-6: 単体が連結の10%未満の会社は「本社のみ」", () => {
+    const id = pickCompany("単体が連結の10%未満の会社", (row) => row[8] === 1);
+    expect(view(id).hasBadge).toBe(true);
   });
 
   it("AC-7: 存在しないIDと旧形式の書類IDは null", () => {
@@ -127,7 +148,7 @@ describe("buildCompanyView", () => {
   // **全社を回すことに意味がある**（どの会社でも組み立てが壊れない）ので、
   // サンプリングにはしない。**E2 で母集団が1.59倍になり既定の5秒を超えた**ので
   // タイムアウトを明示してある（実測6.5秒。近傍10社の算出が9基準ぶん走る）。
-  it("全2,961社が組み立てられ、順位が1以上・社数以下に収まる", () => {
+  it("全社が組み立てられ、順位が1以上・社数以下に収まる", () => {
     for (const row of companies.rows) {
       const v = buildCompanyView(companies, curves, stats, row[0]);
       expect(v).not.toBeNull();
@@ -144,30 +165,37 @@ describe("buildCompanyView", () => {
     expect(() => statsForBasis(view("6861"), 33 as TargetAge)).toThrow(/33/);
   });
 
-  // ADR-0007 で既定になった表示基準。有報の平均年間給与そのままで、順位も偏差値も
-  // 実測値の分布に対して出す（年齢そろえのそれとは別の値になる）。
+  /*
+   * ADR-0007 で既定になった表示基準。有報の平均年間給与そのままで、順位も偏差値も
+   * 実測値の分布に対して出す（年齢そろえのそれとは別の値になる）。平均年齢がちょうど
+   * 35.0歳の会社は35歳そろえでも金額が同じなので、偏差値の違いがそのまま母集団の違いになる。
+   */
   it("実測値（targetAge=null）は有報の平均年間給与そのままで、順位も実測値の分布で出す", () => {
-    const v = view("6861");
+    const id = pickCompany("平均年齢がちょうど35.0歳の会社", (row) => row[4] === 35);
+    const v = view(id);
     const raw = statsForBasis(v, null);
     expect(raw.salary).toBe(v.avgSalary);
-    expect(formatManYen(raw.salary)).toBe("2,178万円");
-    expect(raw.rankAll).toBe(3);
-    expect(raw.rankIndustry).toBe(1);
+    expectPosition(id, null);
 
-    // 実測値の母集団は年齢そろえ（35歳）のそれと別物。キーエンスは平均年齢が
-    // ちょうど35.0歳で金額は同じなので、偏差値の違いがそのまま母集団の違いになる。
     const at35 = statsForBasis(v, 35);
     expect(at35.salary).toBe(raw.salary);
-    expect(formatDeviation(raw.deviation)).toBe("124.8");
-    expect(formatDeviation(at35.deviation)).toBe("149.5");
+    expect(raw.deviation).toBeCloseTo(expectedDeviation(null, raw.salary), 3);
+    expect(at35.deviation).toBeCloseTo(expectedDeviation(35, at35.salary), 3);
   });
 
+  /*
+   * 35歳にそろえると金額が下がり、実測値の上位から順位を落とす会社がある。どの会社がそう
+   * なるかは母集団しだいなので、名指しせずデータから選ぶ。
+   */
   it("平均年齢が高い会社は実測値と35歳そろえで順位が入れ替わる", () => {
-    // 三菱商事は平均42.3歳。実測値では上位だが、35歳にそろえると下がる。
-    const v = view("8058");
-    const raw = statsForBasis(v, null);
-    const at35 = statsForBasis(v, 35);
-    expect(raw.salary).toBeGreaterThan(at35.salary);
-    expect(raw.rankAll).toBeLessThan(at35.rankAll);
+    const raw = stats.bases.indexOf(null);
+    const at35 = stats.bases.indexOf(35);
+    const id = pickCompany(
+      "平均年齢が35歳より高く、35歳にそろえると順位が下がる会社",
+      (row, i) => row[4] > 35 && stats.rankAll[i][raw] < stats.rankAll[i][at35]
+    );
+    const v = view(id);
+    expect(statsForBasis(v, null).salary).toBeGreaterThan(statsForBasis(v, 35).salary);
+    expect(statsForBasis(v, null).rankAll).toBeLessThan(statsForBasis(v, 35).rankAll);
   });
 });

@@ -1,5 +1,9 @@
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "./appTest";
+import { formatInt } from "../features/ranking/lib/format";
+import { PAGE_SIZE, TARGET_AGES } from "../features/ranking/types";
+import { fiscalPeriodLabel } from "../lib/data/period";
+import { companies, pickCompanies } from "../testing/realData";
 
 /**
  * U8（Issue #53）。ADR-0006 のインデックス戦略が、実際に返るHTMLと
@@ -13,6 +17,11 @@ import { test, expect } from "./appTest";
 
 const ORIGIN = "https://openreport.net";
 const BANK = "%E9%8A%80%E8%A1%8C%E6%A5%AD";
+
+/** 業種の絞り込みが無いランキングの最終ページ。社数はデータから数える。 */
+const LAST_PAGE = Math.ceil(companies.rows.length / PAGE_SIZE);
+/** 手で叩いた範囲外のページ。 */
+const OUT_OF_RANGE_PAGE = LAST_PAGE + 1;
 
 /** JS を実行する前の HTML の head。クローラが読むのはこれだけ。 */
 async function headOf(request: APIRequestContext, path: string) {
@@ -35,6 +44,13 @@ test.describe("検索エンジン向け導線（U8）", () => {
     属性としてエスケープされたうえで正しいURLに戻ることも見ている。
   */
   test("canonical が初期HTMLに絶対URLで出る", async ({ request }) => {
+    // `?ind=銀行業&page=2` を自己canonical と見るのは、銀行業が2ページ以上あるとき。
+    // 満たさなくなったら、ここで落ちて知らせる。
+    pickCompanies(
+      "銀行業の会社",
+      (row) => companies.industries[row[2]] === "銀行業",
+      PAGE_SIZE + 1
+    );
     const cases: [path: string, canonical: string][] = [
       // インデックスさせる側は自己canonical。ルートだけ末尾のスラッシュを落とす。
       ["/", ORIGIN],
@@ -50,7 +66,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
       [`/?age=35&ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
       // インデックスさせない絞り込みと、総ページ数を超えたページは `/` へ寄る。
       ["/?emp=1000-", ORIGIN],
-      ["/?page=999", ORIGIN],
+      [`/?page=${OUT_OF_RANGE_PAGE}`, ORIGIN],
       // 企業ページは表示基準に関わらず素のURLへ（R1 で `?age=` は読まなくなった）。
       ["/company/6861?age=35", `${ORIGIN}/company/6861`],
     ];
@@ -59,7 +75,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     }
   });
 
-  test("sitemap.xml に 3,004 URL が載り、canonical と同じ文字列になっている", async ({
+  test("sitemap.xml に `/`・`/about`・年齢・業種・全社の URL が載り、canonical と同じ文字列になっている", async ({
     request,
   }) => {
     const response = await request.get("/sitemap.xml");
@@ -67,7 +83,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const xml = await response.text();
 
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-    expect(locs).toHaveLength(3004);
+    // `/` と `/about`、年齢ごとに1件、会社のいる業種ごとに1件、企業ページが全社ぶん（ADR-0006）。
+    const industriesWithCompanies = new Set(companies.rows.map((row) => row[2])).size;
+    expect(locs).toHaveLength(
+      2 + TARGET_AGES.length + industriesWithCompanies + companies.rows.length
+    );
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
 
@@ -110,10 +130,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
   test("title と description が初期HTMLに出て、有価証券報告書が全ページの description に入る", async ({
     request,
   }) => {
+    // `/` の社数と決算期の幅はデータから引く。
     const titles: [path: string, title: string | null][] = [
       [
         "/",
-        "OpenReport | 有価証券報告書ベースの平均年収ランキング 2,961社【2025年3月期〜2026年5月期】",
+        `OpenReport | 有価証券報告書ベースの平均年収ランキング ${formatInt(companies.rows.length)}社【${fiscalPeriodLabel(companies.meta)}】`,
       ],
       ["/?age=35", "35歳年収ランキング | OpenReport"],
       [`/?ind=${BANK}`, "銀行業の平均年収ランキング | OpenReport"],
@@ -139,17 +160,16 @@ test.describe("検索エンジン向け導線（U8）", () => {
       return [...html.matchAll(/href="\?[^"]*page=(\d+)"/g)].map((m) => Number(m[1]));
     };
 
-    // 2,961社 / 30件 = 99ページ。
     for (const page of await pageLinks("/")) {
       expect(page, "/").toBeGreaterThanOrEqual(1);
-      expect(page, "/").toBeLessThanOrEqual(99);
+      expect(page, "/").toBeLessThanOrEqual(LAST_PAGE);
     }
-    for (const page of await pageLinks("/?page=99")) {
-      expect(page, "/?page=99").toBeLessThanOrEqual(99);
+    for (const page of await pageLinks(`/?page=${LAST_PAGE}`)) {
+      expect(page, `/?page=${LAST_PAGE}`).toBeLessThanOrEqual(LAST_PAGE);
     }
     // 手で叩いた範囲外のURLからも、範囲外へは繋がない。
-    for (const page of await pageLinks("/?page=999")) {
-      expect(page, "/?page=999").toBeLessThanOrEqual(99);
+    for (const page of await pageLinks(`/?page=${OUT_OF_RANGE_PAGE}`)) {
+      expect(page, `/?page=${OUT_OF_RANGE_PAGE}`).toBeLessThanOrEqual(LAST_PAGE);
     }
   });
 

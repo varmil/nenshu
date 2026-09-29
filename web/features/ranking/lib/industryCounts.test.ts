@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import { industryCounts } from "./industryCounts";
-import type { CompaniesData, CompanyRow } from "../types";
-
-const companies: CompaniesData = JSON.parse(
-  readFileSync(new URL("../../../public/data/companies.json", import.meta.url), "utf-8")
-);
+import { companies, stats } from "@/testing/realData";
+import type { CompanyRow } from "../types";
 
 const row = (tse33Idx: number): CompanyRow => [
   "id",
@@ -21,11 +17,11 @@ const row = (tse33Idx: number): CompanyRow => [
 ];
 
 describe("industryCounts", () => {
-  it("`industries` と同じ並び・同じ長さで、合計が掲載社数と一致する（海運業は9社）", () => {
+  // 突き合わせる相手は、ビルド（`build-data.ts` の `buildStats`）が別に数えた業種ごとの社数。
+  it("`industries` と同じ並びで、ビルドが stats.json に数えた社数と一致し、合計が掲載社数になる", () => {
     const counts = industryCounts(companies);
-    expect(counts).toHaveLength(companies.industries.length);
+    expect(counts).toEqual(stats.industryCounts);
     expect(counts.reduce((a, b) => a + b, 0)).toBe(companies.rows.length);
-    expect(counts[companies.industries.indexOf("海運業")]).toBe(9);
   });
 
   // 業種のインデックスが範囲外の行が混ざってもページを壊さない（データ側の事故に備える）。

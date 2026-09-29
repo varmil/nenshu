@@ -1,5 +1,7 @@
 import { test, expect } from "./appTest";
 import type { APIRequestContext, Page } from "@playwright/test";
+import { formatInt, formatManYen } from "../features/ranking/lib/format";
+import { companies, rowOf } from "../testing/realData";
 
 /**
  * U16（Issue #135・親 #130）。**画面の中で状態を切り替えたあとのメタデータ**を固定する。
@@ -115,6 +117,11 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
     await page.goto("/");
     let previous = await metaFromDom(page);
 
+    // 業種チップの読み上げ名は「業種名 社数」。社数はデータから数える。
+    const industry = "海運業";
+    const industryIndex = companies.industries.indexOf(industry);
+    const industryCount = companies.rows.filter((row) => row[2] === industryIndex).length;
+
     const steps: [string, () => Promise<void>][] = [
       [
         "ページ送り",
@@ -142,7 +149,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
         async () => {
           await page
             .getByRole("navigation", { name: "業種から見る" })
-            .getByRole("link", { name: "海運業 9社", exact: true })
+            .getByRole("link", { name: `${industry} ${formatInt(industryCount)}社`, exact: true })
             .click();
           await expect(page).toHaveURL(/ind=/);
         },
@@ -178,6 +185,7 @@ test.describe("企業詳細ページのメタデータ（AC-16）", () => {
    * U16 がここで直していた食い違い（親 Issue #130）は起きようが無くなった。
    *
    * タイトルに出るのは有報の実測値だけなので、「推定」の語はどの状態でも出ない（AC-9）。
+   * 金額はデータの平均年間給与（実測値）から作る。
    */
   test("表示基準を切り替えてもタイトルと canonical が変わらず、推定の語が出ない", async ({
     page,
@@ -185,7 +193,7 @@ test.describe("企業詳細ページのメタデータ（AC-16）", () => {
   }) => {
     await page.goto("/company/6861");
     const raw = await metaFromDom(page);
-    expect(raw.title).toContain("有価証券報告書は2,178万円");
+    expect(raw.title).toContain(`有価証券報告書は${formatManYen(rowOf("6861")[6])}`);
     expect(raw.title).not.toContain("推定");
     expect(raw.description).not.toContain("推定");
 

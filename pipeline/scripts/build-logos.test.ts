@@ -545,7 +545,14 @@ describe("配っている画像（web/public/logos/）", () => {
     // パイプラインを回すのは年1回なので、見張りはリポジトリ側に置く
     const dir = resolve(__dirname, "../../web/public/logos");
     const files = readdirSync(dir).filter((f) => f.endsWith(".webp"));
-    expect(files.length).toBeGreaterThan(1400);
+    // 走査が空振りしないこと。枚数は書き写さず、`logos.json` が指す画像がすべてここにある
+    // ことで見る（ロゴを持つ会社の下限は `build-logos.ts` の AC-3 が検める）。
+    const { byId } = JSON.parse(
+      readFileSync(resolve(__dirname, "../../web/public/data/logos.json"), "utf-8")
+    ) as { byId: Record<string, unknown> };
+    const served = Object.keys(byId).map((id) => `${id}.webp`);
+    expect(served.length).toBeGreaterThan(0);
+    expect(files).toEqual(expect.arrayContaining(served));
     const unreadable: string[] = [];
     await mapLimit(files, 8, async (file) => {
       if (await unusableOnLight(readFileSync(resolve(dir, file)))) unreadable.push(file);

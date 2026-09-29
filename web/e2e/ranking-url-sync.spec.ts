@@ -1,5 +1,9 @@
 import { test, expect } from "./appTest";
 import { collectPageRequests, waitForRankingReady } from "./network";
+import { industryCountOf } from "../features/ranking/lib/pageData";
+import { formatInt } from "../features/ranking/lib/format";
+import { PAGE_SIZE } from "../features/ranking/types";
+import { countLabel, countText, pageDataOf } from "./rankingData";
 
 /**
  * URL クエリとの同期（U5・AC-7）と、ページを跨いだ戻る/進む（U14・AC-15）。
@@ -8,14 +12,21 @@ import { collectPageRequests, waitForRankingReady } from "./network";
  * `lib/urlState.test.ts` が固定している。ここで見るのは、ブラウザでしか分からない
  * こと——JS 実行前の HTML・URL を直接開いたときの復元・操作でネットワークが起きない
  * こと・履歴（戻る/進む）。
+ *
+ * **社数・件数表示・どの会社がどこに来るかは、そのURLのデータから取る**
+ * （`rankingPageData`＝`/` が画面を組むのと同じ関数）。いまのデータの値を書き写すと、
+ * 毎日の更新で1社動いただけで落ちる（refresh の D0・Issue #870）。
  */
+
+/** 銀行業の社数（業種チップ・リード文に出る数）。 */
+const bankCount = () => formatInt(industryCountOf("銀行業"));
 
 /** `<table>…</table>` の中身。行数・社名はここで数える（ロゴやメタデータの文字列を拾わない）。 */
 const tableHtml = (html: string) => html.match(/<table[\s\S]*?<\/table>/)?.[0] ?? "";
 
 /**
  * `<script>`・コメント・タグを落とした地の文。React は文字列の境目に `<!-- -->` を
- * 挟むので、そのままでは「82社 中 1〜30社目」が1続きにならない。
+ * 挟むので、そのままでは「◯社 中 ◯〜◯社目」が1続きにならない。
  */
 const visibleText = (html: string) =>
   html
@@ -53,25 +64,28 @@ test.describe("URLクエリとの同期", () => {
         text: ["平均年収ランキング", "平均年収（有報）"],
         notInHtml: ["35歳時点の推定年収"],
       },
-      // AC-7。銀行業は82社で、1ページは PAGE_SIZE=30件（Issue #103）。絞り込みが
-      // 効いていることは件数の表示で見る（行数は PAGE_SIZE で頭打ちのため）。
+      // AC-7。1ページは PAGE_SIZE=30件（Issue #103）。絞り込みが効いていることは
+      // 件数の表示で見る（行数は PAGE_SIZE で頭打ちのため）。
       {
         url: "/?age=45&ind=%E9%8A%80%E8%A1%8C%E6%A5%AD",
         text: [
           "銀行業の45歳年収ランキング",
-          "45歳時点に補正した銀行業の82社。",
-          "82社 中 1〜30社目",
+          `45歳時点に補正した銀行業の${bankCount()}社。`,
+          countLabel("age=45&ind=銀行業"),
         ],
-        rows: 30,
+        rows: pageDataOf("age=45&ind=銀行業").bootstrap.page.companies.length,
       },
       // 2ページ目の先頭は実測値の並びで31位（PAGE_SIZE + 1）の会社。
       {
         url: "/?page=2",
-        inTable: ["ジャフコ　グループ株式会社"],
-        notInTable: ["ヒューリック株式会社"],
+        inTable: [pageDataOf("page=2").bootstrap.page.companies[0].name],
+        notInTable: [pageDataOf("").bootstrap.page.companies[0].name],
       },
-      // 範囲外の page は最終ページに丸める（クラッシュしない）。
-      { url: "/?page=999999", inTable: ["株式会社ＷＯＬＶＥＳ　ＨＡＮＤ"] },
+      // 範囲外の page は最終ページに丸める（クラッシュしない）。最終ページの末尾の会社が居る。
+      {
+        url: "/?page=999999",
+        inTable: [pageDataOf("page=999999").bootstrap.page.companies.at(-1)!.name],
+      },
     ];
 
     for (const c of cases) {
@@ -106,9 +120,12 @@ test.describe("URLクエリとの同期", () => {
       );
       await expect(page.getByRole("heading", { level: 1 }), url).toHaveText(heading);
       await expect(page.getByRole("combobox", { name: "業種" }), url).toContainText("銀行業");
-      // 銀行業は82社。1ページはPAGE_SIZE=30件なので、82社であることは件数表示で見る。
-      await expect(page.getByText("82社 中 1〜30社目"), url).toBeVisible();
-      await expect(page.getByRole("table").locator("tbody tr"), url).toHaveCount(30);
+      // 1ページはPAGE_SIZE=30件なので、銀行業に絞られていることは件数表示で見る。
+      const query = url.slice("/?".length);
+      await expect(countText(page, query), url).toBeVisible();
+      await expect(page.getByRole("table").locator("tbody tr"), url).toHaveCount(
+        pageDataOf(query).bootstrap.page.companies.length
+      );
     }
   });
 
@@ -241,15 +258,17 @@ test.describe("URLクエリとの同期", () => {
         async () => {
           await page
             .getByRole("navigation", { name: "業種から見る" })
-            .getByRole("link", { name: "銀行業 82社", exact: true })
+            .getByRole("link", { name: `銀行業 ${bankCount()}社`, exact: true })
             .click();
           await expect(page).toHaveURL(/[?&]ind=%E9%8A%80%E8%A1%8C%E6%A5%AD/);
-          await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+          await expect(countText(page, "ind=銀行業")).toBeVisible();
           // 見出しとリード文の社数も業種を名乗る。表示基準は年齢そろえのまま。
           await expect(page.getByRole("heading", { level: 1 })).toHaveText(
             "銀行業の35歳年収ランキング"
           );
-          await expect(page.getByText("35歳時点に補正した銀行業の82社。")).toBeVisible();
+          await expect(
+            page.getByText(`35歳時点に補正した銀行業の${bankCount()}社。`)
+          ).toBeVisible();
         },
       ],
       [
@@ -269,8 +288,9 @@ test.describe("URLクエリとの同期", () => {
             .getByRole("banner")
             .getByRole("searchbox", { name: "会社名で検索" })
             .fill("みずほ");
-          await expect(page).toHaveURL(/[?&]q=/);
-          await expect(page.getByText("2,961社 中")).toHaveCount(0);
+          await expect(page).toHaveURL(new RegExp(`[?&]q=${encodeURIComponent("みずほ")}(&|$)`));
+          // 件数表示が、いまのURL（業種・従業員数・検索語で絞った状態）のデータと合う。
+          await expect(countText(page, new URL(page.url()).search)).toBeVisible();
         },
       ],
       [
@@ -278,7 +298,7 @@ test.describe("URLクエリとの同期", () => {
         async () => {
           await page.getByRole("banner").getByRole("link", { name: "OpenReport" }).click();
           await expect(page).toHaveURL(/\/$/);
-          await expect(page.getByText("2,961社 中 1〜30社目")).toBeVisible();
+          await expect(countText(page, "")).toBeVisible();
           await expect(page.getByRole("button", { name: "実測値" })).toHaveAttribute(
             "aria-pressed",
             "true"
@@ -312,11 +332,14 @@ test.describe("ページを跨いだ戻る/進む", () => {
   test("絞り込んだ2ページ目から企業ページへ入って戻ると、同じ状態に戻り、進むでまた入れる", async ({
     page,
   }) => {
+    // 前提: 銀行業は2ページ以上ある（2ページ目へ移るため）。
+    expect(industryCountOf("銀行業"), "銀行業の社数").toBeGreaterThan(PAGE_SIZE);
+
     await page.goto("/?age=35&ind=銀行業");
-    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await expect(countText(page, "age=35&ind=銀行業")).toBeVisible();
     await page.getByRole("button", { name: "次のページへ" }).click();
     await expect(page).toHaveURL(/[?&]page=2/);
-    await expect(page.getByText("82社 中 31〜60社目")).toBeVisible();
+    await expect(countText(page, "age=35&ind=銀行業&page=2")).toBeVisible();
 
     const firstLink = page.getByRole("table").locator("tbody tr a[href^='/company/']").first();
     const name = (await firstLink.textContent())?.trim();
@@ -328,7 +351,7 @@ test.describe("ページを跨いだ戻る/進む", () => {
     await expect(page).toHaveURL(/[?&]ind=.*page=2/);
     // URL だけでなく中身も同じ状態であること（1ページ目・既定の状態に描き替わっていない）。
     await expect(page.getByRole("heading", { level: 1 })).toContainText("35歳年収ランキング");
-    await expect(page.getByText("82社 中 31〜60社目")).toBeVisible();
+    await expect(countText(page, "age=35&ind=銀行業&page=2")).toBeVisible();
     await expect(firstLink).toHaveText(name!);
 
     await page.goForward();
@@ -346,7 +369,7 @@ test.describe("ページを跨いだ戻る/進む", () => {
     const before = await page.evaluate(() => history.length);
 
     await page.goto("/?ind=銀行業&age=35");
-    await expect(page.getByText("82社 中 1〜30社目")).toBeVisible();
+    await expect(countText(page, "ind=銀行業&age=35")).toBeVisible();
     await page.waitForTimeout(300);
 
     expect(await page.evaluate(() => history.length)).toBe(before + 1);

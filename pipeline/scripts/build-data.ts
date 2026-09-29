@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,7 +14,15 @@ import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
 import { TARGET_AGES } from "../../web/features/ranking/types";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const EXPECTED_ROW_COUNT = 2961;
+/**
+ * 社数が前回のビルドからこの割合を超えて減ったら落とす（refresh の D0・#870）。
+ * **社数そのものは固定しない**——毎日の更新（`docs/refresh/spec.md`）では、新しく載る会社・
+ * 提出が途切れて外れる会社で社数が日ごとに動く。以前は 2,961 で決め打ちしており、1社
+ * 動いただけで落ちた。**見たいのは取得の失敗で会社が静かに消えること**なので、減り方だけを
+ * 見る（EDINET は流量制限に HTTP 200 で応え、書類一覧が取れないまま0件として扱われて会社が
+ * 消えたことがある。`pipeline/salary/edinet.py`）。増えるほうは見ない。
+ */
+export const MAX_COUNT_DROP_RATIO = 0.05;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
 // 2,961社 × 10年の平均年収・平均年齢・在籍年数と、在籍年数の業種の中央値。**T3（#827）で
 // 平均年齢を足して gzip 99.6 → 143.1KB になり、上限を 150KB から 180KB に上げた。T4（#835）で
@@ -142,13 +150,27 @@ function readUniverse(): Universe {
   return { filingWindow, minEmployees, excludedByEmployees };
 }
 
+/**
+ * 前回のビルド（書き出し先にいまある `companies.json`）より社数が `MAX_COUNT_DROP_RATIO` を
+ * 超えて減っていたら落とす。前回が無ければ見ない（初回と、テストが一時ディレクトリへ書くとき）。
+ */
+export function checkCountDrop(previousPath: string, count: number) {
+  if (!existsSync(previousPath)) return;
+  const previous: unknown = JSON.parse(readFileSync(previousPath, "utf-8"))?.meta?.count;
+  if (typeof previous !== "number") return;
+  if (count < previous * (1 - MAX_COUNT_DROP_RATIO)) {
+    throw new Error(
+      `社数が前回の${previous}社から${count}社に減りました（${MAX_COUNT_DROP_RATIO * 100}%を超える減少）。` +
+        "取得の失敗を疑って止めます"
+    );
+  }
+}
+
 export function buildData(outDir: string) {
   const csvText = readFileSync(resolve(ROOT, "data/ranking_unified_2026.csv"), "utf-8");
   const rows = parseUnifiedCsv(csvText);
   const universe = readUniverse();
-  if (rows.length !== EXPECTED_ROW_COUNT) {
-    throw new Error(`companies.json は${EXPECTED_ROW_COUNT}行の想定ですが${rows.length}行でした`);
-  }
+  checkCountDrop(resolve(outDir, "companies.json"), rows.length);
 
   const curvesRaw = JSON.parse(readFileSync(resolve(ROOT, "data/annual_curves.json"), "utf-8"));
   const annualIndustry: Record<string, number[]> = curvesRaw.ANNUAL_INDUSTRY;

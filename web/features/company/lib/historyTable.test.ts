@@ -1,12 +1,6 @@
 import { describe, it, expect } from "vitest";
-import historyData from "../../../public/data/history.json";
+import { history, pickCompany } from "@/testing/realData";
 import { buildHistoryTable, formatRate, historyBaseYear } from "./historyTable";
-
-const history = historyData as {
-  years: number[];
-  byId: Record<string, (number | null)[]>;
-  ageById: Record<string, (number | null)[]>;
-};
 
 function tableFor(id: string) {
   return buildHistoryTable({
@@ -16,12 +10,27 @@ function tableFor(id: string) {
   });
 }
 
+/**
+ * 10年推移の途中に値の無い年があり、その後ろに値のある年が続く会社なら、
+ * `[値の無い年, その後ろで最初に値のある年]` の添字を返す。
+ */
+function innerGap(id: string): [number, number] | null {
+  const values = history.byId[id] ?? [];
+  const first = values.findIndex((value) => value !== null);
+  if (first === -1) return null;
+  const gap = values.findIndex((value, i) => i > first && value === null);
+  const after = values.findIndex((value, i) => gap !== -1 && i > gap && value !== null);
+  return gap === -1 || after === -1 ? null : [gap, after];
+}
+
 describe("buildHistoryTable", () => {
   it("10年ぶんの行を年の並びのまま返し、基準年の行は累積を持たない", () => {
     const { rows, baseYear } = tableFor("6861");
     expect(rows.map((row) => row.year)).toEqual(history.years);
-    expect(baseYear).toBe(2017);
-    expect(rows[0].cumulative).toBeNull();
+    // 基準年はその会社で最初に値のある年。
+    const base = history.byId["6861"].findIndex((value) => value !== null);
+    expect(baseYear).toBe(history.years[base]);
+    expect(rows[base].cumulative).toBeNull();
   });
 
   it("累積は基準年の値からの比", () => {
@@ -49,20 +58,21 @@ describe("buildHistoryTable", () => {
   });
 
   /*
-   * 内部に欠損のある会社が33社ある（2117 は2023・2024が欠損）。累積は基準年からの比なので、
+   * 内部に欠損のある会社がある。累積は基準年からの比なので、
    * 間が飛んでいても意味が変わらないため出す。
    */
   it("値の無い年をまたいでも累積は出る", () => {
-    const { rows } = tableFor("2117");
-    const byYear = new Map(rows.map((row) => [row.year, row]));
-    expect(byYear.get(2023)!.value).toBeNull();
-    expect(byYear.get(2023)!.age).toBeNull();
-    expect(byYear.get(2023)!.cumulative).toBeNull();
-    expect(byYear.get(2025)!.age).not.toBeNull();
-    expect(byYear.get(2025)!.cumulative).not.toBeNull();
+    const id = pickCompany("10年推移の途中が欠けている会社", (row) => innerGap(row[0]) !== null);
+    const [gap, after] = innerGap(id)!;
+    const { rows } = tableFor(id);
+    expect(rows[gap].value).toBeNull();
+    expect(rows[gap].age).toBeNull();
+    expect(rows[gap].cumulative).toBeNull();
+    expect(rows[after].age).not.toBeNull();
+    expect(rows[after].cumulative).not.toBeNull();
   });
 
-  // 2017年の値を持たない会社が230社ある。固定の2017年基準にすると累積が丸ごと空になる。
+  // 先頭の年の値を持たない会社がある。固定の先頭年基準にすると累積が丸ごと空になる。
   it("先頭が欠けていれば最初に値のある年が基準になる", () => {
     const input = {
       years: [2017, 2018, 2019],
