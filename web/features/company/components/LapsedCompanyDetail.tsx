@@ -15,6 +15,14 @@ import { TenureHistorySection } from "./TenureHistorySection";
 import { WorklifeSection } from "./WorklifeSection";
 
 /**
+ * 本文の幅。**通常の企業詳細の本文カラムにそろえる**——あちらは `md` から `1fr 19.75rem` の2カラムで、
+ * 1024px 以上で本文が 652px（992 − 316 − 24）になる。この画面にはサイドバーが無いので、放っておくと
+ * 本文が 992px に広がり、652px の幅で決めた図と表（推移の棒・在籍年数の折れ線・働きやすさの
+ * バー）がそれより大きく描かれる。
+ */
+const COLUMN = "md:max-w-[40.75rem]";
+
+/**
  * 母集団から外れた会社の企業詳細（refresh の D9・#879・spec 1.16・AC-7）。最後の有報から24か月を
  * 過ぎた会社で、**ランキングにも順位・偏差値・母集団の統計にも入らない**が、ページは残す（ADR-0018）。
  *
@@ -67,14 +75,14 @@ export function LapsedCompanyDetail({
           <div
             role="note"
             data-testid="company-lapsed-notice"
-            className="border-border bg-muted flex flex-col gap-1 rounded-md border p-4"
+            className={`border-border bg-muted flex flex-col gap-1 rounded-md border p-4 ${COLUMN}`}
           >
             <p className="font-bold">{notice.heading}</p>
             <p className="text-muted-foreground text-sm leading-relaxed">{notice.body}</p>
           </div>
         </header>
 
-        <div className="flex min-w-0 flex-col gap-12">
+        <div className={`flex min-w-0 flex-col gap-12 ${COLUMN}`}>
           <Card>
             <CardContent className="flex flex-col gap-4 p-5">
               <div>
