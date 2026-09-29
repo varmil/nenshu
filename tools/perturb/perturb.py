@@ -17,9 +17,9 @@
 5. 1社が翌年（推移のいちばん新しい年の次の年）の有報を出す。**その会社の推移の窓だけが
    1年進み**、ほかの会社の窓は変わらない（refresh の D5・AC-9）。取得の窓の終わり
    （`universe.json` の `filingWindow.to`）もその提出日まで進める
-
-**揺らさないもの。** 掲載から外れた会社の横持ちデータの行（D9 が扱う）。D0 の範囲の外で、
-ここで触るとそちらの失敗が混ざる。
+6. 1社の最後の提出日を、取得の窓の終わりから25か月前にする。**母集団から外れる**（ADR-0018）が、
+   企業ページは残る（refresh の D9・#879）。E2E がこの会社のページと、ランキング・近傍に
+   いないことを見る。横持ちデータの行はそのまま残す（外れた会社のページが使う）
 
 **更新台帳（`pipeline/data/ledger.csv`・D2）も同じように動かす。** 足す2社の ID は
 台帳の規則（`ledger.admit`）で振り、書類を替えた会社は台帳の数字の書類と提出日も替える。
@@ -233,6 +233,31 @@ def next_year_filing(rows, history, book, skip):
     return target, filed
 
 
+def lapse(rows, book, as_of, skip):
+    """1社の最後の提出日を、`as_of` から25か月前にする（refresh の D9）。
+
+    選ぶのは説明文と給与の決定方針を持つ会社（外れた会社のページに出る節を E2E で見るため）のうち、
+    ほかの揺らし方で動かしていない会社。**数字も書類も替えない**——提出が途切れただけの状態にする。
+    """
+    policies = json.loads((DATA / "pay_policy.json").read_text(encoding="utf-8"))
+    with_policy = {p["edinet_code"] for p in policies if p["blocks"]}
+    _, summaries = read_csv(DATA / "company_summary.csv")
+    with_summary = {r["edinet_code"] for r in summaries if r["summary"]}
+    target = min(
+        (
+            r
+            for r in rows
+            if r["edinet_code"] in with_policy
+            and r["edinet_code"] in with_summary
+            and r["edinet_code"] not in skip
+            and not r["edinet_code"].startswith("E9999")
+        ),
+        key=lambda r: r["edinet_code"],
+    )
+    book[target["edinet_code"]]["filed"] = ledger.add_months(as_of, -25).isoformat()
+    return target
+
+
 def main():
     rows = unified.load_csv(RANKING)
     book = ledger.load()
@@ -245,6 +270,7 @@ def main():
     added = add_companies(rows, history, book, as_of)
     moved = newer_period(rows, history, book, as_of)
     advanced, filed = next_year_filing(rows, history, book, moved["edinet_code"])
+    lapsed = lapse(rows, book, filed, {moved["edinet_code"], advanced["edinet_code"]})
     write_csv(DATA / "salary_history.csv", hist_fields, history)
     ledger.save(book)
 
@@ -266,6 +292,7 @@ def main():
     print(
         f"翌年（{filed.year}年）の有報を出した: {advanced['name']}（{book[advanced['edinet_code']]['id']}）"
     )
+    print(f"最後の提出日を25か月前にした（母集団から外れる）: {lapsed['name']}（{book[lapsed['edinet_code']]['id']}）")
 
 
 if __name__ == "__main__":

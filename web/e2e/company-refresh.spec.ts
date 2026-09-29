@@ -4,6 +4,8 @@ import {
   companyAnalysisFor,
   companyPageData,
   companyPayPolicyFor,
+  isLapsedCompany,
+  lapsedPageData,
 } from "../features/company/lib/pageData";
 import { buildActualsQa } from "../features/company/lib/actualsQa";
 import { sourceMeta } from "../features/company/lib/analysis";
@@ -42,6 +44,7 @@ import {
   analyses,
   history,
   historyYearsOf,
+  lapsed,
   payPolicies,
   pickCompany,
   pickMaxCompany,
@@ -984,6 +987,8 @@ test.describe("AC-15 レイアウト", () => {
    * - 社名がいちばん長い会社: h1・年齢別の説明文・Q&A が長くなり、パンくずも器の中で横に送られる
    * - 参照した資料がいちばん長く並ぶ会社（C10）
    * - 給与の決定方針がいちばん長い会社（畳む）と、表の列がいちばん多い会社（C19・AC-36）
+   * - 母集団から外れた会社（refresh の D9）: 別の画面（`LapsedCompanyDetail`）で、断りの器が増える。
+   *   いまのデータにはいない（揺らしたデータで1社いる）ので、いれば足す。サイドバーは無い
    */
   test("375px では1カラムで、どの会社でも横スクロールが発生しない", async ({ page }) => {
     const ids = [
@@ -1007,17 +1012,21 @@ test.describe("AC-15 レイアウト", () => {
           )
         )
       ),
+      ...lapsed.rows.slice(0, 1).map((row) => row[0]),
     ];
     await page.setViewportSize({ width: 375, height: 844 });
     for (const id of new Set(ids)) {
-      const data = companyPageData(id);
+      const lapsedPage = isLapsedCompany(id);
+      const data = lapsedPage ? lapsedPageData(id) : companyPageData(id);
       await page.goto(`/company/${id}`);
       await expect(page.getByRole("heading", { level: 1 }), id).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
       );
       expect(overflow, id).toBeLessThanOrEqual(0);
-      expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
+      if (!lapsedPage) {
+        expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
+      }
 
       // 推移の表は器の中で横に送る作りではない（T2 AC-14・T4 AC-22）。器ごと収まっていること。
       for (const [label, section, present] of [

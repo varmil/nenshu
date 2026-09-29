@@ -120,22 +120,25 @@ export function isLapsed(filed: string, asOf: string): boolean {
  * - **台帳にあって行に無い会社も落とす**——一度載った会社は、外れるまで最後の有報の数字で
  *   並ぶ（ADR-0018 決定2）。行が消えているのは取得側の異常で、黙ると企業ページが消える
  *
- * 返す `rows` と `ids` は元の行の並びのまま、添字で対応する。
+ * 返す `rows` と `ids` は元の行の並びのまま、添字で対応する。`lapsed` と `lapsedIds` も同じ
+ * （外れた会社の企業ページを残すのに ID が要る。D9・#879）。
  */
 export function selectUniverse<R extends { edinetCode: string; name: string }>(
   allRows: readonly R[],
   ledger: Ledger,
   asOf: string
-): { rows: R[]; ids: string[]; lapsed: R[] } {
+): { rows: R[]; ids: string[]; lapsed: R[]; lapsedIds: string[] } {
   const rows: R[] = [];
   const ids: string[] = [];
   const lapsed: R[] = [];
+  const lapsedIds: string[] = [];
   const seen = new Set<string>();
   for (const row of allRows) {
     const id = companyIdOf(ledger, row);
     seen.add(row.edinetCode);
     if (isLapsed(ledger.get(row.edinetCode)!.filed, asOf)) {
       lapsed.push(row);
+      lapsedIds.push(id);
       continue;
     }
     rows.push(row);
@@ -148,7 +151,7 @@ export function selectUniverse<R extends { edinetCode: string; name: string }>(
         "一度載った会社は、最後の有報の数字で残す"
     );
   }
-  return { rows, ids, lapsed };
+  return { rows, ids, lapsed, lapsedIds };
 }
 
 /**

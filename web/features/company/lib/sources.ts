@@ -63,6 +63,54 @@ export interface PageSources {
   analysisDocId: string | null;
   /** 給与の決定方針（C19・#852）を切り出した有報。改正前の様式の会社と、空の会社には無い。 */
   payPolicyDocId: string | null;
+  /**
+   * 母集団の会社か（refresh の D9）。**`false` は母集団から外れた会社のページ**で、順位・偏差値・
+   * 分布・レーダー・年齢別の推定年収が無い。既定は `true`。
+   */
+  ranked?: boolean;
+  /** 稼ぐ力の推移（P2）。母集団から外れた会社のページで、計算値の行が挙げるかを決める。 */
+  profitHistory?: boolean;
+}
+
+/**
+ * 計算値と推定値の行。**母集団から外れた会社のページ（D9）には順位・偏差値・分布・レーダー・
+ * 年齢別の推定年収が無い**ので、計算値はページにあるもの（稼ぐ力の推移・在籍年数の業種の中央値）
+ * だけを挙げ、推定値の行は出さない。
+ */
+function computedAndEstimated(page: PageSources): SourceRow[] {
+  const computedSource: SourceRow["source"] = [
+    "実測値・自己申告値と、有価証券報告書（連結）から計算",
+  ];
+  if (page.ranked === false) {
+    const covers = [
+      page.profitHistory ? "稼ぐ力" : null,
+      page.tenureHistory ? "業種の中央値" : null,
+    ].filter((c): c is string => c !== null);
+    return covers.length === 0
+      ? []
+      : [{ kind: "computed", label: "計算値", covers: covers.join("・"), source: computedSource }];
+  }
+  return [
+    {
+      /*
+       * 稼ぐ力は「連結の経常利益 ÷ 連結の従業員数」。**単体の実測値からは出せない**ので、
+       * 出典に連結を明記する。式そのものはレーダーの節と稼ぐ力の推移の節が書いている。
+       */
+      kind: "computed",
+      label: "計算値",
+      // 業種の中央値は稼ぐ力（レーダー）と在籍年数の推移（T4）の2か所に出る。
+      covers: page.tenureHistory
+        ? "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
+        : "順位・偏差値・分布・レーダー・稼ぐ力",
+      source: computedSource,
+    },
+    {
+      kind: "estimated",
+      label: "推定値",
+      covers: "年齢別の推定年収と、年齢そろえの金額・順位",
+      source: ["実測値と、厚生労働省「", { source: "wageCensus" }, "」の賃金カーブ"],
+    },
+  ];
 }
 
 /*
@@ -113,25 +161,7 @@ export function buildSourceRows(page: PageSources): SourceRow[] {
         "（単体）",
       ],
     },
-    {
-      /*
-       * 稼ぐ力は「連結の経常利益 ÷ 連結の従業員数」。**単体の実測値からは出せない**ので、
-       * 出典に連結を明記する。式そのものはレーダーの節と稼ぐ力の推移の節が書いている。
-       */
-      kind: "computed",
-      label: "計算値",
-      // 業種の中央値は稼ぐ力（レーダー）と在籍年数の推移（T4）の2か所に出る。
-      covers: page.tenureHistory
-        ? "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
-        : "順位・偏差値・分布・レーダー・稼ぐ力",
-      source: ["実測値・自己申告値と、有価証券報告書（連結）から計算"],
-    },
-    {
-      kind: "estimated",
-      label: "推定値",
-      covers: "年齢別の推定年収と、年齢そろえの金額・順位",
-      source: ["実測値と、厚生労働省「", { source: "wageCensus" }, "」の賃金カーブ"],
-    },
+    ...computedAndEstimated(page),
     {
       kind: "selfReported",
       label: "自己申告値",

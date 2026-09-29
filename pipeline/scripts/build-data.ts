@@ -216,6 +216,37 @@ export function checkCountDrop(previousPath: string, count: number) {
   }
 }
 
+/**
+ * `companies.rows` の1行。**業種と決算期は渡したプールの添字**——母集団（`companies.json`）と
+ * 外れた会社（`lapsed.json`）はそれぞれ自分のプールを持つ。
+ */
+function companyRowOf(
+  row: ReturnType<typeof parseUnifiedCsv>[number],
+  id: string,
+  industries: readonly string[],
+  curveKeys: readonly string[],
+  periods: readonly string[]
+) {
+  const curveIdx = curveKeys.indexOf(row.industry);
+  if (curveIdx === -1) {
+    throw new Error(
+      `${row.name} の産業大分類 "${row.industry}" が annual_curves.json のキーにありません`
+    );
+  }
+  return [
+    id,
+    row.name,
+    industries.indexOf(row.tse33),
+    curveIdx,
+    row.avgAge,
+    row.avgTenure,
+    Math.round(row.avgSalary),
+    Math.round(row.employeesNonConsolidated),
+    row.badge === "本社のみ" ? 1 : 0,
+    periods.indexOf(row.periodEnd.slice(0, 7)),
+  ] as [string, string, number, number, number, number, number, number, 0 | 1, number];
+}
+
 export function buildData(outDir: string) {
   const csvText = readFileSync(resolve(ROOT, "data/ranking_unified.csv"), "utf-8");
   const allRows = parseUnifiedCsv(csvText);
@@ -228,6 +259,7 @@ export function buildData(outDir: string) {
     rows,
     ids: companyIds,
     lapsed,
+    lapsedIds,
   } = selectUniverse(allRows, ledger, universe.filingWindow.to);
   checkCountDrop(resolve(outDir, "companies.json"), rows.length);
 
@@ -245,30 +277,28 @@ export function buildData(outDir: string) {
   // **実測でトップページの HTML が gzip +1,301 B**（そのまま並べると4倍以上）。
   const periods = Array.from(new Set(rows.map((r) => r.periodEnd.slice(0, 7)))).sort();
 
-  const companyRows = rows.map((row, i) => {
-    const id = companyIds[i];
+  const companyRows = rows.map((row, i) =>
+    companyRowOf(row, companyIds[i], industries, curveKeys, periods)
+  );
 
-    const tse33Idx = industries.indexOf(row.tse33);
-    const curveIdx = curveKeys.indexOf(row.industry);
-    if (curveIdx === -1) {
-      throw new Error(
-        `${row.name} の産業大分類 "${row.industry}" が annual_curves.json のキーにありません`
-      );
-    }
-
-    return [
-      id,
-      row.name,
-      tse33Idx,
-      curveIdx,
-      row.avgAge,
-      row.avgTenure,
-      Math.round(row.avgSalary),
-      Math.round(row.employeesNonConsolidated),
-      row.badge === "本社のみ" ? 1 : 0,
-      periods.indexOf(row.periodEnd.slice(0, 7)),
-    ] as const;
-  });
+  /*
+   * **最後の有報から24か月を過ぎた会社は、母集団とは別のファイル（`lapsed.json`）に書く**（D9・#879）。
+   * ランキングにも順位・偏差値・母集団の統計にも入らないが、企業ページは残す（ADR-0018）。
+   * 行の形は `companies.rows` と同じで、業種と決算期の添字は**このファイルの中のプール**を指す。
+   * `companies.json` に混ぜないのは、トップページが全件を読むため（E0）と、全社を舐める計算
+   * （順位・中央値・近傍）に紛れ込ませないため。
+   */
+  const lapsedIndustries = Array.from(new Set(lapsed.map((r) => r.tse33))).sort((a, b) =>
+    a.localeCompare(b, "ja")
+  );
+  const lapsedPeriods = Array.from(new Set(lapsed.map((r) => r.periodEnd.slice(0, 7)))).sort();
+  const lapsedCompanyRows = lapsed.map((row, i) =>
+    companyRowOf(row, lapsedIds[i], lapsedIndustries, curveKeys, lapsedPeriods)
+  );
+  // **企業ページのある会社**（母集団＋外れた会社）。会社ごとのデータ（推移・説明文・書類 等）は
+  // こちらで作る。並びは母集団が先で、`companyRows` と同じ添字で始まる
+  const pageRows = [...rows, ...lapsed];
+  const pageCompanyRows = [...companyRows, ...lapsedCompanyRows];
 
   const companiesMeta = {
     count: companyRows.length,
@@ -304,15 +334,29 @@ export function buildData(outDir: string) {
   };
 
   const stats = buildStats(companies, curves);
-  const history = buildHistory(rows, companyRows, industries);
-  const worklife = buildWorklife(companyRows);
+  const history = buildHistory(rows, companyRows, industries, {
+    rows: lapsed,
+    companyRows: lapsedCompanyRows,
+  });
+  const [worklife, lapsedWorklife] = buildWorklife([companyRows, lapsedCompanyRows]);
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
-  const profitHistory = buildProfitHistory(rows, companyRows, history.endById);
-  const summaries = buildSummaries(rows, companyRows);
-  const analyses = buildAnalyses(rows, companyRows);
-  const filings = buildFilings(rows, companyRows);
-  const payPolicies = buildPayPolicies(rows, companyRows);
+  const profitHistory = buildProfitHistory(pageRows, pageCompanyRows, history.endById);
+  const summaries = buildSummaries(pageRows, pageCompanyRows);
+  const analyses = buildAnalyses(pageRows, pageCompanyRows);
+  const filings = buildFilings(pageRows, pageCompanyRows);
+  const payPolicies = buildPayPolicies(pageRows, pageCompanyRows);
+  const lapsedData = {
+    industries: lapsedIndustries,
+    periods: lapsedPeriods,
+    rows: lapsedCompanyRows,
+    // 最後の有報の提出日（`YYYY-MM-DD`）。ページの断りに出す
+    filedById: Object.fromEntries(
+      lapsed.map((row, i) => [lapsedIds[i], ledger.get(row.edinetCode)!.filed])
+    ),
+    // 働きやすさ（`worklife.json` と同じ形。行は `rows` と同じ並び）
+    worklife: lapsedWorklife,
+  };
 
   mkdirSync(outDir, { recursive: true });
   const companiesPath = resolve(outDir, "companies.json");
@@ -327,6 +371,7 @@ export function buildData(outDir: string) {
   const analysesPath = resolve(outDir, "analyses.json");
   const filingsPath = resolve(outDir, "filings.json");
   const payPoliciesPath = resolve(outDir, "pay-policies.json");
+  const lapsedPath = resolve(outDir, "lapsed.json");
   const companiesJson = JSON.stringify(companies);
   const historyJson = JSON.stringify(history);
   const worklifeJson = JSON.stringify(worklife);
@@ -349,6 +394,7 @@ export function buildData(outDir: string) {
   writeFileSync(analysesPath, analysesJson);
   writeFileSync(filingsPath, filingsJson);
   writeFileSync(payPoliciesPath, payPoliciesJson);
+  writeFileSync(lapsedPath, JSON.stringify(lapsedData));
 
   const gzipSize = gzipSync(companiesJson).length;
   if (gzipSize > COMPANIES_JSON_GZIP_LIMIT_BYTES) {
@@ -433,6 +479,7 @@ export function buildData(outDir: string) {
     analysesPath,
     filingsPath,
     payPoliciesPath,
+    lapsedPath,
     companies,
     curves,
     stats,
@@ -456,6 +503,7 @@ export function buildData(outDir: string) {
     filingsGzipSize,
     payPoliciesGzipSize,
     lapsed,
+    lapsedData,
     textBehind: textBehindNumbers(ledger, rows),
   };
 }
@@ -971,7 +1019,15 @@ function buildPayPolicies(
 function buildHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[],
-  industries: readonly string[]
+  industries: readonly string[],
+  /**
+   * 外れた会社（D9・#879）。**推移は作るが、業種の中央値には数えない**——中央値は母集団の性質で、
+   * 業種の添字も `lapsed.json` のプールを指していて `industries` とは別物。
+   */
+  lapsed: {
+    rows: ReturnType<typeof parseUnifiedCsv>;
+    companyRows: readonly (readonly (string | number)[])[];
+  } = { rows: [], companyRows: [] }
 ) {
   const csvPath = resolve(ROOT, "data/salary_history.csv");
   const historyRows = parseSalaryHistoryCsv(readFileSync(csvPath, "utf-8"));
@@ -983,7 +1039,9 @@ function buildHistory(
     }
   }
   const ends = windowEnds(historyRows);
-  checkWindowEnds(rows, historyRows, ends);
+  const pageRows = [...rows, ...lapsed.rows];
+  const pageCompanyRows = [...companyRows, ...lapsed.companyRows];
+  checkWindowEnds(pageRows, historyRows, ends);
 
   // edinet_code → その会社の窓の配列（平均年収・平均年齢・在籍年数を同じ添字で持つ）
   type Series = {
@@ -1012,10 +1070,10 @@ function buildHistory(
   const byId: Record<string, (number | null)[]> = {};
   const ageById: Record<string, (number | null)[]> = {};
   const tenureById: Record<string, (number | null)[]> = {};
-  rows.forEach((row, i) => {
+  pageRows.forEach((row, i) => {
     const series = byEdinetCode.get(row.edinetCode);
     if (series === undefined) return;
-    const id = companyRows[i][0] as string;
+    const id = pageCompanyRows[i][0] as string;
     endById[id] = ends.get(row.edinetCode)!;
     byId[id] = series.salary;
     ageById[id] = series.age;
@@ -1126,40 +1184,50 @@ function loadWorklifeCells(): Map<string, Record<string, string>> {
   return byId;
 }
 
-function buildWorklife(companyRows: readonly (readonly (string | number)[])[]) {
+/**
+ * 働きやすさ（`worklife.json`）。**行の並びごとに1つずつ作る**（D9・#879）——母集団の
+ * `companies.rows` と、外れた会社の `lapsed.json` の `rows`。どちらも行と同じ並びの配列で、
+ * 文字列プールもそれぞれに持つ。**突合は全部の並びを合わせて見る**（worklife.csv の全行が
+ * どこかの会社に当たること）。
+ */
+function buildWorklife(groups: readonly (readonly (readonly (string | number)[])[])[]) {
   const byId = loadWorklifeCells();
 
-  const pool = new StringPool();
-  const rows: (WorklifeRow | 0)[] = [];
-  const notes: (string | 0)[] = [];
-  let matched = 0;
-  for (const company of companyRows) {
-    const cells = byId.get(String(company[0]));
-    if (cells === undefined) {
-      rows.push(0);
-      notes.push(0);
-      continue;
+  let total = 0;
+  const built = groups.map((companyRows) => {
+    const pool = new StringPool();
+    const rows: (WorklifeRow | 0)[] = [];
+    const notes: (string | 0)[] = [];
+    let matched = 0;
+    for (const company of companyRows) {
+      const cells = byId.get(String(company[0]));
+      if (cells === undefined) {
+        rows.push(0);
+        notes.push(0);
+        continue;
+      }
+      matched++;
+      rows.push(encodeRow(cells, pool));
+      notes.push(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
     }
-    matched++;
-    rows.push(encodeRow(cells, pool));
-    notes.push(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
-  }
-  if (matched !== byId.size) {
+    total += matched;
+    return {
+      meta: {
+        source: "mhlw-positivedb",
+        matched,
+        count: companyRows.length,
+      },
+      pool: pool.values,
+      rows,
+      notes,
+    };
+  });
+  if (total !== byId.size) {
     throw new Error(
-      `worklife.csv の${byId.size}行のうち${matched}行しか companies に紐づきませんでした`
+      `worklife.csv の${byId.size}行のうち${total}行しか companies に紐づきませんでした`
     );
   }
-
-  return {
-    meta: {
-      source: "mhlw-positivedb",
-      matched,
-      count: companyRows.length,
-    },
-    pool: pool.values,
-    rows,
-    notes,
-  };
+  return built;
 }
 
 interface CompaniesShape {
@@ -1350,10 +1418,10 @@ if (isMain) {
     `${result.companiesPath}: ${result.companies.rows.length}行, gzip ${(result.gzipSize / 1024).toFixed(1)}KB` +
       `, 決算期 ${from}〜${to}（${result.companies.periods.length}種類）`
   );
-  // 最後の有報から24か月を過ぎて母集団から外れた会社（ADR-0018）。**企業ページは D9 が残す**
-  // ——それまでは、外れた会社のページも一覧から消える。
+  // 最後の有報から24か月を過ぎて母集団から外れた会社（ADR-0018）。企業ページは lapsed.json から
+  // 残す（D9・#879）。ランキングと母集団の統計には入らない。
   console.log(
-    `母集団から外れた会社（最後の有報から24か月）: ${result.lapsed.length}社` +
+    `母集団から外れた会社（最後の有報から24か月・企業ページは残す）: ${result.lapsed.length}社` +
       result.lapsed
         .slice(0, 5)
         .map((r) => ` ${r.name}`)
@@ -1371,6 +1439,8 @@ if (isMain) {
   // **母集団に対する割合を添える**（E2・AC-8）。社数だけだと、母集団が広がった
   // ときに「追随していない施策がどれだけ欠けているか」が読み取れない。
   const total = result.companies.meta.count;
+  // 会社ごとのデータ（推移・説明文・書類 等）は外れた会社のぶんも持つ（D9）ので、分母も合わせる
+  const pageTotal = total + result.lapsed.length;
   // **窓の右端ごとの社数を出す**（refresh の D5）。有報が出た会社から右端が1年ずつ進むので、
   // 毎日の更新でどれだけの会社が新しい年に移ったかがここで読める。
   const endCounts = new Map<number, number>();
@@ -1382,7 +1452,7 @@ if (isMain) {
     .map(([end, n]) => `${end}年 ${n}社`)
     .join("・");
   console.log(
-    `${result.historyPath}: ${coverage(Object.keys(result.history.byId).length, total)} × ` +
+    `${result.historyPath}: ${coverage(Object.keys(result.history.byId).length, pageTotal)} × ` +
       `${HISTORY_SPAN}年（右端 ${endsLabel}）, gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
@@ -1399,25 +1469,25 @@ if (isMain) {
       `gzip ${(result.radarGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.profitHistoryPath}: ${coverage(Object.keys(result.profitHistory.profit).length, total)} × ` +
+    `${result.profitHistoryPath}: ${coverage(Object.keys(result.profitHistory.profit).length, pageTotal)} × ` +
       `${HISTORY_SPAN}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.summariesPath}: ${coverage(Object.keys(result.summaries.byId).length, total)}, ` +
+    `${result.summariesPath}: ${coverage(Object.keys(result.summaries.byId).length, pageTotal)}, ` +
       `gzip ${(result.summariesGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.analysesPath}: ${coverage(Object.keys(result.analyses.byId).length, total)}, ` +
+    `${result.analysesPath}: ${coverage(Object.keys(result.analyses.byId).length, pageTotal)}, ` +
       `gzip ${(result.analysesGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
-    `${result.filingsPath}: ${coverage(Object.keys(result.filings.byId).length, total)}, ` +
+    `${result.filingsPath}: ${coverage(Object.keys(result.filings.byId).length, pageTotal)}, ` +
       `gzip ${(result.filingsGzipSize / 1024).toFixed(1)}KB`
   );
   // **母集団は2,961社で、改正前の様式の会社（決算期末が2026年3月31日より前）にはそもそも無い**
   // ので、割合は他のファイルのように100%へ近づかない。翌年のデータ更新で全社が新しい様式になる。
   console.log(
-    `${result.payPoliciesPath}: ${coverage(Object.keys(result.payPolicies.byId).length, total)}, ` +
+    `${result.payPoliciesPath}: ${coverage(Object.keys(result.payPolicies.byId).length, pageTotal)}, ` +
       `gzip ${(result.payPoliciesGzipSize / 1024).toFixed(1)}KB`
   );
 

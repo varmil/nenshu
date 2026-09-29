@@ -25,6 +25,7 @@ import summariesJson from "@/public/data/summaries.json" with { type: "json" };
 import analysesJson from "@/public/data/analyses.json" with { type: "json" };
 import filingsJson from "@/public/data/filings.json" with { type: "json" };
 import payPoliciesJson from "@/public/data/pay-policies.json" with { type: "json" };
+import lapsedJson from "@/public/data/lapsed.json" with { type: "json" };
 import type { CompaniesData, CompanyRow, CurvesData } from "@/features/ranking/types";
 import type { CompanyStatsData } from "@/features/company/types";
 import type { PerformanceData, RadarData } from "@/features/company/lib/radar";
@@ -36,6 +37,7 @@ import {
   type ProfitHistoryData,
 } from "@/features/company/lib/historyWindow";
 import type { PayPolicyRecord } from "@/features/company/lib/payPolicy";
+import type { LapsedData } from "@/features/company/lib/lapsed";
 import type { FilingRef } from "@/lib/data/sources";
 
 export const companies = companiesJson as CompaniesData;
@@ -65,6 +67,12 @@ export const summaries = summariesJson as {
 export const analyses = analysesJson as { byId: Record<string, AnalysisRecord> };
 export const filings = filingsJson as { byId: Record<string, string> };
 export const payPolicies = payPoliciesJson as { byId: Record<string, PayPolicyRecord> };
+/**
+ * 母集団から外れた会社（最後の有報から24か月・refresh の D9）。**いまのデータにはいない**
+ * （最初に外れうるのは 2027-08-26）ので、これを前提にするテストは空なら skip する。
+ * 揺らしたデータ（`tools/perturb/check.sh`）では1社いる。
+ */
+export const lapsed = lapsedJson as unknown as LapsedData;
 
 const indexById = new Map(companies.rows.map((row, index) => [row[0], index]));
 
