@@ -10,6 +10,7 @@ from update_texts import (
     drop_unfinished_pay_policy,
     select_queue,
     stage_docs,
+    stage_failure,
     todo_stages,
     update_pending,
 )
@@ -108,6 +109,37 @@ class StageDocs(unittest.TestCase):
     def test_two_pay_policy_records_for_one_company_fail(self):
         with self.assertRaises(ValueError):
             stage_docs("E1", {}, {}, [{"edinet_code": "E1", "doc_id": "A"}, {"edinet_code": "E1", "doc_id": "B"}])
+
+
+class StageFailure(unittest.TestCase):
+    OK_ANALYSIS = {"source_doc_id": "NEW", "summary_verdict": "ok", "analysis_verdict": "ok"}
+
+    def test_passed_when_the_artifact_is_the_new_filing_and_ok(self):
+        self.assertIsNone(stage_failure("analysis", "NEW", self.OK_ANALYSIS, None, ""))
+        self.assertIsNone(stage_failure("description", "NEW", None, {"source_doc_id": "NEW", "verdict": "ok"}, ""))
+        self.assertIsNone(stage_failure("pay_policy", "NEW", None, None, "NEW"))
+
+    def test_kept_the_previous_version(self):
+        # 書き直しが落ちたら前の版が残り、成果物の書類は前の書類のまま
+        row = {"source_doc_id": "OLD", "summary_verdict": "ok", "analysis_verdict": "ok",
+               "analysis_reason": "書き直しが落ちたので前の版を残した（検証パス: 型A1）"}
+        self.assertIn("前の版を残した", stage_failure("analysis", "NEW", row, None, ""))
+
+    def test_new_company_rejected_on_the_new_filing_is_a_failure(self):
+        # 前の版が無い会社は、新しい書類のまま rejected の行が残る。書類だけ見ると通ったことになる
+        row = {"source_doc_id": "NEW", "summary_verdict": "rejected", "analysis_verdict": "rejected",
+               "summary_reason": "検証パス: 型S1", "analysis_reason": "要約が付かないため対で落とした（…）"}
+        self.assertIn("対で落とした", stage_failure("analysis", "NEW", row, None, ""))
+        desc = {"source_doc_id": "NEW", "verdict": "rejected", "reject_reason": "検証パス: 重み付け"}
+        self.assertEqual(stage_failure("description", "NEW", None, desc, ""), "検証パス: 重み付け")
+
+    def test_description_left_empty_by_the_writer_is_not_a_failure(self):
+        # 原文に事業の中身が無い会社（C17 の10社）。書き直しても変わらないので知らせない
+        desc = {"source_doc_id": "NEW", "verdict": "rejected", "reject_reason": "説明文が空"}
+        self.assertIsNone(stage_failure("description", "NEW", None, desc, ""))
+
+    def test_pay_policy_left_on_the_previous_filing(self):
+        self.assertEqual(stage_failure("pay_policy", "NEW", None, None, "OLD"), "")
 
 
 class DropUnfinishedPayPolicy(unittest.TestCase):

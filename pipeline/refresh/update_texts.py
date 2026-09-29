@@ -138,6 +138,32 @@ def stage_docs(code, analysis_rows, summary_rows, pay_policy_rows):
     }
 
 
+def stage_failure(stage, doc, analysis_row, summary_row, pay_doc):
+    """工程が落ちたときの理由。通ったら `None`。**書類だけでなく判定まで見る。**
+
+    書き直しが落ちた会社は前の版が残るので、成果物の書類が前の書類のままになる（落ちたと分かる）。
+    **前の版が無い会社（新しく載った会社）は、新しい書類のまま判定が rejected の行が残る**——書類だけ
+    見ると通ったことになり、知らせが立たない。
+    """
+    if stage == "analysis":
+        r = analysis_row or {}
+        if r.get("source_doc_id") != doc:
+            return r.get("analysis_reason") or r.get("summary_reason") or ""
+        if r.get("summary_verdict") != "ok" or r.get("analysis_verdict") != "ok":
+            return r.get("analysis_reason") or r.get("summary_reason") or "rejected"
+        return None
+    if stage == "description":
+        r = summary_row or {}
+        if r.get("source_doc_id") != doc:
+            return r.get("reject_reason") or ""
+        # 生成側が「原文に事業の中身が無い」と判断して空を返したのは、落ちたのではない
+        # （C17。ENEOS など10社。書き直しても変わらない）
+        if r.get("verdict") != "ok" and r.get("reject_reason") != "説明文が空":
+            return r.get("reject_reason") or "rejected"
+        return None
+    return None if pay_doc == doc else ""
+
+
 def drop_unfinished_pay_policy(rows, code, doc):
     """新しい書類の給与の決定方針が、参照先で答え直す前（`referenced`）のまま残っていれば外す。
 
@@ -284,21 +310,15 @@ def cmd_prepare(args):
         print(f"  {STAGE_LABELS[stage]}: {'回せる' if reason is None else reason}", flush=True)
 
 
-def _stage_reason(stage, code, doc, analysis_rows, summary_rows):
-    """落ちた工程の理由。成果物に残っている理由を拾う（無ければ回していない）。"""
-    if stage == "analysis":
-        r = analysis_rows.get(code) or {}
-        return r.get("analysis_reason") or r.get("summary_reason") or "回していない"
-    if stage == "description":
-        r = summary_rows.get(code) or {}
-        return r.get("reject_reason") or "回していない"
+def _pay_policy_reason(doc):
+    """給与の決定方針の落ちた理由。`gate` の記録（`paypolicy/work/gated_*.json`）から拾う。"""
     reasons = []
     for path in sorted((PIPELINE / "paypolicy" / "work").glob("gated_*.json")):
         g = json.loads(path.read_text(encoding="utf-8"))
         reasons += [e["reason"] for e in g.get("errors", []) if e.get("doc_id") == doc]
         if doc in g.get("missing", []):
             reasons.append("答えが無い")
-    return " / ".join(reasons) or "回していない"
+    return " / ".join(reasons)
 
 
 def cmd_finish(args):
@@ -330,13 +350,14 @@ def cmd_finish(args):
         entry[column] = docs[stage]
         if not applies(stage, row["period_end"], pp_first):
             continue
-        if docs[stage] == doc:
+        failure = stage_failure(stage, doc, analysis_rows.get(code), summary_rows.get(code), docs["pay_policy"])
+        if failure is None:
             results[stage] = None
             continue
         reason = (prep.get("ready") or {}).get(stage)
-        if not reason and stage == "pay_policy" and dropped:
-            reason = "参照先で答え直せなかった"
-        results[stage] = reason or _stage_reason(stage, code, doc, analysis_rows, summary_rows)
+        if not reason and stage == "pay_policy":
+            reason = "参照先で答え直せなかった" if dropped else _pay_policy_reason(doc)
+        results[stage] = reason or failure or "回していない"
     ledger.save(entries)
     write_pending(update_pending(read_pending(), code, row["name"], doc, results, today_jst()))
     print(f"{code} {row['name']}（{doc}）", flush=True)
