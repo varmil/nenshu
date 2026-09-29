@@ -26,7 +26,7 @@ const BOX: Record<LogoSize, string> = {
   // ランキングの表。モバイルは sm 相当に落とす（PC は50px。運営者の指示・Issue #128）
   default: "h-9.5 w-12 md:h-12.5 md:w-22",
   // 企業詳細の見出し（アートボード 4b の62px）
-  lg: "h-15.5 w-34",
+  lg: "h-15.5 w-32",
 };
 
 const RADIUS: Record<LogoSize, string> = {
