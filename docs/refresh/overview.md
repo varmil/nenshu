@@ -4,23 +4,23 @@
 
 **Unit の ID は `D`**（daily）。`R` は runtime 施策が使っている。施策ごとの連番という規則は他の施策と同じ（ranking は `U`、company は `C`、site-chrome は `S`、timeseries は `T`、worklife は `W`、logo は `L`、performance は `P`、expansion は `E`、framework は `F`、runtime は `R`）。
 
-**Unit の Issue はまだ立てていない。** spec の承認（ゲート①）を受けてから、この表の行ごとに `[Unit]` Issue を立て、本文の `親:` 行に `#868` を書く。
+Issue は D0 #870・D1 #871・D2 #872・D3 #873・D4 #874・D5 #875・D6 #876・D7 #877・D8 #878・D9 #879・D10 #880（spec の承認を受けて 2026-09-29 に立てた。本文の `親:` 行は `#868`）。
 
 ## Unit 一覧
 
 | ID | Unit | 依存 | 対応する受け入れ基準 | 備考 |
 | --- | --- | --- | --- | --- |
-| D0 | テストをいまのデータの値から切り離す | なし | AC-13 | 規則を見るテストと、いまのデータを見るテストを分け、後者を不変条件に書き直す。ビルドの社数の決め打ち（`EXPECTED_ROW_COUNT`）を外す。※共有: 全施策のテスト・E2E |
-| D1 | PR ごとにテストを回す（CI） | D0 | AC-12（前半） | 自動マージの判定に使う。いまは `.github/workflows/` に `link-sub-issue.yml` しか無い |
-| D2 | 更新台帳・企業 ID の固定・母集団の出入り | なし | AC-7（母集団の側）, AC-8 | 台帳を作り、いまの全社を写す。ID を台帳から引く（ADR-0017）。出る条件を24か月にする（ADR-0018）。年の直書き（`_2026` 等）を外す。※共有: `pipeline/scripts/lib/slug.ts`・`build-data.ts` |
-| D3 | 文章の節が自分の期を名乗る | D2 | AC-3 | 要約の決算期・給与の決定方針のガードとリンク・「このページの出典」。※共有: company の C10・C12・C19 |
-| D4 | 数字の差分更新 | D0, D2, D3 | AC-1, AC-2, AC-10, AC-11 | 前回以降の書類一覧だけを読み、その会社の数字と派生データ（10年推移・稼ぐ力・ロゴ）を替える。止める線 A・B と読み直し。OG 画像の焼き直し。※共有: salary・timeseries・performance・logo のパイプライン |
-| D5 | 10年推移を会社ごとの直近10年に | D2 | AC-9 | 平均年収・在籍年数・稼ぐ力の3つの推移。※共有: timeseries（T1〜T4）・performance（P2） |
-| D6 | 文章の差分生成 | D2, D3 | AC-4, AC-5, AC-6, AC-16 | 1社ずつ 分析と要約 → 説明文の検証 → 給与の決定方針。順番と1日の上限。使ったモデルの記録。※共有: `pipeline/analysis/`・`pipeline/summary/`・`pipeline/paypolicy/` |
-| D7 | 女性活躍DB の自動取得 | D0 | AC-17 | 全件版をページからリンクを拾って落とす。ADR-0008 の追記（2026-09-29）の作法で。`docs/worklife/spec.md` を改める。※共有: worklife の W0・W2 |
-| D8 | 定期実行・自動マージ・知らせ | D1, D4, D7（D6 は後から足す） | AC-12, AC-14, AC-18 | 毎日の実行、基準を変える PR の見分け、Issue の立て方と閉じ方。CLAUDE.md のマージの許可を広げる。product.md の「更新頻度」を改める |
-| D9 | 提出が途切れた会社のページ | D2 | AC-7（ページの側） | 24か月を過ぎた会社。ランキングから外し、ページは残す |
-| D10 | 文章の品質の見張り | D6, D8 | AC-15 | 月1回。版3の物差しで数え、版5の分布と比べる |
+| D0 | [テストをいまのデータの値から切り離す](https://github.com/varmil/nenshu/issues/870) | なし | AC-13 | 規則を見るテストと、いまのデータを見るテストを分け、後者を不変条件に書き直す。ビルドの社数の決め打ち（`EXPECTED_ROW_COUNT`）を外す。※共有: 全施策のテスト・E2E |
+| D1 | [PR ごとにテストを回す（CI）](https://github.com/varmil/nenshu/issues/871) | D0（#870） | AC-12（前半） | 自動マージの判定に使う。いまは `.github/workflows/` に `link-sub-issue.yml` しか無い |
+| D2 | [更新台帳・企業 ID の固定・母集団の出入り](https://github.com/varmil/nenshu/issues/872) | なし | AC-7（母集団の側）, AC-8 | 台帳を作り、いまの全社を写す。ID を台帳から引く（ADR-0017）。出る条件を24か月にする（ADR-0018）。年の直書き（`_2026` 等）を外す。※共有: `pipeline/scripts/lib/slug.ts`・`build-data.ts` |
+| D3 | [文章の節が自分の期を名乗る](https://github.com/varmil/nenshu/issues/873) | D2（#872） | AC-3 | 要約の決算期・給与の決定方針のガードとリンク・「このページの出典」。※共有: company の C10・C12・C19 |
+| D4 | [数字の差分更新](https://github.com/varmil/nenshu/issues/874) | D0（#870）, D2（#872）, D3（#873） | AC-1, AC-2, AC-10, AC-11 | 前回以降の書類一覧だけを読み、その会社の数字と派生データ（10年推移・稼ぐ力・ロゴ）を替える。止める線 A・B と読み直し。OG 画像の焼き直し。※共有: salary・timeseries・performance・logo のパイプライン |
+| D5 | [10年推移を会社ごとの直近10年に](https://github.com/varmil/nenshu/issues/875) | D2（#872） | AC-9 | 平均年収・在籍年数・稼ぐ力の3つの推移。※共有: timeseries（T1〜T4）・performance（P2） |
+| D6 | [文章の差分生成](https://github.com/varmil/nenshu/issues/876) | D2（#872）, D3（#873） | AC-4, AC-5, AC-6, AC-16 | 1社ずつ 分析と要約 → 説明文の検証 → 給与の決定方針。順番と1日の上限。使ったモデルの記録。※共有: `pipeline/analysis/`・`pipeline/summary/`・`pipeline/paypolicy/` |
+| D7 | [女性活躍DB の自動取得](https://github.com/varmil/nenshu/issues/877) | D0（#870） | AC-17 | 全件版をページからリンクを拾って落とす。ADR-0008 の追記（2026-09-29）の作法で。`docs/worklife/spec.md` を改める。※共有: worklife の W0・W2 |
+| D8 | [定期実行・自動マージ・知らせ](https://github.com/varmil/nenshu/issues/878) | D1（#871）, D4（#874）, D7（#877）。D6（#876）は後から足す | AC-12, AC-14, AC-18 | 毎日の実行、基準を変える PR の見分け、Issue の立て方と閉じ方。CLAUDE.md のマージの許可を広げる。product.md の「更新頻度」を改める |
+| D9 | [提出が途切れた会社のページ](https://github.com/varmil/nenshu/issues/879) | D2（#872） | AC-7（ページの側） | 24か月を過ぎた会社。ランキングから外し、ページは残す |
+| D10 | [文章の品質の見張り](https://github.com/varmil/nenshu/issues/880) | D6（#876）, D8（#878） | AC-15 | 月1回。版3の物差しで数え、版5の分布と比べる |
 
 ## 実施順序
 
@@ -102,7 +102,7 @@ E2E は画面の崩れ（横スクロール・切り詰め・重なり）を見�
 
 **台帳を作った時点で、画面は1つも変わらない。** いまの全社をそのまま写すので、ID も母集団も今日と同じになる。変わるのは「次に有報が出たときにどう振る舞うか」だけ。
 
-**年の直書きもここで外す。** ファイル名の `_2026`、10年推移の 2017〜2026、`DATA_VERSION = "2026-06"`、C18 の `FIRST_PERIOD_END` は、毎日回す前提では意味を持たない（親 Issue「足りないもの」4.）。
+**年の直書きもここで外す。** ファイル名の `_2026` と `DATA_VERSION = "2026-06"`（`pipeline/scripts/build-data.ts`）は、毎日回す前提では意味を持たない（親 Issue「足りないもの」4.）。10年推移の 2017〜2026 は、会社ごとの範囲にする D5 で外す。**C18 の `FIRST_PERIOD_END = "2026-03-31"` は外さない**——開示府令の改正が適用される期末の日付で、年の直書きではない（Issue 起票時に確かめた）。
 
 ## D8 定期実行・自動マージ・知らせ
 
