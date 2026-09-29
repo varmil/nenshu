@@ -64,20 +64,21 @@ function textAlignedWithNumbers(id: string): boolean {
 }
 
 /**
- * refresh の D3（spec 1.5・AC-3）。**数字だけが新しい有報に替わり、文章の節がすべて前の有報の
- * ままの会社。** いまのデータにはいない（数字と文章を同じ回に作ってきた）ので、揺らしたデータ
- * （`tools/perturb/check.sh --e2e`。4つ目の揺らし方がこの会社を作る）で走る。毎日の更新（D4）が
- * 入れば、実データにも現れる。
+ * refresh の D3（spec 1.5・AC-3）。**数字だけが新しい有報に替わり、文章が前の有報のままの会社。**
+ * 数字の差分更新（D4）が数字を先に替えるので、文章が追いつくまで実データにいる。
+ *
+ * 説明文と要約・分析は D4 の1回目から実データにいる（114社）。**給与の決定方針のずれは、
+ * いまのデータにいない**——節があるのは改正後（2026年3月期以後）の有報だけで、その会社の
+ * 次の有報で数字が先に替わるまで現れない。揺らしたデータ（`tools/perturb/check.sh --e2e`。
+ * 4つ目の揺らし方がこの会社を作る）で走る。
  */
-const BEHIND = companies.rows.find((row) => {
-  const period = companies.periods[row[9]];
-  const texts = [
-    summaries.filingById[row[0]],
-    analyses.byId[row[0]]?.filing,
-    payPolicies.byId[row[0]]?.filing,
-  ];
-  return texts.every((filing) => filing !== undefined && filing.period !== period);
-})?.[0];
+function behind(id: string, filing: { period: string } | undefined): boolean {
+  return filing !== undefined && filing.period !== companies.periods[rowOf(id)[9]];
+}
+const TEXT_BEHIND = companies.rows.find(
+  ([id]) => behind(id, summaries.filingById[id]) && behind(id, analyses.byId[id]?.filing)
+)?.[0];
+const PAY_BEHIND = companies.rows.find(([id]) => behind(id, payPolicies.byId[id]?.filing))?.[0];
 
 /**
  * 決算期の違う2社。**会社ごとに違う値が出ることの実物**で、同じ文字列がハードコード
@@ -186,16 +187,27 @@ test.describe("データの時点（S3・E1）", () => {
    * 有報の期を名乗り、その書類を指す。** Q&A は数字の期のまま。給与の決定方針の期は、数字の期と
    * ずれたときだけ引用の枠の先頭に出る（site-chrome spec 5.1 の例外）。
    */
-  test("数字と文章の有報がずれた会社では、文章の節が自分の有報の期を名乗り、その書類を指す", async ({
+  /** 「このページの出典」の行ごとの見出しと、その行が指す EDINET の書類。 */
+  async function sourceRows(page: import("@playwright/test").Page) {
+    return page
+      .getByTestId("company-sources")
+      .locator("dl > div")
+      .evaluateAll((divs) =>
+        divs.map((div) => [
+          div.querySelector("dt")?.textContent,
+          [...div.querySelectorAll("a")]
+            .map((a) => a.getAttribute("href") ?? "")
+            .filter((href) => href.includes("WZEK0040")),
+        ])
+      );
+  }
+
+  test("要約・分析が数字より前の有報のままの会社では、要約の節と出典がその有報を名乗り、指す", async ({
     page,
   }) => {
-    test.skip(
-      BEHIND === undefined,
-      "数字と文章の有報がずれた会社がいまのデータにいない（tools/perturb/check.sh --e2e で作る）"
-    );
-    const id = BEHIND!;
+    test.skip(TEXT_BEHIND === undefined, "要約・分析が数字とずれた会社がいまのデータにいない");
+    const id = TEXT_BEHIND!;
     const analysis = analyses.byId[id].filing;
-    const policy = payPolicies.byId[id].filing;
     const summary = summaries.filingById[id];
     await page.goto(`/company/${id}`);
 
@@ -205,6 +217,27 @@ test.describe("データの時点（S3・E1）", () => {
     const digest = page.getByTestId("company-digest");
     await expect(digest).toContainText(`${periodLabel(analysis.period)}の有価証券報告書`);
     await expect(digest).not.toContainText(periodOf(id));
+
+    // 「このページの出典」は行ごとに、その行の中身を作った書類を指す
+    expect(await sourceRows(page)).toEqual(
+      expect.arrayContaining([
+        ["実測値", [edinetDocumentUrl(filings.byId[id])]],
+        ["AIの要約", [edinetDocumentUrl(summary.docId)]],
+        ["AIの評価", [edinetDocumentUrl(analysis.docId)]],
+      ])
+    );
+  });
+
+  test("給与の決定方針が数字より前の有報のままの会社では、引用の枠がその有報の期を名乗り、指す", async ({
+    page,
+  }) => {
+    test.skip(
+      PAY_BEHIND === undefined,
+      "給与の決定方針が数字とずれた会社がいまのデータにいない（tools/perturb/check.sh --e2e で作る）"
+    );
+    const id = PAY_BEHIND!;
+    const policy = payPolicies.byId[id].filing;
+    await page.goto(`/company/${id}`);
 
     const pay = page.getByTestId("company-pay-policy");
     await expect(pay.locator("[data-pay-source]")).toContainText(
@@ -218,26 +251,8 @@ test.describe("データの時点（S3・E1）", () => {
       "href",
       edinetDocumentUrl(policy.docId)
     );
-
-    // 「このページの出典」は行ごとに、その行の中身を作った書類を指す
-    const rows = await page
-      .getByTestId("company-sources")
-      .locator("dl > div")
-      .evaluateAll((divs) =>
-        divs.map((div) => [
-          div.querySelector("dt")?.textContent,
-          [...div.querySelectorAll("a")]
-            .map((a) => a.getAttribute("href") ?? "")
-            .filter((href) => href.includes("WZEK0040")),
-        ])
-      );
-    expect(rows).toEqual(
-      expect.arrayContaining([
-        ["原文", [edinetDocumentUrl(policy.docId)]],
-        ["実測値", [edinetDocumentUrl(filings.byId[id])]],
-        ["AIの要約", [edinetDocumentUrl(summary.docId)]],
-        ["AIの評価", [edinetDocumentUrl(analysis.docId)]],
-      ])
+    expect(await sourceRows(page)).toEqual(
+      expect.arrayContaining([["原文", [edinetDocumentUrl(policy.docId)]]])
     );
   });
 });

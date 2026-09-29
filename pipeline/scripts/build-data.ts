@@ -146,30 +146,33 @@ export function datasetVersion(content: unknown): string {
 
 /**
  * 母集団の内訳（`pipeline/data/universe.json`。E2・`docs/expansion/spec.md` 1.3）。
- * **CSV の行からは出せないものだけ**を持つ——取得の窓と、掲載条件で落とした社数。
- * 書くのは `pipeline/salary/unified.py` の `save_universe`。
+ * **CSV の行からは出せないものだけ**を持つ——取得の窓と、掲載条件の線。
+ * 書くのは `pipeline/salary/unified.py` の `save_universe`（全件の組み直し）と、
+ * 窓を進める `pipeline/refresh/update_numbers.py`（毎日の差分更新）。
+ *
+ * **掲載条件で落とした社数（`excludedByEmployees`）は読まない。** 全件の組み直しの時点の数で、
+ * 差分更新では動かない（落ちた会社の一覧を持っていない）。`/about` に出していたが、
+ * 動かない数を出し続けるより外すほうを採った（2026-09-29・運営者の判断）。
  */
 interface Universe {
   filingWindow: { from: string; to: string };
   minEmployees: number;
-  excludedByEmployees: number;
 }
 
 function readUniverse(): Universe {
   const raw = JSON.parse(readFileSync(resolve(ROOT, "data/universe.json"), "utf-8"));
-  const { filingWindow, minEmployees, excludedByEmployees } = raw ?? {};
+  const { filingWindow, minEmployees } = raw ?? {};
   if (
     typeof filingWindow?.from !== "string" ||
     typeof filingWindow?.to !== "string" ||
-    typeof minEmployees !== "number" ||
-    typeof excludedByEmployees !== "number"
+    typeof minEmployees !== "number"
   ) {
     throw new Error(
       "pipeline/data/universe.json の形が想定と違います。" +
         "pipeline/salary/unified.py を回して作り直すこと。"
     );
   }
-  return { filingWindow, minEmployees, excludedByEmployees };
+  return { filingWindow, minEmployees };
 }
 
 /**
@@ -271,13 +274,11 @@ export function buildData(outDir: string) {
     // 掲載データの決算期の**幅**（E1・`docs/expansion/spec.md` 1.4）。web 側は
     // この2つの値から「2026年3月期〜4月期」を組み立てる（`web/lib/data/period.ts`）。
     fiscalPeriodRange: fiscalPeriodRange(rows),
-    // 取得の窓と、掲載条件で省いた社数（E2・`docs/expansion/spec.md` 1.3）。
-    // **どちらも CSV の行からは出せない**——窓は行に残らず、落とした会社は
-    // そもそも行にならない。`unified.py` が書いた内訳を読む。
+    // 取得の窓と、掲載条件の従業員数の線（E2・`docs/expansion/spec.md` 1.3）。
+    // **どちらも CSV の行からは出せない**——窓は行に残らず、線は行の値ではない。
     filingWindow: universe.filingWindow,
     excluded: {
       minEmployees: universe.minEmployees,
-      byEmployees: universe.excludedByEmployees,
     },
   };
   const companiesBody = {

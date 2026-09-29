@@ -186,14 +186,11 @@ def save_universe(start, end, fetched, eligible, excluded_by_employees, publishe
                   ambiguous_salary, resolved_salary):
     """母集団の内訳を `pipeline/data/universe.json` に残す。
 
-    **`/about` に「単体従業員100人未満で何社を省いたか」を出すため**
-    （`docs/expansion/spec.md` 1.3・AC-4、運営者の指示 2026-08-24）。条件そのものは
-    既に `/about` に理由付きで書いてあるが、**それが何社を落としているかは書いて
-    いない**。窓を広げると掲載社数の3分の1を超える会社がこの線で落ちるので、
-    **数を出さないと「有報を出している会社は全部載っている」と読めてしまう。**
-
-    **CSV には書けない。** 落ちた会社はそもそも行にならない。社数（`meta.count`）と
-    同じく**直書きせずデータから引く**ために、内訳だけを別に置く。
+    社数の内訳（`fetched`・`eligible`・`excludedByEmployees`・`published`）は**この全件の
+    組み直しの時点の記録**で、毎日の差分更新（`refresh/update_numbers.py`）では `published`
+    しか動かない。**ビルドが読むのは取得の窓と `minEmployees` だけ**——単体従業員の線で
+    省いた社数は E2 で `/about` に出していたが、差分更新で動かなくなったので外した
+    （2026-09-29・運営者の判断）。落ちた会社はそもそも CSV の行にならないので、内訳は別に置く。
 
     **取得の窓もここに置く。** `/about` の「EDINET に◯◯に提出されたもの」は、
     窓が動くようになった以上（ADR-0011）データから引くしかない。
@@ -213,7 +210,7 @@ def save_universe(start, end, fetched, eligible, excluded_by_employees, publishe
                 # 平均年齢20〜65歳・平均年間給与100万円超を満たす会社
                 "eligible": eligible,
                 "minEmployees": MIN_EMPLOYEES,
-                # そのうち単体従業員が足りずに落ちた会社（`/about` に出す数）
+                # そのうち単体従業員が足りずに落ちた会社（記録。画面には出さない）
                 "excludedByEmployees": excluded_by_employees,
                 # 実際に掲載する会社（＝ CSV の行数）
                 "published": published,

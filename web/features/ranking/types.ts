@@ -93,8 +93,6 @@ export interface CompaniesMeta {
   excluded: {
     /** 単体従業員数の下限（人）。 */
     minEmployees: number;
-    /** その線で省いた社数。 */
-    byEmployees: number;
   };
   generatedAt: string;
 }
