@@ -1,0 +1,48 @@
+# 定期実行の PR を、CI の結果を見て自動でマージする（refresh の D8・#878・
+# docs/refresh/routine/design.md「自動マージ」）。
+#
+# CI（ci.yml）の完了を受けて動き、判定は pipeline/refresh/automerge.py に任せる。
+# **動くのは main にあるこのファイルとスクリプト**（workflow_run の決まり。チェックアウトも
+# main）なので、PR の側で判定や基準の一覧を書き換えても、その PR の判定には効かない。
+#
+# マージは GITHUB_TOKEN で行う。GITHUB_TOKEN の push は他のワークフローを起こさないので、
+# 知らせの同期（refresh-alerts.yml）は workflow_dispatch で呼ぶ（これだけは起こせる）。
+name: refresh-automerge
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  # ラベルが CI の完了より後に付いたとき。PR のコードは checkout しない（main のまま）
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  actions: write
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-automerge
+  cancel-in-progress: false
+
+jobs:
+  automerge:
+    if: github.event.workflow_run.event == 'pull_request' || (github.event_name == 'pull_request_target' && github.event.label.name == 'refresh')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: 判定してマージする
+        run: python3 pipeline/refresh/automerge.py run
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: 知らせを同期する
+        if: always()
+        run: gh workflow run refresh-alerts.yml --repo "$GITHUB_REPOSITORY" --ref main
+        env:
+          GH_TOKEN: ${{ github.token }}

@@ -11,6 +11,7 @@ import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
 import { filingRef, type FilingRef } from "./lib/filing";
 import { toPayPolicyRecord, type PayPolicyRecord, type PayPolicyRow } from "./lib/payPolicy";
 import { HISTORY_SPAN, coveringYears, indexInWindow, windowEnds } from "./lib/historyWindow";
+import { THRESHOLDS } from "./lib/thresholds";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { ranks, representativeValue } from "../../web/features/company/lib/radar";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -25,7 +26,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
  * 見る（EDINET は流量制限に HTTP 200 で応え、書類一覧が取れないまま0件として扱われて会社が
  * 消えたことがある。`pipeline/salary/edinet.py`）。増えるほうは見ない。
  */
-export const MAX_COUNT_DROP_RATIO = 0.05;
+export const MAX_COUNT_DROP_RATIO = THRESHOLDS.build.maxCountDropRatio;
 const COMPANIES_JSON_GZIP_LIMIT_BYTES = 100 * 1024;
 // 2,961社 × 10年の平均年収・平均年齢・在籍年数と、在籍年数の業種の中央値。**T3（#827）で
 // 平均年齢を足して gzip 99.6 → 143.1KB になり、上限を 150KB から 180KB に上げた。T4（#835）で
@@ -72,8 +73,8 @@ const FILINGS_JSON_GZIP_LIMIT_BYTES = 20 * 1024;
 const PAY_POLICIES_JSON_GZIP_LIMIT_BYTES = 700 * 1024;
 const AGE_POINTS = [22, 27, 32, 37, 42, 47, 52, 57, 62, 67];
 
-/** 決算期の幅の上限（か月）。`fiscalPeriodRange` のガード。 */
-const MAX_PERIOD_RANGE_MONTHS = 36;
+/** 決算期の幅の上限（か月）。`fiscalPeriodRange` のガード。値は `refresh/thresholds.json` */
+const MAX_PERIOD_RANGE_MONTHS = THRESHOLDS.build.maxPeriodRangeMonths;
 
 /**
  * 掲載データの決算期の**幅**（`YYYY-MM` の最古と最新）を CSV の `period_end` から

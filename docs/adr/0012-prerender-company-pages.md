@@ -2,6 +2,8 @@
 
 - 状態: 採用
 - 日付: 2026-08-24
+
+> **2026-09-30 追記（refresh の D8・#878）**: データは毎日更新されるようになった。下の「データを更新したら全ページを作り直す。年1回なので運用の負担にならない」は、毎日のデータ更新の PR ごとに全ページを作り直す形になる。ビルドは CI とマージ後の本番で1日に数回走るが、1回数分で、**事前生成する決定は変わらない**。ISR を却下した理由（再検証したい対象が無い）も、データがビルドでしか変わらない点で同じ。
 - 関連: [ADR-0004](0004-ssr-opennext-cloudflare.md)（フルSSR。一部を supersede）, [ADR-0006](0006-public-url-strategy.md)（公開URL）, [ADR-0007](0007-default-salary-basis-raw.md)（表示基準。企業詳細ぶんを改訂）, Issue [#118](https://github.com/varmil/nenshu/issues/118)（親）, [#180](https://github.com/varmil/nenshu/issues/180)（R1）
 
 ## 背景
