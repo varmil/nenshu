@@ -27,7 +27,7 @@ web/e2e/company-refresh.spec.ts  T2 の当たり判定を追加、T1 の当た�
 
 | フィールド | 意味 |
 | --- | --- |
-| `rows[].year` | 報告書の提出年。`history.years` の並びのまま（古い年から新しい年） |
+| `rows[].year` | 報告書の提出年。その会社の窓の年（`historyWindowYears`・refresh の D5）の並びのまま（古い年から新しい年） |
 | `rows[].value` | その年の平均年間給与（円）。有報が無ければ `null` |
 | `rows[].yoy` | 前年比（`0.25` が ＋25.0%）。**直前の年に値があるときだけ** |
 | `rows[].cumulative` | 基準年からの累積。**基準年の行と欠損の行は `null`** |

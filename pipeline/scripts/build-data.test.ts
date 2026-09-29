@@ -19,6 +19,7 @@ import {
   type UnifiedRow,
 } from "./lib/csv";
 import { readLedger } from "./lib/ledger";
+import { HISTORY_SPAN, historyWindowYears } from "./lib/historyWindow";
 import { parseCsv } from "../worklife/csv";
 import { decodeRow, type WorklifeRow } from "../worklife/json";
 
@@ -384,59 +385,61 @@ describe("buildData", () => {
 
   // history.json は企業詳細ページの「平均年収推移（過去10年間）」が読む
   // （T0・`docs/timeseries/spec.md` 1.4）。/ は読まない（Issue #22）。
-  it("AC-2: history.json が連続した10年ぶんで、各社の配列長が years と揃っている", () => {
-    const { years, byId } = result.history;
-    // 年そのものは書き写さない（範囲は D5・#875 で会社ごとの直近10年になる）。
-    expect(years).toHaveLength(10);
-    expect(years).toEqual(years.map((_, k) => years[0] + k));
+  /** その会社の窓の年（refresh の D5）。 */
+  const windowYearsOf = (id: string) => historyWindowYears(result.history.endById[id]);
+  /** その会社の `year` の値。窓の外なら `null`。 */
+  const valueAt = (values: readonly (number | null)[], id: string, year: number) =>
+    values[windowYearsOf(id).indexOf(year)] ?? null;
 
+  it("AC-2・AC-9: history.json は会社ごとに右端から数えた10年ぶんで、右端の年には値がある", () => {
+    const { endById, byId, ageById, tenureById } = result.history;
     // E4（#176）で全社に行が付いた。**新しく載る会社も採用書類の1年ぶんを持つ**
     // （refresh の spec 1.9）ので、行を持つのは母集団の全社になる。
     const ids = Object.keys(byId);
     expect(ids.length).toBe(result.companies.rows.length);
+    expect(Object.keys(endById)).toEqual(ids);
     for (const id of ids) {
-      expect(byId[id].length).toBe(years.length);
+      expect(byId[id], id).toHaveLength(HISTORY_SPAN);
+      expect(ageById[id], id).toHaveLength(HISTORY_SPAN);
+      expect(tenureById[id], id).toHaveLength(HISTORY_SPAN);
+      // **右端は値のある最新の年**（D5）。窓の最後の年が空くことは無い
+      expect(byId[id].at(-1), id).not.toBeNull();
     }
   });
 
   it("AC-2: 年ごとの社数が下限を満たす", () => {
-    const { years, byId } = result.history;
-    const shareOf = (year: number) => {
-      const k = years.indexOf(year);
-      return Object.values(byId).filter((v) => v[k] !== null).length / result.companies.rows.length;
-    };
+    const { endById, byId } = result.history;
+    const shareOf = (year: number) =>
+      Object.entries(byId).filter(([id, values]) => valueAt(values, id, year) !== null).length /
+      result.companies.rows.length;
+    const latest = Math.max(...Object.values(endById));
     // **最新年は全社ぶんにはならない。** 取得の窓が直近12か月なので、決算期が
     // 3月でない会社の最新の有報は前年の提出になる。**下限を母集団いっぱいに
     // 上げると、正しいデータで落ちる。**
-    expect(shareOf(years.at(-1)!)).toBeGreaterThanOrEqual(0.8);
+    expect(shareOf(latest)).toBeGreaterThanOrEqual(0.8);
     // 2018年以前の書類はタグが無く本文から拾う（`textblock.py`）ので、古い年ほど
     // 取りこぼしが出やすい。E4（#176）で新しく入った会社にもこの経路が効いた。
-    expect(shareOf(years[0])).toBeGreaterThanOrEqual(0.75);
+    expect(shareOf(latest - HISTORY_SPAN + 1)).toBeGreaterThanOrEqual(0.75);
   });
 
   // 同じ有報から取った同じ数字なので、ここがずれていたら抽出が壊れている。
-  it("AC-3: 採用書類の年の推移が companies.json の平均年収と一致する（全社）", () => {
-    const { years, byId } = result.history;
+  it("AC-3: 窓の右端の年の値が companies.json の平均年収と一致し、右端は決算期の年かその翌年（全社）", () => {
+    const { endById, byId } = result.history;
     const { rows, periods } = result.companies;
 
-    // **「最新年と一致する」では固定できない。** 取得の窓を直近12か月に広げた
-    // （E2・#173・ADR-0011）ので、決算期が3月でない会社の最新の有報は前年の
-    // 提出になり、最新年の値を持たない。**持っていないのが正しい**
-    // ので、突き合わせる相手は「その会社の採用書類の年」になる。
+    // **右端の行は数字の書類の行**（refresh の D5。`build-data.ts` の `checkWindowEnds` が
+    // 書類 ID で見ている）なので、値もランキングの平均年収と同じになる。
     //
-    // 提出年は決算期の年か、その翌年（12月期は翌年3月に出る）。どちらかで一致
-    // すればよい——**年を1つに決め打ちすると、決算期の分布が変わったときに
-    // 抽出が壊れていないのに落ちる。**
+    // 右端（提出した年）は決算期の年か、その翌年（12月期は翌年3月に出る）。どちらかで
+    // あればよい——**年を1つに決め打ちすると、決算期の分布が変わったときに抽出が壊れて
+    // いないのに落ちる。**
     let covered = 0;
     for (const row of rows) {
       const values = byId[row[0]];
       if (values === undefined) continue;
+      expect(values.at(-1), row[0]).toBe(row[6]);
       const periodYear = Number(periods[row[9]].slice(0, 4));
-      const matched = [periodYear, periodYear + 1].some((year) => {
-        const k = years.indexOf(year);
-        return k >= 0 && values[k] === row[6];
-      });
-      expect(matched).toBe(true);
+      expect([periodYear, periodYear + 1], row[0]).toContain(endById[row[0]]);
       covered += 1;
     }
 
@@ -489,7 +492,7 @@ describe("buildData", () => {
       for (const { k, v } of present) {
         const ref = median(present.filter((p) => p.k !== k).map((p) => p.v));
         if (Math.abs(Math.log10(v / ref)) >= Math.log10(5)) {
-          off.push(`${id} ${result.history.years[k]}: ${v}（他の年の中央値 ${ref}）`);
+          off.push(`${id} ${windowYearsOf(id)[k]}: ${v}（他の年の中央値 ${ref}）`);
         }
       }
     }
@@ -501,7 +504,7 @@ describe("buildData", () => {
    * 見る（全社）。前後の年から内挿していれば、CSV に無い年が埋まる。
    */
   it("AC-4: 欠けている年は null のまま（内挿しない）で、全年 null の会社は載せない", () => {
-    const { years, byId } = result.history;
+    const { byId } = result.history;
     const csvYears = new Map<string, Set<number>>();
     const historyRows = parseSalaryHistoryCsv(
       readFileSync(join(ROOT, "data/salary_history.csv"), "utf-8")
@@ -516,9 +519,13 @@ describe("buildData", () => {
     result.companies.rows.forEach((row, i) => {
       const values = byId[row[0]];
       if (values === undefined) return;
+      const years = windowYearsOf(row[0]);
       const filled = years.filter((_, k) => values[k] !== null);
+      // 窓より古い年の行は CSV にあっても出さない（refresh の D5）
       expect(filled, row[0]).toEqual(
-        [...(csvYears.get(sourceRows[i].edinetCode) ?? [])].sort((a, b) => a - b)
+        [...(csvYears.get(sourceRows[i].edinetCode) ?? [])]
+          .filter((year) => year >= years[0])
+          .sort((a, b) => a - b)
       );
       // 途中の年が欠けている（最初と最後の値のある年の間に null がある）会社を数える。
       if (filled.length > 0 && filled.at(-1)! - filled[0] + 1 > filled.length) gaps += 1;
@@ -540,11 +547,10 @@ describe("buildData", () => {
    * 35.7 → 50.5歳）。
    */
   it("AC-15: ageById は byId と同じ会社・同じ年に値を持ち、20〜70歳に入っている", () => {
-    const { years, byId, ageById } = result.history;
+    const { byId, ageById } = result.history;
     expect(Object.keys(ageById)).toEqual(Object.keys(byId));
     for (const [id, values] of Object.entries(byId)) {
       const ages = ageById[id];
-      expect(ages.length).toBe(years.length);
       expect(
         ages.map((age) => age === null),
         id
@@ -557,22 +563,16 @@ describe("buildData", () => {
     }
   });
 
-  it("AC-15: 採用書類の年の平均年齢が companies.json の平均年齢と一致する（全社）", () => {
-    const { years, byId, ageById } = result.history;
-    const { rows, periods } = result.companies;
+  it("AC-15: 窓の右端の年の平均年齢が companies.json の平均年齢と一致する（全社）", () => {
+    const { ageById } = result.history;
+    const { rows } = result.companies;
 
-    // AC-3（平均年収）と同じ突き合わせ。**年は平均年収が一致した年で決める**——決算期の年と
-    // その翌年のどちらが採用書類かは、平均年収の側で既に確かめてある。
+    // AC-3（平均年収）と同じ突き合わせ。右端の行は数字の書類の行（`checkWindowEnds`）。
     let covered = 0;
     for (const row of rows) {
-      const values = byId[row[0]];
-      if (values === undefined) continue;
-      const periodYear = Number(periods[row[9]].slice(0, 4));
-      const k = [periodYear, periodYear + 1]
-        .map((year) => years.indexOf(year))
-        .find((i) => i >= 0 && values[i] === row[6]);
-      expect(k, `${row[0]} の採用書類の年が見つからない`).toBeDefined();
-      expect(ageById[row[0]][k!], `${row[0]}`).toBe(row[4]);
+      const ages = ageById[row[0]];
+      if (ages === undefined) continue;
+      expect(ages.at(-1), `${row[0]}`).toBe(row[4]);
       covered += 1;
     }
     expect(covered).toBe(rows.length);
@@ -585,11 +585,11 @@ describe("buildData", () => {
    * 妥当性検査（`textblock._validate` の `0 <= 勤続 <= 年齢 - 15`）と同じ線にしてある。
    */
   it("AC-17: tenureById は byId と同じ会社を持ち、平均年収の無い年は在籍年数も無い", () => {
-    const { years, byId, ageById, tenureById } = result.history;
+    const { byId, ageById, tenureById } = result.history;
     expect(Object.keys(tenureById)).toEqual(Object.keys(byId));
     for (const [id, values] of Object.entries(byId)) {
       const tenures = tenureById[id];
-      expect(tenures.length).toBe(years.length);
+      const years = windowYearsOf(id);
       tenures.forEach((tenure, k) => {
         if (values[k] === null) expect(tenure, `${id} ${years[k]}`).toBeNull();
         if (tenure === null) return;
@@ -599,21 +599,16 @@ describe("buildData", () => {
     }
   });
 
-  it("AC-17: 採用書類の年の在籍年数が companies.json の在籍年数と一致する（全社）", () => {
-    const { years, byId, tenureById } = result.history;
-    const { rows, periods } = result.companies;
+  it("AC-17: 窓の右端の年の在籍年数が companies.json の在籍年数と一致する（全社）", () => {
+    const { tenureById } = result.history;
+    const { rows } = result.companies;
 
-    // AC-15（平均年齢）と同じ突き合わせ。年は平均年収が一致した年で決める。
+    // AC-15（平均年齢）と同じ突き合わせ。
     let covered = 0;
     for (const row of rows) {
-      const values = byId[row[0]];
-      if (values === undefined) continue;
-      const periodYear = Number(periods[row[9]].slice(0, 4));
-      const k = [periodYear, periodYear + 1]
-        .map((year) => years.indexOf(year))
-        .find((i) => i >= 0 && values[i] === row[6]);
-      expect(k, `${row[0]} の採用書類の年が見つからない`).toBeDefined();
-      expect(tenureById[row[0]][k!], `${row[0]}`).toBe(row[5]);
+      const tenures = tenureById[row[0]];
+      if (tenures === undefined) continue;
+      expect(tenures.at(-1), `${row[0]}`).toBe(row[5]);
       covered += 1;
     }
     expect(covered).toBe(rows.length);
@@ -625,17 +620,29 @@ describe("buildData", () => {
    * それ以下・半分以上がそれ以上——と、値を持つ会社が3社未満なら `null` であることを見る。
    */
   it("AC-18: 業種の中央値は、その年に値を持つ同業の会社の真ん中にある", () => {
-    const { years, tenureById, tenureIndustryMedian } = result.history;
+    const { endById, medianYears, tenureIndustryMedian } = result.history;
     const { industries, rows } = result.companies;
     expect(tenureIndustryMedian.length).toBe(industries.length);
 
+    // **中央値の年は全社の窓を覆う**（refresh の D5）。どの会社の窓の年も引ける。
+    expect(medianYears).toEqual(historyWindowYears(medianYears.at(-1)!, medianYears.length));
+    for (const [id, end] of Object.entries(endById)) {
+      expect(medianYears, id).toEqual(expect.arrayContaining(historyWindowYears(end)));
+    }
+
+    // **値は会社の窓ではなく CSV の行から集める**——中央値はその年の性質で、どの会社の窓に
+    // 入るかでは変わらない（右端が新しい年に進んだ会社の古い年の値も、その年の中央値に入る）。
+    const industryOf = new Map(sourceRows.map((row, i) => [row.edinetCode, rows[i][2]]));
+    const tenures = parseSalaryHistoryCsv(
+      readFileSync(join(ROOT, "data/salary_history.csv"), "utf-8")
+    ).filter((row) => industryOf.has(row.edinetCode) && row.avgTenure !== null);
+
     industries.forEach((industry, j) => {
-      expect(tenureIndustryMedian[j].length, industry).toBe(years.length);
-      years.forEach((year, k) => {
-        const values = rows
-          .filter((row) => row[2] === j)
-          .map((row) => tenureById[row[0]]?.[k] ?? null)
-          .filter((v): v is number => v !== null);
+      expect(tenureIndustryMedian[j].length, industry).toBe(medianYears.length);
+      medianYears.forEach((year, k) => {
+        const values = tenures
+          .filter((row) => row.year === year && industryOf.get(row.edinetCode) === j)
+          .map((row) => row.avgTenure as number);
         const median = tenureIndustryMedian[j][k];
         if (values.length < TENURE_MEDIAN_MIN_COMPANIES) {
           expect(median, `${industry} ${year}`).toBeNull();
@@ -952,17 +959,33 @@ describe("buildData", () => {
    * 稼ぐ力の10年推移（P2・#168・`docs/performance/spec.md` 2.3）。
    */
   describe("profit-history.json", () => {
-    it("年は平均年収の推移と同じ10年で、キーは companies.json の id、3本とも years と同じ長さ", () => {
-      // **年の範囲は `history.json` に合わせる。** CSV には2013年まで入っているが、
-      // 平均年収推移の直後に置いて同じ10年を見比べる節なので、横軸が揃わないと読めない。
-      const { years, profit, income, employees } = result.profitHistory;
-      expect(years).toEqual(result.history.years);
+    it("窓は平均年収の推移と同じ会社ごとの10年で、キーは companies.json の id、3本とも10年ぶん", () => {
+      // **窓は `history.json` にそろえる**（refresh の D5）。CSV には窓より古い年も入って
+      // いるが、平均年収推移の直後に置いて同じ10年を見比べる節なので、横軸が揃わないと読めない。
+      const { profit, income, employees } = result.profitHistory;
       const ids = new Set(result.companies.rows.map((row) => row[0]));
       for (const id of Object.keys(profit)) {
         expect(ids.has(id), id).toBe(true);
-        expect(profit[id].length, id).toBe(years.length);
-        expect(income[id].length, id).toBe(years.length);
-        expect(employees[id].length, id).toBe(years.length);
+        expect(result.history.endById[id], id).toBeDefined();
+        expect(profit[id].length, id).toBe(HISTORY_SPAN);
+        expect(income[id].length, id).toBe(HISTORY_SPAN);
+        expect(employees[id].length, id).toBe(HISTORY_SPAN);
+      }
+    });
+
+    it("経常利益は、その会社の窓の年の CSV の値（窓より古い年は出さない）", () => {
+      const byKey = new Map(
+        parsePerformanceHistoryCsv(
+          readFileSync(join(ROOT, "data/performance_history.csv"), "utf-8")
+        ).map((row) => [`${row.edinetCode} ${row.year}`, row.ordinaryIncome])
+      );
+      const codeOf = new Map(
+        result.companies.rows.map((row, i) => [row[0], sourceRows[i].edinetCode])
+      );
+      for (const [id, values] of Object.entries(result.profitHistory.income)) {
+        windowYearsOf(id).forEach((year, k) => {
+          expect(values[k], `${id} ${year}`).toBe(byKey.get(`${codeOf.get(id)} ${year}`) ?? null);
+        });
       }
     });
 

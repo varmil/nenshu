@@ -56,12 +56,15 @@ web/e2e/company-page.spec.ts        表示基準と独立（AC-3）・JS 実行�
 
 ```
 {
-  "years": [2017, …, 2026],
+  "endById": { … },
   "byId": { … }, "ageById": { … },
-  "tenureById": { "<企業ID>": [年 or null, …] },
-  "tenureIndustryMedian": [[年 or null, …], …]   // companies.industries と同じ並び
+  "tenureById": { "<企業ID>": [年 or null, …] },   // 会社の窓（右端から数えた10年）の並び
+  "medianYears": [2016, …, 2026],
+  "tenureIndustryMedian": [[年 or null, …], …]   // companies.industries と同じ並び。各配列は medianYears にそろう
 }
 ```
+
+**窓は会社ごと、中央値の年は全社の窓を覆う範囲**（refresh の D5・`docs/refresh/history-window/design.md`）。画面は会社の窓の年で中央値を引く。T4 の時点では全社共通の `years`（2017〜2026）を持っていた。
 
 - `tenureById` のキーは `byId` と同じ。**同じ CSV の同じ行から同じループで組む**（`buildHistory`）ので、平均年収の無い年に在籍年数だけがある状態は作れない
 - `tenureIndustryMedian` は**業種ごと・年ごとの中央値**。業種は**いまの業種**（`companies.json` の `tse33`）で、**その年に値を持つ会社だけ**で数える。この会社自身も入る。小数第2位で丸める（偶数個の平均が浮動小数の端数を持つため。画面は第1位）

@@ -41,9 +41,11 @@ import { DEFAULT_TARGET_AGE } from "../features/ranking/lib/urlState";
 import {
   analyses,
   history,
+  historyYearsOf,
   payPolicies,
   pickCompany,
   pickMaxCompany,
+  profitHistory,
   stats,
 } from "../testing/realData";
 
@@ -104,24 +106,21 @@ function pickFullNeighborsCompany(): string {
 }
 
 /**
- * 推移の最新の年（右端）に値のある会社と、右端が空いて前の年が最新になる会社。決算期が
- * 3月でない会社は、最新の有報が前の年の提出になる。平均年収と在籍年数の最新の値が同じ年にある
- * 会社に限る（在籍年数だけが空いた年のある会社では、最新の行どうしが別の書類になる）。
+ * 推移の窓の右端（refresh の D5）がいちばん新しい会社と、いちばん古い会社。右端は会社ごとに違う
+ * （決算期が3月でない会社は、最新の有報が前の年の提出になる）。**どちらでも窓の最後の年が最新の行**
+ * になる。在籍年数も右端の年に値がある会社に限る（在籍年数だけが空いた年のある会社では、最新の行
+ * どうしが別の書類になる）。`withProfit` なら稼ぐ力の推移もある会社に限る。
+ *
+ * 全社の右端が同じ年のときは、2社とも同じ右端になる（検査はそのまま成り立つ）。
  */
-function pickLatestEdgeCompanies(): string[] {
-  const lastIndex = (values: readonly (number | null)[]) => values.findLastIndex((v) => v !== null);
-  const edge = (id: string) => {
-    const salary = history.byId[id];
-    const tenure = history.tenureById[id];
-    if (salary === undefined || tenure === undefined) return null;
-    const last = lastIndex(salary);
-    if (last === -1 || lastIndex(tenure) !== last) return null;
-    return last === salary.length - 1 ? "filled" : "open";
-  };
-  return [
-    pickCompany("推移の最新の年に値のある会社", ([id]) => edge(id) === "filled"),
-    pickCompany("推移の最新の年が空いている会社", ([id]) => edge(id) === "open"),
-  ];
+function pickWindowEdgeCompanies(withProfit = false): string[] {
+  const ends = Object.values(history.endById);
+  const ok = (id: string) =>
+    history.tenureById[id]?.at(-1) != null &&
+    (!withProfit || profitHistory.profit[id] !== undefined);
+  return [Math.max(...ends), Math.min(...ends)].map((end) =>
+    pickCompany(`推移の窓の右端が${end}年の会社`, ([id]) => history.endById[id] === end && ok(id))
+  );
 }
 
 /*
@@ -616,7 +615,7 @@ test.describe("T1・T2・T3 平均年収推移", () => {
   }) => {
     const id = pickCompany("平均年収の最高値が最新の年ではない会社", ([id]) => {
       const values = history.byId[id];
-      return values !== undefined && buildHistoryPeak(history.years, values) !== null;
+      return values !== undefined && buildHistoryPeak(historyYearsOf(id), values) !== null;
     });
     const trend = companyPageData(id).history!;
     const baseYear = historyBaseYear(trend);
@@ -712,11 +711,11 @@ test.describe("T1・T2・T3 平均年収推移", () => {
 
   /*
    * T3 AC-16。最新年の行とページ上部のカードは同じ有報の同じ数字。**書式が片方だけ違うと、
-   * 同じ値を別の値として読ませる**（丸めはどちらも `formatDecimal1`）。最新の年に値のある会社と、
-   * その年の枠が空いて前の年が最新になる会社（決算期が3月でない会社）の2通りで見る。
+   * 同じ値を別の値として読ませる**（丸めはどちらも `formatDecimal1`）。窓の右端の年が違う2社で見る
+   * （refresh の D5。D5 の前は「右端の年の枠が空いて前の年が最新になる会社」で見ていた）。
    */
   test("T3 AC-16: 最新年の行の平均年齢がカードの平均年齢と同じ文字列", async ({ page }) => {
-    for (const id of pickLatestEdgeCompanies()) {
+    for (const id of pickWindowEdgeCompanies()) {
       await page.goto(`/company/${id}`);
       const card = page.locator('[data-slot="card"]').first().locator("dl").first();
       const labels = await card.locator("dt").allTextContents();
@@ -895,10 +894,10 @@ test.describe("T4 在籍年数推移", () => {
 
   /*
    * 最新年の行と「年収に関するQ&A」（C16）の平均勤続年数の回答は同じ有報の同じ数字（T3 AC-16 の
-   * 平均年齢と同じ）。最新の年に値のある会社と、その年の枠が空いて前の年が最新になる会社。
+   * 平均年齢と同じ）。窓の右端の年が違う2社で見る。
    */
   test("AC-21: 最新年の行の在籍年数が、Q&A の平均勤続年数の回答と同じ文字列", async ({ page }) => {
-    for (const id of pickLatestEdgeCompanies()) {
+    for (const id of pickWindowEdgeCompanies()) {
       await page.goto(`/company/${id}`);
       const tenure = await page
         .getByTestId("company-qa-list")
@@ -908,6 +907,38 @@ test.describe("T4 在籍年数推移", () => {
       expect(tenure, id).toMatch(/^\d{1,2}\.\d年$/);
       const latest = (await tenureRows(page)).filter((row) => row[1] !== "データなし").at(-1)!;
       expect(latest[1], id).toBe(tenure);
+    }
+  });
+});
+
+/*
+ * refresh の D5（#875・AC-9）。**推移の窓は会社ごとの直近10年**で、右端はその会社の推移で値のある
+ * 最新の年。平均年収・在籍年数・稼ぐ力の3つの推移は同じ窓を使う——縦に並んだ3つの図の横軸が
+ * そろわないと見比べられない（P2）。窓の年は `history.json` の右端から引き、書き写さない。
+ */
+test.describe("D5 AC-9 推移の窓", () => {
+  test("3つの推移の表は、その会社の右端から数えた同じ10年を並べ、右端の年に値がある", async ({
+    page,
+  }) => {
+    const profitSection = page
+      .getByRole("heading", { name: "稼ぐ力の推移（過去10年間）" })
+      .locator("xpath=..");
+    for (const id of pickWindowEdgeCompanies(true)) {
+      const years = historyYearsOf(id).map((year) => `${year}年`);
+      await page.goto(`/company/${id}`);
+      const salaryRows = await historyRows(page);
+      expect(
+        salaryRows.map((row) => row[0]),
+        id
+      ).toEqual(years);
+      expect(salaryRows.at(-1)![1], id).not.toBe("データなし");
+      expect(
+        (await tenureRows(page)).map((row) => row[0]),
+        id
+      ).toEqual(years);
+      expect(await profitSection.locator("tbody tr td:first-child").allTextContents(), id).toEqual(
+        years
+      );
     }
   });
 });

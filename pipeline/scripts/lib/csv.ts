@@ -105,6 +105,11 @@ export interface SalaryHistoryRow {
    * 平均年収があって勤続年数だけが無い書類がありうる（給与と年齢はタグ付けされていて勤続だけが無い書類）。
    */
   avgTenure: number | null;
+  /**
+   * 値を取った書類。refresh の D5（#875）から読む——窓の右端の行が数字の書類
+   * （`ranking_unified.csv` の `doc_id`）の行であることを確かめるため。
+   */
+  docId: string;
 }
 
 const HISTORY_HEADER = [
@@ -123,9 +128,9 @@ const HISTORY_HEADER = [
  * data/salary_history.csv の最小パーサ（T0・`docs/timeseries/spec.md` 1.3）。
  *
  * `parseUnifiedCsv` と同じ方針で、想定外の列が来たら例外で落とす。読むのは
- * `edinet_code` / `year` / `avg_salary` / `avg_age` / `avg_tenure` の5列だけ——残りは
+ * `edinet_code` / `year` / `avg_salary` / `avg_age` / `avg_tenure` / `doc_id` の6列だけ——残りは
  * 抽出の追跡用に CSVには持たせてあるが、`history.json` には出さない。`avg_age` は
- * T3（#827）、`avg_tenure` は T4（#835）から読む。
+ * T3（#827）、`avg_tenure` は T4（#835）、`doc_id` は refresh の D5（#875）から読む。
  */
 export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
   const withoutBom = text.replace(/^﻿/, "");
@@ -150,6 +155,7 @@ export function parseSalaryHistoryCsv(text: string): SalaryHistoryRow[] {
       avgSalary: Number(cols[2]),
       avgAge: cols[3] === "" ? null : Number(cols[3]),
       avgTenure: cols[4] === "" ? null : Number(cols[4]),
+      docId: cols[8],
     };
   });
 }

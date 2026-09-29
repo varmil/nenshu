@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { TARGET_AGES } from "@/features/ranking/types";
 import { formatManYen, toManYen } from "@/features/ranking/lib/format";
-import { companies, curves, history, pickCompany, rowOf, stats } from "@/testing/realData";
+import {
+  companies,
+  curves,
+  history,
+  historyYearsOf,
+  pickCompany,
+  rowOf,
+  stats,
+} from "@/testing/realData";
 import type { CompanyAgeStats } from "../types";
 import { buildCompanyView } from "./view";
 import {
@@ -34,7 +42,7 @@ const agesOf = (manYen: number[]) =>
 
 /** 10年推移のうち値のある年（年の並び）。 */
 function presentYears(id: string) {
-  return history.years
+  return historyYearsOf(id)
     .map((year, i) => ({ year, value: history.byId[id]?.[i] ?? null }))
     .filter((entry): entry is { year: number; value: number } => entry.value !== null);
 }
@@ -172,7 +180,7 @@ describe("buildHistoryPeak（C4）", () => {
     });
     const present = presentYears(id);
     const peak = present.find((e) => e.value === Math.max(...present.map((p) => p.value)))!;
-    expect(buildHistoryPeak(history.years, history.byId[id])).toBe(
+    expect(buildHistoryPeak(historyYearsOf(id), history.byId[id])).toBe(
       `この10年で最も高かったのは${peak.year}年の${formatManYen(peak.value)}です。`
     );
   });
@@ -185,7 +193,7 @@ describe("buildHistoryPeak（C4）", () => {
       const last = present[present.length - 1];
       return present.length >= 2 && present.slice(0, -1).every((e) => e.value < last.value);
     });
-    expect(buildHistoryPeak(history.years, history.byId[id])).toBeNull();
+    expect(buildHistoryPeak(historyYearsOf(id), history.byId[id])).toBeNull();
   });
 
   it("値が1つ以下なら null", () => {
@@ -202,7 +210,7 @@ describe("buildHistorySummary", () => {
     const present = presentYears(id);
     const first = present[0];
     const last = present[present.length - 1];
-    const summary = buildHistorySummary(history.years, history.byId[id])!;
+    const summary = buildHistorySummary(historyYearsOf(id), history.byId[id])!;
     expect(summary).toContain(`${first.year}年 ${formatManYen(first.value)}`);
     expect(summary).toContain(`${last.year}年 ${formatManYen(last.value)}`);
   });
