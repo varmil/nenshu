@@ -2,7 +2,19 @@
 import unittest
 from datetime import date
 
-from alerts import Case, key_of, pending_cases, plan, pr_cases, quality_case, stalled_case, texts_cases, worklife_case
+from alerts import (
+    Case,
+    effort_case,
+    key_of,
+    pending_cases,
+    plan,
+    pr_cases,
+    quality_case,
+    read_effort,
+    stalled_case,
+    texts_cases,
+    worklife_case,
+)
 
 TODAY = date(2026, 10, 5)
 
@@ -104,6 +116,52 @@ class Stalled(unittest.TestCase):
 
     def test_three_days_behind_is_stalled(self):
         self.assertEqual(stalled_case(self.universe("2026-10-02"), TODAY).key, "routine:stalled")
+
+
+def written(model, at="2026-09-29T22:53:15+00:00"):
+    return {"model": model, "generated_at": at}
+
+
+class Effort(unittest.TestCase):
+    def test_latest_day_at_the_decided_effort_is_fine(self):
+        rows = [written("claude-opus-5-5@xhigh"), written("claude-opus-5-5@xhigh")]
+        self.assertIsNone(effort_case(rows, "xhigh"))
+
+    def test_latest_day_at_another_effort_becomes_one_case(self):
+        rows = [written("claude-opus-5-5@medium"), written("claude-opus-5-5@xhigh")]
+        case = effort_case(rows, "xhigh")
+        self.assertEqual(case.key, "routine:effort")
+        self.assertIn("claude-opus-5-5@medium", case.title)
+        self.assertIn("2社のうち 1社", case.body)
+
+    def test_only_the_latest_day_counts(self):
+        # 前の日に違う設定で書いていても、いちばん新しい日が決めた設定なら閉じる
+        rows = [
+            written("claude-opus-5-5@medium", "2026-09-29T22:53:15+00:00"),
+            written("claude-opus-5-5@xhigh", "2026-09-30T22:10:00+00:00"),
+        ]
+        self.assertIsNone(effort_case(rows, "xhigh"))
+
+    def test_day_is_japan_time(self):
+        # UTC の9月29日14時59分と15時01分は、日本時間では29日と30日。いちばん新しい30日だけを見る
+        # （UTC の日付で切ると2社とも29日になり、medium を拾う）
+        rows = [
+            written("claude-opus-5-5@medium", "2026-09-29T14:59:00+00:00"),
+            written("claude-opus-5-5@xhigh", "2026-09-29T15:01:00+00:00"),
+        ]
+        self.assertIsNone(effort_case(rows, "xhigh"))
+
+    def test_records_without_effort_are_not_looked_at(self):
+        # C9 が書いた版5は `claude-opus-5` で、推論の設定を持たない
+        self.assertIsNone(effort_case([written("claude-opus-5")], "xhigh"))
+        self.assertIsNone(effort_case([], "xhigh"))
+
+    def test_missing_setting_is_reported(self):
+        self.assertIn("未設定", effort_case([written("claude-opus-5-5@xhigh")], None).title)
+
+    def test_repository_setting_is_xhigh(self):
+        # spec 1.14。Routine の設定には推論の欄が無いので、リポジトリの設定が決める
+        self.assertEqual(read_effort(), "xhigh")
 
 
 class PullRequests(unittest.TestCase):

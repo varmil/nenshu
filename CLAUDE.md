@@ -665,7 +665,8 @@ Unit の実装を終えたら、次の順で進める。
   - **1社ずつ値の動きで止める線は置いていない**（自己申告値で、どちらが正しいかを決める根拠が無い）
   - 1回目（2026-09-29 版）で 2,367行 → 2,390行。D4 で足した17社のうち9社に働きやすさが付いた。数値（区分名を含む）が動いた会社は176社（最終更新日・時点・注釈だけの動きを除く）
 - **D8（#878）で毎日の定期実行・自動マージ・知らせを入れた**（`docs/refresh/routine/`）。上の「Unit完了後の運用」の「定期実行のデータ更新」も参照
-  - **定期実行は Claude Code の Routine で、毎日新しいセッションを立てる。** 手順は `.claude/skills/refresh-daily/SKILL.md`（数字 → 女性活躍DB → ビルド → 文章 → 品質の集計（月初）→ ビルド → テスト → PR にラベル `refresh`）。機械の工程もセッションの中で回す（API キーはこの環境の環境変数にある）。モデルは `claude-opus-5-5`・推論は超高（spec 1.14）
+  - **定期実行は Claude Code の Routine で、定時の発火はリポジトリ付きの1つのセッションに毎日届く**（新しいセッションは立たない。会話は持ち越されて自動で要約される）。**手で `fire_trigger` するとリポジトリの無い新しいセッションが立つ**ので、手で回すときはそのセッションにメッセージを送る。手順は `.claude/skills/refresh-daily/SKILL.md`（数字 → 女性活躍DB → ビルド → 文章 → 品質の集計（月初）→ ビルド → テスト → PR にラベル `refresh`）。機械の工程もセッションの中で回す（API キーはこの環境の環境変数にある）
+  - **モデルは `claude-opus-5-5`（セッションの設定）・推論は `xhigh`（`.claude/settings.json` の `effortLevel`）**（spec 1.14）。Routine にもセッションにも推論の欄が無い。**`effortLevel` はセッションの起動時にしか読まれない**ので、変えたら定期実行のセッションを立て直して Routine を向け直す。**このリポジトリで開くすべてのセッションの既定も `xhigh` になる**。実際に使った推論は文章の記録（`<モデル>@<推論>`）に残り、違えば知らせ（`routine:effort`）が立つ——2026-09-30 の回は設定が無く `medium` で16社を書いていた
   - **マージするか・知らせるかは GitHub Actions が決める。** `refresh-automerge.yml`（CI の完了か、ラベルが付いたとき）→ `pipeline/refresh/automerge.py`、`refresh-alerts.yml` → `pipeline/refresh/alerts.py`。**動くのは main のワークフローとスクリプト**で、PR の側で判定や基準の一覧を書き換えても、その PR には効かない
   - **止める線の閾値は `pipeline/refresh/thresholds.json` の1か所。** Python（`update_numbers.py`）と TypeScript（`build-data.ts`・`worklife/extract.ts`。`pipeline/scripts/lib/thresholds.ts` で読む）が読む。**閾値を定数でコードに書き足さない**——基準を変える PR をファイルで見分けられなくなる
   - **Issue は `GITHUB_TOKEN` が立てて閉じる。** 鍵は本文の1行目（`鍵: numbers:E02485`）。鍵の無い Issue には触らない。件は main のファイルから数える
