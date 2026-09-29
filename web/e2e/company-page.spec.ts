@@ -18,6 +18,7 @@ import { buildTenureChart } from "../features/company/lib/tenureHistory";
 import { formatInt, formatManYen, toManYen } from "../features/ranking/lib/format";
 import { DEFAULT_TARGET_AGE } from "../features/ranking/lib/urlState";
 import { edinetDocumentUrl } from "../lib/data/sources";
+import { htmlText } from "./html";
 
 /**
  * 企業詳細ページ（C1）の骨格——表示基準の切替・年齢スイッチ・URL と履歴・ID・初期 HTML・
@@ -39,10 +40,6 @@ import { edinetDocumentUrl } from "../lib/data/sources";
  */
 const KEYENCE = "6861";
 const keyence = companyPageData(KEYENCE);
-
-/** HTML のテキストとして書かれた形。社名の `&` 等（「Q&A」も）は escape されて届く。 */
-const htmlText = (text: string) =>
-  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
  * 表示基準と独立な節をすべて持つ会社（AC-3・AC-10 が各節の中身を見る）。説明文の無い会社・

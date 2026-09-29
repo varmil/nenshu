@@ -1,10 +1,9 @@
 import { test, expect } from "./appTest";
-import type { Page } from "@playwright/test";
 import { collectPageRequests, waitForRankingReady } from "./network";
-import { industryCountOf, rankingPageData } from "../features/ranking/lib/pageData";
-import { pageRange } from "../features/ranking/lib/pagination";
+import { industryCountOf } from "../features/ranking/lib/pageData";
 import { formatInt } from "../features/ranking/lib/format";
 import { PAGE_SIZE } from "../features/ranking/types";
+import { countLabel, countText, pageDataOf } from "./rankingData";
 
 /**
  * URL クエリとの同期（U5・AC-7）と、ページを跨いだ戻る/進む（U14・AC-15）。
@@ -18,21 +17,6 @@ import { PAGE_SIZE } from "../features/ranking/types";
  * （`rankingPageData`＝`/` が画面を組むのと同じ関数）。いまのデータの値を書き写すと、
  * 毎日の更新で1社動いただけで落ちる（refresh の D0・Issue #870）。
  */
-
-/** そのURLで `/` が描く1ページぶん。 */
-const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
-
-/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
-function countLabel(query: string): string {
-  const { bootstrap, initialState } = pageDataOf(query);
-  const total = bootstrap.page.totalCount;
-  if (total === 0) return "0社";
-  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
-  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
-}
-
-/** 件数表示の要素。完全一致で引く（桁の少ない件数が、桁の多い件数に部分一致しないように）。 */
-const countText = (page: Page, query: string) => page.getByText(countLabel(query), { exact: true });
 
 /** 銀行業の社数（業種チップ・リード文に出る数）。 */
 const bankCount = () => formatInt(industryCountOf("銀行業"));

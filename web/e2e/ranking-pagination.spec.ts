@@ -1,8 +1,7 @@
 import { test, expect } from "./appTest";
-import { rankingPageData } from "../features/ranking/lib/pageData";
 import { pageRange } from "../features/ranking/lib/pagination";
-import { formatInt } from "../features/ranking/lib/format";
 import { PAGE_SIZE } from "../features/ranking/types";
+import { countLabel, pageDataOf } from "./rankingData";
 
 /**
  * 0件・端の状態とページ送り（U6・U17）。
@@ -19,17 +18,6 @@ import { PAGE_SIZE } from "../features/ranking/types";
  * 毎日の更新で1社動いただけで落ちる（refresh の D0・Issue #870）。
  */
 
-/** そのURLで `/` が描く1ページぶん。 */
-const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
-
-/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
-function countLabel(query: string): string {
-  const { bootstrap, initialState } = pageDataOf(query);
-  const total = bootstrap.page.totalCount;
-  if (total === 0) return "0社";
-  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
-  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
-}
 test.describe("0件・端の状態と段階表示", () => {
   test("AC-8: 0件のとき条件を緩める案内が出る（エラー表示にはならない）", async ({ page }) => {
     await page.goto("/?ind=鉱業");

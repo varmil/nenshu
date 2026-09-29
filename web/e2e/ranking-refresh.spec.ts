@@ -1,13 +1,12 @@
 import { test, expect } from "./appTest";
 import type { Locator, Page } from "@playwright/test";
-import { rankingPageData } from "../features/ranking/lib/pageData";
 import { displaySalary } from "../features/ranking/lib/rank";
 import { populationForBasis } from "../features/ranking/lib/population";
-import { pageRange } from "../features/ranking/lib/pagination";
 import { formatDecimal1, formatInt, formatManYen } from "../features/ranking/lib/format";
 import { deviationScore, formatDeviation } from "../features/company/lib/stats";
 import { PAGE_SIZE, type TargetAge } from "../features/ranking/types";
 import { companies } from "../testing/realData";
+import { countLabel, firstOf, pageDataOf } from "./rankingData";
 
 /**
  * U12（Issue #80）で足したもの——並び替え・年収バー・偏差値・サイドバー・
@@ -30,21 +29,6 @@ import { companies } from "../testing/realData";
  */
 
 const rows = (page: Page) => page.getByRole("table").locator("tbody tr");
-
-/** そのURLで `/` が描く1ページぶん。 */
-const pageDataOf = (query: string) => rankingPageData(new URLSearchParams(query));
-
-/** そのURLの1行目の会社。 */
-const firstOf = (query: string) => pageDataOf(query).bootstrap.page.companies[0];
-
-/** 件数表示（`RankingApp` の「◯社 中 ◯〜◯社目」、0件なら「0社」）。数はそのURLのデータから取る。 */
-function countLabel(query: string): string {
-  const { bootstrap, initialState } = pageDataOf(query);
-  const total = bootstrap.page.totalCount;
-  if (total === 0) return "0社";
-  const { from, to } = pageRange(initialState.page, total, PAGE_SIZE);
-  return `${formatInt(total)}社 中 ${formatInt(from)}〜${formatInt(to)}社目`;
-}
 
 /**
  * その順位が出るページ。1ページ30社なので順位から逆算し、そのページのデータに

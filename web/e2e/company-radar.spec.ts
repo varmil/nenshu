@@ -1,7 +1,14 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
 import { collectPageRequests } from "./network";
-import { companies, industryOf, pickCompany, rowIndexOf, worklife } from "../testing/realData";
+import {
+  companies,
+  industryOf,
+  pickCompany,
+  pickMaxCompany,
+  rowIndexOf,
+  worklife,
+} from "../testing/realData";
 import { companyPageData } from "../features/company/lib/pageData";
 import {
   buildRadarAxes,
@@ -14,6 +21,7 @@ import { formatDecimal1, formatManYen } from "../features/ranking/lib/format";
 import type { TargetAge } from "../features/ranking/types";
 import { shortIndustryLabel } from "../lib/data/industry";
 import { decodeWorklife } from "../lib/data/worklife";
+import { htmlText } from "./html";
 
 /**
  * P1（Issue #167）——企業詳細ページのレーダーチャート「公開資料による全体像」。
@@ -95,10 +103,6 @@ function worklifeAxes(id: string) {
     { key: "overtime", all: record?.overtimeAll ?? null, units: record?.overtimeUnits ?? [] },
   ] as const;
 }
-
-/** HTML のテキストとして書かれた形。区分名の `&`（`P&PM職` 等）は escape されて届く。 */
-const htmlText = (text: string) =>
-  text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** **居ることだけを前提にする会社**（企業 ID は変わらない・ADR-0017）。図の寸法を見るだけに使う。 */
 const KEYENCE = "6861";
@@ -260,10 +264,9 @@ test.describe("AC-13・AC-17 先頭の区分で点を打つ", () => {
       const axes = radarAxesOf(id);
       if (pickedAxes(axes).length === 2) notes.set(id, unitPickNote(axes)!);
     }
-    const longest = Math.max(...[...notes.values()].map((note) => note.length));
-    const id = pickCompany(
+    const id = pickMaxCompany(
       "先頭の区分で打った軸が2つあり、断りが最も長い会社",
-      ([id]) => notes.get(id)?.length === longest
+      ([id]) => notes.get(id)?.length ?? -Infinity
     );
 
     await page.setViewportSize({ width: 390, height: 900 });

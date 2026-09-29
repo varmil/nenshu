@@ -38,8 +38,14 @@ import {
 import type { CompanyAgeStats, SalaryHistory, TenureHistory } from "../features/company/types";
 import { formatDecimal1, formatInt, formatManYen, toManYen } from "../features/ranking/lib/format";
 import { DEFAULT_TARGET_AGE } from "../features/ranking/lib/urlState";
-import type { CompanyRow } from "../features/ranking/types";
-import { analyses, companies, history, payPolicies, pickCompany, stats } from "../testing/realData";
+import {
+  analyses,
+  history,
+  payPolicies,
+  pickCompany,
+  pickMaxCompany,
+  stats,
+} from "../testing/realData";
 
 /**
  * C2（Issue #83）で足した節——水準が近い会社・分布・年齢別の表と ±20%・10年推移
@@ -55,12 +61,6 @@ import { analyses, companies, history, payPolicies, pickCompany, stats } from ".
  * 「給与の決定方針が無い」のような状態を前提にするテストは、その状態の会社をデータから選ぶ
  * （`pickCompany`）。会社を名指しするのは、その会社が居ることだけを前提にするときに限る。
  */
-
-/** `score` がいちばん大きい会社。同点なら `companies.rows` の順で先の会社。 */
-function pickMax(what: string, score: (row: CompanyRow, index: number) => number): string {
-  const best = Math.max(...companies.rows.map((row, i) => score(row, i)));
-  return pickCompany(what, (row, i) => score(row, i) === best);
-}
 
 /** 値のある年がいくつの連なりに分かれているか。途中の年が欠けると2以上になる。 */
 function runs(values: readonly (number | null)[]): number {
@@ -958,17 +958,17 @@ test.describe("AC-15 レイアウト", () => {
     const ids = [
       "6861",
       pickFullCompany(),
-      pickMax("社名がいちばん長い会社", (row) => row[1].length),
-      pickMax("参照した資料がいちばん長く並ぶ会社", ([id]) =>
+      pickMaxCompany("社名がいちばん長い会社", (row) => row[1].length),
+      pickMaxCompany("参照した資料がいちばん長く並ぶ会社", ([id]) =>
         (analyses.byId[id]?.sources ?? []).reduce(
           (sum, source) => sum + source.title.length + sourceMeta(source).length,
           0
         )
       ),
-      pickMax("給与の決定方針がいちばん長い会社", ([id]) =>
+      pickMaxCompany("給与の決定方針がいちばん長い会社", ([id]) =>
         (payPolicies.byId[id]?.blocks ?? []).reduce((sum, block) => sum + blockChars(block), 0)
       ),
-      pickMax("給与の決定方針の表の列がいちばん多い会社", ([id]) =>
+      pickMaxCompany("給与の決定方針の表の列がいちばん多い会社", ([id]) =>
         Math.max(
           0,
           ...(payPolicies.byId[id]?.blocks ?? []).flatMap((block) =>
@@ -1220,7 +1220,7 @@ test.describe("AC-32 平均年収カード（C14）", () => {
   // 変更で戻らないように残す。モバイルはカードが1カラムになるが、本文の幅が狭いぶん
   // 1列あたりはほぼ同じになる。**全体順位の数字がいちばん大きい会社**（順位の文字が最も長い）で見る。
   test("カードの順位と実測値が1行に収まる（1280px・390px）", async ({ page }) => {
-    const id = pickMax("全体順位の数字がいちばん大きい会社", (_, i) => stats.rankAll[i][0]);
+    const id = pickMaxCompany("全体順位の数字がいちばん大きい会社", (_, i) => stats.rankAll[i][0]);
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`/company/${id}`);

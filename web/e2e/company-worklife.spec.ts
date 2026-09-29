@@ -1,7 +1,7 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
 import { collectPageRequests } from "./network";
-import { companies, pickCompany, worklife } from "../testing/realData";
+import { pickCompany, pickMaxCompany, worklife } from "../testing/realData";
 import { decodeWorklife } from "../lib/data/worklife";
 import {
   buildWorklifeView,
@@ -292,9 +292,7 @@ test("AC-11 表示基準を切り替えても節の中身が1文字も変わら�
  * 390px の最悪ケースを選ぶのに使う。
  */
 function pickLargest(what: string, measure: (view: WorklifeView) => number): string {
-  const values = companies.rows.map((_, i) => measure(viewAt(i)));
-  const largest = Math.max(...values);
-  return pickCompany(what, (_, i) => largest > 0 && values[i] === largest);
+  return pickMaxCompany(what, (_, i) => measure(viewAt(i)) || -Infinity);
 }
 
 /** 並びの中でいちばん長い文字列。 */

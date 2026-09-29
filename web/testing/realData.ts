@@ -108,3 +108,20 @@ export function pickCompanies(
   }
   throw new Error(`${what}が${count}社見つからない（${ids.length}社）`);
 }
+
+/**
+ * `score` がいちばん大きい会社の ID。同点なら `companies.rows` の順で先の会社。
+ *
+ * 横スクロール・切り詰めを見る**最悪ケースの会社**をデータから選ぶのに使う（社名が
+ * いちばん長い・表の列がいちばん多い 等。CLAUDE.md「最悪ケースの会社・状態を配列に足す」）。
+ * 名指しすると、その会社が最悪でなくなったときに検査が空振りする。**対象にしない会社は
+ * `score` で `-Infinity` を返す。** 全社が対象から外れたら落とす。
+ */
+export function pickMaxCompany(
+  what: string,
+  score: (row: CompanyRow, index: number) => number
+): string {
+  const scores = companies.rows.map((row, index) => score(row, index));
+  const best = Math.max(...scores);
+  return pickCompany(what, (_, index) => Number.isFinite(best) && scores[index] === best);
+}

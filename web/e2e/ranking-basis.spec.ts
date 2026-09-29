@@ -1,6 +1,6 @@
 import { test, expect } from "./appTest";
-import { rankingPageData } from "../features/ranking/lib/pageData";
 import { formatManYen } from "../features/ranking/lib/format";
+import { firstOf } from "./rankingData";
 
 /**
  * 表示基準（実測値 / 年齢そろえ）の切替。ADR-0007。
@@ -16,10 +16,6 @@ import { formatManYen } from "../features/ranking/lib/format";
  * 実測値で並んでいることは `ranking-url-sync.spec.ts` に、切替でネットワークが
  * 起きないことは同じファイルの流れにまとめてある。
  */
-
-/** そのURLの1行目の会社。 */
-const firstOf = (query: string) =>
-  rankingPageData(new URLSearchParams(query)).bootstrap.page.companies[0];
 
 test.describe("表示基準の切替", () => {
   /*
