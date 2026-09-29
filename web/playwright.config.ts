@@ -25,6 +25,8 @@ const BASE_URL = process.env.E2E_BASE_URL || `http://localhost:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
+  // 冷えた dev サーバーの依存の事前バンドルと読み込み直しを、テストの前に済ませる（e2e/warmup.ts）
+  globalSetup: "./e2e/warmup.ts",
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
