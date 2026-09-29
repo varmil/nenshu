@@ -79,6 +79,8 @@ describe("buildData", () => {
   let outDir: string;
   let result: ReturnType<typeof buildData>;
   let sourceRows: UnifiedRow[];
+  /** 企業ページのある会社の入力の行（母集団＋外れた会社・D9）。`pageCompanyRows()` と同じ並び。 */
+  let pageSourceRows: UnifiedRow[];
 
   beforeAll(() => {
     outDir = mkdtempSync(join(tmpdir(), "nenshu-build-data-"));
@@ -88,8 +90,17 @@ describe("buildData", () => {
     sourceRows = parseUnifiedCsv(
       readFileSync(join(ROOT, "data/ranking_unified.csv"), "utf-8")
     ).filter((row) => !lapsed.has(row.edinetCode));
+    pageSourceRows = [...sourceRows, ...result.lapsed];
     return () => rmSync(outDir, { recursive: true, force: true });
   });
+
+  /**
+   * **企業ページのある会社**の行（refresh の D9・#879）。母集団（`companies.rows`）に、最後の有報から
+   * 24か月を過ぎた会社（`lapsed.json` の `rows`）を続けた並び。会社ごとのデータ（推移・説明文・
+   * 書類 等）はこちらの全社ぶんを持つ。いまのデータに外れた会社はいないので、外れた会社の側は
+   * 揺らしたデータ（`tools/perturb/`）で走る。
+   */
+  const pageCompanyRows = () => [...result.companies.rows, ...result.lapsedData.rows];
 
   /**
    * 表示基準 `basis`（`null` が実測値・ADR-0007）での全社の金額。`stats.json` の検算に使う。
@@ -394,9 +405,9 @@ describe("buildData", () => {
   it("AC-2・AC-9: history.json は会社ごとに右端から数えた10年ぶんで、右端の年には値がある", () => {
     const { endById, byId, ageById, tenureById } = result.history;
     // E4（#176）で全社に行が付いた。**新しく載る会社も採用書類の1年ぶんを持つ**
-    // （refresh の spec 1.9）ので、行を持つのは母集団の全社になる。
+    // （refresh の spec 1.9）ので、行を持つのは企業ページのある全社（母集団＋外れた会社・D9）。
     const ids = Object.keys(byId);
-    expect(ids.length).toBe(result.companies.rows.length);
+    expect(ids.length).toBe(pageCompanyRows().length);
     expect(Object.keys(endById)).toEqual(ids);
     for (const id of ids) {
       expect(byId[id], id).toHaveLength(HISTORY_SPAN);
@@ -673,29 +684,36 @@ describe("buildData", () => {
    */
   describe("worklife.json", () => {
     it("行の並びが companies.rows と一致し、掲載の無い会社には 0 が入る（欠測を数値の 0 と混ぜない）", () => {
-      expect(result.worklife.rows).toHaveLength(result.companies.rows.length);
-      expect(result.worklife.notes).toHaveLength(result.companies.rows.length);
-
       const byId = readWorklifeCsv();
 
+      // 母集団（`worklife.json`）と外れた会社（`lapsed.json` の `worklife`・D9）は、それぞれ
+      // 自分の行と同じ並びで、文字列プールも別に持つ
+      const groups = [
+        [result.companies.rows, result.worklife],
+        [result.lapsedData.rows, result.lapsedData.worklife],
+      ] as const;
       let matched = 0;
-      result.companies.rows.forEach((company, i) => {
-        const cells = byId.get(String(company[0]));
-        if (cells === undefined) {
-          // 持株会社（三菱UFJ など）は法人番号で突合できない（ADR-0009）。
-          expect(result.worklife.rows[i], company[1]).toBe(0);
-          expect(result.worklife.notes[i], company[1]).toBe(0);
-          return;
-        }
-        matched += 1;
-        const decoded = decodeRow(result.worklife.rows[i] as WorklifeRow, result.worklife.pool);
-        expect(decoded.overtimeAll).toBe(
-          cells.overtime_all === "" ? null : Number(cells.overtime_all)
-        );
-        expect(decoded.asOf).toBe(cells.as_of);
-        expect(result.worklife.notes[i]).toBe(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
-      });
-      // CSV の行はすべて掲載社に当たる（当たらなければ `buildWorklife` が落ちる）。
+      for (const [rows, worklife] of groups) {
+        expect(worklife.rows).toHaveLength(rows.length);
+        expect(worklife.notes).toHaveLength(rows.length);
+        rows.forEach((company, i) => {
+          const cells = byId.get(String(company[0]));
+          if (cells === undefined) {
+            // 持株会社（三菱UFJ など）は法人番号で突合できない（ADR-0009）。
+            expect(worklife.rows[i], company[1]).toBe(0);
+            expect(worklife.notes[i], company[1]).toBe(0);
+            return;
+          }
+          matched += 1;
+          const decoded = decodeRow(worklife.rows[i] as WorklifeRow, worklife.pool);
+          expect(decoded.overtimeAll).toBe(
+            cells.overtime_all === "" ? null : Number(cells.overtime_all)
+          );
+          expect(decoded.asOf).toBe(cells.as_of);
+          expect(worklife.notes[i]).toBe(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
+        });
+      }
+      // CSV の行はすべて掲載社（母集団か外れた会社）に当たる（当たらなければ `buildWorklife` が落ちる）。
       expect(matched).toBe(byId.size);
     });
   });
@@ -964,11 +982,11 @@ describe("buildData", () => {
    * 稼ぐ力の10年推移（P2・#168・`docs/performance/spec.md` 2.3）。
    */
   describe("profit-history.json", () => {
-    it("窓は平均年収の推移と同じ会社ごとの10年で、キーは companies.json の id、3本とも10年ぶん", () => {
+    it("窓は平均年収の推移と同じ会社ごとの10年で、キーは企業ページのある会社の id、3本とも10年ぶん", () => {
       // **窓は `history.json` にそろえる**（refresh の D5）。CSV には窓より古い年も入って
       // いるが、平均年収推移の直後に置いて同じ10年を見比べる節なので、横軸が揃わないと読めない。
       const { profit, income, employees } = result.profitHistory;
-      const ids = new Set(result.companies.rows.map((row) => row[0]));
+      const ids = new Set(pageCompanyRows().map((row) => row[0]));
       for (const id of Object.keys(profit)) {
         expect(ids.has(id), id).toBe(true);
         expect(result.history.endById[id], id).toBeDefined();
@@ -985,7 +1003,7 @@ describe("buildData", () => {
         ).map((row) => [`${row.edinetCode} ${row.year}`, row.ordinaryIncome])
       );
       const codeOf = new Map(
-        result.companies.rows.map((row, i) => [row[0], sourceRows[i].edinetCode])
+        pageCompanyRows().map((row, i) => [row[0], pageSourceRows[i].edinetCode])
       );
       for (const [id, values] of Object.entries(result.profitHistory.income)) {
         windowYearsOf(id).forEach((year, k) => {
@@ -1040,8 +1058,8 @@ describe("buildData", () => {
      * 突合キー（`edinet_code`）か母集団が変わったときで、`buildSummaries` はそこで
      * 落ちる——**落とさないと「説明文の無い会社」として静かに配ることになる。**
      */
-    it("キーは companies.json の id で、説明文のある CSV の行がすべて掲載社に当たる", () => {
-      const ids = new Set(result.companies.rows.map((row) => row[0]));
+    it("キーは企業ページのある会社の id で、説明文のある CSV の行がすべて掲載社に当たる", () => {
+      const ids = new Set(pageCompanyRows().map((row) => row[0]));
       for (const id of Object.keys(result.summaries.byId)) {
         expect(ids.has(id), id).toBe(true);
       }
@@ -1097,11 +1115,35 @@ describe("buildData", () => {
    * 突き合わせる——行がずれると別の会社の有報へ飛ばすことになる。**URL は持たない**
    * （組み立ては web の1か所）ので、値は書類 ID そのものと一致する。
    */
+  /*
+   * 母集団から外れた会社（refresh の D9・#879・ADR-0018）。**いまのデータにはいない**（最初に
+   * 外れうるのは 2027-08-26）ので、中身があるのは揺らしたデータ（`tools/perturb/` の6つ目）だけ。
+   */
+  it("外れた会社は lapsed.json にだけ行を持ち、業種・決算期・提出日を自分のプールから引ける", () => {
+    const { rows, industries, periods, filedById } = result.lapsedData;
+    const ledger = readLedger();
+    const universeIds = new Set(result.companies.rows.map((row) => row[0]));
+    expect(rows).toHaveLength(result.lapsed.length);
+    rows.forEach((row, i) => {
+      const src = result.lapsed[i];
+      expect(row[1], src.edinetCode).toBe(src.name);
+      expect(row[6]).toBe(Math.round(src.avgSalary));
+      expect(industries[row[2]]).toBe(src.tse33);
+      expect(periods[row[9]]).toBe(src.periodEnd.slice(0, 7));
+      expect(filedById[row[0]]).toBe(ledger.get(src.edinetCode)!.filed);
+      // ランキングと母集団の統計（順位・偏差値・中央値）には入らない
+      expect(universeIds.has(row[0]), row[0]).toBe(false);
+    });
+    expect(result.stats.count).toBe(result.companies.rows.length);
+  });
+
   describe("filings.json", () => {
     it("全社に書類 ID があり、その会社の平均年間給与を取った書類（CSV の doc_id）を指す", () => {
-      expect(Object.keys(result.filings.byId)).toHaveLength(result.companies.rows.length);
-      result.companies.rows.forEach((row, i) => {
-        expect(result.filings.byId[row[0] as string], row[1] as string).toBe(sourceRows[i].docId);
+      expect(Object.keys(result.filings.byId)).toHaveLength(pageCompanyRows().length);
+      pageCompanyRows().forEach((row, i) => {
+        expect(result.filings.byId[row[0] as string], row[1] as string).toBe(
+          pageSourceRows[i].docId
+        );
       });
     });
   });
@@ -1114,11 +1156,13 @@ describe("buildData", () => {
    */
   it("説明文・要約と分析・給与の決定方針の記録は、それぞれの原文の書類を持つ", () => {
     const ledger = readLedger();
-    const periodOf = new Map(sourceRows.map((row) => [row.edinetCode, row.periodEnd.slice(0, 7)]));
+    const periodOf = new Map(
+      pageSourceRows.map((row) => [row.edinetCode, row.periodEnd.slice(0, 7)])
+    );
     let checked = 0;
-    result.companies.rows.forEach((row, i) => {
+    pageCompanyRows().forEach((row, i) => {
       const id = row[0] as string;
-      const { docs } = ledger.get(sourceRows[i].edinetCode)!;
+      const { docs } = ledger.get(pageSourceRows[i].edinetCode)!;
       const pairs = [
         [result.summaries.filingById[id], docs.description, result.summaries.byId[id]],
         [result.analyses.byId[id]?.filing, docs.analysis, result.analyses.byId[id]],
@@ -1129,7 +1173,7 @@ describe("buildData", () => {
         expect(filing?.docId, id).toBe(doc);
         // 期は数字の期と同じ形（`YYYY-MM`）。いまは書類がそろっているので値も同じ
         if (filing?.docId === docs.numbers) {
-          expect(filing?.period, id).toBe(periodOf.get(sourceRows[i].edinetCode));
+          expect(filing?.period, id).toBe(periodOf.get(pageSourceRows[i].edinetCode));
         }
         checked++;
       }
@@ -1149,13 +1193,13 @@ describe("buildData", () => {
       blocks: { kind: string; text?: string; rows?: string[][]; spans?: unknown[] }[];
     }[];
     const idOf = (code: string) =>
-      result.companies.rows[sourceRows.findIndex((row) => row.edinetCode === code)][0] as string;
+      pageCompanyRows()[pageSourceRows.findIndex((row) => row.edinetCode === code)][0] as string;
 
     it("本文のある会社だけを持ち、本文は C18 の塊と1字も違わない", () => {
       const withBody = source.filter((r) => r.blocks.length > 0);
       expect(Object.keys(result.payPolicies.byId)).toHaveLength(withBody.length);
       const idByCode = new Map(
-        sourceRows.map((row, i) => [row.edinetCode, result.companies.rows[i][0]])
+        pageSourceRows.map((row, i) => [row.edinetCode, pageCompanyRows()[i][0]])
       );
       for (const row of withBody) {
         const id = idByCode.get(row.edinet_code) as string;

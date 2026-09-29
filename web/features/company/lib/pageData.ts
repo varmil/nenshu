@@ -38,6 +38,8 @@ import summariesData from "@/public/data/summaries.json" with { type: "json" };
 import analysesData from "@/public/data/analyses.json" with { type: "json" };
 import filingsData from "@/public/data/filings.json" with { type: "json" };
 import payPoliciesData from "@/public/data/pay-policies.json" with { type: "json" };
+import lapsedJson from "@/public/data/lapsed.json" with { type: "json" };
+import { findLapsed, type LapsedCompany, type LapsedData } from "@/features/company/lib/lapsed";
 import {
   buildAnalysisView,
   type AnalysisRecord,
@@ -85,6 +87,12 @@ const performance = performanceData as unknown as PerformanceData;
 const profitHistory = profitHistoryData as unknown as ProfitHistoryData;
 
 const logoIds = logosData.byId as Record<string, unknown>;
+
+/**
+ * 最後の有報から24か月を過ぎて母集団から外れた会社（refresh の D9・#879）。**`companies.json` には
+ * いない**ので、順位・母集団の統計・近傍には出てこない。企業ページだけを残す（`lapsedPageData`）。
+ */
+const lapsed = lapsedJson as unknown as LapsedData;
 
 /**
  * 会社の説明文（C7・Issue #161）。**ここだけが import する**——`src/pages/index.astro`
@@ -142,13 +150,14 @@ function historyFor(id: string): SalaryHistory | null {
  *
  * 業種の中央値は**この会社の業種の1本だけ**を渡す（33業種ぶんを props に載せない）。
  */
-function tenureHistoryFor(id: string): TenureHistory | null {
+function tenureHistoryFor(id: string, industry: string): TenureHistory | null {
   const values = history.tenureById[id];
   if (values === undefined || values.every((v) => v === null)) return null;
-  const row = companies.rows[findRowIndex(companies, id)];
   const years = historyYearsFor(id);
-  // 中央値は全社の窓を覆う年で持っているので、この会社の窓の年だけを引く
-  const medians = history.tenureIndustryMedian[row[2] as number];
+  // 中央値は全社の窓を覆う年で持っているので、この会社の窓の年だけを引く。**業種は名前で引く**
+  // ——外れた会社（D9）の業種の添字は `lapsed.json` のプールを指していて、ここの並びとは別物。
+  // 母集団にもう同業がいなければ中央値は無い
+  const medians = history.tenureIndustryMedian[companies.industries.indexOf(industry)] ?? [];
   return {
     years,
     values,
@@ -310,7 +319,7 @@ export function companyPageData(id: string): CompanyPageData {
     radar: radarFor(view.id, worklifeRecord),
     worklife: buildWorklifeView(worklifeRecord),
     history: historyFor(view.id),
-    tenureHistory: tenureHistoryFor(view.id),
+    tenureHistory: tenureHistoryFor(view.id, view.tse33),
     profitHistory: profitHistoryFor(view.id),
     summary: buildSummaryView(summaries[view.id]),
     fiscalPeriod: fiscalPeriodFor(view.id),
@@ -347,8 +356,11 @@ export function companyPayPolicyFor(id: string, name: string): PayPolicyView | n
 /** 数字（実測値の4項目）の決算期（`YYYY-MM`）。文章の原文の期と比べるのに使う（refresh の D3）。 */
 function numbersPeriodOf(id: string): string {
   const index = findRowIndex(companies, id);
-  if (index === -1) throw new Error(`企業ID ${id} が companies.json にありません`);
-  return companies.periods[companies.rows[index][9]];
+  if (index !== -1) return companies.periods[companies.rows[index][9]];
+  const row = lapsed.rows.find((r) => r[0] === id);
+  if (row === undefined)
+    throw new Error(`企業ID ${id} が companies.json にも lapsed.json にもありません`);
+  return lapsed.periods[row[9]];
 }
 
 /**
@@ -359,7 +371,44 @@ export function companySummaryDocId(id: string): string | null {
   return summaryFilings[id]?.docId ?? null;
 }
 
-/** 事前生成する全社のID（Astro の `getStaticPaths`）。 */
+/**
+ * 事前生成する全社のID（Astro の `getStaticPaths`）。**母集団から外れた会社も入る**（D9）——
+ * ページを消さない（ADR-0018）。
+ */
 export function companyIds(): string[] {
-  return companies.rows.map((row) => row[0]);
+  return [...companies.rows.map((row) => row[0]), ...lapsed.rows.map((row) => row[0])];
+}
+
+/** 母集団から外れた会社か（D9）。`[id].astro` がどちらの画面を描くかを決める。 */
+export function isLapsedCompany(id: string): boolean {
+  return findRowIndex(companies, id) === -1 && lapsed.rows.some((row) => row[0] === id);
+}
+
+export interface LapsedPageData {
+  company: LapsedCompany;
+  worklife: ReturnType<typeof buildWorklifeView>;
+  history: SalaryHistory | null;
+  tenureHistory: TenureHistory | null;
+  profitHistory: ProfitHistory | null;
+  summary: SummaryView | null;
+  logoIds: string[];
+}
+
+/**
+ * 母集団から外れた会社のページ（D9・#879）が要る1社ぶん。**順位・偏差値・分布・レーダー・近傍は
+ * 作らない**（母集団の外）。推移・働きやすさ・説明文は母集団の会社と同じ出どころから引く。
+ */
+export function lapsedPageData(id: string): LapsedPageData {
+  const company = findLapsed(lapsed, id);
+  if (company === null) throw new Error(`企業ID ${id} が lapsed.json にありません`);
+  const index = lapsed.rows.findIndex((row) => row[0] === id);
+  return {
+    company,
+    worklife: buildWorklifeView(decodeWorklife(lapsed.worklife, index)),
+    history: historyFor(id),
+    tenureHistory: tenureHistoryFor(id, company.tse33),
+    profitHistory: profitHistoryFor(id),
+    summary: buildSummaryView(summaries[id]),
+    logoIds: logoIds[id] ? [id] : [],
+  };
 }

@@ -106,7 +106,7 @@ describe("selectUniverse", () => {
   const asOf = "2026-08-25";
 
   it("24か月に満たない会社は最後の有報の数字で残り、過ぎた会社は外れる", () => {
-    const { rows, ids, lapsed } = selectUniverse(
+    const { rows, ids, lapsed, lapsedIds } = selectUniverse(
       [row("E00001"), row("E00002"), row("E00003")],
       ledger,
       asOf
@@ -114,6 +114,8 @@ describe("selectUniverse", () => {
     expect(rows.map((r) => r.edinetCode)).toEqual(["E00001", "E00002"]);
     expect(ids).toEqual(["1111", "2222"]);
     expect(lapsed.map((r) => r.edinetCode)).toEqual(["E00003"]);
+    // 外れた会社も台帳の ID のまま（企業ページを残す。D9）
+    expect(lapsedIds).toEqual(["E00003"]);
   });
 
   it("台帳に無い会社が行にあれば落とす（ID を振るのは台帳を書く側）", () => {

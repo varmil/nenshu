@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { companyPageMeta } from "@/lib/seo/company";
 import { usePageMeta } from "@/lib/seo/usePageMeta";
 import { shortIndustryLabel } from "@/lib/data/industry";
@@ -13,26 +13,27 @@ import { formatDecimal1, formatManYen } from "@/features/ranking/lib/format";
 import { type TargetAge } from "@/features/ranking/types";
 import type { CompanyView, ProfitHistory, SalaryHistory, TenureHistory } from "../types";
 import { companyBreadcrumb } from "../lib/breadcrumb";
-import { buildCardFacts, buildCardLead, buildHeadingRank, type CardFact } from "../lib/cardFacts";
+import { buildCardFacts, buildCardLead, buildHeadingRank } from "../lib/cardFacts";
 import { statsForBasis } from "../lib/stats";
 import { SalaryCurveChart } from "./SalaryCurveChart";
 import { SalaryDistributionChart } from "./SalaryDistributionChart";
-import { YearlyBarChart } from "./YearlyBarChart";
-import { SalaryHistoryTable } from "./SalaryHistoryTable";
-import { historyBaseYear } from "../lib/historyTable";
+import { SalaryHistorySection } from "./SalaryHistorySection";
+import { CompanyBreadcrumbNav } from "./CompanyBreadcrumbNav";
+import { CompanySummaryText } from "./CompanySummaryText";
+import { CardFactList } from "./CardFactList";
 import { ProfitHistorySection } from "./ProfitHistorySection";
 import { TenureHistorySection } from "./TenureHistorySection";
 import { AgeSalaryTable } from "./AgeSalaryTable";
 import { WorklifeSection } from "./WorklifeSection";
 import type { WorklifeView } from "../lib/worklife";
-import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
+import type { SummaryView } from "../lib/summary";
 import { OverviewSection } from "./OverviewSection";
 import { buildRadarAxes, type CompanyRadarInput } from "../lib/radar";
 import { NeighborCompanies } from "./NeighborCompanies";
 import { RankingLinks } from "./RankingLinks";
 import { buildRankingLinks } from "../lib/rankingLinks";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
-import { buildCurveSummary, buildHistoryPeak, buildHistorySummary } from "../lib/highlights";
+import { buildCurveSummary } from "../lib/highlights";
 
 /**
  * 表示基準（実測値／年齢そろえ）。**URL には出さない**（R1・ADR-0012）。
@@ -168,9 +169,6 @@ export function CompanyDetail({
   // 年齢別チャートは実測値モードでも出す。実測値には年齢の概念が無いので、
   // 8年齢ぶんだけを渡して選択中の点は無しにする。
   const byAge = view.byBasis.filter((s) => s.targetAge !== null);
-  const historySummary = history ? buildHistorySummary(history.years, history.values) : null;
-  const historyPeak = history ? buildHistoryPeak(history.years, history.values) : null;
-  const historyBase = history ? historyBaseYear(history) : null;
   const curveSummary = buildCurveSummary(byAge, view.name);
   /*
    * レーダーの5軸（P1）。**平均年収の軸だけが表示基準に追随する**（AC-11）——
@@ -210,36 +208,7 @@ export function CompanyDetail({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4">
-      {/*
-        段の並びは `features/company/lib/breadcrumb.ts` が持つ。**構造化データ
-        （`BreadcrumbList`）が同じ配列を読む**ので、ここで書き足すと画面と
-        JSON-LD が食い違う（S2・AC-14）。
-
-        **常に1行で、収まらないぶんは器の中で横に送る。** 折り返すと社名の長い会社
-        （2760 東京エレクトロンデバイス）で 390px のとき2行になり、h1 が 28px 下がって
-        いた。社名は直下の h1 が全文を持つので、右端で切れて見えても読めなくなるものは無い。
-        - `overflow-y-hidden` は縦の小窓を止める（`design-system/tableContainer.ts` と同じ理由）
-        - スクロールバーは隠す。オーバーレイ型でない環境ではバーの高さぶん縦に伸び、
-          縮めたい高さを食う
-        - `p-1 -m-1` は外寸を変えずに、器の縁で切られるリンクのフォーカス枠の逃げ場を作る
-      */}
-      <nav className="text-muted-foreground -m-1 flex items-center gap-2 overflow-x-auto overflow-y-hidden p-1 text-sm whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {breadcrumb.map((item, index) =>
-          index === breadcrumb.length - 1 ? (
-            // パンくずの末尾は現在地なのでリンクにしない（アートボード 4b）。
-            <span key={item.path} aria-current="page" className="text-foreground">
-              {item.name}
-            </span>
-          ) : (
-            <Fragment key={item.path}>
-              <a href={item.path} className="text-primary underline">
-                {item.name}
-              </a>
-              <span aria-hidden="true">/</span>
-            </Fragment>
-          )
-        )}
-      </nav>
+      <CompanyBreadcrumbNav breadcrumb={breadcrumb} />
 
       <header className="flex flex-col gap-3">
         {/*
@@ -284,25 +253,7 @@ export function CompanyDetail({
             **`max-w-2xl` で行長を止める**（アートボード 4b）。本文カラムは PC で
             1,024px あり、そこいっぱいに流すと1行が長すぎて次の行頭を見失う。
           */}
-          {summary !== null && (
-            <div className="col-span-2 flex max-w-2xl flex-col gap-1 sm:col-span-1 sm:col-start-2">
-              <p className="text-muted-foreground text-sm leading-relaxed">{summary.text}</p>
-              {/*
-                要約であることと出典（AC-22）。**決算期を書かない**——企業詳細の決算期は
-                下の「年収に関するQ&A」の説明と要約の節の説明の2か所と決まっている（S3・#134。
-                C7 の時点では「有価証券報告書の実測値（2026年3月期）」の見出しと重なった）。
-                **同じ断りも1画面に2回置かない**ので、下の Q&A にはこの文を重ねていない
-                （Issue #128 と同じ扱い）。
-              */}
-              <p className="text-muted-foreground text-xs">
-                {SUMMARY_SOURCE}（
-                <a href="/about#company-summary" className="text-primary underline">
-                  要約の作り方
-                </a>
-                ）
-              </p>
-            </div>
-          )}
+          {summary !== null && <CompanySummaryText summary={summary} />}
         </div>
         {/* 器はランキングと同じ（U13 の ControlBand）。同じ操作を2ページで別の形にしない。 */}
         <ControlBand
@@ -452,43 +403,7 @@ export function CompanyDetail({
             その節を Q&A に作り替えて要約の後ろへ移した——同じ金額が本文の先頭のカードにあり、推移は
             節の説明（各年の有報の実測値）で自立している。
           */}
-          {history && (
-            <section className="flex flex-col gap-2">
-              <h2 className="text-lg font-bold">平均年収推移（過去10年間）</h2>
-              {/*
-                表示基準の切替と独立（timeseries spec 2.2・AC-8）。出典は AC-9。
-                **比の断りは累積の列に付ける**（T3・#827 で前年比の列を平均年齢に置き換えた）。
-                列の見出しと同じ基準年を名乗る——値のある年が無い会社はこの節ごと出ない。
-              */}
-              <p className="text-muted-foreground text-xs">
-                各年の有価証券報告書に載った平均年間給与と平均年齢の実測値（提出会社単体）。
-                {historyBase !== null &&
-                  `${historyBase}年比は会社の平均が動いた幅で、個人の昇給率ではありません。`}
-              </p>
-              {/*
-                **チャート → 表 → 説明文**（運営者の指示。年齢別の推定年収も #846 で同じ順に
-                そろえた）。推移で先に見たいのは10年ぶんの形で、値はその後に表で確かめるもの。
-                増減の1文は figure と表の両方を受けた締めなので、2つの後ろに置く。
-              */}
-              <YearlyBarChart
-                years={history.years}
-                values={history.values}
-                caption="横軸は報告書の提出年です。"
-              />
-              <SalaryHistoryTable history={history} />
-              {/*
-                増減の1文に、最高値の年を足す（C4）。**最新年が最高値の会社では
-                `buildHistoryPeak` が `null` を返す**——1文目と同じ数字になるため。
-              */}
-              {historySummary && (
-                <p className="text-sm">
-                  {/* 和文なので句点のあとに空白を入れない（2文で1段落）。 */}
-                  {historySummary}
-                  {historyPeak}
-                </p>
-              )}
-            </section>
-          )}
+          {history && <SalaryHistorySection history={history} />}
 
           {/*
             **平均年収推移と稼ぐ力の推移の間**（T4・#835、モック 1b の前提）。平均年収と同じ書類の
@@ -573,34 +488,5 @@ export function CompanyDetail({
         </p>
       </footer>
     </div>
-  );
-}
-
-/**
- * 平均年収カードの1段（C14・#818）。
- *
- * **2段とも2列の器に入れる。** 2段とも2項目なので、同じ器にすれば従業員数と全体順位の
- * 左端がそろい、2つの段が1つの表に見える。C14 では2段目に偏差値があって3列だった
- * （#831 で外した）。**太字にしない**——カードの中で太いのは金額だけにする。
- *
- * **ラベルも値も1行に収める**（`whitespace-nowrap`）。3列だった頃は1つあたり 93px（1280px）しか
- * 無く、既定のままだと「38位 /1,867社」と「従業員数（単体）」が2行に折れていた（C3 の公開後に
- * 報告あり）。2列で 143px になり余裕ができたが、指定は残す。
- */
-function CardFactList({ facts }: { facts: CardFact[] }) {
-  return (
-    <dl className="border-border grid grid-cols-2 gap-2 border-t pt-3">
-      {facts.map((fact) => (
-        <div key={fact.label}>
-          <dt className="text-muted-foreground text-[0.7rem] whitespace-nowrap">{fact.label}</dt>
-          <dd className="whitespace-nowrap tabular-nums">
-            {fact.value}
-            {fact.total && (
-              <span className="text-muted-foreground text-[0.7rem]"> {fact.total}</span>
-            )}
-          </dd>
-        </div>
-      ))}
-    </dl>
   );
 }
