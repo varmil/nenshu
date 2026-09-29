@@ -15,6 +15,11 @@ import type { RankingState } from "../types";
  *
  * 見出しと「すべて解除」を1行に向かい合わせるのは、チップの数が増えても解除の
  * 位置が動かないようにするため。
+ *
+ * **チップは器の幅を超えない。長い語は省略記号で切る。** `Badge` は既定で縮まず折り返さない
+ * （`shrink-0`・`whitespace-nowrap`）ので、長い検索語（社名をそのまま打った 等）がモバイルで
+ * 本文の器を押し出し、横スクロールを出していた（390px で 66px・360px で 96px）。全文は
+ * 検索欄と、外すボタンの読み上げ名と `title` に残る。
  */
 export function ActiveFilterChips({
   state,
@@ -44,14 +49,16 @@ export function ActiveFilterChips({
           <Badge
             key={`${filter.group}:${filter.label}`}
             variant="outline"
-            className="bg-muted h-6 gap-1 pr-1.5"
+            className="bg-muted h-6 max-w-full gap-1 pr-1.5"
           >
-            {filter.label}
+            <span className="min-w-0 truncate" title={filter.label}>
+              {filter.label}
+            </span>
             <button
               type="button"
               aria-label={`${filter.group}の絞り込み「${filter.label}」を解除`}
               onClick={() => onChange(filter.patch)}
-              className="hover:text-foreground text-muted-foreground rounded-full"
+              className="hover:text-foreground text-muted-foreground shrink-0 rounded-full"
             >
               <XIcon className="size-3" />
             </button>
