@@ -30,7 +30,7 @@ Q&A の説明を指す。
 ## データの流れ
 
 ```
-pipeline/data/ranking_unified_2026.csv の doc_id（平均年間給与を取った書類）
+pipeline/data/ranking_unified.csv の doc_id（平均年間給与を取った書類）
   └ pipeline/scripts/build-data.ts  buildFilings()
        → web/public/data/filings.json   {"byId": {"6861": "S100YAHE", …}}   2,961社・gzip 16.6KB
             └ web/features/company/lib/pageData.ts  requireFilingDocId(id)

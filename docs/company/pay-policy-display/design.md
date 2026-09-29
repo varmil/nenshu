@@ -59,7 +59,7 @@ section[data-testid=company-pay-policy]
 | 場所 | 中身 |
 | --- | --- |
 | `pipeline/scripts/lib/payPolicy.ts` | `toPayPolicyRecord(row)`。C18 の1行を表示の形（`source`・`title`・`blocks`）にする。**文は変えない。** 落とすのは範囲の番号などの鍵と画像の代替テキストだけ。形が崩れていたら例外 |
-| `pipeline/scripts/build-data.ts` | `buildPayPolicies` が `pay_policy_2026.json` を EDINETコードで引き、`companies.rows` の ID で `pay-policies.json` を書く。書類 ID がいまの採用書類と違えば落とす（C18 を回し直す合図）。gzip の上限 700KB |
+| `pipeline/scripts/build-data.ts` | `buildPayPolicies` が `pay_policy.json` を EDINETコードで引き、`companies.rows` の ID で `pay-policies.json` を書く。書類 ID がいまの採用書類と違えば落とす（C18 を回し直す合図）。gzip の上限 700KB |
 | `web/public/data/pay-policies.json` | `{ byId: { [企業ID]: { source, title, blocks } } }`。**本文のある1,862社だけ**。raw 2,567,771 B・gzip 591,235 B |
 | `web/features/company/lib/payPolicy.ts` | `buildPayPolicyView(name, record)` が見出し・出どころの節の名前・会社の小見出し・開く塊・畳む塊・畳んだ字数を返す純粋関数。本文が無ければ `null` |
 | `web/features/company/components/PayPolicySection.tsx` | 上の木を描く。**状態を持たない**（畳みはブラウザの `details`） |
@@ -73,7 +73,7 @@ section[data-testid=company-pay-policy]
 データの流れ（すべてビルド時）。
 
 ```
-pipeline/data/pay_policy_2026.json（C18）
+pipeline/data/pay_policy.json（C18）
   → build-data.ts  toPayPolicyRecord → web/public/data/pay-policies.json
 [id].astro
   companyPayPolicyFor(id, name) ─┬─→ PayPolicySection（slot="payPolicy"・静的な HTML）

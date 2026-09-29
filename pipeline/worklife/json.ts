@@ -61,7 +61,7 @@ export class StringPool {
 const numberOrNull = (raw: string): number | null => (raw === "" ? null : Number(raw));
 
 /**
- * `worklife_2026.csv` の1行を並びに直す。
+ * `worklife.csv` の1行を並びに直す。
  * 雇用管理区分は**件数を先に置いてから対を並べる**——空のスロットを5つ固定で持つと、
  * 区分を持たない会社（残業で1,124社）のぶんだけ要素が無駄に増える。
  */

@@ -11,7 +11,7 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
     python3 generate.py gate                           # work/gated_0001.json …
     （エージェントが prompts/verify.md に従って work/verify_0001.jsonl を書く）
     python3 generate.py retry                          # 落ちた会社だけ書き直しへ（2回まで）
-    python3 generate.py merge                          # → ../data/company_summary_2026.csv
+    python3 generate.py merge                          # → ../data/company_summary.csv
     python3 generate.py clear                          # 次の回の前に work/ を空にする
     python3 generate.py status
 
@@ -20,12 +20,12 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
 生成側に戻す。書き直しは2回まで（C9・#241 と同じ上限）。
 
 **1回では全社ぶんが回らない**（原文は2,960社で535万字）。`plan` は
-`company_summary_2026.csv` に載っていない会社と、**原文の SHA-1 が変わった会社**
+`company_summary.csv` に載っていない会社と、**原文の SHA-1 が変わった会社**
 だけを選ぶので、回すたびに進む（AC-8）。
 
 **生成に渡す原文は2,000字で切るが、検証パスに渡すのは原文の全部。** 切った先に
 書いてあることを説明文が述べていたら、それは原文が支えていない——**検証は配って
-いる原文そのものに対して行う**（`gate` が `business_text_2026.csv` の全文を渡す）。
+いる原文そのものに対して行う**（`gate` が `business_text.csv` の全文を渡す）。
 """
 
 import argparse
@@ -41,8 +41,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gate  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
-SOURCE = ROOT / "../data/business_text_2026.csv"
-OUT = ROOT / "../data/company_summary_2026.csv"
+SOURCE = ROOT / "../data/business_text.csv"
+OUT = ROOT / "../data/company_summary.csv"
 WORK = ROOT / "work"
 
 HEADERS = [
@@ -443,7 +443,7 @@ def cmd_clear(args):
 
     `plan` は `batch_0001.json` から振り直すので、前の回の `gen_*.jsonl` が残っていると
     **別の会社の生成物が次の回の取り込みに混ざる。** 消すのは中間ファイルと
-    書き直しで退避した回（`work/round_N/`）で、成果物（`company_summary_2026.csv`）には触らない。
+    書き直しで退避した回（`work/round_N/`）で、成果物（`company_summary.csv`）には触らない。
     """
     n = 0
     if WORK.exists():

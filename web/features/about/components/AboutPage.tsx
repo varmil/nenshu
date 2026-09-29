@@ -273,7 +273,15 @@ export function AboutPage() {
           */}
           <li>
             <strong>{fiscalPeriodLabel(companies.meta)}</strong>
-            {`の有価証券報告書（EDINET に${filingWindowLabel(companies.meta)}に提出されたもの）。決算期は会社ごとに違い、いちばん多いのは${periodLabel(facts.fiscalPeriodTop.period)}の${formatInt(facts.fiscalPeriodTop.count)}社（全体の${((facts.fiscalPeriodTop.count / facts.companyCount) * 100).toFixed(1)}%）です`}
+            {`の有価証券報告書。決算期は会社ごとに違い、いちばん多いのは${periodLabel(facts.fiscalPeriodTop.period)}の${formatInt(facts.fiscalPeriodTop.count)}社（全体の${((facts.fiscalPeriodTop.count / facts.companyCount) * 100).toFixed(1)}%）です`}
+          </li>
+          {/*
+            **入る条件と出る条件は別**（ADR-0018・refresh の D2）。以前は1行目に「EDINET に
+            ◯◯に提出されたもの」と添えていたが、最後の有報から24か月の猶予で残る会社は
+            窓より前に提出しているので、全社について言えることではなくなった。
+          */}
+          <li>
+            {`新しく載るのは、EDINET に${filingWindowLabel(companies.meta)}に有価証券報告書を提出した会社です。一度載った会社は、最後の提出から24か月たつまで、その報告書の数字で載せ続けます（提出の遅れや決算期の変更で、一時的に消えないように）`}
           </li>
           {/*
             **省いた社数をここに出す**（E2・`docs/expansion/spec.md` 1.3・AC-4、

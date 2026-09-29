@@ -16,7 +16,7 @@ pipeline/summary/
   work/                # 中間ファイル（gitignore）
     round_1/ round_2/  # retry が前の回を退避する場所
 pipeline/data/
-  company_summary_2026.csv   # 177社の行だけが変わる
+  company_summary.csv   # 177社の行だけが変わる
 web/public/data/
   summaries.json             # build:data で作り直す
 ```
@@ -40,7 +40,7 @@ C6 が2〜3文にしていたのは、**2文目を記載作法の文で埋める
 ## 工程
 
 ```
-company_summary_2026.csv の rejected（177社）
+company_summary.csv の rejected（177社）
         │
    plan --rejected │ → work/batch_NNNN.json（前回の理由を previous_reason に添える）
         ↓
@@ -151,7 +151,7 @@ company_summary_2026.csv の rejected（177社）
 
 ## データモデルの差分
 
-`company_summary_2026.csv` の列は変えていない。177社の行だけが変わる。
+`company_summary.csv` の列は変えていない。177社の行だけが変わる。
 
 - `verdict` / `reject_reason` — 付いた会社は `ok` と空、残った会社は `rejected` と `説明文が空`
 - `generated_at` — C17 で回した日時

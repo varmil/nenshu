@@ -67,7 +67,7 @@ export type CompanyRow = [
  * そこだけ古い数字が残る（`docs/site-chrome/spec.md` 1.4・5.3）。
  */
 export interface CompaniesMeta {
-  /** データの版（提出期。`YYYY-MM`）。 */
+  /** データの版。`companies.json` の中身から決める（`build-data.ts` の `datasetVersion`・refresh の D2）。 */
   version: string;
   count: number;
   /**

@@ -26,7 +26,7 @@
 
 **法人番号（13桁）で内部結合する。ADR-0009。**
 
-- 有報側 — `ranking_unified_2026.csv` に `corporate_number` 列を足す。値は EDINETコードリスト（`Edinetcode.zip`）の `提出者法人番号`
+- 有報側 — `ranking_unified.csv` に `corporate_number` 列を足す。値は EDINETコードリスト（`Edinetcode.zip`）の `提出者法人番号`
 - 女性活躍DB側 — 2列目の `法人番号`
 
 **証券コードと社名では突合しない**（理由は ADR-0009）。**一致しない会社は「データ無し」として扱い、子会社や同名の別会社で代用しない。**
@@ -79,7 +79,7 @@
 
 ### 1.5 出力
 
-`pipeline/data/worklife_2026.csv`（突合済み・1社1行）を中間成果物としてコミットし、`build-data.ts` が `web/public/data/worklife.json` を作る。
+`pipeline/data/worklife.csv`（突合済み・1社1行）を中間成果物としてコミットし、`build-data.ts` が `web/public/data/worklife.json` を作る。
 
 **`worklife.json` は `/company/[id]` だけが import する。`app/page.tsx` からは読まない**——トップページのHTML（gzip 64KB・Issue #22）を1バイトも増やさないため。
 
@@ -202,7 +202,7 @@
 ### AC-1 突合
 
 ```gherkin
-Given pipeline/data/ranking_unified_2026.csv に corporate_number 列がある
+Given pipeline/data/ranking_unified.csv に corporate_number 列がある
 When 女性活躍DBの全件CSVと法人番号で内部結合する
 Then 1,690社が突合できる
 And 1,867社すべてに法人番号が入っている（EDINETコードリストから引けなかった会社が0件）

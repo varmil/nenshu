@@ -1,6 +1,6 @@
 # salary — 有報の年収データセット
 
-有価証券報告書の平均年間給与を集め、賃金カーブと合わせて `pipeline/data/ranking_unified_2026.csv`（1,867社）と `pipeline/data/salary_history.csv`（10年ぶん）を作る。
+有価証券報告書の平均年間給与を集め、賃金カーブと合わせて `pipeline/data/ranking_unified.csv`（1,867社）と `pipeline/data/salary_history.csv`（10年ぶん）を作る。
 
 **ディレクトリ名は「作るデータセット」で、データ源ではない。** ここは EDINET と e-Stat の2つを使うので、ソース名では切れない。ソースはファイル名が表す（`edinet.py` / `fetch_estat.py`）。
 
@@ -11,9 +11,9 @@
 ```bash
 export EDINET_API_KEY=xxxxxxxx      # または salary/.edinet_key に書く
 python3 unified.py                                            # EDINET から取り直して全社を統合
-python3 unified.py --from-csv ../data/ranking_unified_2026.csv  # 推定式を変えたとき、派生列だけ計算し直す
-python3 unified.py --backfill-edinet-code    ../data/ranking_unified_2026.csv
-python3 unified.py --backfill-corporate-number ../data/ranking_unified_2026.csv
+python3 unified.py --from-csv ../data/ranking_unified.csv  # 推定式を変えたとき、派生列だけ計算し直す
+python3 unified.py --backfill-edinet-code    ../data/ranking_unified.csv
+python3 unified.py --backfill-corporate-number ../data/ranking_unified.csv
 ```
 
 **推定式を変えたら Python（`curves.py` の `estimate_salary`）と TypeScript（`web/features/ranking/lib/salary.ts`）の両方を直し、`--from-csv` で CSV の派生列を作り直してから `npm run build:data` を回す。** EDINET から取り直す必要はない（`salary35` は `avg_salary` / `avg_age` / `industry` だけから決まる）。

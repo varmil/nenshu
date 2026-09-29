@@ -114,7 +114,7 @@ tools/perturb/check.sh --e2e    ＋ E2E（dev サーバーに向けて）
 | `features/ranking/lib/aboutFacts.test.ts` | 14 / 2 | 実例は行の値、倍率・平均年齢の中央値は分布の中の位置、上位50社の重なりは `rank.ts` で組み直して数える |
 | `features/ranking/lib/rank.test.ts` | 5 / 2 | 1位は「平均年間給与が最大の行」。「60歳と35歳の上位50社の重なり ≥ 35」を「同じカーブで平均年齢も同じ会社どうしは、35歳と60歳で前後が入れ替わらない」（全社で見る）に |
 | `features/ranking/lib/filter.test.ts`・`population.test.ts`・`industryCounts.test.ts`・`salary.test.ts` | 9 / 3 | 区分ごとの件数・母集団の平均と標準偏差は行から数え直す |
-| `lib/data/worklife.test.ts` | 9 / 1 | **写し違いを実物で捕まえる目的は残した。** 期待値を、名指しした7社の書き写しから、取り込み元の `worklife_2026.csv` を列の名前で読んだものに。区分名を名指しで見ていた AC-6b は、全社を CSV と突き合わせる AC-6 と重なるので消した |
+| `lib/data/worklife.test.ts` | 9 / 1 | **写し違いを実物で捕まえる目的は残した。** 期待値を、名指しした7社の書き写しから、取り込み元の `worklife.csv` を列の名前で読んだものに。区分名を名指しで見ていた AC-6b は、全社を CSV と突き合わせる AC-6 と重なるので消した |
 | `lib/data/industry.test.ts` | 0 / 2 | 条件で業種を選ぶ |
 
 ### E2E

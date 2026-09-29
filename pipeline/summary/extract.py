@@ -1,15 +1,15 @@
-"""有報の「事業の内容」を平文で抜き、`pipeline/data/business_text_2026.csv` にする。
+"""有報の「事業の内容」を平文で抜き、`pipeline/data/business_text.csv` にする。
 
 C5（[#159](https://github.com/varmil/nenshu/issues/159)・親 #158・ADR-0010・
 `docs/company/spec.md` AC-18）。**要約はここでは作らない**（C6）。**表示も変わらない。**
 
-読むのは `ranking_unified_2026.csv` に載っている会社の `doc_id` ——**平均年間給与を
+読むのは `ranking_unified.csv` に載っている会社の `doc_id` ——**平均年間給与を
 拾ったのと同じ書類**から「事業の内容」も出てくるので、母集団の定義がこの Unit で
 ずれることがない。ZIP は `fetch.py` が落としてある前提で、**ここでは EDINET に
 一切リクエストしない**（キャッシュにある物だけを読む）。
 
   python3 fetch.py      # 未取得の書類を落とす（キャッシュが生きていれば0件）
-  python3 extract.py    # → ../data/business_text_2026.csv
+  python3 extract.py    # → ../data/business_text.csv
 """
 
 import csv
@@ -22,8 +22,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "salary"))
 import edinet  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent
-UNIVERSE = ROOT / "../data/ranking_unified_2026.csv"
-OUT = ROOT / "../data/business_text_2026.csv"
+UNIVERSE = ROOT / "../data/ranking_unified.csv"
+OUT = ROOT / "../data/business_text.csv"
 
 HEADERS = [
     "edinet_code",

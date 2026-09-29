@@ -18,7 +18,7 @@ Claude Code のセッションで回す**。このスクリプトが持つのは
 （C8 の実測）。`plan` は CSV に載っていない会社と、**原文の SHA-1 が変わった会社**だけを
 選ぶので、回すたびに進む。
 
-**原文（`analysis_text_2026.csv`）は git に無い**（175MB。`pipeline/.gitignore`）。
+**原文（`analysis_text.csv`）は git に無い**（175MB。`pipeline/.gitignore`）。
 `analysis/extract_analysis.py` をキャッシュに対して回せば27秒で作り直せる。
 
 **分析の材料は有報の外にもある**（ADR-0015 決定2）。**このスクリプトは外部の文書を
@@ -46,27 +46,27 @@ DATA = ROOT / "../data"
 
 # **原文は2つある。切らない版が git に無いので、切った版が既定の入り口になる。**
 #
-#   analysis_text_2026.csv                       切らない・167MB・gitignore
+#   analysis_text.csv                       切らない・167MB・gitignore
 #   analysis_text_cut2200-1500-3000-1500_….gz    節ごとに切った版・**コミットする**
 #
 # **切らない版があればそちらを使う**——`--max-chars 0` で切らずに読ませる余地を残すため。
 # 無ければ切った版に落ちる。**ZIP キャッシュはコンテナが変わると消える**ので、
 # 切った版があることで C9 のセッションはキャッシュも EDINET キーも要らなくなる
 # （`extract_analysis.py` の表）。
-SOURCE = DATA / "analysis_text_2026.csv"
+SOURCE = DATA / "analysis_text.csv"
 # **名前は `extract_analysis` が持つ。** 切り方を変えるとファイル名も変わるので、
 # こちらで組み立てると片方だけ古くなる。
 CUT_SOURCE = DATA / extract_analysis.CUT_OUT.name
-MANIFEST = DATA / "analysis_text_manifest_2026.csv"
-UNIVERSE = DATA / "ranking_unified_2026.csv"
+MANIFEST = DATA / "analysis_text_manifest.csv"
+UNIVERSE = DATA / "ranking_unified.csv"
 SALARY_HISTORY = DATA / "salary_history.csv"
 # **稼ぐ力は `web/public/data/` の生成物から読む。** `pipeline/data/` にあるのは
 # 年ごとの生の CSV（`performance_history.csv`）で、「直近5期の中央値 ÷ 従業員数」に
 # するのは `build-data.ts` の仕事——**規則を Python 側に書き写さない。**
 PERFORMANCE = ROOT / "../../web/public/data/performance.json"
 COMPANIES = ROOT / "../../web/public/data/companies.json"
-WORKLIFE = DATA / "worklife_2026.csv"
-OUT = DATA / "company_analysis_2026.csv"
+WORKLIFE = DATA / "worklife.csv"
+OUT = DATA / "company_analysis.csv"
 WORK = ROOT / "work"
 
 KEYS = ["mdna", "risks", "issues", "sustainability"]
@@ -172,7 +172,7 @@ def profit_per_employee():
     """`(sec/edinet の並び順の添字 → 稼ぐ力, 業種 → 業種中央値)`。
 
     `performance.json` の `perEmployee` は **`companies.rows` と同じ並びの配列**
-    （`build-data.ts`）で、その並びは `ranking_unified_2026.csv` の行順に等しい。
+    （`build-data.ts`）で、その並びは `ranking_unified.csv` の行順に等しい。
     **行がずれると別の会社の数字を出す**ので、ここでも同じループで組む。
     """
     if not PERFORMANCE.exists():

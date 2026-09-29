@@ -11,15 +11,15 @@ pipeline/
     businesstext.py              平文にする規則（C5 のものをそのまま共有）
     test_edinet.py               4節の抜き出しの単体テスト
   summary/
-    extract_analysis.py          → data/analysis_text_2026.csv ＋ マニフェスト
+    extract_analysis.py          → data/analysis_text.csv ＋ マニフェスト
     test_extract_analysis.py
   data/
-    analysis_text_2026.csv           原文。**175MB・gitignore**
-    analysis_text_manifest_2026.csv  節ごとの字数と SHA-1。**740KB・コミットする**
+    analysis_text.csv           原文。**175MB・gitignore**
+    analysis_text_manifest.csv  節ごとの字数と SHA-1。**740KB・コミットする**
 ```
 
 **表示は1ピクセルも変わらない。** `web/` に触っていない。`companies.json` ほか配布データも、
-`business_text_2026.csv`（C5）も、作り直して1バイトも変わらないことを確かめてある。
+`business_text.csv`（C5）も、作り直して1バイトも変わらないことを確かめてある。
 
 ## 4節（`edinet.ANALYSIS_SECTIONS`）
 
@@ -86,12 +86,12 @@ C5 は `business_text` を `to_record`（ランキングの1行を組み立て�
 
 | | 大きさ |
 | --- | --- |
-| `analysis_text_2026.csv`（原文） | **175MB**（gzip 46.5MB） |
-| `analysis_text_manifest_2026.csv`（字数と SHA-1） | 740KB |
-| 参考: `business_text_2026.csv`（C5・コミット済み） | 15.2MB |
+| `analysis_text.csv`（原文） | **175MB**（gzip 46.5MB） |
+| `analysis_text_manifest.csv`（字数と SHA-1） | 740KB |
+| 参考: `business_text.csv`（C5・コミット済み） | 15.2MB |
 
 **1社あたり平均21,005字・全社で6,220万字**あり、`pipeline/data/` の最大である
-`business_text_2026.csv` とは桁が違う（#214 の見積り「1社14,400字」より大きい）。
+`business_text.csv` とは桁が違う（#214 の見積り「1社14,400字」より大きい）。
 
 **原文は `pipeline/.gitignore` に入れ、マニフェストをコミットする。**
 
@@ -107,7 +107,7 @@ C5 は `business_text` を `to_record`（ランキングの1行を組み立て�
   ことになり、gitignore した場合と手間が同じになる。**`--max-chars` は持っているが
   既定では切らない**
   - **【2026-08-28・C9】この判断の後半は覆った。** パイロットが**1,800字**と決めたので、
-    **その長さで切った版（gzip 15.8MB）を git に置いた**（`analysis_text_head1800_2026.csv.gz`）。
+    **その長さで切った版（gzip 15.8MB）を git に置いた**（`analysis_text_head1800.csv.gz`）。
     覆した理由は**キャッシュがコンテナごと消えること**で、置かないと C9 の約48セッションに
     26分ずつの取り直しが乗る。**切らない版を gitignore にする判断は変わっていない**
     （`docs/company/analysis-generation/design.md`）

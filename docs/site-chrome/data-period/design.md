@@ -8,7 +8,7 @@
 決算期という1つの事実が、**データ → 1つの文字列 → 3方向の出力**という一直線で流れる。
 
 ```
-pipeline/data/ranking_unified_2026.csv （period_end 列）
+pipeline/data/ranking_unified.csv （period_end 列）
         │  dominantFiscalPeriod()      … 最頻の決算期を1つ採る
         ▼
 web/public/data/companies.json  meta.fiscalPeriod = "2026-03"
@@ -29,7 +29,7 @@ web/public/data/companies.json  meta.fiscalPeriod = "2026-03"
 
 ```ts
 interface CompaniesMeta {
-  version: string;        // データの版（提出期。"2026-06"）
+  version: string;        // データの版（中身のハッシュ。refresh の D2 までは提出期 "2026-06"）
   count: number;          // 掲載社数
   fiscalPeriod: string;   // 決算期（最頻。"2026-03"）  ← S3 で追加
   generatedAt: string;
@@ -102,6 +102,8 @@ interface CompaniesMeta {
 | `/company/[id]` | 「有価証券報告書の実測値」の `h2` | `有価証券報告書の実測値（2026年3月期）` |
 | `/about` | 「対象範囲」の1行目 | `2026年3月期の有価証券報告書（EDINET に 2026年6月1日〜7月10日に提出されたもの）。決算期は3月期が中心で、4月期の会社も含みます` |
 
+（refresh の D2 で、提出の窓は2行目の「新しく載るのは…」に移した。最後の有報から24か月の猶予で残る会社は窓より前に提出しているため。`docs/refresh/ledger/design.md`）
+
 **リード文は1文目に置く。2文目に回さない。** 2文目は `hidden md:inline` で狭い画面では消えるので、そこに置くとモバイルの読者にだけ「いつの数字か」が届かない。E2E は 390px でこれを見ている。
 
 **企業詳細では見出しに付ける。** この節の中身がその決算期の数字そのもので、見出しに付くのがいちばん短く、読者が数字を見る直前に目に入る。
@@ -138,7 +140,7 @@ interface CompaniesMeta {
 
 - **`app/layout.tsx` の `metadata`。** ここは各ページが自分で返さなかったときの受け皿（`/_not-found`）で、`spec.md` 5.1 の一覧にも入っていない。`companies.json` を layout の依存に足すだけの価値が無い
 - **`/company/[id]` の「平均年収推移（過去10年間）」**（`spec.md` 5.4）。各点に年が書いてあり、決算期1つでは表せない
-- **`companies.meta.version`。** 提出期を指す別の値で、決算期に置き換わるものではない
+- **`companies.meta.version`。** データの版を指す別の値で、決算期に置き換わるものではない（当時は提出期 `"2026-06"`。refresh の D2 で中身のハッシュにした）
 - **OGP・JSON-LD**（S2・#116）。`og:title` / `og:description` は title・description と同じ文字列にすると決めてあるので、S3 が先に入った時点でそのまま乗る
 
 ## 「2026年度」と書かない理由

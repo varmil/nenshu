@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   buildData,
   checkCountDrop,
+  datasetVersion,
   fiscalPeriodRange,
   MAX_COUNT_DROP_RATIO,
   TENURE_MEDIAN_MIN_COMPANIES,
@@ -17,7 +18,7 @@ import {
   parseUnifiedCsv,
   type UnifiedRow,
 } from "./lib/csv";
-import { makeId } from "./lib/slug";
+import { readLedger } from "./lib/ledger";
 import { parseCsv } from "../worklife/csv";
 import { decodeRow, type WorklifeRow } from "../worklife/json";
 
@@ -51,9 +52,9 @@ const pickIndex = (what: string, count: number, pred: (i: number) => boolean) =>
   throw new Error(`${what}が見つからない`);
 };
 
-/** `data/worklife_2026.csv` を企業 id → 列名 → 値 で読む。 */
+/** `data/worklife.csv` を企業 id → 列名 → 値 で読む。 */
 const readWorklifeCsv = () => {
-  const csv = parseCsv(readFileSync(join(ROOT, "data/worklife_2026.csv"), "utf-8"));
+  const csv = parseCsv(readFileSync(join(ROOT, "data/worklife.csv"), "utf-8"));
   const header = csv[0];
   const byId = new Map<string, Record<string, string>>();
   for (const line of csv.slice(1)) {
@@ -81,9 +82,11 @@ describe("buildData", () => {
   beforeAll(() => {
     outDir = mkdtempSync(join(tmpdir(), "nenshu-build-data-"));
     result = buildData(outDir);
+    // 出力の行は、入力の行から母集団を外れた会社（最後の有報から24か月）を除いた並び。
+    const lapsed = new Set(result.lapsed.map((row) => row.edinetCode));
     sourceRows = parseUnifiedCsv(
-      readFileSync(join(ROOT, "data/ranking_unified_2026.csv"), "utf-8")
-    );
+      readFileSync(join(ROOT, "data/ranking_unified.csv"), "utf-8")
+    ).filter((row) => !lapsed.has(row.edinetCode));
     return () => rmSync(outDir, { recursive: true, force: true });
   });
 
@@ -170,24 +173,18 @@ describe("buildData", () => {
     expect(mismatches).toEqual([]);
   });
 
-  // ここから3件は公開URL `/company/[id]` の安定性を固定する（ADR-0006）。
-  // 書類ID由来のIDは毎年の有報提出で変わるため、一度公開したURLが年1回
-  // リセットされてしまう。証券コード／EDINETコードはどちらも年をまたいで変わらない。
-  it("id は証券コード、無ければEDINETコード（E＋5桁）で、書類ID由来の id が残っていない", () => {
-    let withoutSecCode = 0;
+  // ここから2件は公開URL `/company/[id]` の安定性を固定する（ADR-0006・ADR-0017）。
+  // ID は更新台帳から引き、ビルドのたびに計算し直さない。振り方の規則（証券コード→
+  // EDINETコード、ぶつかったら EDINETコード）は `pipeline/ledger/test_ledger.py` が見る。
+  it("id は更新台帳の ID で、書類ID由来の id が残っていない", () => {
+    const ledger = readLedger();
     result.companies.rows.forEach((row, i) => {
       const src = sourceRows[i];
-      if (src.secCode !== "") {
-        expect(row[0], src.name).toBe(src.secCode);
-      } else {
-        // 旧 makeId はここで書類ID由来の id を作っていた（みずほ銀行の `s100yfah`、
-        // JERA の `jera-s100ycjz`）。
-        expect(row[0], src.name).toMatch(/^E\d{5}$/);
-        withoutSecCode += 1;
-      }
+      expect(row[0], src.name).toBe(ledger.get(src.edinetCode)?.id);
+      // 旧 makeId は証券コードの無い会社に書類ID由来の id を作っていた（みずほ銀行の
+      // `s100yfah`、JERA の `jera-s100ycjz`）。いまの id は証券コードか EDINETコードの形。
+      expect(row[0], src.name).toMatch(/^(?:[0-9A-Z]{4}|E\d{5})$/);
     });
-    // EDINETコードを id にする枝が空振りしていないこと（社数そのものは毎日の更新で動く）。
-    expect(withoutSecCode).toBeGreaterThan(0);
   });
 
   /*
@@ -208,10 +205,19 @@ describe("buildData", () => {
     expect(idOf("E03532")).toBe("E03532");
   });
 
-  it("makeId は証券コードもEDINETコードも無ければ例外を投げる", () => {
-    expect(() => makeId({ secCode: "", edinetCode: "", name: "架空株式会社" })).toThrow(
-      /架空株式会社/
-    );
+  /*
+   * 版は `companies.json` の中身から決まる（refresh の D2）。**同じ入力から作り直せば同じ版、
+   * 行が1つ動けば別の版**——古い HTML が新しい JSON を引いたときに、クライアントが引き継ぎを
+   * やめる突き合わせ（E0・ADR-0013）が毎日の更新でも働くように。
+   */
+  it("版は中身から決まり、version と generatedAt を除いた中身が同じなら同じ版になる", () => {
+    const { version, generatedAt, ...meta } = result.companies.meta;
+    expect(generatedAt).toEqual(expect.any(String));
+    const body = { ...result.companies, meta };
+    expect(version).toBe(datasetVersion(body));
+    const moved = structuredClone(body);
+    (moved.rows[0] as unknown as number[])[6] += 1;
+    expect(datasetVersion(moved)).not.toBe(version);
   });
 
   /*
@@ -995,7 +1001,7 @@ describe("buildData", () => {
   describe("summaries.json", () => {
     /** CSV の説明文（EDINETコード → 説明文。空の行は空文字のまま持つ）。 */
     const readSummaryCsv = () => {
-      const csv = parseCsv(readFileSync(join(ROOT, "data/company_summary_2026.csv"), "utf-8"));
+      const csv = parseCsv(readFileSync(join(ROOT, "data/company_summary.csv"), "utf-8"));
       const codeIndex = csv[0].indexOf("edinet_code");
       const summaryIndex = csv[0].indexOf("summary");
       return new Map(csv.slice(1).map((line) => [line[codeIndex], line[summaryIndex] ?? ""]));
@@ -1074,10 +1080,10 @@ describe("buildData", () => {
 
   /**
    * 給与の決定方針の原文（C19・Issue #852、`docs/company/spec.md` 1.23）。C18 が切り出した
-   * `pay_policy_2026.json` の本文を**書き換えずに**、企業 ID の辞書にしていること。
+   * `pay_policy.json` の本文を**書き換えずに**、企業 ID の辞書にしていること。
    */
   describe("pay-policies.json", () => {
-    const source = JSON.parse(readFileSync(join(ROOT, "data/pay_policy_2026.json"), "utf-8")) as {
+    const source = JSON.parse(readFileSync(join(ROOT, "data/pay_policy.json"), "utf-8")) as {
       edinet_code: string;
       source?: string;
       title: string | null;
@@ -1170,13 +1176,16 @@ describe("fiscalPeriodRange", () => {
     ],
     // E2 で拡大した時点の実測の端（ニデックの2025-03期 〜 2026-05期 = 15か月）。
     ["拡大後の15か月の幅は通る", ["2025-03-31", "2026-05-31"], "2025-03", "2026-05"],
+    // 最後の有報から24か月の猶予中の会社が混ざった幅（ADR-0018）。旧い線（24か月）では落ちていた
+    ["猶予中の会社が混ざった30か月の幅は通る", ["2024-03-31", "2026-09-30"], "2024-03", "2026-09"],
+    ["ちょうど上限の幅は通る", ["2023-09-30", "2026-09-30"], "2023-09", "2026-09"],
   ])("%s", (_, periods, from, to) => {
     expect(fiscalPeriodRange(rows(...periods))).toEqual({ from, to });
   });
 
   it.each([
     // 代表の過半チェックを外したぶんのガード（ADR-0011 の窓が壊れたことに気づく）。
-    ["幅が24か月を超えたら落とす", ["2024-03-31", "2026-04-20"], /幅が広すぎます/],
+    ["幅が上限を超えたら落とす", ["2023-08-31", "2026-09-30"], /幅が広すぎます/],
     ["period_end の形が違えば落とす", ["2026/03/31"], /YYYY-MM-DD/],
     ["行が無ければ落とす", [], /行がありません/],
   ])("%s", (_, periods, message) => {

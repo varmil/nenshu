@@ -16,18 +16,18 @@ logo-cache/
 salary/out/
 
 # 分析用テキストの原文（C8・#240）。**194MB（gzip 54MB）あるので git に置かない。**
-# `pipeline/data/` の最大である business_text_2026.csv でも15.2MB で、桁が違う。
-# コミットするのは同じ工程が書く analysis_text_manifest_2026.csv（節ごとの字数と
+# `pipeline/data/` の最大である business_text.csv でも15.2MB で、桁が違う。
+# コミットするのは同じ工程が書く analysis_text_manifest.csv（節ごとの字数と
 # SHA-1）のほうで、原文は analysis/extract_analysis.py をキャッシュに対して回せば
 # 27秒で作り直せる（EDINET を叩かない）。
-data/analysis_text_2026.csv
+data/analysis_text.csv
 
 # 生成の中間ファイル（C9・#241）。`generate.py clear` が消すのと同じもの。
-# **成果物（company_analysis_2026.csv）はコミットする。**
+# **成果物（company_analysis.csv）はコミットする。**
 analysis/work/
 summary/work/
 
 # 給与の決定方針（C18・#851）。XBRL 本体から切り出した節の HTML と、判定の中間ファイル。
-# **成果物（data/pay_policy_2026.json）はコミットする。**
+# **成果物（data/pay_policy.json）はコミットする。**
 paypolicy/cache/
 paypolicy/work/

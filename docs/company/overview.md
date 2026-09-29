@@ -121,7 +121,7 @@ spec.md の 1.18 のうち原文の調達だけ。**表示は変わらない**�
 
 既存の Unit テスト・E2E が緑のままであることが完了条件に入る。
 
-**実装済み**（`docs/company/business-text/`）。成果物は `pipeline/data/business_text_2026.csv`、平文にする規則は `pipeline/salary/businesstext.py` の1か所、取得と抽出は `pipeline/summary/` にある。**CSV 形式（`type=5`）の値には改行が1つも無く、段落の切れ目は全角空白（U+3000）として残る**——AC-18 の「改行は落とさない」がこの形で指しているのはそれで、空白を一律に潰すと原文がひと続きの塊で C6 に渡る。
+**実装済み**（`docs/company/business-text/`）。成果物は `pipeline/data/business_text.csv`、平文にする規則は `pipeline/salary/businesstext.py` の1か所、取得と抽出は `pipeline/summary/` にある。**CSV 形式（`type=5`）の値には改行が1つも無く、段落の切れ目は全角空白（U+3000）として残る**——AC-18 の「改行は落とさない」がこの形で指しているのはそれで、空白を一律に潰すと原文がひと続きの塊で C6 に渡る。
 
 ## C6 説明文の生成
 
@@ -153,7 +153,7 @@ spec.md 1.19 のうち原文の調達だけ。**表示は変わらない**（C5 
 
 有報の4節——MD&A・事業等のリスク・対処すべき課題・サステナビリティ（人的資本を含む）——を `TEXT_BLOCKS` に足して平文で落とす。**「事業の内容」は入れない**（C5 のまま説明文だけが使う。ADR-0015 決定6）。
 
-**書類は取り直さない。** `ranking_unified_2026.csv` の `doc_id`——平均年間給与を拾ったのと同じ書類——から出てくるので、母集団の定義がこの Unit でずれることがない。
+**書類は取り直さない。** `ranking_unified.csv` の `doc_id`——平均年間給与を拾ったのと同じ書類——から出てくるので、母集団の定義がこの Unit でずれることがない。
 
 **要素名を名前空間で決め打ちできない。** 人的資本の節は会社独自の名前空間になることがある（キーエンスは `jpcrp030000-asr_E26831-000:StrategyHumanCapitalTextBlock`）。P2（#168）で経常利益が独自拡張の要素名だったのと同じ形なので、**接尾辞で拾う**。
 
@@ -191,7 +191,7 @@ spec.md の 1.15 を改訂する。「この数字の作り方」は推定年収
 
 **C10 に依存する。** 区分に「AIの要約」「AIの評価」を持つので、2つの節が出ている必要がある。
 
-**会社ごとの有報への直リンクは入れない。** `doc_id` は `pipeline/data/ranking_unified_2026.csv` にあるが `companies.json` には無く、EDINET の閲覧URLに安定して張れるかも確かめていない。
+**会社ごとの有報への直リンクは入れない。** `doc_id` は `pipeline/data/ranking_unified.csv` にあるが `companies.json` には無く、EDINET の閲覧URLに安定して張れるかも確かめていない。
 
 ## C13 有報への直リンク
 

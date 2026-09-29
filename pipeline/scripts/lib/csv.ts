@@ -48,7 +48,7 @@ const HEADER = [
 ];
 
 /**
- * data/ranking_unified_2026.csv の最小パーサ。
+ * data/ranking_unified.csv の最小パーサ。
  * このCSVにクォート・カンマを含むフィールドがないことは確認済み（社名にカンマを含む行は0件）。
  * 想定外の列数が来たら例外で落とす。
  */
@@ -59,16 +59,14 @@ export function parseUnifiedCsv(text: string): UnifiedRow[] {
   const [headerLine, ...dataLines] = lines;
   const header = headerLine.split(",");
   if (header.length !== HEADER.length || header.some((h, i) => h !== HEADER[i])) {
-    throw new Error(
-      `data/ranking_unified_2026.csv の列がdesignの想定と一致しません: ${headerLine}`
-    );
+    throw new Error(`data/ranking_unified.csv の列がdesignの想定と一致しません: ${headerLine}`);
   }
 
   return dataLines.map((line, lineIndex) => {
     const cols = line.split(",");
     if (cols.length !== HEADER.length) {
       throw new Error(
-        `data/ranking_unified_2026.csv の${lineIndex + 2}行目が${HEADER.length}列でありません: ${line}`
+        `data/ranking_unified.csv の${lineIndex + 2}行目が${HEADER.length}列でありません: ${line}`
       );
     }
     const get = (name: string) => cols[HEADER.indexOf(name)];
@@ -190,7 +188,7 @@ const PERFORMANCE_HEADER = [
  * data/performance_history.csv の最小パーサ（P0・`docs/performance/spec.md` 1.4）。
  *
  * `parseSalaryHistoryCsv` と同じ方針。読むのは4列だけ——従業員数は
- * `ranking_unified_2026.csv` の側（当期・全社ぶん）を使うので、ここでは
+ * `ranking_unified.csv` の側（当期・全社ぶん）を使うので、ここでは
  * 年次の追跡用に持たせてあるだけになる。**P2（稼ぐ力の推移）で年次の
  * 従業員数が要るようになったらここを読む。**
  */

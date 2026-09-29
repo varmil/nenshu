@@ -16,12 +16,18 @@
 **揺らさないもの。** 給与の決定方針のある会社の書類 ID（替えると D3 のガードで
 ビルドが落ちる）と、掲載から外れた会社の横持ちデータの行（D9 が扱う）。どちらも
 D0 の範囲の外で、ここで触るとそちらの失敗が混ざる。
+
+**更新台帳（`pipeline/data/ledger.csv`・D2）も同じように動かす。** 足す2社の ID は
+台帳の規則（`ledger.admit`）で振り、書類を替えた会社は台帳の数字の書類と提出日も替える。
+1.で消す会社は台帳からも消す（毎日の更新では台帳の行は消えないが、ここで見たいのは
+「1位の会社がデータにいない」ことで、24か月の猶予で外れる形にすると D9 の範囲に入る）。
 """
 
 import csv
 import json
 import sys
 import zlib
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -29,18 +35,20 @@ DATA = ROOT / "pipeline" / "data"
 LOGOS = ROOT / "web" / "public" / "data" / "logos.json"
 
 sys.path.insert(0, str(ROOT / "pipeline" / "salary"))
+sys.path.insert(0, str(ROOT / "pipeline" / "ledger"))
 import unified  # noqa: E402
+import ledger  # noqa: E402
 
-RANKING = DATA / "ranking_unified_2026.csv"
+RANKING = DATA / "ranking_unified.csv"
 
 # edinet_code で引く横持ちデータ。行ごと消すのは1. だけ。
 BY_EDINET = [
     "salary_history.csv",
     "performance_history.csv",
-    "company_summary_2026.csv",
-    "company_analysis_2026.csv",
-    "business_text_2026.csv",
-    "analysis_text_manifest_2026.csv",
+    "company_summary.csv",
+    "company_analysis.csv",
+    "business_text.csv",
+    "analysis_text_manifest.csv",
 ]
 
 
@@ -57,10 +65,6 @@ def write_csv(path, fields, rows):
         w.writerows(rows)
 
 
-def company_id(row):
-    return row["sec_code"] or row["edinet_code"]
-
-
 def factor(edinet_code):
     """会社ごとに決まる倍率。**1.0 にはならない**——名指しされる会社の値も必ず動かす。"""
     h = zlib.crc32(edinet_code.encode())
@@ -68,18 +72,19 @@ def factor(edinet_code):
     return 1 + (step if h & 0x100 else -step) / 100
 
 
-def drop_top(rows):
+def drop_top(rows, book):
     top = max(rows, key=lambda r: r["avg_salary"])
     rows.remove(top)
-    edinet, cid = top["edinet_code"], company_id(top)
+    edinet = top["edinet_code"]
+    cid = book.pop(edinet)["id"]
     for name in BY_EDINET:
         path = DATA / name
         fields, side = read_csv(path)
         write_csv(path, fields, [r for r in side if r["edinet_code"] != edinet])
-    fields, side = read_csv(DATA / "worklife_2026.csv")
-    write_csv(DATA / "worklife_2026.csv", fields, [r for r in side if r["id"] != cid])
-    policies = json.loads((DATA / "pay_policy_2026.json").read_text(encoding="utf-8"))
-    (DATA / "pay_policy_2026.json").write_text(
+    fields, side = read_csv(DATA / "worklife.csv")
+    write_csv(DATA / "worklife.csv", fields, [r for r in side if r["id"] != cid])
+    policies = json.loads((DATA / "pay_policy.json").read_text(encoding="utf-8"))
+    (DATA / "pay_policy.json").write_text(
         json.dumps([p for p in policies if p["edinet_code"] != edinet], ensure_ascii=False, indent=1)
         + "\n",
         encoding="utf-8",
@@ -89,7 +94,7 @@ def drop_top(rows):
         logos["meta"]["withLogo"] -= 1
     logos["meta"]["count"] -= 1
     LOGOS.write_text(json.dumps(logos, ensure_ascii=False) + "\n", encoding="utf-8")
-    return top
+    return top, cid
 
 
 def shift_salaries(rows, history):
@@ -102,8 +107,11 @@ def shift_salaries(rows, history):
             h["avg_salary"] = str(round(float(h["avg_salary"]) * f))
 
 
-def add_companies(rows, history):
-    """新しく載る会社。派生データを持たない会社が混ざっても落ちないことを見る。"""
+def add_companies(rows, history, book, as_of):
+    """新しく載る会社。派生データを持たない会社が混ざっても落ちないことを見る。
+
+    台帳には基準日（取得の窓の終わり）に提出した有報として入れる。
+    """
     by_salary = sorted(rows, key=lambda r: r["avg_salary"])
     latest_year = max(int(h["year"]) for h in history)
     added = []
@@ -123,6 +131,10 @@ def add_companies(rows, history):
         if not listed:
             row["listed"] = "非上場"
         rows.append(row)
+        ledger.admit(
+            book, edinet_code=row["edinet_code"], sec_code=sec, doc_id=row["doc_id"],
+            filed=as_of, as_of=as_of,
+        )
         history.append(
             {
                 **{k: "" for k in history[0]},
@@ -148,13 +160,13 @@ def next_month_end(period_end):
     return f"{y:04d}-{m:02d}-{last:02d}"
 
 
-def newer_period(rows, history):
+def newer_period(rows, history, book, as_of):
     """1社を、いまのいちばん新しい決算期の翌月の決算期の、新しい書類に替える。
 
     選ぶのは給与の決定方針を持たない会社のうち決算期がいちばん新しい会社。いちばん新しい
     決算期の会社は、改正後の様式でほぼ全社が給与の決定方針を持っている。
     """
-    policies = json.loads((DATA / "pay_policy_2026.json").read_text(encoding="utf-8"))
+    policies = json.loads((DATA / "pay_policy.json").read_text(encoding="utf-8"))
     with_policy = {p["edinet_code"] for p in policies}
     original = [r for r in rows if not r["edinet_code"].startswith("E9999")]
     latest = max(r["period_end"] for r in original)
@@ -167,32 +179,40 @@ def newer_period(rows, history):
         if h["edinet_code"] == target["edinet_code"] and h["doc_id"] == target["doc_id"]:
             h["period_end"], h["doc_id"] = new_period, new_doc
     target["period_end"], target["doc_id"] = new_period, new_doc
+    # 数字の書類だけを替える。文章の工程は前の書類のまま（spec 1.5）
+    ledger.admit(
+        book, edinet_code=target["edinet_code"], sec_code=target["sec_code"], doc_id=new_doc,
+        filed=as_of, as_of=as_of,
+    )
     return target
 
 
 def main():
     rows = unified.load_csv(RANKING)
-    top = drop_top(rows)
+    book = ledger.load()
+    universe = json.loads((DATA / "universe.json").read_text(encoding="utf-8"))
+    as_of = date.fromisoformat(universe["filingWindow"]["to"])
+    top, top_id = drop_top(rows, book)
 
     hist_fields, history = read_csv(DATA / "salary_history.csv")
     shift_salaries(rows, history)
-    added = add_companies(rows, history)
-    moved = newer_period(rows, history)
+    added = add_companies(rows, history, book, as_of)
+    moved = newer_period(rows, history, book, as_of)
     write_csv(DATA / "salary_history.csv", hist_fields, history)
+    ledger.save(book)
 
     rows = unified.rebuild_derived(rows)
     unified.save(rows, RANKING)
 
-    universe = json.loads((DATA / "universe.json").read_text(encoding="utf-8"))
     universe["published"] = len(rows)
     (DATA / "universe.json").write_text(
         json.dumps(universe, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
 
-    print(f"消した: {top['name']}（{company_id(top)}）")
-    names = ", ".join(f"{r['name']}（{company_id(r)}）" for r in added)
+    print(f"消した: {top['name']}（{top_id}）")
+    names = ", ".join(f"{r['name']}（{book[r['edinet_code']]['id']}）" for r in added)
     print(f"足した: {names}")
-    print(f"決算期を {moved['period_end']} にした: {moved['name']}（{company_id(moved)}）")
+    print(f"決算期を {moved['period_end']} にした: {moved['name']}（{book[moved['edinet_code']]['id']}）")
     print(f"平均年収を ±1〜9% 動かした: {len(rows)}社")
 
 

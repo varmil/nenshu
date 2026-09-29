@@ -77,7 +77,7 @@ pipeline/scripts/build-data.test.ts                     # 旧式の照合テス�
 `unified.py` に `rebuild_derived()` を切り出し、EDINETから取り直す経路（`build()`）と既存CSVを式に追随させる経路（`--from-csv`）の両方が同じ関数を通るようにした。式が2箇所に分かれると片方だけ直して静かに食い違う。
 
 ```bash
-cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified_2026.csv
+cd pipeline/salary && python3 unified.py --from-csv ../data/ranking_unified.csv
 cd pipeline && npx tsx scripts/build-data.ts --out ../web/public/data
 ```
 

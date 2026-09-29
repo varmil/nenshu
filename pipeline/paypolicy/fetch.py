@@ -24,7 +24,7 @@ HTML なら段落が p 要素のまま残っている。C5・C8 が CSV で足�
 - `employees` — 「従業員の状況」。この Unit では使わない。持株会社の最大人員会社の表が
   ここにあり（spec 1.23 の対象外）、後の Unit が ZIP を取り直さずに済むよう残す
 
-対象は決算期末が2026年3月31日以後の書類（`ranking_unified_2026.csv` の `doc_id`。
+対象は決算期末が2026年3月31日以後の書類（`ranking_unified.csv` の `doc_id`。
 平均年間給与を取ったのと同じ書類）。**それより前の書類にはこの節がそもそも無い**
 （開示府令 第二号様式 記載上の注意 (58-2) の適用時期）。
 """
@@ -45,7 +45,7 @@ sys.path.insert(0, str(ROOT.parent / "salary"))
 import edinet  # noqa: E402
 
 CACHE = ROOT / "cache"
-UNIFIED = ROOT / "../data/ranking_unified_2026.csv"
+UNIFIED = ROOT / "../data/ranking_unified.csv"
 
 # 開示府令の改正（(58-2)・(58-3)）は「2026年3月31日以後に終了する事業年度」から
 FIRST_PERIOD_END = "2026-03-31"
@@ -63,7 +63,7 @@ WORKERS = 3
 
 
 def targets():
-    """決算期末が2026年3月31日以後の書類。`ranking_unified_2026.csv` の並びのまま。"""
+    """決算期末が2026年3月31日以後の書類。`ranking_unified.csv` の並びのまま。"""
     with open(UNIFIED, encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
     return [r for r in rows if r["period_end"] >= FIRST_PERIOD_END]

@@ -1,6 +1,6 @@
 /**
  * 女性活躍DBの全件CSVを、有報の掲載社に法人番号で突合して
- * `pipeline/data/worklife_2026.csv` を作る（W0・Issue #149）。
+ * `pipeline/data/worklife.csv` を作る（W0・Issue #149）。
  *
  *   cd pipeline && npx tsx worklife/extract.ts
  *
@@ -23,13 +23,13 @@ import {
   type WorklifeRecord,
 } from "./positivedb";
 import { parseUnifiedCsv } from "../scripts/lib/csv";
-import { makeId } from "../scripts/lib/slug";
+import { companyIdOf, readLedger } from "../scripts/lib/ledger";
 
 const HERE = resolve(dirname(fileURLToPath(import.meta.url)));
 const PIPELINE = resolve(HERE, "..");
 const SOURCE_DIR = resolve(HERE, "source");
 const MANIFEST = resolve(HERE, "manifest.json");
-const OUT_CSV = resolve(PIPELINE, "data/worklife_2026.csv");
+const OUT_CSV = resolve(PIPELINE, "data/worklife.csv");
 
 /** 出力の列。**注釈は改行・カンマ・引用符を含む**ので、書き出しは `toCsv` を通す。 */
 export const WORKLIFE_HEADER = [
@@ -94,11 +94,13 @@ export function extract() {
 
   // 有報側。突合キーは法人番号だけ（ADR-0009）
   const unified = parseUnifiedCsv(
-    readFileSync(resolve(PIPELINE, "data/ranking_unified_2026.csv"), "utf-8")
+    readFileSync(resolve(PIPELINE, "data/ranking_unified.csv"), "utf-8")
   );
   // **社数は固定しない**（refresh の D0・#870）。毎日の更新で社数は動く。以前は 2,961 で
   // 決め打ちしており、1社動いただけで取り込みが落ちた。空の CSV だけは止める。
-  if (unified.length === 0) throw new Error("ranking_unified_2026.csv に会社がありません");
+  if (unified.length === 0) throw new Error("ranking_unified.csv に会社がありません");
+  // 企業 ID は更新台帳から引く（refresh の D2・ADR-0017）
+  const ledger = readLedger();
   const idByNumber = new Map<string, string>();
   for (const row of unified) {
     if (!row.corporateNumber) {
@@ -107,7 +109,7 @@ export function extract() {
           `先に unified.py --backfill-corporate-number を回す（ADR-0009）`
       );
     }
-    idByNumber.set(row.corporateNumber, makeId(row));
+    idByNumber.set(row.corporateNumber, companyIdOf(ledger, row));
   }
 
   // 女性活躍DB側。要る掲載社ぶんだけ拾い、残りはその場で捨てる
@@ -156,7 +158,7 @@ export function extract() {
       filled.paidLeave++;
     if (record.wageGapAll !== null) filled.wageGap++;
     if (record.wageGapNote !== "") filled.note++;
-    rows.push(toRow(makeId(row), record));
+    rows.push(toRow(companyIdOf(ledger, row), record));
   }
 
   writeFileSync(OUT_CSV, toCsv([[...WORKLIFE_HEADER], ...rows]), "utf-8");
