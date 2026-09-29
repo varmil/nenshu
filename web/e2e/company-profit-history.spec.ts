@@ -35,12 +35,11 @@ async function rows(page: Page): Promise<string[][]> {
 
 /** 最新年の稼ぐ力・従業員数・経常利益がそろい、増減の1文が出る会社。 */
 const LATEST = pickCompany("稼ぐ力の推移の最新年がそろった会社", ([id]) => {
-  const last = profitHistory.years.length - 1;
   const profit = profitHistory.profit[id];
   return (
-    profit?.[last] != null &&
-    profitHistory.employees[id]?.[last] != null &&
-    profitHistory.income[id]?.[last] != null &&
+    profit?.at(-1) != null &&
+    profitHistory.employees[id]?.at(-1) != null &&
+    profitHistory.income[id]?.at(-1) != null &&
     profit.filter((v) => v !== null).length >= 2
   );
 });

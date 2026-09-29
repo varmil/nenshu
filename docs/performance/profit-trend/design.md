@@ -19,7 +19,7 @@ Issue: [#168](https://github.com/varmil/nenshu/issues/168) ／ 親 [#154](https:
 
 ## 年の範囲は平均年収の推移に合わせる
 
-CSV には**2013年まで**入っている——2017年の書類が5期ぶんの経常利益を持つため。だが `profit-history.json` は `history.json` と同じ **2017〜2026年の10年**にそろえてある。
+CSV には**2013年まで**入っている——2017年の書類が5期ぶんの経常利益を持つため。だが `profit-history.json` は `history.json` と同じ**10年**にそろえてある。**refresh の D5（#875）から、この10年は会社ごとの窓**（その会社の平均年収の推移の右端から数えた10年）で、右端は `history.json` の `endById` だけが持つ（`docs/refresh/history-window/design.md`）。P2 の時点では全社共通の2017〜2026年だった。
 
 **この節は平均年収推移の直後に置いて同じ10年を見比べるためのもの**（アートボード 6e）で、片方だけ14本の棒になると横軸が揃わない。2016年以前は分母（従業員数）も無い。
 
@@ -119,7 +119,7 @@ HTML の増分（`next start` に対して測った raw サイズ。**gzip 後�
 | --- | --- |
 | `pipeline/performance/extract.py` | 要素名をローカル名で見る・経常収益を弾く |
 | `pipeline/scripts/lib/csv.ts` | `PerformanceHistoryRow` に従業員数を追加 |
-| `pipeline/scripts/build-data.ts` | `buildProfitHistory()`。年の範囲は `history.years` に合わせる |
+| `pipeline/scripts/build-data.ts` | `buildProfitHistory()`。窓は `history.json` の同じ会社の窓（`endById`）に合わせる |
 | `web/features/company/lib/profitHistory.ts` | 億円の書式・全角マイナス・増減の1文 |
 | `web/features/company/components/YearlyBarChart.tsx` | 平均年収推移と共用（`SalaryHistoryChart` から改名） |
 | `web/features/company/components/ProfitHistoryTable.tsx` | 4列の表 |

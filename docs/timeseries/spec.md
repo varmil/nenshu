@@ -11,6 +11,7 @@
 金融庁 EDINET の有価証券報告書（`docTypeCode=120`）から、**提出会社単体の平均年間給与**を10年ぶん取る。
 
 - 対象期間: 2017年〜2026年の**各暦年に提出されたもの**
+- **画面に出すのは会社ごとにその会社の直近10年**（refresh の D5・#875・`docs/refresh/spec.md` 1.10 で改めた）。窓の右端はその会社の推移で値のある最新の年で、有報が出た日にその会社の窓だけが1年ずれる。全社共通の年の範囲は持たない
 - 対象会社: **現行の `ranking_unified.csv` に載る1,867社**（`edinet_code` で絞る）
 - 取得形式: CSV形式（`type=5`）。XBRL完全パッケージは使わない（1件73KBに収まるため）
 
@@ -28,13 +29,16 @@
 
 ```
 {
-  "years": [2017, ..., 2026],
-  "byId": { "<企業ID>": [値 or null, ...] },     // years と同じ並び・同じ長さ
+  "endById": { "<企業ID>": 2026, ... },            // 窓の右端（refresh の D5）
+  "byId": { "<企業ID>": [値 or null, ...] },     // 右端から数えた10年の並び
   "ageById": { "<企業ID>": [歳 or null, ...] },  // byId と同じ会社・同じ並び（T3）
   "tenureById": { "<企業ID>": [年 or null, ...] }, // byId と同じ会社・同じ並び（T4）
-  "tenureIndustryMedian": [[年 or null, ...], ...] // companies.json の industries と同じ並び（T4）
+  "medianYears": [2016, ..., 2026],                // 全社の窓を覆う連続した年（D5）
+  "tenureIndustryMedian": [[年 or null, ...], ...] // companies.json の industries と同じ並び。各配列は medianYears にそろう（T4）
 }
 ```
+
+D5 の前は全社共通の `"years": [2017, ..., 2026]` を持ち、配列はその並びだった。
 
 - キーは**企業ID**（証券コード／EDINETコード。ADR-0006）。`companies.json` の `id` と一致させる
 - 値は円・整数。**その年の値が無ければ `null`**

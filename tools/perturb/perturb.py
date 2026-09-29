@@ -14,6 +14,9 @@
 4. 決算期がいちばん新しい会社の1社を、翌月の決算期の新しい書類に替える。**替えるのは
    数字の書類だけ**で、説明文・要約と分析・給与の決定方針は前の書類のまま残す——毎日の
    更新で実際に起きる「数字は新しく、文章は前の期」の会社になる（refresh の D3）
+5. 1社が翌年（推移のいちばん新しい年の次の年）の有報を出す。**その会社の推移の窓だけが
+   1年進み**、ほかの会社の窓は変わらない（refresh の D5・AC-9）。取得の窓の終わり
+   （`universe.json` の `filingWindow.to`）もその提出日まで進める
 
 **揺らさないもの。** 掲載から外れた会社の横持ちデータの行（D9 が扱う）。D0 の範囲の外で、
 ここで触るとそちらの失敗が混ざる。
@@ -191,6 +194,45 @@ def newer_period(rows, history, book, as_of):
     return target
 
 
+def next_year_filing(rows, history, book, skip):
+    """1社が、推移のいちばん新しい年の次の年に有報を出す（refresh の D5・AC-9）。
+
+    選ぶのは推移が窓の両端（いちばん古い年と新しい年）に値を持つ会社——窓が1年進んで左端の年が
+    落ちることまで見える。値は前の年の行を3%動かしたもので、ランキングの行も同じ書類・同じ値に替える。
+    返すのは替えた会社と提出日（翌年の1月末）。
+    """
+    latest_year = max(int(h["year"]) for h in history)
+    years_of = {}
+    for h in history:
+        years_of.setdefault(h["edinet_code"], set()).add(int(h["year"]))
+    target = min(
+        (
+            r
+            for r in rows
+            if not r["edinet_code"].startswith("E9999")
+            and r["edinet_code"] != skip
+            and {latest_year, latest_year - 9} <= years_of.get(r["edinet_code"], set())
+        ),
+        key=lambda r: r["edinet_code"],
+    )
+    filed = date(latest_year + 1, 1, 29)
+    # 12月期の有報は翌年の3月までに出る。提出した暦年が推移の年になる
+    new_period, new_doc = f"{latest_year}-12-31", "S1ZZZZ10"
+    last = next(
+        h for h in history if h["edinet_code"] == target["edinet_code"] and int(h["year"]) == latest_year
+    )
+    salary = round(float(last["avg_salary"]) * 1.03)
+    history.append(
+        {**last, "year": str(latest_year + 1), "avg_salary": str(salary), "period_end": new_period, "doc_id": new_doc}
+    )
+    target.update(avg_salary=float(salary), period_end=new_period, doc_id=new_doc)
+    ledger.admit(
+        book, edinet_code=target["edinet_code"], sec_code=target["sec_code"], doc_id=new_doc,
+        filed=filed, as_of=filed,
+    )
+    return target, filed
+
+
 def main():
     rows = unified.load_csv(RANKING)
     book = ledger.load()
@@ -202,6 +244,7 @@ def main():
     shift_salaries(rows, history)
     added = add_companies(rows, history, book, as_of)
     moved = newer_period(rows, history, book, as_of)
+    advanced, filed = next_year_filing(rows, history, book, moved["edinet_code"])
     write_csv(DATA / "salary_history.csv", hist_fields, history)
     ledger.save(book)
 
@@ -209,6 +252,8 @@ def main():
     unified.save(rows, RANKING)
 
     universe["published"] = len(rows)
+    # 5. の提出日まで、書類一覧を読んだことにする（出る条件の基準日もここ）
+    universe["filingWindow"] = {"from": ledger.add_months(filed, -12).isoformat(), "to": filed.isoformat()}
     (DATA / "universe.json").write_text(
         json.dumps(universe, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -218,6 +263,9 @@ def main():
     print(f"足した: {names}")
     print(f"決算期を {moved['period_end']} にした: {moved['name']}（{book[moved['edinet_code']]['id']}）")
     print(f"平均年収を ±1〜9% 動かした: {len(rows)}社")
+    print(
+        f"翌年（{filed.year}年）の有報を出した: {advanced['name']}（{book[advanced['edinet_code']]['id']}）"
+    )
 
 
 if __name__ == "__main__":

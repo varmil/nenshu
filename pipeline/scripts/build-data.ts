@@ -10,6 +10,7 @@ import { checkStageDocs, readLedger, selectUniverse, type Ledger } from "./lib/l
 import { toAnalysisRecord, type AnalysisRecord } from "./lib/analysis";
 import { filingRef, type FilingRef } from "./lib/filing";
 import { toPayPolicyRecord, type PayPolicyRecord, type PayPolicyRow } from "./lib/payPolicy";
+import { HISTORY_SPAN, coveringYears, indexInWindow, windowEnds } from "./lib/historyWindow";
 import { estimateSalary } from "../../web/features/ranking/lib/salary";
 import { ranks, representativeValue } from "../../web/features/company/lib/radar";
 import { curveValuesInYen } from "../../web/features/ranking/lib/curve";
@@ -305,7 +306,7 @@ export function buildData(outDir: string) {
   const worklife = buildWorklife(companyRows);
   const performance = buildPerformance(rows, industries);
   const radar = buildRadar(rows, companyRows, performance);
-  const profitHistory = buildProfitHistory(rows, companyRows, history.years);
+  const profitHistory = buildProfitHistory(rows, companyRows, history.endById);
   const summaries = buildSummaries(rows, companyRows);
   const analyses = buildAnalyses(rows, companyRows);
   const filings = buildFilings(rows, companyRows);
@@ -645,21 +646,25 @@ function buildRadar(
 function buildProfitHistory(
   rows: ReturnType<typeof parseUnifiedCsv>,
   companyRows: readonly (readonly (string | number)[])[],
-  years: readonly number[]
+  endById: Readonly<Record<string, number>>
 ) {
   const csvPath = resolve(ROOT, "data/performance_history.csv");
   const historyRows = parsePerformanceHistoryCsv(readFileSync(csvPath, "utf-8"));
 
   /*
-   * **年の範囲は平均年収の推移（`history.json`）に合わせる。**
+   * **窓は平均年収の推移（`history.json`）と同じ会社ごとの10年にそろえる**（refresh の D5）。
    *
-   * CSV には2013年まで入っている——2017年の書類が5期ぶんの経常利益を持つため。
-   * だが**従業員数はその年の書類の当期からしか取れない**ので、2016年以前は
-   * 分母が無く稼ぐ力が出ない。それ以上に、**この節は平均年収推移の直後に置いて
-   * 同じ10年を見比べるためのもの**（アートボード 6e）で、片方だけ14本の棒に
-   * なると横軸が揃わない。
+   * CSV には窓より古い年も入っている——1書類が5期ぶんの経常利益を持つため（2017年の書類なら
+   * 2013年まで）。だが**従業員数はその年の書類の当期からしか取れない**ので、書類の無い年は
+   * 分母が無く稼ぐ力が出ない。それ以上に、**この節は平均年収推移と同じ10年を見比べるためのもの**
+   * （アートボード 6e）で、片方だけ窓がずれると横軸が揃わない。**窓の右端は `history.json` の
+   * `endById` だけが持つ**（画面は同じ年を3つの推移に渡す）。
    */
-  const yearIndex = new Map(years.map((y, i) => [y, i]));
+  const endByCode = new Map<string, number>();
+  rows.forEach((row, i) => {
+    const end = endById[companyRows[i][0] as string];
+    if (end !== undefined) endByCode.set(row.edinetCode, end);
+  });
 
   type Series = {
     profit: (number | null)[];
@@ -668,17 +673,19 @@ function buildProfitHistory(
   };
   const byEdinetCode = new Map<string, Series>();
   for (const row of historyRows) {
+    const end = endByCode.get(row.edinetCode);
+    if (end === undefined) continue;
+    const i = indexInWindow(end, row.year);
+    if (i === -1) continue;
     let series = byEdinetCode.get(row.edinetCode);
     if (series === undefined) {
       series = {
-        profit: new Array<number | null>(years.length).fill(null),
-        income: new Array<number | null>(years.length).fill(null),
-        employees: new Array<number | null>(years.length).fill(null),
+        profit: new Array<number | null>(HISTORY_SPAN).fill(null),
+        income: new Array<number | null>(HISTORY_SPAN).fill(null),
+        employees: new Array<number | null>(HISTORY_SPAN).fill(null),
       };
       byEdinetCode.set(row.edinetCode, series);
     }
-    const i = yearIndex.get(row.year);
-    if (i === undefined) continue;
     series.income[i] = row.ordinaryIncome;
     // 連結が無い年は単体で代用する（P0 と同じ規則）。
     const employees = row.employeesConsolidated ?? row.employeesNonConsolidated;
@@ -700,7 +707,7 @@ function buildProfitHistory(
     employees[id] = series.employees;
   });
 
-  return { years: [...years], profit, income, employees };
+  return { profit, income, employees };
 }
 
 /** 中央値。偶数個なら中央2つの平均。 */
@@ -937,7 +944,10 @@ function buildPayPolicies(
  * **その年の有報が無ければ `null` を入れる。前後から内挿しない**（spec AC-4）。
  * 欠けていること自体を企業詳細ページで見せるため。
  *
- * 全年 `null` の会社はキーごと落とす。1,867社ぶんの空配列を配る意味がない。
+ * **窓は会社ごとの直近10年**（refresh の D5・#875・`docs/refresh/history-window/design.md`）。
+ * 右端（`endById`）はその会社の推移で値のある最新の年で、配列はそこから数えた10年ぶん。
+ * 窓より古い年の行は出さない。全社共通の `years` は持たない——会社ごとに年が違うので、
+ * 共通の年の並びで引くと別の年の値を読む。
  *
  * **平均年齢（`ageById`）も同じ行から取る**（T3・#827・spec AC-15）。平均年収と同じ書類の
  * 「従業員の状況」の値なので、別のファイルに分けない——分けると片方だけの会社や年を作れる。
@@ -951,7 +961,8 @@ function buildPayPolicies(
  * 無い書類があり（1行）、その年は在籍年数だけが `null` になる（平均年収の無い年は両方 `null`）。
  *
  * **業種の中央値（`tenureIndustryMedian`）はここで1回だけ数える**（spec AC-18）。並びは
- * `companies.industries` と同じ（`performance.json` の `industryMedian` と同じ引き方）。
+ * `companies.industries` と同じ（`performance.json` の `industryMedian` と同じ引き方）で、
+ * 各業種の配列は `medianYears`（全社の窓を覆う年）にそろえる。
  *
  * **`/` はこれを読まない。** 企業詳細ページだけが読む（Issue #22）。
  */
@@ -962,63 +973,110 @@ function buildHistory(
 ) {
   const csvPath = resolve(ROOT, "data/salary_history.csv");
   const historyRows = parseSalaryHistoryCsv(readFileSync(csvPath, "utf-8"));
-
-  const years = Array.from(new Set(historyRows.map((r) => r.year))).sort((a, b) => a - b);
-  const yearIndex = new Map(years.map((y, i) => [y, i]));
-
-  // edinet_code → その会社の年次配列（平均年収・平均年齢・在籍年数を同じ添字で持つ）
-  type Series = {
-    salary: (number | null)[];
-    age: (number | null)[];
-    tenure: (number | null)[];
-  };
-  const empty = () => new Array<number | null>(years.length).fill(null);
-  const byEdinetCode = new Map<string, Series>();
   for (const row of historyRows) {
     if (row.avgAge === null) {
       throw new Error(
         `data/salary_history.csv の ${row.edinetCode} ${row.year}年に平均年収はあるが平均年齢がありません`
       );
     }
+  }
+  const ends = windowEnds(historyRows);
+  checkWindowEnds(rows, historyRows, ends);
+
+  // edinet_code → その会社の窓の配列（平均年収・平均年齢・在籍年数を同じ添字で持つ）
+  type Series = {
+    salary: (number | null)[];
+    age: (number | null)[];
+    tenure: (number | null)[];
+  };
+  const empty = () => new Array<number | null>(HISTORY_SPAN).fill(null);
+  const byEdinetCode = new Map<string, Series>();
+  for (const row of historyRows) {
+    const k = indexInWindow(ends.get(row.edinetCode)!, row.year);
+    // 窓より古い年は出さない（右端から数えて10年より前）
+    if (k === -1) continue;
     let series = byEdinetCode.get(row.edinetCode);
     if (series === undefined) {
       series = { salary: empty(), age: empty(), tenure: empty() };
       byEdinetCode.set(row.edinetCode, series);
     }
-    const k = yearIndex.get(row.year)!;
     series.salary[k] = row.avgSalary;
     series.age[k] = row.avgAge;
     series.tenure[k] = row.avgTenure;
   }
 
   // 企業ID に移し替える。companies.json と同じ順・同じIDで引けるようにする。
+  const endById: Record<string, number> = {};
   const byId: Record<string, (number | null)[]> = {};
   const ageById: Record<string, (number | null)[]> = {};
   const tenureById: Record<string, (number | null)[]> = {};
-  // 業種の添字 → 年 → その年に在籍年数を持つ会社の値
-  const tenureByIndustry = industries.map(() => years.map((): number[] => []));
   rows.forEach((row, i) => {
     const series = byEdinetCode.get(row.edinetCode);
-    if (series === undefined || series.salary.every((v) => v === null)) return;
+    if (series === undefined) return;
     const id = companyRows[i][0] as string;
+    endById[id] = ends.get(row.edinetCode)!;
     byId[id] = series.salary;
     ageById[id] = series.age;
     tenureById[id] = series.tenure;
-    const industry = companyRows[i][2] as number;
-    series.tenure.forEach((v, k) => {
-      if (v !== null) tenureByIndustry[industry][k].push(v);
-    });
   });
 
+  /*
+   * **業種の中央値は年ごとに、その年に値を持つ会社で数える**（spec 1.10・AC-18）。会社の窓とは
+   * 関係なく CSV の行から数える——中央値はその年の性質で、どの会社の窓に入るかでは変わらない。
+   * 並べる年は全社の窓を覆う範囲（`medianYears`）で、画面は会社の窓の年だけを引く。
+   */
+  const medianYears = coveringYears(Object.values(endById));
+  const yearIndex = new Map(medianYears.map((y, k) => [y, k]));
+  const industryOf = new Map(rows.map((row, i) => [row.edinetCode, companyRows[i][2] as number]));
+  // 業種の添字 → 年 → その年に在籍年数を持つ会社の値
+  const tenureByIndustry = industries.map(() => medianYears.map((): number[] => []));
+  for (const row of historyRows) {
+    const industry = industryOf.get(row.edinetCode);
+    const k = yearIndex.get(row.year);
+    if (industry === undefined || k === undefined || row.avgTenure === null) continue;
+    tenureByIndustry[industry][k].push(row.avgTenure);
+  }
+
   return {
-    years,
+    endById,
     byId,
     ageById,
     tenureById,
+    medianYears,
     tenureIndustryMedian: tenureByIndustry.map((byYear) =>
       byYear.map((values) => tenureIndustryMedian(values))
     ),
   };
+}
+
+/**
+ * **窓の右端の行は、数字の書類の行でなければならない**（refresh の D5）。
+ *
+ * 右端は推移で値のある最新の年なので、推移にだけ新しい書類の行が入ると（`history.py` を取得の窓の
+ * 終わりより後の書類一覧で回した等）、ランキングの数字より新しい年が推移の右端に出る。逆に数字の
+ * 書類の行が推移に無ければ、ランキングと推移の最新の年が食い違う。どちらも黙って出ると気づけない。
+ */
+function checkWindowEnds(
+  rows: ReturnType<typeof parseUnifiedCsv>,
+  historyRows: readonly { edinetCode: string; year: number; docId: string }[],
+  ends: ReadonlyMap<string, number>
+): void {
+  const endDoc = new Map<string, string>();
+  for (const row of historyRows) {
+    if (row.year === ends.get(row.edinetCode)) endDoc.set(row.edinetCode, row.docId);
+  }
+  const off = rows.filter(
+    (row) => endDoc.has(row.edinetCode) && endDoc.get(row.edinetCode) !== row.docId
+  );
+  if (off.length > 0) {
+    throw new Error(
+      `推移の最新の年の書類が、数字の書類（ranking_unified.csv の doc_id）と違う会社が ${off.length}社あります: ` +
+        off
+          .slice(0, 5)
+          .map((row) => `${row.edinetCode} ${row.docId} ≠ ${endDoc.get(row.edinetCode)}`)
+          .join(", ")
+    );
+  }
 }
 
 /**
@@ -1311,9 +1369,19 @@ if (isMain) {
   // **母集団に対する割合を添える**（E2・AC-8）。社数だけだと、母集団が広がった
   // ときに「追随していない施策がどれだけ欠けているか」が読み取れない。
   const total = result.companies.meta.count;
+  // **窓の右端ごとの社数を出す**（refresh の D5）。有報が出た会社から右端が1年ずつ進むので、
+  // 毎日の更新でどれだけの会社が新しい年に移ったかがここで読める。
+  const endCounts = new Map<number, number>();
+  for (const end of Object.values(result.history.endById)) {
+    endCounts.set(end, (endCounts.get(end) ?? 0) + 1);
+  }
+  const endsLabel = [...endCounts]
+    .sort(([a], [b]) => b - a)
+    .map(([end, n]) => `${end}年 ${n}社`)
+    .join("・");
   console.log(
     `${result.historyPath}: ${coverage(Object.keys(result.history.byId).length, total)} × ` +
-      `${result.history.years.length}年, gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
+      `${HISTORY_SPAN}年（右端 ${endsLabel}）, gzip ${(result.historyGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
     `${result.worklifePath}: ${coverage(result.worklife.meta.matched, total)}, ` +
@@ -1330,7 +1398,7 @@ if (isMain) {
   );
   console.log(
     `${result.profitHistoryPath}: ${coverage(Object.keys(result.profitHistory.profit).length, total)} × ` +
-      `${result.profitHistory.years.length}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
+      `${HISTORY_SPAN}年, gzip ${(result.profitHistoryGzipSize / 1024).toFixed(1)}KB`
   );
   console.log(
     `${result.summariesPath}: ${coverage(Object.keys(result.summaries.byId).length, total)}, ` +

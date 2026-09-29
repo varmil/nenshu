@@ -3,6 +3,11 @@ import { buildWorklifeView, unitLabel } from "@/features/company/lib/worklife";
 import { buildSummaryView, type SummaryView } from "@/features/company/lib/summary";
 import { decodeWorklife, type WorklifeData, type WorklifeRecord } from "@/lib/data/worklife";
 import { representative } from "@/features/company/lib/radar";
+import {
+  historyWindowYears,
+  type HistoryData,
+  type ProfitHistoryData,
+} from "@/features/company/lib/historyWindow";
 import type {
   CompanyRadarInput,
   PerformanceData,
@@ -52,16 +57,7 @@ const stats = statsData as CompanyStatsData;
  * 1,867社ぶんを既に抱えており、ここを足す理由がない（Issue #22・timeseries spec 3.）。
  * 渡すのは当該1社ぶんの10件だけ。
  */
-const history = historyData as {
-  years: number[];
-  byId: Record<string, (number | null)[]>;
-  /** 平均年齢（T3・#827）。`byId` と同じ会社・同じ年に値を持つ。 */
-  ageById: Record<string, (number | null)[]>;
-  /** 在籍年数（T4・#835）。`byId` と同じ会社を持ち、平均年収の無い年は `null`。 */
-  tenureById: Record<string, (number | null)[]>;
-  /** 在籍年数の業種の中央値（T4）。`companies.industries` と同じ並び。 */
-  tenureIndustryMedian: (number | null)[][];
-};
+const history = historyData as HistoryData;
 
 /**
  * 働きやすさ指標（W1・Issue #150）。**推移と同じくここだけが import する**
@@ -86,12 +82,7 @@ const performance = performanceData as unknown as PerformanceData;
  * 稼ぐ力の10年推移（P2・Issue #168）。**`app/page.tsx` からは読まない**
  * ——渡すのは当該1社ぶんだけ（Issue #22）。
  */
-const profitHistory = profitHistoryData as unknown as {
-  years: number[];
-  profit: Record<string, (number | null)[]>;
-  income: Record<string, (number | null)[]>;
-  employees: Record<string, (number | null)[]>;
-};
+const profitHistory = profitHistoryData as unknown as ProfitHistoryData;
 
 const logoIds = logosData.byId as Record<string, unknown>;
 
@@ -131,10 +122,18 @@ function logoIdsOnPage(view: CompanyView): string[] {
   return [...ids].filter((id) => logoIds[id]);
 }
 
+/**
+ * その会社の推移の窓の年（refresh の D5・#875）。**3つの推移（平均年収・在籍年数・稼ぐ力）に
+ * 同じ年を渡す**——片方だけ窓がずれると、縦に並んだ図の横軸がそろわない。
+ */
+function historyYearsFor(id: string): number[] {
+  return historyWindowYears(history.endById[id]);
+}
+
 function historyFor(id: string): SalaryHistory | null {
   const values = history.byId[id];
   if (values === undefined) return null;
-  return { years: history.years, values, ages: history.ageById[id] };
+  return { years: historyYearsFor(id), values, ages: history.ageById[id] };
 }
 
 /**
@@ -147,10 +146,13 @@ function tenureHistoryFor(id: string): TenureHistory | null {
   const values = history.tenureById[id];
   if (values === undefined || values.every((v) => v === null)) return null;
   const row = companies.rows[findRowIndex(companies, id)];
+  const years = historyYearsFor(id);
+  // 中央値は全社の窓を覆う年で持っているので、この会社の窓の年だけを引く
+  const medians = history.tenureIndustryMedian[row[2] as number];
   return {
-    years: history.years,
+    years,
     values,
-    industryMedian: history.tenureIndustryMedian[row[2] as number],
+    industryMedian: years.map((year) => medians[history.medianYears.indexOf(year)] ?? null),
   };
 }
 
@@ -159,7 +161,7 @@ function profitHistoryFor(id: string): ProfitHistory | null {
   const profit = profitHistory.profit[id];
   if (profit === undefined) return null;
   return {
-    years: profitHistory.years,
+    years: historyYearsFor(id),
     profit,
     income: profitHistory.income[id] ?? [],
     employees: profitHistory.employees[id] ?? [],

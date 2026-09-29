@@ -40,9 +40,11 @@ web/public/data/
 ### `web/public/data/history.json`
 
 ```
-{ "years": [2017, …, 2026], "byId": { "<企業ID>": [値 or null, …] }, "ageById": { … },
-  "tenureById": { … }, "tenureIndustryMedian": [[…], …] }
+{ "endById": { "<企業ID>": 2026, … }, "byId": { "<企業ID>": [値 or null, …] }, "ageById": { … },
+  "tenureById": { … }, "medianYears": [2016, …, 2026], "tenureIndustryMedian": [[…], …] }
 ```
+
+**配列は会社ごとの窓（右端 `endById` から数えた10年）の並び**（refresh の D5・`docs/refresh/history-window/design.md`）。T0 から D5 までは全社共通の `years`（2017〜2026）の並びだった。
 
 キーは `companies.json` の `id`（証券コード／EDINETコード）。値は円・整数、無い年は `null`。
 gzip **99.6KB**（予算150KB。T0 当時は 65.6KB）。**`/` は読まない**（Issue #22）。

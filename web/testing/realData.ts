@@ -30,28 +30,30 @@ import type { CompanyStatsData } from "@/features/company/types";
 import type { PerformanceData, RadarData } from "@/features/company/lib/radar";
 import type { WorklifeData } from "@/lib/data/worklife";
 import type { AnalysisRecord } from "@/features/company/lib/analysis";
+import {
+  historyWindowYears,
+  type HistoryData,
+  type ProfitHistoryData,
+} from "@/features/company/lib/historyWindow";
 import type { PayPolicyRecord } from "@/features/company/lib/payPolicy";
 import type { FilingRef } from "@/lib/data/sources";
 
 export const companies = companiesJson as CompaniesData;
 export const curves = curvesJson as CurvesData;
 export const stats = statsJson as CompanyStatsData;
-export const history = historyJson as {
-  years: number[];
-  byId: Record<string, (number | null)[]>;
-  ageById: Record<string, (number | null)[]>;
-  tenureById: Record<string, (number | null)[]>;
-  tenureIndustryMedian: (number | null)[][];
-};
+export const history = historyJson as HistoryData;
 export const worklife = worklifeJson as unknown as WorklifeData;
 export const radar = radarJson as unknown as RadarData;
 export const performance = performanceJson as unknown as PerformanceData;
-export const profitHistory = profitHistoryJson as unknown as {
-  years: number[];
-  profit: Record<string, (number | null)[]>;
-  income: Record<string, (number | null)[]>;
-  employees: Record<string, (number | null)[]>;
-};
+export const profitHistory = profitHistoryJson as unknown as ProfitHistoryData;
+
+/**
+ * その会社の推移の窓の年（refresh の D5）。3つの推移（平均年収・在籍年数・稼ぐ力）の配列は
+ * どれもこの年にそろう。**全社共通の年は無い**——会社ごとに右端が違う。
+ */
+export function historyYearsOf(id: string): number[] {
+  return historyWindowYears(history.endById[id]);
+}
 export const logos = logosJson as {
   meta: { count: number; withLogo: number };
   byId: Record<string, unknown>;

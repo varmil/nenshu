@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { history, pickCompany } from "@/testing/realData";
+import { history, historyYearsOf, pickCompany } from "@/testing/realData";
 import { buildHistoryTable, formatRate, historyBaseYear } from "./historyTable";
 
 function tableFor(id: string) {
   return buildHistoryTable({
-    years: history.years,
+    years: historyYearsOf(id),
     values: history.byId[id],
     ages: history.ageById[id],
   });
@@ -26,10 +26,10 @@ function innerGap(id: string): [number, number] | null {
 describe("buildHistoryTable", () => {
   it("10年ぶんの行を年の並びのまま返し、基準年の行は累積を持たない", () => {
     const { rows, baseYear } = tableFor("6861");
-    expect(rows.map((row) => row.year)).toEqual(history.years);
+    expect(rows.map((row) => row.year)).toEqual(historyYearsOf("6861"));
     // 基準年はその会社で最初に値のある年。
     const base = history.byId["6861"].findIndex((value) => value !== null);
-    expect(baseYear).toBe(history.years[base]);
+    expect(baseYear).toBe(historyYearsOf("6861")[base]);
     expect(rows[base].cumulative).toBeNull();
   });
 
