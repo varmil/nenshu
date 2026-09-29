@@ -157,6 +157,91 @@ test.describe("AC-13 年収バー", () => {
     await expect(rows(page).first()).not.toContainText("Ｍ＆Ａキャピタルパートナーズ");
     expect(await barWidth(page, 0)).toBe(100);
   });
+
+  /*
+   * **全体平均の縦線が目に見えること。** 以前は棒の器の中に `--foreground` の40%で
+   * 引いていて、平均を上回る行では塗りに重なり、ライトではほとんど見えなかった
+   * （運営者の指摘）。高さも棒と同じ（モバイルは3px）しかなかった。
+   *
+   * 寸法や色の値は写さず、見えるための条件を2つ見る——**棒の上下にはみ出している**
+   * ことと、**はみ出したぶんが載る行の地に対して3:1以上**（WCAG 1.4.11 の非テキストの
+   * 基準）であること。2つそろえば塗りの色によらず見える。2ページ目を使うのは、
+   * 全行が平均を上回り、縦線が必ず塗りの上に来るため。
+   */
+  test("全体平均の縦線は棒の上下にはみ出し、行の地に対して3:1以上ある（PC・モバイル × ライト・ダーク）", async ({
+    page,
+  }) => {
+    for (const colorScheme of ["light", "dark"] as const) {
+      for (const viewport of [
+        { width: 1280, height: 900 },
+        { width: 390, height: 844 },
+      ]) {
+        const label = `${colorScheme} ${viewport.width}px`;
+        await page.emulateMedia({ colorScheme });
+        await page.setViewportSize(viewport);
+        await page.goto("/?page=2");
+
+        const ticks = await page.evaluate(() => {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+          // 算出色は色空間がまちまち（lab() 等）なので canvas に塗って sRGB で読む。
+          // 地を塗ってから重ねるので、半透明の色でも見えている色で比べられる。
+          const paint = (...layers: string[]) => {
+            ctx.clearRect(0, 0, 1, 1);
+            for (const color of layers) {
+              ctx.fillStyle = color;
+              ctx.fillRect(0, 0, 1, 1);
+            }
+            return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+          };
+          const composite = (fg: string, bg: string) => paint(bg, fg).slice(0, 3);
+          const isOpaque = (color: string) => paint(color)[3] === 255;
+          const luminance = ([r, g, b]: number[]) => {
+            const c = (v: number) => {
+              const x = v / 255;
+              return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * c(r) + 0.7152 * c(g) + 0.0722 * c(b);
+          };
+          // 行の地＝縦線の祖先で最初に不透明な背景を持つ要素の色。
+          const groundOf = (el: Element) => {
+            for (let e: Element | null = el.parentElement; e; e = e.parentElement) {
+              const bg = getComputedStyle(e).backgroundColor;
+              if (isOpaque(bg)) return bg;
+            }
+            return getComputedStyle(document.body).backgroundColor;
+          };
+
+          return Array.from(document.querySelectorAll("[data-mean-line]"))
+            .filter((el) => el.getClientRects().length > 0)
+            .slice(0, 5)
+            .map((tick) => {
+              const bar = tick.parentElement!.getBoundingClientRect();
+              const box = tick.getBoundingClientRect();
+              const ground = groundOf(tick.parentElement!);
+              const a = luminance(composite(getComputedStyle(tick).backgroundColor, ground));
+              const b = luminance(paint(ground).slice(0, 3));
+              const [hi, lo] = a > b ? [a, b] : [b, a];
+              return {
+                above: bar.top - box.top,
+                below: box.bottom - bar.bottom,
+                inside: box.left >= bar.left - 2 && box.right <= bar.right + 2,
+                ratio: (hi + 0.05) / (lo + 0.05),
+              };
+            });
+        });
+
+        expect(ticks.length, label).toBeGreaterThan(0);
+        for (const tick of ticks) {
+          expect(tick.above, `${label} 上へのはみ出し`).toBeGreaterThan(0);
+          expect(tick.below, `${label} 下へのはみ出し`).toBeGreaterThan(0);
+          expect(tick.inside, `${label} 棒の幅の中`).toBe(true);
+          expect(tick.ratio, `${label} 行の地とのコントラスト`).toBeGreaterThanOrEqual(3);
+        }
+      }
+    }
+  });
 });
 
 test.describe("AC-14 偏差値", () => {

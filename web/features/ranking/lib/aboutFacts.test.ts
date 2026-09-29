@@ -3,6 +3,8 @@ import { buildAboutFacts } from "./aboutFacts";
 import { formatManYen1 } from "./format";
 import companiesData from "../../../public/data/companies.json";
 import curvesData from "../../../public/data/curves.json";
+import statsData from "../../../public/data/stats.json";
+import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { CompaniesData, CurvesData } from "../types";
 
 const companies = companiesData as CompaniesData;
@@ -162,6 +164,21 @@ describe("表示基準の節に使う数値", () => {
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
     expect(facts.population.rawMean).toBe(Math.round(mean));
     expect(Math.round(facts.population.rawMean / 10000)).toBe(693);
+  });
+
+  /*
+   * 偏差値が100を超えうることの実例。以前は本文に「35歳そろえのキーエンスで150.0」と
+   * 直書きしていて、母集団を広げた（E2）後も古い値のままだった。ランキングの1行目と
+   * 同じ値になることを `stats.json`（ランキングが偏差値に使う平均・標準偏差）で確かめる。
+   */
+  it("実測値の1位の偏差値は、ランキングが stats.json から出す値と一致し、100を超える", () => {
+    const top = companies.rows.reduce((best, row) => (row[6] > best[6] ? row : best));
+    const [raw] = (statsData as { population: { mean: number; sd: number }[] }).population;
+    expect(facts.population.rawTop.name).toBe(top[1]);
+    expect(formatDeviation(facts.population.rawTop.deviation)).toBe(
+      formatDeviation(deviationScore(top[6], raw.mean, raw.sd))
+    );
+    expect(facts.population.rawTop.deviation).toBeGreaterThan(100);
   });
 
   it("35歳そろえの母集団平均は実測値の平均と異なる", () => {

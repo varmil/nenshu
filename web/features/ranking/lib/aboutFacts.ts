@@ -2,6 +2,7 @@ import type { CompaniesData, CompanyRow, CurvesData } from "../types";
 import { curveValuesInYen, interpolate } from "./curve";
 import { estimateSalary } from "./salary";
 import { TARGET_AGES } from "../types";
+import { deviationScore } from "@/features/company/lib/stats";
 
 /** 計算方法ページで実例として挙げる会社。 */
 export interface CompanyExample {
@@ -86,7 +87,16 @@ export interface AboutFacts {
   /** 掲載範囲。表示基準の節で「平均年齢は会社ごとに違う」ことを示すのに使う。 */
   coverage: { minAvgAge: number; maxAvgAge: number };
   /** 表示基準ごとの母集団の平均年収（円）。順位・偏差値が基準ごとに変わる根拠。 */
-  population: { rawMean: number; age35Mean: number };
+  population: {
+    rawMean: number;
+    age35Mean: number;
+    /**
+     * 実測値の1位とその偏差値。偏差値が100を超えうることの実例に使う。ランキングの
+     * 1行目に出ている値と同じになるよう、平均と標準偏差は `stats.json` と同じ手順
+     * （円に丸めた平均・母標準偏差）で出す。
+     */
+    rawTop: { name: string; deviation: number };
+  };
   /**
    * 決算期の偏り（E1・`docs/expansion/spec.md` 1.4）。**時点を幅で出すようになると、
    * 端（現状は4月期の2社）が全体を代表しているように読めてしまう**ので、どこに
@@ -185,15 +195,27 @@ function buildCoverage(companies: CompaniesData): AboutFacts["coverage"] {
  *
  * `stats.json` にも同じ値が入っているが、こちらは読まない——`/about` は静的
  * レンダリング（`○`）で、`stats.json` を import すると 2,961×9 の順位表まで
- * バンドルに引き込むことになる。ここで要るのは平均2つだけなので自分で出す。
+ * バンドルに引き込むことになる。ここで要るのは平均2つと実測値の標準偏差だけなので
+ * 自分で出す（ランキングの偏差値と一致することは単体テストが `stats.json` と突き合わせて
+ * いる）。
  */
 function buildPopulationMeans(
   companies: CompaniesData,
   curves: CurvesData
 ): AboutFacts["population"] {
   const mean = (values: number[]) => Math.round(values.reduce((a, b) => a + b, 0) / values.length);
+  const raw = companies.rows.map((row) => row[6]);
+  const rawMean = mean(raw);
+  // `pipeline/scripts/build-data.ts` の `buildStats` と同じく、分散は丸める前の平均で
+  // 取り、n で割る。
+  const exactMean = raw.reduce((a, b) => a + b, 0) / raw.length;
+  const rawSd = Math.round(
+    Math.sqrt(raw.reduce((s, x) => s + (x - exactMean) ** 2, 0) / raw.length)
+  );
+  const top = companies.rows.reduce((best, row) => (row[6] > best[6] ? row : best));
   return {
-    rawMean: mean(companies.rows.map((row) => row[6])),
+    rawMean,
+    rawTop: { name: top[1], deviation: deviationScore(top[6], rawMean, rawSd) },
     age35Mean: mean(
       companies.rows.map((row) =>
         estimateSalary(

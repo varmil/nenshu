@@ -36,12 +36,9 @@ test.describe("表示基準の切替", () => {
 
     await expect(page.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("推定年収（35歳）")).toHaveCount(0);
-    // 同じ文言が表の caption（PC）とカード一覧の注記（モバイル）の両方にある。
-    await expect(
-      page
-        .getByText("有価証券報告書の平均年間給与（提出会社単体）そのままです", { exact: false })
-        .first()
-    ).toBeVisible();
+    // 出典（有価証券報告書・単体）は h1 直下のリード文が持つ。表の脚注には置かない
+    // （同じ断りが画面に3回あった。`lib/footnote.ts`）。
+    await expect(page.getByText(/有価証券報告書の平均年間給与（単体）で比べた/)).toBeVisible();
   });
 
   /*
@@ -102,12 +99,12 @@ test.describe("表示基準の切替", () => {
    *
    * **行には表示基準の語を置かない**（Issue #128）。以前は年齢そろえのときだけ
    * 「推定」の一語を添えていたが、30行ぶん同じ語が繰り返されていた。推定である
-   * ことは帯のヒントと一覧の脚注が持つ（AC-9）ので、その2つが出ていることと対で見る。
+   * ことは帯のヒントが持つ（AC-9）ので、それが出ていることと対で見る。一覧の脚注は
+   * 以前「推定年収は年齢補正後の推定値です。」で始まっていたが、帯と同じ断りなので
+   * 外した（`lib/footnote.ts`）。
    * 横スクロールは `ranking-refresh.spec.ts` がこの状態（`/?age=35`）も含めて見ている。
    */
-  test("モバイル幅でも切替でき、行には「推定」の語を置かず、帯と脚注が推定を示す", async ({
-    page,
-  }) => {
+  test("モバイル幅でも切替でき、行には「推定」の語を置かず、帯が推定を示す", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/");
 
@@ -120,11 +117,5 @@ test.describe("表示基準の切替", () => {
     await expect(rows.first()).not.toContainText("推定");
     await expect(rows.getByText("推定", { exact: true })).toHaveCount(0);
     await expect(page.getByText("業種の賃金カーブで補正した推定値です。")).toBeVisible();
-    // 同じ文言が表の caption（PC・ここでは非表示）にもあるので、一覧の側を指す。
-    await expect(
-      page.locator("div.md\\:hidden").getByText("推定年収は年齢補正後の推定値です", {
-        exact: false,
-      })
-    ).toBeVisible();
   });
 });

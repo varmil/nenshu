@@ -287,7 +287,6 @@ export function RankingApp({
                 />
                 <RankingCardList
                   companies={rankedCompanies}
-                  targetAge={state.targetAge}
                   pageMaxSalary={pageMaxSalary}
                   population={basisPopulation}
                 />

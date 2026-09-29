@@ -15,6 +15,7 @@ import {
   formatManYen,
   formatManYen1,
 } from "@/features/ranking/lib/format";
+import { formatDeviation } from "@/features/company/lib/stats";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { fiscalPeriodLabel, filingWindowLabel, periodLabel } from "@/lib/data/period";
 import { PRIMARY_SOURCES } from "@/lib/data/sources";
@@ -173,8 +174,9 @@ export function AboutPage() {
         <p>
           <strong>年収偏差値は100を超えることがあります。</strong>
           偏差値は正規分布を前提にした指標ですが、年収の分布は右に強く裾を引くため、
-          上位のごく一部が平均から大きく離れます（35歳そろえのキーエンスで150.0）。
-          水準を読むときは隣に添えた<strong>「上位◯%」</strong>のほうが確かです。
+          上位のごく一部が平均から大きく離れます（実測値で1位の
+          {facts.population.rawTop.name}は{formatDeviation(facts.population.rawTop.deviation)}
+          ）。水準は偏差値の数字だけで読まず、順位と併せて見てください。
         </p>
       </Section>
 
