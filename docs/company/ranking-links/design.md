@@ -18,7 +18,7 @@ div.max-w-5xl
 ```
 
 - 行は1本ずつ `a` 全体がリンク。高さは最小 44px（`min-h-11`）
-- 文言は `text-primary`・14px・600、順位は `text-muted-foreground`・12px・`tabular-nums`
+- 文言は `text-primary`・14px・通常の太さ（ページの他のリンクにそろえる）、順位は `text-muted-foreground`・12px・`tabular-nums`
 - 2本目の区切り線は、モバイルが上辺（`border-t`）、PC が左辺（`md:border-l`）
 
 ## 構成
