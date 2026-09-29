@@ -1,0 +1,23 @@
+{
+ "month": "2026-08",
+ "yardstick": "1",
+ "stats": {
+  "n": 0
+ },
+ "byModel": {},
+ "baseline": {
+  "subjective": 1.3655,
+  "fact": 5.8213,
+  "external": 0.1507,
+  "reader": 0.2791,
+  "escape": 0.1541,
+  "chars": 364.2128
+ },
+ "judged": false,
+ "drifts": [],
+ "lines": {
+  "minCompanies": 50,
+  "maxRelativeShift": 0.3,
+  "maxExternalDrop": 0.1
+ }
+}
