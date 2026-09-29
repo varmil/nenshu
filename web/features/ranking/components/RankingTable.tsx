@@ -11,6 +11,7 @@ import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
 import type { RankedCompany, TargetAge } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
+import { rankingFootnote } from "../lib/footnote";
 import { TABLE_NO_SCROLL } from "@/design-system/tableContainer";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
@@ -116,7 +117,7 @@ export function RankingTable({
                   {/*
                     **数字だけを出す**（アートボード 5a）。以前は「上位◯%」を下に
                     添えていたが、モックに無いものを足さない（運営者の指示）。
-                    100 を超えうることと順位の読み方は表の脚注に置いてある。
+                    100 を超えうることは表の脚注に置いてある（`lib/footnote.ts`）。
                   */}
                   {population ? (
                     <span className="text-sm font-medium tabular-nums">
@@ -130,14 +131,7 @@ export function RankingTable({
             );
           })}
         </TableBody>
-        <TableCaption>
-          {isRaw
-            ? "有価証券報告書の平均年間給与（提出会社単体）そのままです。年齢の違いは補正していません。"
-            : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}{" "}
-          帯はこのページの1位を100%とした相対の長さで、細い縦線は全体平均
-          {population ? `（${formatManYen(population.mean)}）` : ""}の位置です。
-          偏差値は分布が右に裾を引くため100を超えることがあります。水準は順位と併せて読んでください。
-        </TableCaption>
+        <TableCaption>{rankingFootnote(population?.mean ?? null)}</TableCaption>
       </Table>
     </div>
   );

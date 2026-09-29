@@ -1,7 +1,8 @@
 import { deviationScore, formatDeviation } from "@/features/company/lib/stats";
-import type { RankedCompany, TargetAge } from "../types";
+import type { RankedCompany } from "../types";
 import { displaySalary } from "../lib/rank";
 import { formatManYen } from "../lib/format";
+import { rankingFootnote } from "../lib/footnote";
 import { CompanyLogo } from "@/features/logo/components/CompanyLogo";
 import { CompanyMetaLine } from "./CompanyMetaLine";
 import { RankBadge } from "./RankBadge";
@@ -32,17 +33,13 @@ import { SalaryBar } from "./SalaryBar";
  */
 export function RankingCardList({
   companies,
-  targetAge,
   pageMaxSalary,
   population,
 }: {
   companies: RankedCompany[];
-  targetAge: TargetAge | null;
   pageMaxSalary: number;
   population: { mean: number; sd: number } | null;
 }) {
-  const isRaw = targetAge === null;
-
   return (
     <div className="flex flex-col md:hidden">
       {companies.map((company) => {
@@ -87,7 +84,7 @@ export function RankingCardList({
                     **表示基準の語は行に置かない**（Issue #128）。以前は年齢そろえの
                     ときだけ「推定」の一語を添えていたが、行は30件ぶん縦に繰り返される
                     ので同じ語が30回並ぶ。推定であることは帯（`ControlBand` のヒント）
-                    と一覧の脚注に出ており、AC-9 はそちらで満たしている。
+                    に出ており、AC-9 はそちらで満たしている。
                   */}
                   {population && (
                     <span>
@@ -136,12 +133,7 @@ export function RankingCardList({
         );
       })}
       <p className="text-muted-foreground pt-3 text-xs">
-        {isRaw
-          ? "有価証券報告書の平均年間給与（提出会社単体）そのままです。年齢の違いは補正していません。"
-          : "推定年収は年齢補正後の推定値です。実際の年収を保証するものではありません。"}{" "}
-        帯はこのページの1位を100%とした相対の長さで、細い縦線は全体平均
-        {population ? `（${formatManYen(population.mean)}）` : ""}の位置です。
-        偏差値は分布が右に裾を引くため100を超えることがあります。水準は順位と併せて読んでください。
+        {rankingFootnote(population?.mean ?? null)}
       </p>
     </div>
   );

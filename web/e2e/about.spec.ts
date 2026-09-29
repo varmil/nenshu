@@ -96,6 +96,11 @@ test.describe("計算方法ページ（/about）", () => {
     await expect(page.getByText("27.0歳から", { exact: false })).toBeVisible();
     await expect(page.getByText("実測値のままだと平均年齢の高い会社が上に来ます")).toBeVisible();
     await expect(page.getByText("693万円", { exact: false }).first()).toBeVisible();
+
+    // 偏差値が100を超えうることの実例は、ランキングの1行目と同じ会社・同じ値
+    // （`ranking-refresh.spec.ts` の AC-14 が 130.7 を固定している）。以前は
+    // 「35歳そろえのキーエンスで150.0」を直書きしていて、母集団を広げた後も残っていた。
+    await expect(page.getByText(/実測値で1位のヒューリック株式会社は130\.7）/)).toBeVisible();
   });
 
   test("SSR: 生HTTPリクエスト（JS実行なし）でも本文が返る", async ({ request }) => {

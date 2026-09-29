@@ -172,8 +172,8 @@ test.describe("企業詳細ページ", () => {
 
     await expect(page.getByText("偏差値 149.5", { exact: true })).toBeVisible();
     await expect(page.getByText("上位0.1%未満")).toHaveCount(0);
-    await expect(page.getByText("偏差値は100を超えることがあります")).toHaveCount(0);
-    await expect(page.getByText(/偏差値は分布が右に裾を引くため/)).toHaveCount(0);
+    // 注記の言い回しはランキング側で変わりうるので、「100を超える」の一語で見る。
+    await expect(page.getByText(/100を超え/)).toHaveCount(0);
 
     await expect(card(page).getByText("2位 /2,961社")).toBeVisible();
     await expect(page.getByText("全体2,961社の中の位置")).toBeVisible();
