@@ -67,7 +67,8 @@ function expectedBlocks(id: string) {
 }
 
 /** その会社の節の見せ方（開いたまま出す塊と畳む塊）。本文の無い会社は `null`。 */
-const viewOf = (row: CompanyRow) => buildPayPolicyView(row[1], payPolicies.byId[row[0]]);
+const viewOf = (row: CompanyRow) =>
+  buildPayPolicyView(row[1], payPolicies.byId[row[0]], companies.periods[row[9]]);
 
 const tablesOf = (blocks: PayPolicyBlock[]) =>
   blocks.filter((b): b is TableBlock => b.kind === "table");

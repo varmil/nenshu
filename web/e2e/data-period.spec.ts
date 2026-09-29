@@ -1,10 +1,12 @@
 import { test, expect } from "./appTest";
 import { companyAnalysisFor } from "../features/company/lib/pageData";
 import { decodeWorklife } from "../lib/data/worklife";
-import { companyFiscalPeriodLabel, fiscalPeriodLabel } from "../lib/data/period";
+import { companyFiscalPeriodLabel, fiscalPeriodLabel, periodLabel } from "../lib/data/period";
+import { edinetDocumentUrl } from "../lib/data/sources";
 import {
   analyses,
   companies,
+  filings,
   payPolicies,
   pickCompany,
   rowOf,
@@ -40,7 +42,7 @@ const periodOf = (id: string) => companyFiscalPeriodLabel(companies, rowOf(id));
  * 決算期の文字列を含まない**こと——含むと、アプリが置いていない場所でも数えてしまう。
  */
 function countable(id: string, index: number): boolean {
-  if (companyAnalysisFor(id) === null) return false;
+  if (companyAnalysisFor(id) === null || !textAlignedWithNumbers(id)) return false;
   const texts = JSON.stringify([
     analyses.byId[id],
     summaries.byId[id] ?? null,
@@ -49,6 +51,33 @@ function countable(id: string, index: number): boolean {
   ]);
   return !texts.includes(periodOf(id));
 }
+
+/**
+ * 文章（説明文・要約と分析・給与の決定方針）がすべて数字と同じ有報から作られている会社か
+ * （refresh の D3）。ずれた会社では、要約と給与の決定方針が数字と違う期を名乗る。
+ */
+function textAlignedWithNumbers(id: string): boolean {
+  const numbers = filings.byId[id];
+  return [summaries.filingById[id], analyses.byId[id]?.filing, payPolicies.byId[id]?.filing].every(
+    (filing) => filing === undefined || filing.docId === numbers
+  );
+}
+
+/**
+ * refresh の D3（spec 1.5・AC-3）。**数字だけが新しい有報に替わり、文章の節がすべて前の有報の
+ * ままの会社。** いまのデータにはいない（数字と文章を同じ回に作ってきた）ので、揺らしたデータ
+ * （`tools/perturb/check.sh --e2e`。4つ目の揺らし方がこの会社を作る）で走る。毎日の更新（D4）が
+ * 入れば、実データにも現れる。
+ */
+const BEHIND = companies.rows.find((row) => {
+  const period = companies.periods[row[9]];
+  const texts = [
+    summaries.filingById[row[0]],
+    analyses.byId[row[0]]?.filing,
+    payPolicies.byId[row[0]]?.filing,
+  ];
+  return texts.every((filing) => filing !== undefined && filing.period !== period);
+})?.[0];
 
 /**
  * 決算期の違う2社。**会社ごとに違う値が出ることの実物**で、同じ文字列がハードコード
@@ -150,5 +179,65 @@ test.describe("データの時点（S3・E1）", () => {
         `${label}の有価証券報告書`
       );
     }
+  });
+
+  /*
+   * refresh の D3（spec 1.5・AC-3）。**文章の節は、数字の側の期と書類を借りずに、自分を作った
+   * 有報の期を名乗り、その書類を指す。** Q&A は数字の期のまま。給与の決定方針の期は、数字の期と
+   * ずれたときだけ引用の枠の先頭に出る（site-chrome spec 5.1 の例外）。
+   */
+  test("数字と文章の有報がずれた会社では、文章の節が自分の有報の期を名乗り、その書類を指す", async ({
+    page,
+  }) => {
+    test.skip(
+      BEHIND === undefined,
+      "数字と文章の有報がずれた会社がいまのデータにいない（tools/perturb/check.sh --e2e で作る）"
+    );
+    const id = BEHIND!;
+    const analysis = analyses.byId[id].filing;
+    const policy = payPolicies.byId[id].filing;
+    const summary = summaries.filingById[id];
+    await page.goto(`/company/${id}`);
+
+    await expect(page.getByTestId("company-qa")).toContainText(
+      `${periodOf(id)}の有価証券報告書の値です。`
+    );
+    const digest = page.getByTestId("company-digest");
+    await expect(digest).toContainText(`${periodLabel(analysis.period)}の有価証券報告書`);
+    await expect(digest).not.toContainText(periodOf(id));
+
+    const pay = page.getByTestId("company-pay-policy");
+    await expect(pay.locator("[data-pay-source]")).toContainText(
+      `${periodLabel(policy.period)}の有価証券報告書の「`
+    );
+    await expect(pay.locator("blockquote")).toHaveAttribute(
+      "cite",
+      edinetDocumentUrl(policy.docId)
+    );
+    await expect(page.getByTestId("company-pay-policy-filing")).toHaveAttribute(
+      "href",
+      edinetDocumentUrl(policy.docId)
+    );
+
+    // 「このページの出典」は行ごとに、その行の中身を作った書類を指す
+    const rows = await page
+      .getByTestId("company-sources")
+      .locator("dl > div")
+      .evaluateAll((divs) =>
+        divs.map((div) => [
+          div.querySelector("dt")?.textContent,
+          [...div.querySelectorAll("a")]
+            .map((a) => a.getAttribute("href") ?? "")
+            .filter((href) => href.includes("WZEK0040")),
+        ])
+      );
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        ["原文", [edinetDocumentUrl(policy.docId)]],
+        ["実測値", [edinetDocumentUrl(filings.byId[id])]],
+        ["AIの要約", [edinetDocumentUrl(summary.docId)]],
+        ["AIの評価", [edinetDocumentUrl(analysis.docId)]],
+      ])
+    );
   });
 });

@@ -1078,6 +1078,37 @@ describe("buildData", () => {
     });
   });
 
+  /*
+   * refresh の D3（spec 1.5・AC-3）。**文章の記録は、自分を作った有報の書類と期を持つ**——数字の
+   * 書類（`filings.json`）を借りない。台帳の工程ごとの書類と突き合わせる（台帳と成果物が一致する
+   * ことはビルドが検めている）。いまのデータでは数字と文章の書類がそろっているので、ずれた会社で
+   * 見るのは揺らしたデータ（`tools/perturb/`）と E2E。
+   */
+  it("説明文・要約と分析・給与の決定方針の記録は、それぞれの原文の書類を持つ", () => {
+    const ledger = readLedger();
+    const periodOf = new Map(sourceRows.map((row) => [row.edinetCode, row.periodEnd.slice(0, 7)]));
+    let checked = 0;
+    result.companies.rows.forEach((row, i) => {
+      const id = row[0] as string;
+      const { docs } = ledger.get(sourceRows[i].edinetCode)!;
+      const pairs = [
+        [result.summaries.filingById[id], docs.description, result.summaries.byId[id]],
+        [result.analyses.byId[id]?.filing, docs.analysis, result.analyses.byId[id]],
+        [result.payPolicies.byId[id]?.filing, docs.payPolicy, result.payPolicies.byId[id]],
+      ] as const;
+      for (const [filing, doc, record] of pairs) {
+        if (record === undefined) continue;
+        expect(filing?.docId, id).toBe(doc);
+        // 期は数字の期と同じ形（`YYYY-MM`）。いまは書類がそろっているので値も同じ
+        if (filing?.docId === docs.numbers) {
+          expect(filing?.period, id).toBe(periodOf.get(sourceRows[i].edinetCode));
+        }
+        checked++;
+      }
+    });
+    expect(checked).toBeGreaterThan(0);
+  });
+
   /**
    * 給与の決定方針の原文（C19・Issue #852、`docs/company/spec.md` 1.23）。C18 が切り出した
    * `pay_policy.json` の本文を**書き換えずに**、企業 ID の辞書にしていること。

@@ -38,3 +38,15 @@ export const PRIMARY_SOURCES = {
 export function edinetDocumentUrl(docId: string): string {
   return `https://disclosure2.edinet-fsa.go.jp/WZEK0040.aspx?${docId},,`;
 }
+
+/**
+ * 文章の中身を作った有報（refresh の D3・`pipeline/scripts/lib/filing.ts` の `FilingRef` と同じ形）。
+ * **文章の節は、数字の側の書類と期を借りずにこれを名乗る**——数字は新しい有報が出た翌日に替わり、
+ * 文章は書き直すまで前の書類のまま出る（`docs/refresh/spec.md` 1.5）。
+ */
+export interface FilingRef {
+  /** EDINET の書類 ID（`S100YAHE` の形）。 */
+  docId: string;
+  /** その書類の決算期（`YYYY-MM`）。文字列にするのは `lib/data/period.ts` の `periodLabel`。 */
+  period: string;
+}

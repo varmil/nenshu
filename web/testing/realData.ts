@@ -31,6 +31,7 @@ import type { PerformanceData, RadarData } from "@/features/company/lib/radar";
 import type { WorklifeData } from "@/lib/data/worklife";
 import type { AnalysisRecord } from "@/features/company/lib/analysis";
 import type { PayPolicyRecord } from "@/features/company/lib/payPolicy";
+import type { FilingRef } from "@/lib/data/sources";
 
 export const companies = companiesJson as CompaniesData;
 export const curves = curvesJson as CurvesData;
@@ -55,7 +56,10 @@ export const logos = logosJson as {
   meta: { count: number; withLogo: number };
   byId: Record<string, unknown>;
 };
-export const summaries = summariesJson as { byId: Record<string, string> };
+export const summaries = summariesJson as {
+  byId: Record<string, string>;
+  filingById: Record<string, FilingRef>;
+};
 export const analyses = analysesJson as { byId: Record<string, AnalysisRecord> };
 export const filings = filingsJson as { byId: Record<string, string> };
 export const payPolicies = payPoliciesJson as { byId: Record<string, PayPolicyRecord> };

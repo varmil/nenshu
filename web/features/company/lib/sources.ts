@@ -19,6 +19,11 @@ import { edinetDocumentUrl, type PRIMARY_SOURCES } from "@/lib/data/sources";
  * 持っている（`docs/site-chrome/spec.md` 5.1 が企業詳細で認めているのはこの2か所だけで、
  * ここに書くと3回目になる）。女性活躍DBの集計時点、分析を書いた年月と参照日も、それぞれの
  * 節にある。
+ *
+ * **有報を挙げる行は、その行の中身を作った書類へリンクする**（refresh の D3・spec 1.5・AC-3）。
+ * 毎日の更新では数字が先に新しい書類へ替わり、文章は書き直すまで前の書類のまま出るので、実測値の
+ * 行と AI の行が別の書類を指すことがある。**説明文と要約の書類が違えば、AIの要約の行を分ける**
+ * ——1行に束ねると、どちらの書類かが読めない。
  */
 
 export type SourceKind =
@@ -41,20 +46,23 @@ export interface SourceRow {
   source: SourceSegment[];
 }
 
-/** 会社によって、あったり無かったりする節。 */
-export interface PagePresence {
+/**
+ * 会社によって、あったり無かったりする節と、その中身を作った有報の書類 ID。**書類 ID が `null` の
+ * 節はページに無い。**
+ */
+export interface PageSources {
   /** 平均年収推移（過去10年間）。 */
   history: boolean;
   /** 在籍年数推移（過去10年間）と業種の中央値（T4・#835）。平均年収推移がある会社にしか無い。 */
   tenureHistory: boolean;
-  /** 社名の下の説明文（C7。原文に事業の中身が無い会社には無い）。 */
-  summary: boolean;
-  /** 「有価証券報告書の要約」と「現状と今後」。**2つは対**（AC-28）なので1つで持つ。 */
-  analysis: boolean;
-  /** 給与の決定方針（C19・#852）。改正前の様式の会社と、給与の決定方針が空の会社には無い。 */
-  payPolicy: boolean;
-  /** 実測値の4項目を取った有報の書類 ID（C13）。全社にある。 */
+  /** 実測値の4項目を取った有報（C13）。全社にある。 */
   filingDocId: string;
+  /** 社名の下の説明文（C7）を作った有報。原文に事業の中身が無い会社には説明文が無い。 */
+  summaryDocId: string | null;
+  /** 「有価証券報告書の要約」と「現状と今後」の原文にした有報。**2つは対**（AC-28）なので1つで持つ。 */
+  analysisDocId: string | null;
+  /** 給与の決定方針（C19・#852）を切り出した有報。改正前の様式の会社と、空の会社には無い。 */
+  payPolicyDocId: string | null;
 }
 
 /*
@@ -62,23 +70,23 @@ export interface PagePresence {
  * 運営者の指摘は「補足説明に過ぎないのにスペースを取りすぎ」で、作り替える前の3ステップ
  * （PC 260px・モバイル 580px）より高くしないことを E2E が固定している。
  */
-export function buildSourceRows(presence: PagePresence): SourceRow[] {
+export function buildSourceRows(page: PageSources): SourceRow[] {
   const rows: SourceRow[] = [];
 
   /*
    * **原文は先頭に置く**（C19・#852、spec 1.15・1.23）。加工の度合いは有報そのままで最も少ないが、
    * どこまでが給与の決定方針かを生成AIが判定しているので、実測値の行に混ぜるとそれが読めなくなる。
    * **「生成AI」の語は給与の決定方針の節には置かず、ここと `/about` だけが言う**——節に置くと、
-   * 文そのものを AI が書いたように読める。「有価証券報告書」は実測値の行と同じ書類へのリンク
-   * （原文を切り出した書類＝平均年間給与を取った書類）。
+   * 文そのものを AI が書いたように読める。「有価証券報告書」は原文を切り出した書類へのリンク
+   * （数字の書類と違いうる。refresh の D3）。
    */
-  if (presence.payPolicy) {
+  if (page.payPolicyDocId !== null) {
     rows.push({
       kind: "original",
       label: "原文",
       covers: "給与の決定方針",
       source: [
-        { text: "有価証券報告書", url: edinetDocumentUrl(presence.filingDocId) },
+        { text: "有価証券報告書", url: edinetDocumentUrl(page.payPolicyDocId) },
         "の本文をそのまま（どこまでが給与の決定方針かは生成AIが判定）",
       ],
     });
@@ -90,9 +98,9 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
       label: "実測値",
       // 推移の表は平均年齢も年ごとに出す（T3・#827）ので、「その推移」は2つにかかる。
       // 在籍年数の推移（T4・#835）がある会社では3つにかかる。
-      covers: presence.tenureHistory
+      covers: page.tenureHistory
         ? "平均年収・平均年齢・在籍年数とその推移・従業員数"
-        : presence.history
+        : page.history
           ? "平均年収・平均年齢とその推移・在籍年数・従業員数"
           : "平均年収・平均年齢・在籍年数・従業員数",
       /*
@@ -101,7 +109,7 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
        */
       source: [
         "金融庁 EDINET の",
-        { text: "有価証券報告書", url: edinetDocumentUrl(presence.filingDocId) },
+        { text: "有価証券報告書", url: edinetDocumentUrl(page.filingDocId) },
         "（単体）",
       ],
     },
@@ -113,7 +121,7 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
       kind: "computed",
       label: "計算値",
       // 業種の中央値は稼ぐ力（レーダー）と在籍年数の推移（T4）の2か所に出る。
-      covers: presence.tenureHistory
+      covers: page.tenureHistory
         ? "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
         : "順位・偏差値・分布・レーダー・稼ぐ力",
       source: ["実測値・自己申告値と、有価証券報告書（連結）から計算"],
@@ -132,16 +140,29 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
     }
   );
 
+  /*
+   * **同じ書類から作った文章は1行に束ね、違えば行を分ける**（refresh の D3）。説明文と要約は
+   * 同じ回に書き直すので、ふつうは同じ書類になる。分かれるのは片方の書き直しが通らなかった
+   * ときだけ。
+   */
   const digest = [
-    presence.summary ? "社名の下の説明文" : null,
-    presence.analysis ? "「有価証券報告書の要約」" : null,
-  ].filter((item): item is string => item !== null);
-  if (digest.length > 0) {
+    page.summaryDocId !== null ? { covers: "社名の下の説明文", docId: page.summaryDocId } : null,
+    page.analysisDocId !== null
+      ? { covers: "「有価証券報告書の要約」", docId: page.analysisDocId }
+      : null,
+  ].filter((item) => item !== null);
+  for (const docId of new Set(digest.map((item) => item.docId))) {
     rows.push({
       kind: "aiDigest",
       label: "AIの要約",
-      covers: digest.join("・"),
-      source: ["有価証券報告書の本文に書いてあることだけ"],
+      covers: digest
+        .filter((item) => item.docId === docId)
+        .map((item) => item.covers)
+        .join("・"),
+      source: [
+        { text: "有価証券報告書", url: edinetDocumentUrl(docId) },
+        "の本文に書いてあることだけ",
+      ],
     });
   }
 
@@ -150,12 +171,15 @@ export function buildSourceRows(presence: PagePresence): SourceRow[] {
    * 4つある材料（このページの数値・AIの一般知識を含む）は `/about`「要約と分析の作り方」が
    * 持っている。同じ画面の2か所で材料の数が違うと、どちらかが言い落としに見える。
    */
-  if (presence.analysis) {
+  if (page.analysisDocId !== null) {
     rows.push({
       kind: "aiAnalysis",
       label: "AIの評価",
       covers: "「現状と今後」",
-      source: ["有価証券報告書・公開資料"],
+      source: [
+        { text: "有価証券報告書", url: edinetDocumentUrl(page.analysisDocId) },
+        "・公開資料",
+      ],
     });
   }
 
