@@ -15,8 +15,14 @@ import {
 } from "./positivedb";
 import { parseCsv } from "./csv";
 import { WORKLIFE_HEADER } from "./extract";
+import { parseUnifiedCsv } from "../scripts/lib/csv";
+import { makeId } from "../scripts/lib/slug";
 
 const DATA = resolve(dirname(fileURLToPath(import.meta.url)), "../data/worklife_2026.csv");
+const UNIFIED = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../data/ranking_unified_2026.csv"
+);
 
 /** 236列の空行に、見出し番号（1始まり）で値を差す。 */
 function row(values: Record<number, string>): string[] {
@@ -200,9 +206,22 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
     expect(header).toEqual([...WORKLIFE_HEADER]);
   });
 
-  it("法人番号で突合できた会社のうち、3指標のいずれかを持つ2,367社が入っている", () => {
-    // W2（#185）で 0 を落とした結果、残業 0 しか持たなかった2社が行ごと消えた。
-    expect(body).toHaveLength(2367);
+  /*
+   * 行数は書き写さない（女性活躍DBの版と母集団で動く）。見るのは、行を作る条件
+   * （`hasAnyMetric`）を満たす会社だけが入っていること。W2（#185）で 0 を落とした結果、
+   * 残業 0 しか持たなかった会社は行ごと消えた。
+   */
+  it("3指標のいずれかを持つ会社だけが入っている", () => {
+    const metricColumns = [
+      "overtime_all",
+      ...[1, 2, 3, 4, 5].map((n) => `overtime_unit${n}_hours`),
+      "paid_leave_all",
+      ...[1, 2, 3, 4, 5].map((n) => `paid_leave_unit${n}_rate`),
+      "wage_gap_all",
+    ].map(col);
+    expect(body.length).toBeGreaterThan(0);
+    const empty = body.filter((r) => metricColumns.every((i) => r[i] === ""));
+    expect(empty.map((r) => r[col("id")])).toEqual([]);
   });
 
   it("すべての行が13桁の法人番号を持つ", () => {
@@ -235,9 +254,19 @@ describe("worklife_2026.csv（取り込み済みの実データ）", () => {
     expect(over.length).toBeGreaterThan(0);
   });
 
-  it("持株会社は突合できないので行が無い（子会社で代用しない。ADR-0009）", () => {
-    for (const id of ["8306", "9843", "2810"]) {
-      expect(body.find((x) => x[col("id")] === id)).toBeUndefined();
-    }
+  /*
+   * **突合キーは法人番号だけ**（ADR-0009）。証券コードや社名で突合すると、持株会社に
+   * 子会社の行が付く（W0 の時点でニトリHD・ハウス食品グループ本社など29社）。
+   * 子会社の行なら法人番号が違うので、行の法人番号がその id の会社の法人番号と一致する
+   * ことで見る（全行）。会社を名指ししない——持株会社が自社で登録すれば行ができる。
+   */
+  it("行の法人番号は、その id の会社の法人番号と一致する（子会社で代用しない。ADR-0009）", () => {
+    const numberById = new Map(
+      parseUnifiedCsv(readFileSync(UNIFIED, "utf-8")).map((r) => [makeId(r), r.corporateNumber])
+    );
+    const mismatched = body.filter(
+      (r) => numberById.get(r[col("id")]) !== r[col("corporate_number")]
+    );
+    expect(mismatched.map((r) => r[col("id")])).toEqual([]);
   });
 });

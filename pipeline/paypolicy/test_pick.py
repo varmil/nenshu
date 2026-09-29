@@ -94,21 +94,27 @@ class TestBodyMismatch(unittest.TestCase):
 
 
 class TestMerge(unittest.TestCase):
-    """参照の会社は2回に分けて回す。2回目の結果で1回目を置き換える。"""
+    """参照の会社は2回に分けて回す。2回目の結果で1回目を置き換える。
 
-    DOC = "S100YGCZ"  # 兼松（対象の書類。社名などは ranking_unified_2026.csv から引く）
+    対象の会社は合成する。`merge` は社名などを対象の会社の表（`pick.companies`）から引くので、
+    実データの書類 ID を使うと、その会社が次の有報を出して書類 ID が変わった日に落ちる。
+    """
+
+    DOC = "D1"  # 兼松の形（節の中は1文の要約で、詳しい記載はサステナビリティの節）
 
     def setUp(self):
         import tempfile
         from pathlib import Path
         self.tmp = Path(tempfile.mkdtemp())
-        self.saved = pick.OUT, pick.WORK
+        self.saved = pick.OUT, pick.WORK, pick.companies
         pick.OUT, pick.WORK = self.tmp / "out.json", self.tmp / "work"
         pick.WORK.mkdir()
+        pick.companies = lambda: {self.DOC: {"edinet_code": "E00001", "sec_code": "0001",
+                                             "name": "テスト株式会社", "period_end": "2026-03-31"}}
 
     def tearDown(self):
         import shutil
-        pick.OUT, pick.WORK = self.saved
+        pick.OUT, pick.WORK, pick.companies = self.saved
         shutil.rmtree(self.tmp)
 
     def _gated(self, n, rec):
