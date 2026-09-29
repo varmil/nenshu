@@ -66,12 +66,14 @@ PENDING_COLUMNS = [
     "period_end",
     "filed",
     "reason",
+    # 理由の中身（どの条件を割ったか・どの値が動いたか）。知らせ（D8）にそのまま載せる
+    "detail",
     "since",
 ]
 
 
 # ---------------------------------------------------------------------------
-# 純関数（test_numbers.py が合成データで見る）
+# 純関数（test_update_numbers.py が合成データで見る）
 
 
 def jst_yesterday(now=None):
@@ -125,18 +127,6 @@ def should_process(meta, entry, current_row):
     return True
 
 
-def eligible(rec):
-    """掲載の条件（`unified.build` と同じ線）。単体従業員100人以上・平均年齢20〜65歳・平均年間給与100万円超。"""
-    salary, age = rec.get("avg_salary"), rec.get("avg_age")
-    return (
-        bool(salary)
-        and bool(age)
-        and 20 <= age <= 65
-        and salary > 1_000_000
-        and (rec.get("employees_nonconsolidated") or 0) >= unified.MIN_EMPLOYEES
-    )
-
-
 def reread_reason(rec, previous_salary, salaries):
     """線 B に掛かるなら理由、掛からなければ `None`（spec 1.11・AC-11）。
 
@@ -165,7 +155,8 @@ def ranking_row(rec, info):
     ratio = round(nc / c, 4) if (nc and c and c > 0) else None
     tse33 = info.get("tse33", "")
     row = {
-        "sec_code": rec.get("sec_code") or info.get("sec_code", ""),
+        # 0 だけの証券コードは無いものとして扱う（`ledger.normalize_sec_code`）
+        "sec_code": ledger.normalize_sec_code(rec.get("sec_code") or info.get("sec_code", "")),
         "name": rec.get("name") or info.get("name", ""),
         "tse33": tse33,
         "listed": info.get("listed", ""),
@@ -225,7 +216,7 @@ def merge_performance(rows, code, year, parsed):
     rows[:] = sorted(best.values(), key=lambda r: (r["edinet_code"], int(r["year"])))
 
 
-def pending_row(meta, reason, since):
+def pending_row(meta, reason, since, detail=""):
     return {
         "edinet_code": meta["edinetCode"],
         "doc_id": meta["docID"],
@@ -234,6 +225,7 @@ def pending_row(meta, reason, since):
         "period_end": meta.get("periodEnd") or "",
         "filed": (meta.get("submitDateTime") or "")[:10],
         "reason": reason,
+        "detail": detail,
         "since": since,
     }
 
@@ -350,8 +342,9 @@ def collect(through, extra_docs=()):
         run.fix_salary_typos([rec])
         info = codelist.get(code, {})
         item["listed_in_ledger"] = entry is not None
-        if not eligible(rec):
-            item.update(status="not_eligible", reason="掲載の条件を満たさない")
+        why = unified.ineligible_reason(rec)
+        if why:
+            item.update(status="not_eligible", reason=why)
             collected.append(item)
             continue
         item["row"] = ranking_row(rec, info)
@@ -425,9 +418,18 @@ def apply(collected, verdicts, today):
                 status = "apply"
             elif verdict.get("doc_id") == meta["docID"] and verdict.get("verdict") == "unresolved":
                 status = "unresolved"
+        if status == "not_eligible" and not item.get("listed_in_ledger"):
+            # 載っていない会社が条件を満たさないのは、全件の取得で落としていたのと同じで、知らせる
+            # ことが無い。待ち行列に入れると、条件を満たさない新しい会社の数だけ毎日ふくらむ
+            continue
         if status != "apply":
-            since = (pending.get(code) or {}).get("since") or today.isoformat()
-            pending[code] = pending_row(meta, status, since)
+            # 同じ書類が待ち行列に居続けるなら、最初に入った日を残す（何日待っているかが読める）
+            old = pending.get(code) or {}
+            since = old["since"] if old.get("doc_id") == meta["docID"] else today.isoformat()
+            detail = item.get("reason") or ""
+            if status == "unresolved":
+                detail = (verdicts.get(code) or {}).get("note") or detail
+            pending[code] = pending_row(meta, status, since, detail)
             continue
 
         filed = date.fromisoformat((meta.get("submitDateTime") or "")[:10])
@@ -440,7 +442,9 @@ def apply(collected, verdicts, today):
             as_of=through,
         )
         if entry is None:
-            pending[code] = pending_row(meta, "not_eligible", today.isoformat())
+            pending[code] = pending_row(
+                meta, "not_eligible", today.isoformat(), f"提出日 {filed} が直近12か月の外"
+            )
             continue
         row = item["row"]
         is_new = not item.get("listed_in_ledger")

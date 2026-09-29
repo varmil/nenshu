@@ -58,6 +58,12 @@ class AssignId(unittest.TestCase):
     def test_証券コードが無ければEDINETコード(self):
         self.assertEqual(ledger.assign_id("", "E03532", set()), "E03532")
 
+    def test_0だけの証券コードは無いものとして扱う(self):
+        # EDINET が証券コードの無い会社に 0000 を入れることがある（クラサスケミカル）
+        self.assertEqual(ledger.assign_id("0000", "E42126", set()), "E42126")
+        self.assertEqual(ledger.normalize_sec_code("00000"), "")
+        self.assertEqual(ledger.normalize_sec_code("130A"), "130A")
+
     def test_証券コードがぶつかったら後から来た会社はEDINETコード(self):
         self.assertEqual(ledger.assign_id("1234", "E99999", {"1234"}), "E99999")
 

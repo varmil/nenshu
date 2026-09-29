@@ -66,6 +66,17 @@ def may_enter(filed, as_of):
     return add_months(as_of, -ENTRY_MONTHS) <= filed <= as_of
 
 
+def normalize_sec_code(sec_code):
+    """証券コードとして使える値か。**0 だけのもの（`0000`）は証券コードが無いものとして扱う。**
+
+    EDINET の書類一覧とコードリストは、証券コードがまだ無い会社に `00000`／`0000` を入れることが
+    ある（D4 の1回目でクラサスケミカル E42126 がそうだった）。そのまま ID にすると `/company/0000`
+    になり、次に同じ扱いの会社が来たときにぶつかる。
+    """
+    sec_code = (sec_code or "").strip()
+    return "" if not sec_code or set(sec_code) == {"0"} else sec_code
+
+
 def assign_id(sec_code, edinet_code, taken):
     """新しく載る会社の企業 ID（ADR-0017）。
 
@@ -77,7 +88,7 @@ def assign_id(sec_code, edinet_code, taken):
     """
     if not _EDINET_CODE.match(edinet_code or ""):
         raise ValueError(f"EDINETコードの形ではありません: {edinet_code!r}")
-    candidate = sec_code or edinet_code
+    candidate = normalize_sec_code(sec_code) or edinet_code
     if candidate in taken:
         candidate = edinet_code
     if candidate in taken:

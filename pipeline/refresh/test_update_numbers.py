@@ -5,6 +5,7 @@
 """
 
 import csv
+import io
 import json
 import tempfile
 import unittest
@@ -76,17 +77,30 @@ class ShouldProcess(unittest.TestCase):
         self.assertTrue(un.should_process(meta("E00001", "S3", "2027-06-30"), entry, row))
 
 
-class Eligible(unittest.TestCase):
-    def rec(self, **over):
-        return {"avg_salary": 5_000_000, "avg_age": 40.0, "employees_nonconsolidated": 100, **over}
+class IneligibleReason(unittest.TestCase):
+    """掲載の条件（`unified.ineligible_reason`）。全件の組み直しと同じ関数を使っていることも見る。"""
+
+    base = {"avg_salary": 5_000_000, "avg_age": 40.0, "employees_nonconsolidated": 100}
+
+    def reason(self, **over):
+        return un.unified.ineligible_reason({**self.base, **over})
 
     def test_掲載の条件の境目(self):
-        self.assertTrue(un.eligible(self.rec()))
-        self.assertFalse(un.eligible(self.rec(employees_nonconsolidated=99)))
-        self.assertFalse(un.eligible(self.rec(avg_age=19.9)))
-        self.assertTrue(un.eligible(self.rec(avg_age=65)))
-        self.assertFalse(un.eligible(self.rec(avg_salary=1_000_000)))
-        self.assertFalse(un.eligible(self.rec(avg_salary=None)))
+        self.assertIsNone(self.reason())
+        self.assertIsNotNone(self.reason(employees_nonconsolidated=99))
+        self.assertIsNotNone(self.reason(avg_age=19.9))
+        self.assertIsNone(self.reason(avg_age=65))
+        self.assertIsNotNone(self.reason(avg_salary=1_000_000))
+        self.assertIsNotNone(self.reason(avg_salary=None))
+
+    def test_どの条件を割ったかを書き分ける(self):
+        self.assertEqual(self.reason(employees_nonconsolidated=40), "単体の従業員が100人未満（40人）")
+        self.assertIn("桁を直せない", self.reason(avg_salary=None, salary_fixed="7567272000000→除外"))
+        self.assertIn("20〜65歳の外", self.reason(avg_age=70.0))
+
+    def test_人数の条件だけを外せる(self):
+        # 全件の組み直しは、人数で落とした社数を数えるために人数の条件を後から当てる
+        self.assertIsNone(un.unified.ineligible_reason({**self.base, "employees_nonconsolidated": 40}, 0))
 
 
 class Reread(unittest.TestCase):
@@ -148,7 +162,7 @@ class Performance(unittest.TestCase):
 # apply を小さな合成データで通す
 
 
-class Apply(unittest.TestCase):
+class ApplyCase(unittest.TestCase):
     """`apply` を一時ディレクトリの合成データに当てる（AC-1・AC-2・AC-10・AC-11）。"""
 
     def setUp(self):
@@ -186,6 +200,7 @@ class Apply(unittest.TestCase):
         ledger.save(entries, self.ledger_path)
         self.patches = [mock.patch.object(un, k, v) for k, v in self.paths.items()]
         self.patches.append(mock.patch.object(ledger, "PATH", self.ledger_path))
+        self.patches.append(mock.patch("sys.stdout", new_callable=io.StringIO))
         for p in self.patches:
             p.start()
 
@@ -218,6 +233,8 @@ class Apply(unittest.TestCase):
         with open(self.paths["RANKING"], encoding="utf-8-sig") as f:
             return {r["edinet_code"]: r for r in csv.DictReader(f)}
 
+
+class Apply(ApplyCase):
     def test_載っている会社の数字が替わり_順位が計算し直され_読んだ日が進む(self):
         # AC-1: E00002 が 6,000,000 → 8,000,000（+33%）の新しい有報
         collected = {"through": "2026-09-28", "items": [self.item("E00002", "S1000002", 8_000_000.0, sec="2222")]}
@@ -272,6 +289,34 @@ class Apply(unittest.TestCase):
         self.assertIn(pending[0]["reason"], un.RETRY)
 
 
+class ApplyNotEligible(ApplyCase):
+    def test_載っている会社が条件を割ったら前の期の数字のまま_待ち行列に理由を残す(self):
+        item = {"meta": meta("E00002", "S1000002", sec="2222"), "status": "not_eligible",
+                "reason": "単体の従業員が100人未満（40人）", "listed_in_ledger": True}
+        un.apply({"through": "2026-09-28", "items": [item]}, {}, date(2026, 9, 29))
+        self.assertEqual(self.ranking()["E00002"]["doc_id"], "S000002")
+        pending = un.read_csv(self.paths["PENDING"])[1]
+        self.assertEqual([(p["reason"], p["detail"]) for p in pending],
+                         [("not_eligible", "単体の従業員が100人未満（40人）")])
+
+    def test_載っていない会社が条件を満たさなくても待ち行列に入れない(self):
+        item = {"meta": meta("E00009", "S1000009"), "status": "not_eligible",
+                "reason": "単体の従業員が100人未満（40人）", "listed_in_ledger": False}
+        un.apply({"through": "2026-09-28", "items": [item]}, {}, date(2026, 9, 29))
+        self.assertEqual(un.read_csv(self.paths["PENDING"])[1], [])
+
+    def test_新しい会社でも直近12か月より前の提出なら載せず_理由を残す(self):
+        # ADR-0018 の入る条件。`--doc` で古い書類を拾い直したときに踏む
+        item = self.item("E00009", "S1000009", 7_000_000.0, in_ledger=False, sec="9999")
+        item["meta"]["submitDateTime"] = "2025-09-01 09:00"
+        un.apply({"through": "2026-09-28", "items": [item]}, {}, date(2026, 9, 29))
+        self.assertNotIn("E00009", self.ranking())
+        self.assertNotIn("E00009", ledger.load(self.ledger_path))
+        pending = un.read_csv(self.paths["PENDING"])[1]
+        self.assertEqual([(p["reason"], p["detail"]) for p in pending],
+                         [("not_eligible", "提出日 2025-09-01 が直近12か月の外")])
+
+
 class Collect(unittest.TestCase):
     def test_書類一覧が1日でも取れなければ何も書かずに止まる(self):
         # AC-10（線 A）
@@ -280,7 +325,8 @@ class Collect(unittest.TestCase):
             universe.write_text(json.dumps({"filingWindow": {"from": "2025-09-25", "to": "2026-09-25"}}))
             with mock.patch.object(un, "UNIVERSE", universe), \
                  mock.patch.object(un, "WORK", Path(d) / "work"), \
-                 mock.patch.object(un.edinet, "list_documents", side_effect=RuntimeError("429")):
+                 mock.patch.object(un.edinet, "list_documents", side_effect=RuntimeError("429")), \
+                 mock.patch("sys.stdout", new_callable=io.StringIO):
                 with self.assertRaises(SystemExit):
                     un.collect(date(2026, 9, 29))
             self.assertFalse((Path(d) / "work").exists())

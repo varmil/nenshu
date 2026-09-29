@@ -35,6 +35,31 @@ def badge(row):
     return "本社のみ"
 
 
+def ineligible_reason(r, min_employees=MIN_EMPLOYEES):
+    """掲載の条件を満たさない理由。満たせば `None`。
+
+    条件は 平均年間給与が100万円超・平均年齢が20〜65歳・単体の従業員が `MIN_EMPLOYEES` 人以上。
+    **全件の組み直し（`build`）と毎日の差分更新（`refresh/update_numbers.py`）が同じ関数を使う。**
+    理由の文は差分更新の待ち行列に残り、運営者への知らせ（refresh の D8）にそのまま載る。
+    """
+    salary, age = r.get("avg_salary"), r.get("avg_age")
+    if not salary:
+        fixed = r.get("salary_fixed") or ""
+        if fixed.endswith("除外"):
+            return f"平均年間給与の桁を直せない（{fixed}）"
+        return "平均年間給与が読めない"
+    if not age:
+        return "平均年齢が読めない"
+    if not 20 <= age <= 65:
+        return f"平均年齢が20〜65歳の外（{age}歳）"
+    if salary <= 1_000_000:
+        return f"平均年間給与が100万円以下（{salary:.0f}円）"
+    employees = r.get("employees_nonconsolidated") or 0
+    if employees < min_employees:
+        return f"単体の従業員が{min_employees}人未満（{employees:.0f}人）"
+    return None
+
+
 def build(start=None, end=None):
     """母集団を組み直す（ADR-0011・`docs/expansion/spec.md` 1.1〜1.3）。
 
@@ -49,9 +74,8 @@ def build(start=None, end=None):
     resolved, ambiguous = resolve_ambiguous_salary(rows)
     run.fix_salary_typos(rows)
 
-    ok = [r for r in rows
-          if r["avg_salary"] and r["avg_age"]
-          and 20 <= r["avg_age"] <= 65 and r["avg_salary"] > 1_000_000]
+    # 従業員の人数で落とした社数は `/about` に出すので、人数の条件だけ後から当てる
+    ok = [r for r in rows if ineligible_reason(r, min_employees=0) is None]
 
     for r in ok:
         nc = r.get("employees_nonconsolidated")
@@ -59,7 +83,7 @@ def build(start=None, end=None):
         r["emp_ratio"] = round(nc / c, 4) if (nc and c and c > 0) else None
         r["badge"] = badge(r)
 
-    body = [r for r in ok if (r.get("employees_nonconsolidated") or 0) >= MIN_EMPLOYEES]
+    body = [r for r in ok if ineligible_reason(r) is None]
     out = rebuild_derived(body, curve_table)
     save_universe(start, end, len(rows), len(ok), len(ok) - len(body), len(out),
                   ambiguous, resolved)
