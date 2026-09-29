@@ -179,10 +179,3 @@ describe("pipeline/data/ledger.csv", () => {
     expect(new Set(codes)).toEqual(new Set(ledger.keys()));
   });
 });
-
-// D1: CI が赤くなることを確かめるための、わざと落とすテスト（すぐ戻す）
-describe("CI の確認", () => {
-  it("わざと落とす", () => {
-    expect(1).toBe(2);
-  });
-});
