@@ -1,0 +1,48 @@
+{
+ "month": "2026-09",
+ "yardstick": "1",
+ "stats": {
+  "n": 2962,
+  "subjective": 1.365,
+  "fact": 5.8221,
+  "external": 0.1512,
+  "reader": 0.2795,
+  "escape": 0.154,
+  "chars": 364.287
+ },
+ "byModel": {
+  "claude-opus-5": {
+   "n": 2960,
+   "subjective": 1.3655,
+   "fact": 5.8213,
+   "external": 0.1507,
+   "reader": 0.2791,
+   "escape": 0.1541,
+   "chars": 364.2128
+  },
+  "claude-opus-5-5@xhigh": {
+   "n": 2,
+   "subjective": 0.5,
+   "fact": 7,
+   "external": 1,
+   "reader": 1,
+   "escape": 0,
+   "chars": 474
+  }
+ },
+ "baseline": {
+  "subjective": 1.3655,
+  "fact": 5.8213,
+  "external": 0.1507,
+  "reader": 0.2791,
+  "escape": 0.1541,
+  "chars": 364.2128
+ },
+ "judged": true,
+ "drifts": [],
+ "lines": {
+  "minCompanies": 50,
+  "maxRelativeShift": 0.3,
+  "maxExternalDrop": 0.1
+ }
+}

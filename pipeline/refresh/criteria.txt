@@ -31,6 +31,10 @@ pipeline/*/prompts/**
 pipeline/analysis/gate.py
 pipeline/summary/gate.py
 
+# --- 文章の品質の物差しと、比べる相手の分布（D10）。書き換えると知らせが消せる
+pipeline/analysis/quality.py
+pipeline/analysis/quality_baseline.json
+
 # --- 定期実行の手順と、この一覧・判定そのもの
 .claude/**
 pipeline/refresh/criteria.txt

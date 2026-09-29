@@ -1,0 +1,22 @@
+{
+ "yardstick": "1",
+ "spec": "5",
+ "before": "2026-09-24",
+ "stats": {
+  "n": 2960,
+  "subjective": 1.3655,
+  "fact": 5.8213,
+  "external": 0.1507,
+  "reader": 0.2791,
+  "escape": 0.1541,
+  "chars": 364.2128
+ },
+ "stdev": {
+  "subjective": 1.2666,
+  "fact": 3.5688,
+  "external": 0.3577,
+  "reader": 0.4777,
+  "escape": 0.4017,
+  "chars": 59.5323
+ }
+}

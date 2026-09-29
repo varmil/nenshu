@@ -15,6 +15,7 @@ docs/refresh/routine/design.md「知らせ」。
 | --- | --- |
 | `numbers:<EDINETコード>` | `pipeline/data/numbers_pending.csv`（D4 の待ち行列） |
 | `texts:<EDINETコード>` | `pipeline/data/texts_pending.csv`（D6 の文章の待ち行列） |
+| `quality:analysis` | `pipeline/data/analysis_quality/` のいちばん新しい月の集計（D10） |
 | `worklife:rejected` | `pipeline/worklife/manifest.json` の `rejected`（D7） |
 | `routine:stalled` | `pipeline/data/universe.json` の書類一覧を読んだ日が古い |
 | `pr-criteria:<番号>`・`pr-failed:<番号>` | 開いている PR のラベル（automerge.py が付ける） |
@@ -139,6 +140,54 @@ def texts_cases(rows: list[dict]) -> list[Case]:
     return cases
 
 
+QUALITY_LABELS = {
+    "subjective": "主観の語（語/社）",
+    "fact": "事実の語（語/社）",
+    "external": "外部の資料を使った割合",
+    "reader": "読者への語（語/社）",
+    "escape": "逃げの語（語/社）",
+    "chars": "字数（見出し＋本文）",
+}
+
+
+def quality_case(report: dict | None) -> Case | None:
+    """分析の品質のずれ（D10）。**いちばん新しい月の集計だけを見る**——次の月がずれていなければ閉じる。
+
+    鍵は月を含めない（`quality:analysis`）。ずれが2か月続けば同じ Issue の本文が新しい月に替わる。
+    """
+    if not report or not report.get("drifts"):
+        return None
+    stats, base = report["stats"], report["baseline"]
+    drifted = {d["metric"] for d in report["drifts"]}
+    rows = "".join(
+        f"| {QUALITY_LABELS[k]}{' ⚠' if k in drifted else ''} | {stats.get(k)} | {base.get(k)} |\n"
+        for k in QUALITY_LABELS
+    )
+    models = "".join(
+        f"| {m} | {s.get('n')} | {s.get('subjective')} | {s.get('fact')} | {s.get('external')} |\n"
+        for m, s in report.get("byModel", {}).items()
+    )
+    names = "・".join(QUALITY_LABELS[d["metric"]] for d in report["drifts"])
+    return Case(
+        key="quality:analysis",
+        title=f"分析の書き方が版5からずれている（{report['month']}・{names}）",
+        body=(
+            f"{report['month']} に書いた分析 {stats['n']}社を物差しで数えると、いま載っている版5の分布からずれている。"
+            "**規格は自動では変えない**（spec 1.14）。規格かモデルか、どちらの変化かを見て決める。\n\n"
+            f"| 物差し | {report['month']} | 版5 |\n| --- | --- | --- |\n{rows}\n"
+            "書いたモデルごと:\n\n"
+            f"| モデル | 社数 | 主観の語 | 事実の語 | 外部 |\n| --- | --- | --- | --- | --- |\n{models}\n"
+            f"集計は `pipeline/data/analysis_quality/{report['month']}.json`、物差しと線は "
+            "`docs/refresh/text-quality/design.md`。"
+        ),
+    )
+
+
+def latest_quality_report(path: Path = DATA / "analysis_quality") -> dict | None:
+    paths = sorted(path.glob("*.json")) if path.exists() else []
+    return json.loads(paths[-1].read_text(encoding="utf-8")) if paths else None
+
+
 def worklife_case(manifest: dict | None) -> Case | None:
     rejected = (manifest or {}).get("rejected")
     if not rejected:
@@ -222,6 +271,7 @@ def collect(today: date, prs: list[dict]) -> list[Case]:
     for case in [
         worklife_case(read_json(PIPELINE / "worklife" / "manifest.json")),
         stalled_case(read_json(DATA / "universe.json"), today),
+        quality_case(latest_quality_report()),
     ]:
         if case:
             cases.append(case)

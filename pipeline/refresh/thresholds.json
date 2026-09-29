@@ -1,13 +1,1 @@
-{
-  "numbers": {
-    "rereadChange": 0.5,
-    "rereadTop": 30
-  },
-  "build": {
-    "maxCountDropRatio": 0.05,
-    "maxPeriodRangeMonths": 36
-  },
-  "worklife": {
-    "maxMatchedDropRatio": 0.05
-  }
-}
+{"numbers": {"rereadChange": 0.5, "rereadTop": 30}, "build": {"maxCountDropRatio": 0.05, "maxPeriodRangeMonths": 36}, "worklife": {"maxMatchedDropRatio": 0.05}, "quality": {"minCompanies": 50, "maxRelativeShift": 0.3, "maxExternalDrop": 0.1}}

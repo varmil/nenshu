@@ -2,7 +2,7 @@
 import unittest
 from datetime import date
 
-from alerts import Case, key_of, pending_cases, plan, pr_cases, stalled_case, texts_cases, worklife_case
+from alerts import Case, key_of, pending_cases, plan, pr_cases, quality_case, stalled_case, texts_cases, worklife_case
 
 TODAY = date(2026, 10, 5)
 
@@ -54,6 +54,26 @@ class Texts(unittest.TestCase):
 
     def test_no_rows_no_case(self):
         self.assertEqual(texts_cases([]), [])
+
+
+class Quality(unittest.TestCase):
+    """分析の品質のずれ（D10）。いちばん新しい月の集計にずれがあれば1件。"""
+
+    def report(self, drifts):
+        stats = {"n": 40, "subjective": 0.5, "fact": 8.0, "external": 0.02, "reader": 0.1, "escape": 0.3, "chars": 350}
+        base = {"subjective": 1.37, "fact": 5.82, "external": 0.15, "reader": 0.28, "escape": 0.15, "chars": 364}
+        return {"month": "2026-11", "stats": stats, "baseline": base, "drifts": drifts,
+                "byModel": {"claude-opus-5-5@xhigh": {"n": 40, "subjective": 0.5, "fact": 8.0, "external": 0.02}}}
+
+    def test_drift_becomes_one_case_without_the_month_in_the_key(self):
+        case = quality_case(self.report([{"metric": "subjective", "value": 0.5, "baseline": 1.37}]))
+        self.assertEqual(case.key, "quality:analysis")
+        self.assertIn("2026-11", case.title)
+        self.assertIn("claude-opus-5-5@xhigh", case.body)
+
+    def test_no_drift_no_case(self):
+        self.assertIsNone(quality_case(self.report([])))
+        self.assertIsNone(quality_case(None))
 
 
 class Worklife(unittest.TestCase):

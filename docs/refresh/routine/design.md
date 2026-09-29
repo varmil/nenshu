@@ -12,7 +12,7 @@ spec: `docs/refresh/spec.md` 1.12・1.13・1.14・1.17・AC-12・AC-14・AC-18 �
 ```
 定期実行（Claude Code の Routine・毎日 日本時間の朝）
   └ .claude/skills/refresh-daily/SKILL.md の手順
-      数字（D4）→ 女性活躍DB（D7）→ ビルド → 文章（D6）→ ビルド → テスト → PR（ラベル refresh）
+      数字（D4）→ 女性活躍DB（D7）→ ビルド → 文章（D6）→ 品質の集計（D10・月初だけ）→ ビルド → テスト → PR（ラベル refresh）
                                                           │
 GitHub Actions                                            ▼
   ci.yml（D1）── 完了（または PR にラベル）──→ refresh-automerge.yml ─→ automerge.py
@@ -76,6 +76,7 @@ GitHub Actions                                            ▼
 | テストを回す仕組み | `package.json`（3つ）・`.husky/**`・`.lintstagedrc.mjs`・`.github/**` | `test` のスクリプトや CI を書き換えればテストを外せる |
 | 止める線の閾値 | `pipeline/refresh/thresholds.json` | spec 1.12。4つのファイルに散っていた定数を1つに寄せた |
 | 生成の規格 | `pipeline/*/prompts/**`・`pipeline/analysis/gate.py`・`pipeline/summary/gate.py` | spec 1.12。機械ゲートは規格の一部 |
+| 文章の品質の物差し（D10） | `pipeline/analysis/quality.py`・`quality_baseline.json` | 書き換えると知らせが消せる |
 | 手順と判定そのもの | `.claude/**`・`criteria.txt`・`automerge.py`・`alerts.py` | 手順を書き換えて工程を飛ばせる。一覧を書き換えて自分を外せる（main の一覧で判定するので効かないが、入った後の回に効く） |
 
 **`build-data.ts` は入れていない。** ビルドの中のガード（社数の減り・台帳と成果物の突き合わせ・推移の右端）はここにあるが、やり直しで直らない失敗を直す PR（spec 1.12）の多くがここに触れる。閾値は `thresholds.json` に出したので、線の値を変える PR は見分けられる。ガードそのものを外す変更は、`build-data.test.ts`（基準）が落ちることで止まる。
@@ -88,6 +89,7 @@ GitHub Actions                                            ▼
 | --- | --- | --- |
 | `numbers:<EDINETコード>` | 数字を反映できなかった会社 | `pipeline/data/numbers_pending.csv`。`unresolved`・`not_eligible` はすぐ、`fetch_failed`・`reread` は2日続けて残ったら（1回の取得の失敗は次の回で直ることが多い） |
 | `texts:<EDINETコード>` | 文章を書き直せず、前の書類の文章のまま出している会社（D6） | `pipeline/data/texts_pending.csv`。1社1件で、落ちた工程を並べる。同じ書類では選び直さないのですぐ |
+| `quality:analysis` | 分析の書き方が版5からずれている（D10・`docs/refresh/text-quality/design.md`） | `pipeline/data/analysis_quality/` のいちばん新しい月の集計。次の月がずれていなければ閉じる |
 | `worklife:rejected` | 女性活躍DB の版を検証で落とした | `pipeline/worklife/manifest.json` の `rejected` |
 | `routine:stalled` | 定期実行が止まっている | `pipeline/data/universe.json` の書類一覧を読んだ日が3日以上前（ふだんは昨日） |
 | `pr-criteria:<番号>` | 基準を変えるので止めた PR | 開いている `refresh` の PR の `refresh-criteria` |
@@ -97,7 +99,6 @@ GitHub Actions                                            ▼
 - 件が無くなったら Issue を閉じる（コメントを残す）。同じ鍵の Issue が2つあれば新しいほうを閉じる。**鍵の無い Issue には触らない**（運営者が手で立てたもの）
 - 件は **main のファイル**から数える。マージされていない PR の中の待ち行列は数えない——その PR が止まっていること自体が件になる
 - **「コードでは直せない失敗」**（API キーの失効・外部サービスの設定）は、書類一覧が進まなくなることで `routine:stalled` として現れる。専用の件は置いていない
-- 文章の品質のずれ（1.14）は D10 が件を足す
 - Issue は `GITHUB_TOKEN`（github-actions）が立てる。セッションの GitHub のツールで Issue を書くと山括弧の文字列が落ちる（CLAUDE.md）ので、そちらは使わない
 
 ## 閾値
