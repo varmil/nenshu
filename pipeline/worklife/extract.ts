@@ -25,6 +25,7 @@ import {
 } from "./positivedb";
 import { parseUnifiedCsv } from "../scripts/lib/csv";
 import { companyIdOf, readLedger } from "../scripts/lib/ledger";
+import { THRESHOLDS } from "../scripts/lib/thresholds";
 
 const HERE = resolve(dirname(fileURLToPath(import.meta.url)));
 const PIPELINE = resolve(HERE, "..");
@@ -49,9 +50,9 @@ export const DEFAULT_PATHS: ExtractPaths = {
 /**
  * 突合できた社数が前の版からこの割合を超えて減ったら、その版を取り込まない（D7）。
  * 列がそろっていても中身の欠けた版を取り込むと、「データベースに登録していません」が
- * 大量に事実と違う文になる。割合はビルドの社数の線（`MAX_COUNT_DROP_RATIO`）と同じ。
+ * 大量に事実と違う文になる。値は `refresh/thresholds.json`（ビルドの社数の線と同じ5%）。
  */
-export const MAX_MATCHED_DROP_RATIO = 0.05;
+export const MAX_MATCHED_DROP_RATIO = THRESHOLDS.worklife.maxMatchedDropRatio;
 
 /** 版そのものを取り込めない（列が違う・中身が欠けている）。前の版のまま残す。 */
 export class RejectedSourceError extends Error {}

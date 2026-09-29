@@ -138,6 +138,14 @@ Unit の実装を終えたら、次の順で進める。
 
 この許可は Unit の実装フロー（ビルド・テスト・PR・マージ）に限る。破壊的な操作（force push・履歴の書き換え等）や、この運用の対象外の判断が要る場面は都度確認する。
 
+### 定期実行のデータ更新（refresh の D8・`docs/refresh/routine/design.md`）
+
+**毎日の定期実行が立てる PR（ラベル `refresh`）は、CI（`ci.yml`）が通れば GitHub Actions（`refresh-automerge.yml`）が運営者を待たずにマージする。** セッションはマージしない。手順は `.claude/skills/refresh-daily/SKILL.md`。
+
+- **通る基準のファイル（`pipeline/refresh/criteria.txt`。テスト・止める線の閾値 `pipeline/refresh/thresholds.json`・生成の規格 `pipeline/*/prompts/`・手順の `.claude/` ほか）に触れる PR は、自動ではマージしない。** `refresh-criteria` のラベルで止まり、Issue で知らせる。運営者が見てマージする
+- **更新できなかったものは、1件につき Issue 1つ**（ラベル `refresh-alert`・本文の1行目が鍵）。解消すると自動で閉じる（`pipeline/refresh/alerts.py`）
+- **Unit の PR にはラベル `refresh` を付けない。** Unit の PR は上の1〜3のとおりセッションがマージする
+
 ## 現在地
 
 **Bolt 1（MVP: ランキング1ページ＋計算方法ページ）の全Unit U0〜U7が実装済み。** U0（データ変換パイプライン、`docs/ranking/data-pipeline/`、Issue #1）・U1（プロジェクト基盤とデザイントークン、`docs/ranking/project-foundation/`、Issue #2）・U2（ランキング表と年齢スイッチ、`docs/ranking/ranking-table/`、Issue #3）・U3（フィルタ4種、`docs/ranking/ranking-filters/`、Issue #4）・U4（フリーワード検索、`docs/ranking/free-word-search/`、Issue #5）・U5（URLクエリとの同期、`docs/ranking/url-sync/`、Issue #6）・U6（0件・端の状態とページネーション、`docs/ranking/ranking-pagination/`、Issue #7）・U7（計算方法ページ`/about`、`docs/ranking/about-page/`、Issue #8）。
@@ -562,7 +570,7 @@ Unit の実装を終えたら、次の順で進める。
 - **2019年に開示のタグ付けが変わっている。** それ以前は平均年間給与のXBRL要素そのものが無く、2017・2018年は全社を「従業員の状況」本文から拾う（`textblock.py`）。抽出率は2017年で95.7%
 - **同じ表の読み方が割れることがあり、1書類の中では決められない。** `4,17934.09.924,320,256` は「勤続9.9／2,432万」とも「勤続9.92／432万」とも読め、キーエンス2017とコメリ2017で正解が逆になる。`history.resolve_candidates` が2019年以降のタグ由来の値を基準に年をまたいで選び直す
 - **取得の窓は暦年ぜんぶ。** 6/1〜7/10 に限ると、COVID期の提出期限延長で2020年の96社を取り逃がす
-- **キャッシュ（`pipeline/salary/cache/`・1.4GB）は gitignore 済み。** 再取得は `warm_lists.py` → `fetch_history.py` → `history.py` の順。年1回、その年ぶんだけ足せばよい
+- **キャッシュ（`pipeline/salary/cache/`・1.4GB）は gitignore 済み。** 再取得は `warm_lists.py` → `fetch_history.py` → `history.py` の順。~~年1回、その年ぶんだけ足せばよい~~ → **ふだんは取り直さない**——refresh の D4 以降、有報を出した会社の行を毎日足している。全件を組み直すときだけ使う
 
 **企業ロゴは `logo` 施策**（`docs/logo/`・親 Issue #23・ADR-0008）。**L0（調達、#109）・L1（器と表示、#110）とも実装済み。** **2,961社中2,536社（85.6%）にロゴが出る**（E3・#175 で母集団の拡大に追随させ、W2 と同じ日の #221 で2社が頭文字に戻った）。
 
@@ -622,11 +630,11 @@ Unit の実装を終えたら、次の順で進める。
 - **会社ごとの決算期は文字列プールの添字**（`periods`）。`YYYY-MM` をそのまま並べると `/` の HTML が4倍以上増える。実測で `/` は gzip +301 B（2種類しか無かった頃は圧縮が極端に効いた。**拡大後は14種類**）
 - **`/about` だけは幅と最頻の両方を出す。** 幅だけだと端（`2025年3月期` の1社）が全体を代表しているように読める。「3月期が中心」の直書きはやめ、`buildAboutFacts` の `fiscalPeriodTop` から引く。E2E の「1画面に1回」は**幅のほう**を数える
 
-**データの更新は、年1回の一括から毎日の差分更新へ移す**（`refresh` 施策・`docs/refresh/`・親 Issue #868。**Inception 完了。Unit は D0〜D10 = #870〜#880 で、D0（#870）〜D5（#875）と D7（#877）は実装済み**）。有報を出した会社だけを毎日拾い、数字を先に替え、文章（説明文・要約・分析・給与の決定方針）は1日の上限の中で年収ランキングの上位から書き直す。運営者の確認を待つ工程は置かず、テストが通れば自動でマージする。
+**データの更新は、年1回の一括から毎日の差分更新へ移す**（`refresh` 施策・`docs/refresh/`・親 Issue #868。**Inception 完了。Unit は D0〜D10 = #870〜#880 で、D0（#870）〜D5（#875）・D7（#877）・D8（#878）は実装済みで、毎日の定期実行が回っている**）。有報を出した会社だけを毎日拾い、数字を先に替え、文章（説明文・要約・分析・給与の決定方針）は1日の上限の中で年収ランキングの上位から書き直す。運営者の確認を待つ工程は置かず、テストが通れば自動でマージする。
 
 - **決まったことの一覧は親 Issue の本文**（「決まったこと」1〜17）。spec はその結果だけを書いている
 - **ADR-0017: 企業ページの ID は一度振ったら変えない**（上場・上場廃止でも）。**ADR-0018: 母集団に入るのは直近12か月、出るのは最後の有報から24か月**。**ADR-0008 の追記: 女性活躍DB の全件版に限りブラウザの User-Agent を名乗ってよい**（ロゴの取得には広げない）
-- **実装が入るまでは、いまの「年1回」の記述が事実。** CLAUDE.md・product.md・各 spec の「年1回」は、Unit が入ったときに書き換える（`docs/refresh/overview.md`「書き換える docs」）
+- ~~**実装が入るまでは、いまの「年1回」の記述が事実。**~~ → **D8（#878）で毎日の定期実行が入った。** CLAUDE.md・product.md・ADR の「年1回」は書き換えるか追記を足した（`docs/refresh/overview.md`「書き換える docs」）。**各 spec・design に残る「年1回」は、その Unit を作った時点の前提**として読む
 - **D2（#872）で更新台帳 `pipeline/data/ledger.csv` を置いた**（`docs/refresh/ledger/`）。1社1行・EDINETコード順で、企業 ID・最後の有報の提出日・工程ごとに反映した書類（数字・説明文・要約と分析・給与の決定方針）を持つ。**行は足すだけで消さない。書くのは Python（`pipeline/ledger/ledger.py`）、読むのはビルド（`pipeline/scripts/lib/ledger.ts`）**
   - **ビルドは台帳に無い会社を出さず、台帳の会社が `ranking_unified.csv` に無くても落ちる。** 行を足すなら同じ回で台帳にも足す（`ledger.admit`）
   - **母集団から出る条件（最後の有報から24か月）はビルドが見る。基準日は `universe.json` の `filingWindow.to`**（データを取った日）で、ビルドを回した日ではない。外れた会社のページを残すのは D9（#879）——いまの台帳で最初に外れうるのは 2027-08-26
@@ -656,6 +664,12 @@ Unit の実装を終えたら、次の順で進める。
   - **検証に落ちた版は取り込まない**——列が違う（`HeaderMismatchError`）か、突合できた社数が前の版から5%を超えて減った（`RejectedSourceError`）とき。`worklife.csv` と取り込んだ版の記録は前のまま、落ちた版と理由を manifest の `rejected` に書き、終了コードは 0。知らせるのは D8。取得そのものの失敗は例外で止まり、何も書かない
   - **1社ずつ値の動きで止める線は置いていない**（自己申告値で、どちらが正しいかを決める根拠が無い）
   - 1回目（2026-09-29 版）で 2,367行 → 2,390行。D4 で足した17社のうち9社に働きやすさが付いた。数値（区分名を含む）が動いた会社は176社（最終更新日・時点・注釈だけの動きを除く）
+- **D8（#878）で毎日の定期実行・自動マージ・知らせを入れた**（`docs/refresh/routine/`）。上の「Unit完了後の運用」の「定期実行のデータ更新」も参照
+  - **定期実行は Claude Code の Routine で、毎日新しいセッションを立てる。** 手順は `.claude/skills/refresh-daily/SKILL.md`（数字 → 女性活躍DB → ビルド → テスト → PR にラベル `refresh`）。機械の工程もセッションの中で回す（API キーはこの環境の環境変数にある）。モデルは `claude-opus-5-5`・推論は超高（spec 1.14）
+  - **マージするか・知らせるかは GitHub Actions が決める。** `refresh-automerge.yml`（CI の完了か、ラベルが付いたとき）→ `pipeline/refresh/automerge.py`、`refresh-alerts.yml` → `pipeline/refresh/alerts.py`。**動くのは main のワークフローとスクリプト**で、PR の側で判定や基準の一覧を書き換えても、その PR には効かない
+  - **止める線の閾値は `pipeline/refresh/thresholds.json` の1か所。** Python（`update_numbers.py`）と TypeScript（`build-data.ts`・`worklife/extract.ts`。`pipeline/scripts/lib/thresholds.ts` で読む）が読む。**閾値を定数でコードに書き足さない**——基準を変える PR をファイルで見分けられなくなる
+  - **Issue は `GITHUB_TOKEN` が立てて閉じる。** 鍵は本文の1行目（`鍵: numbers:E02485`）。鍵の無い Issue には触らない。件は main のファイルから数える
+  - `GITHUB_TOKEN` のマージは他のワークフローを起こさないので、自動マージの後の知らせは `workflow_dispatch` で呼んでいる
 - **D0（#870）でテストとビルドをいまのデータの値から切り離した**（`docs/refresh/test-invariants/`）。ビルドの社数の決め打ち（`EXPECTED_ROW_COUNT = 2961`）は「前回のビルドから5%を超えて減ったら落とす」（`checkCountDrop`）に替えた。書き直す前は、揺らしたデータで pipeline 10件・web のユニット42件・E2E 43件が落ちた。書き方の約束は「開発上の約束」のテストの項
 
 **未解決の課題:**

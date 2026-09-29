@@ -1,0 +1,13 @@
+{
+  "numbers": {
+    "rereadChange": 0.5,
+    "rereadTop": 30
+  },
+  "build": {
+    "maxCountDropRatio": 0.05,
+    "maxPeriodRangeMonths": 36
+  },
+  "worklife": {
+    "maxMatchedDropRatio": 0.05
+  }
+}

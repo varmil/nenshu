@@ -1,0 +1,38 @@
+# 定期実行で更新できなかったものを、1件につき Issue 1つで知らせる（refresh の D8・#878・
+# docs/refresh/routine/design.md「知らせ」）。件は main のファイルと開いている PR のラベルから
+# 数え（pipeline/refresh/alerts.py）、足りない Issue を立て、解消したものを閉じる。
+#
+# - main への push: 運営者がマージしたとき
+# - workflow_dispatch: 自動マージ（refresh-automerge.yml）の後。GITHUB_TOKEN のマージは push を起こさない
+# - schedule: 何も起きない日の備え（定期実行が止まっていることは、何も起きないことでしか分からない）
+name: refresh-alerts
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    # 日本時間 12:17（定期実行とその PR の CI が終わった後）
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: refresh-alerts
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: python3 pipeline/refresh/alerts.py sync
+        env:
+          GH_TOKEN: ${{ github.token }}

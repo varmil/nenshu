@@ -1,0 +1,38 @@
+# 通る基準のファイル（refresh の D8・#878・docs/refresh/spec.md 1.12・docs/refresh/routine/design.md）。
+# ここに当たるファイルを1つでも変える PR は、CI が通っても自動でマージしない。運営者が見る。
+#
+# 書式: 1行に1つ、リポジトリの根からのパスの glob。`**` は0個以上のディレクトリ、
+# `*` は `/` を含まない任意の文字列。`#` から後ろと空行は読まない。
+# 判定はマージする側（main）のこの一覧で行う。PR がこの一覧を書き換えても、その PR には効かない。
+
+# --- テスト
+**/*.test.ts
+**/*.test.tsx
+**/test_*.py
+web/e2e/**
+web/testing/**
+web/vitest.config.*
+web/playwright.config.*
+pipeline/vitest.config.*
+pipeline/scripts/check-data.ts
+tools/perturb/**
+package.json
+pipeline/package.json
+web/package.json
+.husky/**
+.lintstagedrc.mjs
+.github/**
+
+# --- 止める線の閾値
+pipeline/refresh/thresholds.json
+
+# --- 生成の規格
+pipeline/*/prompts/**
+pipeline/analysis/gate.py
+pipeline/summary/gate.py
+
+# --- 定期実行の手順と、この一覧・判定そのもの
+.claude/**
+pipeline/refresh/criteria.txt
+pipeline/refresh/automerge.py
+pipeline/refresh/alerts.py

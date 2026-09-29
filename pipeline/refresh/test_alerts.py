@@ -1,0 +1,122 @@
+"""更新できなかったものの知らせ（refresh の D8・#878・AC-14）。"""
+import unittest
+from datetime import date
+
+from alerts import Case, key_of, pending_cases, plan, pr_cases, stalled_case, worklife_case
+
+TODAY = date(2026, 10, 5)
+
+
+def pending(reason, since="2026-10-04", code="E00001"):
+    return {
+        "edinet_code": code,
+        "doc_id": "S100TEST",
+        "sec_code": "1234",
+        "name": "テスト株式会社",
+        "period_end": "2026-06-30",
+        "filed": "2026-09-28",
+        "reason": reason,
+        "detail": "詳しい理由",
+        "since": since,
+    }
+
+
+class Pending(unittest.TestCase):
+    def test_final_reasons_are_reported_at_once(self):
+        for reason in ("unresolved", "not_eligible"):
+            (case,) = pending_cases([pending(reason, since="2026-10-05")], TODAY)
+            self.assertEqual(case.key, "numbers:E00001")
+            self.assertIn("詳しい理由", case.body)
+
+    def test_retried_reasons_wait_for_the_second_day(self):
+        # 1回の取得の失敗は次の回で直ることが多い。2回続けて残ったら知らせる
+        for reason in ("fetch_failed", "reread"):
+            self.assertEqual(pending_cases([pending(reason, since="2026-10-04")], TODAY), [], reason)
+            self.assertEqual(len(pending_cases([pending(reason, since="2026-10-03")], TODAY)), 1, reason)
+
+    def test_one_case_per_company(self):
+        rows = [pending("not_eligible", code="E00001"), pending("unresolved", code="E00002")]
+        self.assertEqual([c.key for c in pending_cases(rows, TODAY)], ["numbers:E00001", "numbers:E00002"])
+
+
+class Worklife(unittest.TestCase):
+    manifest = {"file": "99_20260929_utf8.zip", "fetchedAt": "2026-09-30"}
+
+    def test_no_case_without_rejected(self):
+        self.assertIsNone(worklife_case(self.manifest))
+        self.assertIsNone(worklife_case(None))
+
+    def test_rejected_version_is_reported(self):
+        m = {
+            **self.manifest,
+            "rejected": {"file": "99_20261001_utf8.zip", "sha256": "f" * 64, "fetchedAt": "2026-10-01", "reason": "101列目が違う"},
+        }
+        case = worklife_case(m)
+        self.assertEqual(case.key, "worklife:rejected")
+        self.assertIn("101列目が違う", case.body)
+        self.assertIn("99_20260929_utf8.zip", case.body)  # 前の版のまま、と言える
+
+
+class Stalled(unittest.TestCase):
+    def universe(self, to):
+        return {"filingWindow": {"from": "2025-10-01", "to": to}}
+
+    def test_reading_up_to_yesterday_is_normal(self):
+        self.assertIsNone(stalled_case(self.universe("2026-10-04"), TODAY))
+        self.assertIsNone(stalled_case(self.universe("2026-10-03"), TODAY))
+
+    def test_three_days_behind_is_stalled(self):
+        self.assertEqual(stalled_case(self.universe("2026-10-02"), TODAY).key, "routine:stalled")
+
+
+class PullRequests(unittest.TestCase):
+    def test_labels_become_cases(self):
+        prs = [
+            {"number": 10, "title": "a", "url": "u", "labels": [{"name": "refresh"}, {"name": "refresh-criteria"}]},
+            {"number": 11, "title": "b", "url": "u", "labels": [{"name": "refresh"}, {"name": "refresh-ci-failed"}]},
+            {"number": 12, "title": "c", "url": "u", "labels": [{"name": "refresh"}]},
+        ]
+        self.assertEqual([c.key for c in pr_cases(prs)], ["pr-criteria:10", "pr-failed:11"])
+
+
+def issue(number, case: Case):
+    return {"number": number, "title": case.title, "body": case.issue_body()}
+
+
+A = Case("numbers:E00001", "数字を更新できない: A", "中身A")
+B = Case("worklife:rejected", "女性活躍DB", "中身B")
+
+
+class Plan(unittest.TestCase):
+    def test_key_is_the_first_line(self):
+        self.assertEqual(key_of(A.issue_body()), "numbers:E00001")
+        self.assertIsNone(key_of("運営者が手で立てた Issue"))
+        self.assertIsNone(key_of(""))
+
+    def test_create_missing_and_close_resolved(self):
+        p = plan([A], [issue(5, B)])
+        self.assertEqual([c.key for c in p.create], ["numbers:E00001"])
+        self.assertEqual(p.close, [5])
+        self.assertEqual(p.update, [])
+
+    def test_same_case_is_not_created_twice(self):
+        p = plan([A], [issue(5, A)])
+        self.assertEqual((p.create, p.update, p.close), ([], [], []))
+
+    def test_changed_body_is_updated_in_place(self):
+        changed = Case(A.key, A.title, "中身が変わった")
+        p = plan([changed], [issue(5, A)])
+        self.assertEqual([(n, c.body) for n, c in p.update], [(5, "中身が変わった")])
+        self.assertEqual((p.create, p.close), ([], []))
+
+    def test_duplicates_are_closed_keeping_the_oldest(self):
+        p = plan([A], [issue(7, A), issue(5, A)])
+        self.assertEqual(p.close, [7])
+
+    def test_issues_without_key_are_left_alone(self):
+        p = plan([], [{"number": 9, "title": "手で立てた", "body": "鍵の無い本文"}])
+        self.assertEqual(p.close, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

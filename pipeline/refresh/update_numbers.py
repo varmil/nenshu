@@ -52,9 +52,11 @@ PENDING = DATA / "numbers_pending.csv"
 
 JST = timezone(timedelta(hours=9))
 
-# 線 B（読み違いを疑う）。**起点で、回しながら調整してよい**（spec 1.11・運営者）。
-REREAD_CHANGE = 0.5  # ① 平均年収が前の期から ±50%
-REREAD_TOP = 30  # ② 前の期の値が無い会社が上位30社（実測値）
+# 線 B（読み違いを疑う）。**起点で、回しながら調整してよい**（spec 1.11・運営者）。値は
+# thresholds.json の1か所にある。閾値は定期実行の「通る基準」で、変える PR は自動でマージされない（D8）
+THRESHOLDS = json.loads((ROOT / "thresholds.json").read_text(encoding="utf-8"))
+REREAD_CHANGE = THRESHOLDS["numbers"]["rereadChange"]  # ① 平均年収が前の期から ±50%
+REREAD_TOP = THRESHOLDS["numbers"]["rereadTop"]  # ② 前の期の値が無い会社が上位30社（実測値）
 
 # 待ち行列の理由。**次の回で取り直すもの**と、**知らせるだけのもの**に分かれる。
 RETRY = {"fetch_failed", "reread"}
