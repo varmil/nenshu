@@ -60,10 +60,15 @@ export const analyses = analysesJson as { byId: Record<string, AnalysisRecord> }
 export const filings = filingsJson as { byId: Record<string, string> };
 export const payPolicies = payPoliciesJson as { byId: Record<string, PayPolicyRecord> };
 
-/** 企業 ID から `companies.rows` の添字を引く。`stats`・`radar` 等の並びもこれで引く。 */
+const indexById = new Map(companies.rows.map((row, index) => [row[0], index]));
+
+/**
+ * 企業 ID から `companies.rows` の添字を引く。`stats`・`radar` 等の並びもこれで引く。
+ * 表は1度だけ作る——全社を回すループの中で呼ぶテストがある。
+ */
 export function rowIndexOf(id: string): number {
-  const index = companies.rows.findIndex((row) => row[0] === id);
-  if (index < 0) throw new Error(`${id} は companies.json に居ない`);
+  const index = indexById.get(id);
+  if (index === undefined) throw new Error(`${id} は companies.json に居ない`);
   return index;
 }
 
