@@ -19,19 +19,19 @@ import type {
 } from "@/features/company/types";
 import type { CompaniesData, CurvesData } from "@/features/ranking/types";
 import { companyFiscalPeriodLabel } from "@/lib/data/period";
-import companiesData from "@/public/data/companies.json";
-import curvesData from "@/public/data/curves.json";
-import statsData from "@/public/data/stats.json";
-import historyData from "@/public/data/history.json";
-import worklifeData from "@/public/data/worklife.json";
-import radarData from "@/public/data/radar.json";
-import performanceData from "@/public/data/performance.json";
-import profitHistoryData from "@/public/data/profit-history.json";
-import logosData from "@/public/data/logos.json";
-import summariesData from "@/public/data/summaries.json";
-import analysesData from "@/public/data/analyses.json";
-import filingsData from "@/public/data/filings.json";
-import payPoliciesData from "@/public/data/pay-policies.json";
+import companiesData from "@/public/data/companies.json" with { type: "json" };
+import curvesData from "@/public/data/curves.json" with { type: "json" };
+import statsData from "@/public/data/stats.json" with { type: "json" };
+import historyData from "@/public/data/history.json" with { type: "json" };
+import worklifeData from "@/public/data/worklife.json" with { type: "json" };
+import radarData from "@/public/data/radar.json" with { type: "json" };
+import performanceData from "@/public/data/performance.json" with { type: "json" };
+import profitHistoryData from "@/public/data/profit-history.json" with { type: "json" };
+import logosData from "@/public/data/logos.json" with { type: "json" };
+import summariesData from "@/public/data/summaries.json" with { type: "json" };
+import analysesData from "@/public/data/analyses.json" with { type: "json" };
+import filingsData from "@/public/data/filings.json" with { type: "json" };
+import payPoliciesData from "@/public/data/pay-policies.json" with { type: "json" };
 import {
   buildAnalysisView,
   type AnalysisRecord,

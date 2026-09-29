@@ -12,19 +12,19 @@
  * ちょうど35歳」「業種で1位」のような状態を前提にするなら、`pickCompany` でその状態の会社を
  * データから選ぶ——状態はその会社の次の有報で変わる。
  */
-import companiesJson from "@/public/data/companies.json";
-import curvesJson from "@/public/data/curves.json";
-import statsJson from "@/public/data/stats.json";
-import historyJson from "@/public/data/history.json";
-import worklifeJson from "@/public/data/worklife.json";
-import radarJson from "@/public/data/radar.json";
-import performanceJson from "@/public/data/performance.json";
-import profitHistoryJson from "@/public/data/profit-history.json";
-import logosJson from "@/public/data/logos.json";
-import summariesJson from "@/public/data/summaries.json";
-import analysesJson from "@/public/data/analyses.json";
-import filingsJson from "@/public/data/filings.json";
-import payPoliciesJson from "@/public/data/pay-policies.json";
+import companiesJson from "@/public/data/companies.json" with { type: "json" };
+import curvesJson from "@/public/data/curves.json" with { type: "json" };
+import statsJson from "@/public/data/stats.json" with { type: "json" };
+import historyJson from "@/public/data/history.json" with { type: "json" };
+import worklifeJson from "@/public/data/worklife.json" with { type: "json" };
+import radarJson from "@/public/data/radar.json" with { type: "json" };
+import performanceJson from "@/public/data/performance.json" with { type: "json" };
+import profitHistoryJson from "@/public/data/profit-history.json" with { type: "json" };
+import logosJson from "@/public/data/logos.json" with { type: "json" };
+import summariesJson from "@/public/data/summaries.json" with { type: "json" };
+import analysesJson from "@/public/data/analyses.json" with { type: "json" };
+import filingsJson from "@/public/data/filings.json" with { type: "json" };
+import payPoliciesJson from "@/public/data/pay-policies.json" with { type: "json" };
 import type { CompaniesData, CompanyRow, CurvesData } from "@/features/ranking/types";
 import type { CompanyStatsData } from "@/features/company/types";
 import type { PerformanceData, RadarData } from "@/features/company/lib/radar";
