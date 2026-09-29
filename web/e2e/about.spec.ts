@@ -206,3 +206,8 @@ test.describe("計算方法ページ（/about）", () => {
     expect(doc.scrollWidth).toBe(doc.innerWidth);
   });
 });
+
+// D1: CI が赤くなることを確かめるための、わざと落とすテスト（すぐ戻す）
+test("CI の確認: わざと落とす", async () => {
+  expect(1).toBe(2);
+});

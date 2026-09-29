@@ -91,3 +91,10 @@ describe("filingWindowLabel", () => {
     expect(() => filingWindowLabel(meta("2025-03", "2026-05", window))).toThrow(/YYYY-MM-DD/);
   });
 });
+
+// D1: CI が赤くなることを確かめるための、わざと落とすテスト（すぐ戻す）
+describe("CI の確認", () => {
+  it("わざと落とす", () => {
+    expect(1).toBe(2);
+  });
+});
