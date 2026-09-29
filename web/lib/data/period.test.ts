@@ -11,7 +11,7 @@ const meta = (
   count: 2961,
   fiscalPeriodRange: { from, to },
   filingWindow,
-  excluded: { minEmployees: 100, byEmployees: 1047 },
+  excluded: { minEmployees: 100 },
   generatedAt: "2026-08-25T00:00:00.000Z",
 });
 
