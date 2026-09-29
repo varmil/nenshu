@@ -18,6 +18,7 @@ docs/refresh/routine/design.md「知らせ」。
 | `quality:analysis` | `pipeline/data/analysis_quality/` のいちばん新しい月の集計（D10） |
 | `worklife:rejected` | `pipeline/worklife/manifest.json` の `rejected`（D7） |
 | `routine:stalled` | `pipeline/data/universe.json` の書類一覧を読んだ日が古い |
+| `routine:effort` | `pipeline/data/company_analysis.csv` のいちばん新しい日に書いた分析の推論の設定（`.claude/settings.json` の `effortLevel` と比べる） |
 | `pr-criteria:<番号>`・`pr-failed:<番号>` | 開いている PR のラベル（automerge.py が付ける） |
 """
 from __future__ import annotations
@@ -33,6 +34,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 PIPELINE = HERE.parent
 DATA = PIPELINE / "data"
+SETTINGS = PIPELINE.parent / ".claude" / "settings.json"
 
 LABEL = "refresh-alert"
 LABEL_COLOR = "fbca04"
@@ -223,6 +225,46 @@ def stalled_case(universe: dict, today: date) -> Case | None:
     )
 
 
+def jst_day(timestamp: str) -> str:
+    """`2026-09-29T22:53:15+00:00` → 日本時間の日付（`2026-09-30`）。"""
+    return datetime.fromisoformat(timestamp).astimezone(JST).date().isoformat()
+
+
+def effort_case(rows: list[dict], effort: str | None) -> Case | None:
+    """定期実行の推論の設定（spec 1.14）。**いちばん新しい日に書いた分析だけを見る**——次の回が決めた設定で
+    書けば閉じる。
+
+    書いたモデルは `<モデル ID>@<推論>` で残る（D6 の `merge --model`）。`@` の無い記録（C9 が書いた版5）は
+    見ない。決める値は `.claude/settings.json` の `effortLevel` で、Routine の設定には推論の欄が無い
+    （`docs/refresh/routine/design.md`「定期実行」）。
+    """
+    written = [r for r in rows if "@" in (r.get("model") or "") and r.get("generated_at")]
+    if not written:
+        return None
+    day = max(jst_day(r["generated_at"]) for r in written)
+    latest = [r for r in written if jst_day(r["generated_at"]) == day]
+    wrong = [r for r in latest if r["model"].rsplit("@", 1)[1] != effort]
+    if not wrong:
+        return None
+    used = "・".join(sorted({r["model"] for r in wrong}))
+    want = effort or "（未設定）"
+    return Case(
+        key="routine:effort",
+        title=f"定期実行の推論の設定が {want} でない（{day}・{used}）",
+        body=(
+            f"{day} に書いた分析 {len(latest)}社のうち {len(wrong)}社を `{used}` で書いている。"
+            f"決めた設定は `{want}`（`.claude/settings.json` の `effortLevel`・spec 1.14）。\n\n"
+            "`effortLevel` はセッションの起動時にしか読まれない。定期実行のセッションがこの設定の入る前に"
+            "起動していたら、セッションを立て直して Routine をそちらに向ける（`docs/refresh/routine/design.md`「定期実行」）。"
+            "書いた文章は検証を通っているので、そのまま出している。"
+        ),
+    )
+
+
+def read_effort(path: Path = SETTINGS) -> str | None:
+    return (read_json(path) or {}).get("effortLevel")
+
+
 def pr_cases(prs: list[dict]) -> list[Case]:
     cases = []
     for pr in prs:
@@ -255,7 +297,7 @@ def pr_cases(prs: list[dict]) -> list[Case]:
 
 
 def read_pending(path: Path = DATA / "numbers_pending.csv") -> list[dict]:
-    """待ち行列の CSV（数字・文章のどちらも）。無ければ空。"""
+    """待ち行列の CSV（数字・文章のどちらも）と分析の記録。無ければ空。"""
     if not path.exists():
         return []
     with path.open(encoding="utf-8", newline="") as f:
@@ -272,6 +314,7 @@ def collect(today: date, prs: list[dict]) -> list[Case]:
         worklife_case(read_json(PIPELINE / "worklife" / "manifest.json")),
         stalled_case(read_json(DATA / "universe.json"), today),
         quality_case(latest_quality_report()),
+        effort_case(read_pending(DATA / "company_analysis.csv"), read_effort()),
     ]:
         if case:
             cases.append(case)
