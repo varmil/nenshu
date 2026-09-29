@@ -412,14 +412,19 @@ describe("buildData", () => {
     const shareOf = (year: number) =>
       Object.entries(byId).filter(([id, values]) => valueAt(values, id, year) !== null).length /
       result.companies.rows.length;
-    const latest = Math.max(...Object.values(endById));
-    // **最新年は全社ぶんにはならない。** 取得の窓が直近12か月なので、決算期が
+    // **全社の最新の年ではなく、いちばん多くの会社の右端になっている年で見る**（refresh の D5）。
+    // 新しい年の有報が出はじめた直後は、その年を持つ会社がまだ数社しかない（揺らしたデータの
+    // 5つ目がその状態を作る）。
+    const endCounts = new Map<number, number>();
+    for (const end of Object.values(endById)) endCounts.set(end, (endCounts.get(end) ?? 0) + 1);
+    const [mainEnd] = [...endCounts].sort((a, b) => b[1] - a[1])[0];
+    // **その年も全社ぶんにはならない。** 取得の窓が直近12か月なので、決算期が
     // 3月でない会社の最新の有報は前年の提出になる。**下限を母集団いっぱいに
     // 上げると、正しいデータで落ちる。**
-    expect(shareOf(latest)).toBeGreaterThanOrEqual(0.8);
+    expect(shareOf(mainEnd)).toBeGreaterThanOrEqual(0.8);
     // 2018年以前の書類はタグが無く本文から拾う（`textblock.py`）ので、古い年ほど
     // 取りこぼしが出やすい。E4（#176）で新しく入った会社にもこの経路が効いた。
-    expect(shareOf(latest - HISTORY_SPAN + 1)).toBeGreaterThanOrEqual(0.75);
+    expect(shareOf(mainEnd - HISTORY_SPAN + 1)).toBeGreaterThanOrEqual(0.75);
   });
 
   // 同じ有報から取った同じ数字なので、ここがずれていたら抽出が壊れている。
