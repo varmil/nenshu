@@ -1,7 +1,7 @@
 {
   "filingWindow": {
-    "from": "2025-09-29",
-    "to": "2026-09-29"
+    "from": "2025-09-30",
+    "to": "2026-09-30"
   },
   "fetched": 4133,
   "resolvedSalary": 0,
@@ -9,5 +9,5 @@
   "eligible": 4008,
   "minEmployees": 100,
   "excludedByEmployees": 1047,
-  "published": 2979
+  "published": 2983
 }
