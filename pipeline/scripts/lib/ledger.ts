@@ -114,31 +114,53 @@ export function isLapsed(filed: string, asOf: string): boolean {
 }
 
 /**
- * 母集団を決める。数字の行（`ranking_unified.csv`）と台帳を突き合わせ、24か月を過ぎた会社を外す。
+ * ランキングの外にいる理由（D9・D11）。**企業ページは残す**。
+ *
+ * - `lapsed`: 最後の有報の提出から24か月たった（ADR-0018 決定3）。数字は最後の有報のもの
+ * - `belowLine`: 載っていた会社の最新の有報が、単体従業員の線を割った（ADR-0018 の 2026-09-30 の
+ *   追記）。数字はその最新の有報のもの
+ */
+export type UnrankedReason = "lapsed" | "belowLine";
+
+/**
+ * 母集団を決める。数字の行（`ranking_unified.csv`）と台帳を突き合わせ、ランキングの外の会社を分ける。
  *
  * - **行にあって台帳に無い会社は落とす**（ID を振っていない会社を出さない）
  * - **台帳にあって行に無い会社も落とす**——一度載った会社は、外れるまで最後の有報の数字で
  *   並ぶ（ADR-0018 決定2）。行が消えているのは取得側の異常で、黙ると企業ページが消える
+ * - **24か月の判定を先にする。** 提出が途切れた会社の数字は古いので、その断りを出す
+ * - **線を割ったかは行の従業員数で決める。** 台帳には持たない——次の有報で線に戻れば、何も書き換えずに
+ *   ランキングへ戻る。線を割った行を書くのは差分更新だけ（全件の組み直しは線の下の会社を行にしない）
  *
- * 返す `rows` と `ids` は元の行の並びのまま、添字で対応する。`lapsed` と `lapsedIds` も同じ
- * （外れた会社の企業ページを残すのに ID が要る。D9・#879）。
+ * 返す `rows` と `ids` は元の行の並びのまま、添字で対応する。`unranked`・`unrankedIds`・`reasons` も同じ
+ * （ランキングの外の会社の企業ページを残すのに ID が要る。D9・D11）。
  */
-export function selectUniverse<R extends { edinetCode: string; name: string }>(
+export function selectUniverse<
+  R extends { edinetCode: string; name: string; employeesNonConsolidated: number },
+>(
   allRows: readonly R[],
   ledger: Ledger,
-  asOf: string
-): { rows: R[]; ids: string[]; lapsed: R[]; lapsedIds: string[] } {
+  asOf: string,
+  minEmployees: number
+): { rows: R[]; ids: string[]; unranked: R[]; unrankedIds: string[]; reasons: UnrankedReason[] } {
   const rows: R[] = [];
   const ids: string[] = [];
-  const lapsed: R[] = [];
-  const lapsedIds: string[] = [];
+  const unranked: R[] = [];
+  const unrankedIds: string[] = [];
+  const reasons: UnrankedReason[] = [];
   const seen = new Set<string>();
   for (const row of allRows) {
     const id = companyIdOf(ledger, row);
     seen.add(row.edinetCode);
-    if (isLapsed(ledger.get(row.edinetCode)!.filed, asOf)) {
-      lapsed.push(row);
-      lapsedIds.push(id);
+    const reason: UnrankedReason | null = isLapsed(ledger.get(row.edinetCode)!.filed, asOf)
+      ? "lapsed"
+      : row.employeesNonConsolidated < minEmployees
+        ? "belowLine"
+        : null;
+    if (reason !== null) {
+      unranked.push(row);
+      unrankedIds.push(id);
+      reasons.push(reason);
       continue;
     }
     rows.push(row);
@@ -151,7 +173,7 @@ export function selectUniverse<R extends { edinetCode: string; name: string }>(
         "一度載った会社は、最後の有報の数字で残す"
     );
   }
-  return { rows, ids, lapsed, lapsedIds };
+  return { rows, ids, unranked, unrankedIds, reasons };
 }
 
 /**

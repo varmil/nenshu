@@ -4,11 +4,11 @@ import { TARGET_AGES, type CompaniesData } from "@/features/ranking/types";
 import { agePath, industryPath } from "@/lib/seo/ranking";
 import { absoluteUrl } from "@/lib/seo/site";
 import companiesData from "@/public/data/companies.json";
-import lapsedData from "@/public/data/lapsed.json";
-import type { LapsedData } from "@/features/company/lib/lapsed";
+import unrankedData from "@/public/data/unranked.json";
+import type { UnrankedData } from "@/features/company/lib/unranked";
 
 const companies = companiesData as CompaniesData;
-const lapsed = lapsedData as unknown as LapsedData;
+const unranked = unrankedData as unknown as UnrankedData;
 
 /**
  * ADR-0006 のインデックス対象をそのまま並べる（約3,004 URL）。
@@ -55,9 +55,9 @@ export const GET: APIRoute = () => {
   });
 
   for (const row of companies.rows) urls.push(absoluteUrl(`/company/${row[0]}`));
-  // **母集団から外れた会社のページも載せる**（refresh の D9・#879）。ページは正規のページのまま
-  // 残す（ADR-0018 の「ページが誤って消えるほうが痛手」）。
-  for (const row of lapsed.rows) urls.push(absoluteUrl(`/company/${row[0]}`));
+  // **ランキングの外の会社のページも載せる**（refresh の D9・#879・D11・#903）。ページは正規の
+  // ページのまま残す（ADR-0018 の「ページが誤って消えるほうが痛手」）。
+  for (const row of unranked.rows) urls.push(absoluteUrl(`/company/${row[0]}`));
 
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',

@@ -4,8 +4,8 @@ import {
   companyAnalysisFor,
   companyPageData,
   companyPayPolicyFor,
-  isLapsedCompany,
-  lapsedPageData,
+  isUnrankedCompany,
+  unrankedPageData,
 } from "../features/company/lib/pageData";
 import { buildActualsQa } from "../features/company/lib/actualsQa";
 import { sourceMeta } from "../features/company/lib/analysis";
@@ -44,12 +44,12 @@ import {
   analyses,
   history,
   historyYearsOf,
-  lapsed,
   payPolicies,
   pickCompany,
   pickMaxCompany,
   profitHistory,
   stats,
+  unrankedIdsOf,
 } from "../testing/realData";
 
 /**
@@ -987,8 +987,9 @@ test.describe("AC-15 レイアウト", () => {
    * - 社名がいちばん長い会社: h1・年齢別の説明文・Q&A が長くなり、パンくずも器の中で横に送られる
    * - 参照した資料がいちばん長く並ぶ会社（C10）
    * - 給与の決定方針がいちばん長い会社（畳む）と、表の列がいちばん多い会社（C19・AC-36）
-   * - 母集団から外れた会社（refresh の D9）: 別の画面（`LapsedCompanyDetail`）で、断りの器が増える。
-   *   いまのデータにはいない（揺らしたデータで1社いる）ので、いれば足す。サイドバーは無い
+   * - ランキングの外の会社（refresh の D9・D11）: 別の画面（`UnrankedCompanyDetail`）で、断りの器が
+   *   増える。理由ごとに1社ずつ、いれば足す（提出が途切れた会社はいまのデータにいない。揺らしたデータで
+   *   1社いる）。サイドバーは無い
    */
   test("375px では1カラムで、どの会社でも横スクロールが発生しない", async ({ page }) => {
     const ids = [
@@ -1012,19 +1013,20 @@ test.describe("AC-15 レイアウト", () => {
           )
         )
       ),
-      ...lapsed.rows.slice(0, 1).map((row) => row[0]),
+      ...unrankedIdsOf("lapsed").slice(0, 1),
+      ...unrankedIdsOf("belowLine").slice(0, 1),
     ];
     await page.setViewportSize({ width: 375, height: 844 });
     for (const id of new Set(ids)) {
-      const lapsedPage = isLapsedCompany(id);
-      const data = lapsedPage ? lapsedPageData(id) : companyPageData(id);
+      const unrankedPage = isUnrankedCompany(id);
+      const data = unrankedPage ? unrankedPageData(id) : companyPageData(id);
       await page.goto(`/company/${id}`);
       await expect(page.getByRole("heading", { level: 1 }), id).toBeVisible();
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
       );
       expect(overflow, id).toBeLessThanOrEqual(0);
-      if (!lapsedPage) {
+      if (!unrankedPage) {
         expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
       }
 

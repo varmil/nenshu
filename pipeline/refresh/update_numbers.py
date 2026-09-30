@@ -129,6 +129,50 @@ def should_process(meta, entry, current_row):
     return True
 
 
+def below_line(rec):
+    """単体従業員の線（`unified.MIN_EMPLOYEES`）**だけ**を割っているか。ほかの条件は満たす。
+
+    **載っている会社がこれに当たったら、反映してランキングの外へ出す**（D11・#903・ADR-0018 の
+    2026-09-30 の追記）。持株会社に移って単体の従業員が数十人になった会社（サイバーステップＨＤ）が
+    これに当たる。平均年齢・平均年間給与の条件は妥当性の検査で、割ったら読み違いを先に疑うので
+    ここには含めない（前の期の数字のまま待ち行列に残す）。
+    """
+    return (
+        unified.ineligible_reason(rec) is not None
+        and unified.ineligible_reason(rec, min_employees=0) is None
+    )
+
+
+def ineligible(rec, listed):
+    """その書類を反映しない理由。反映するなら `None`。
+
+    **載っている会社（`listed`）は、単体従業員の線だけを割っても反映する**（`below_line`・D11）。
+    載っていない会社は、全件の組み直しと同じく条件を全部満たしたときだけ載せる。
+    """
+    why = unified.ineligible_reason(rec)
+    if why and listed and below_line(rec):
+        return None
+    return why
+
+
+def line_crossing(old_row, new_row):
+    """単体従業員の線をまたいだか。`"out"`（ランキングの外へ）・`"back"`（ランキングに戻る）・`None`。
+
+    どちらに置くかはビルドが行の従業員数で決める（D11）ので、ここは定期実行の PR 本文に書くための
+    報告だけ。新しく載る会社（`old_row` が無い）は線の上にしかいないので `None`。
+    """
+    if old_row is None:
+        return None
+    line = unified.MIN_EMPLOYEES
+    before = float(old_row.get("employees_nonconsolidated") or 0) >= line
+    after = float(new_row.get("employees_nonconsolidated") or 0) >= line
+    if before and not after:
+        return "out"
+    if after and not before:
+        return "back"
+    return None
+
+
 def reread_reason(rec, previous_salary, salaries):
     """線 B に掛かるなら理由、掛からなければ `None`（spec 1.11・AC-11）。
 
@@ -344,7 +388,9 @@ def collect(through, extra_docs=()):
         run.fix_salary_typos([rec])
         info = codelist.get(code, {})
         item["listed_in_ledger"] = entry is not None
-        why = unified.ineligible_reason(rec)
+        why = ineligible(rec, listed=entry is not None)
+        # D11: 線を割った会社も反映する。ランキングの外に置くかは、ビルドが行の従業員数で決める
+        item["below_line"] = why is None and below_line(rec)
         if why:
             item.update(status="not_eligible", reason=why)
             collected.append(item)
@@ -380,6 +426,12 @@ def collect(through, extra_docs=()):
     for item in collected:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     print(f"判定: {counts}")
+    for item in collected:
+        if item.get("below_line"):
+            print(
+                f"単体従業員が{unified.MIN_EMPLOYEES}人を割った（反映して、ランキングの外へ）: "
+                f"{item['meta']['edinetCode']} {item['meta']['filerName']}"
+            )
     rereads = [i["meta"]["edinetCode"] for i in collected if i["status"] == "reread"]
     if rereads:
         print(f"読み直しが要る会社（{len(rereads)}社）: work/reread/ の原文を読み、work/verdicts.json を書く")
@@ -409,7 +461,7 @@ def apply(collected, verdicts, today):
     perf_fields, perf = read_csv(PERFORMANCE)
     pending = {p["edinet_code"]: p for p in load_pending()}
 
-    applied, added = [], []
+    applied, added, crossed = [], [], []
     for item in collected["items"]:
         meta = item["meta"]
         code = meta["edinetCode"]
@@ -450,6 +502,9 @@ def apply(collected, verdicts, today):
             continue
         row = item["row"]
         is_new = not item.get("listed_in_ledger")
+        crossing = line_crossing(next((r for r in rows if r["edinet_code"] == code), None), row)
+        if crossing:
+            crossed.append((crossing, entry["id"], row["name"]))
         upsert_ranking(rows, row)
         # 在籍年数は 0 年がありうる（`history.to_row` の注記）ので、空欄だけを None にする
         upsert_history(
@@ -488,6 +543,9 @@ def apply(collected, verdicts, today):
     print(f"数字を替えた: {len(applied)}社・新しく載った: {len(added)}社・待ち行列: {len(pending)}件")
     for company_id, name in added:
         print(f"  新しく載った: {company_id} {name}")
+    for crossing, company_id, name in crossed:
+        where = "ランキングの外へ（ページは残る）" if crossing == "out" else "ランキングに戻った"
+        print(f"  単体従業員が{unified.MIN_EMPLOYEES}人の線をまたいだ・{where}: {company_id} {name}")
     if added:
         print("ロゴ: npm run build:logos -- --only " + ",".join(i for i, _ in added))
     return applied, added

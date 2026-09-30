@@ -36,6 +36,7 @@ sys.path.insert(0, str(PIPELINE / "salary"))
 sys.path.insert(0, str(PIPELINE / "ledger"))
 import edinet  # noqa: E402
 import ledger  # noqa: E402
+import unified  # noqa: E402
 
 RANKING = DATA / "ranking_unified.csv"
 ANALYSIS = DATA / "company_analysis.csv"
@@ -78,12 +79,27 @@ def paypolicy_fetch():
 # 純関数（test_update_texts.py が合成データで見る）
 
 
-def applies(stage, period_end, first_pay_policy_period):
-    """その工程が、この決算期の書類に掛かるか。給与の決定方針の節は改正後の期にしか無い。"""
-    return stage != "pay_policy" or period_end >= first_pay_policy_period
+def below_line(row):
+    """ランキングの行が単体従業員の線（`unified.MIN_EMPLOYEES`）を割っているか（D11・#903）。"""
+    return float(row.get("employees_nonconsolidated") or 0) < unified.MIN_EMPLOYEES
 
 
-def todo_stages(entry, period_end, failed, first_pay_policy_period):
+def applies(stage, row, first_pay_policy_period):
+    """その工程が、この会社のいまの書類に掛かるか。
+
+    - 給与の決定方針の節は改正後の期にしか無い
+    - **単体従業員の線を割った会社は、分析と要約を書かない**（D11）。ランキングの外の会社の画面は
+      分析と要約を出さない（D9 と同じ）ので、書いても読まれない。線に戻れば、台帳の分析の書類が
+      数字の書類と食い違ったままなので、次の回で選ばれる
+    """
+    if stage == "pay_policy":
+        return row["period_end"] >= first_pay_policy_period
+    if stage == "analysis":
+        return not below_line(row)
+    return True
+
+
+def todo_stages(entry, row, failed, first_pay_policy_period):
     """その会社で、いまの数字の書類に合わせる工程（処理の順）。
 
     - 台帳の工程の書類が数字の書類と同じなら済んでいる
@@ -94,7 +110,7 @@ def todo_stages(entry, period_end, failed, first_pay_policy_period):
     return [
         stage
         for stage, column in STAGES.items()
-        if applies(stage, period_end, first_pay_policy_period)
+        if applies(stage, row, first_pay_policy_period)
         and entry[column] != doc
         and (stage, doc) not in failed
     ]
@@ -116,10 +132,10 @@ def select_queue(entries, ranking, pending, first_pay_policy_period, limit):
         row = ranking.get(code)
         if row is None:
             continue
-        stages = todo_stages(entry, row["period_end"], failed.get(code, set()), first_pay_policy_period)
+        stages = todo_stages(entry, row, failed.get(code, set()), first_pay_policy_period)
         if not stages:
             continue
-        applicable = [s for s in STAGES if applies(s, row["period_end"], first_pay_policy_period)]
+        applicable = [s for s in STAGES if applies(s, row, first_pay_policy_period)]
         partial = len(stages) < len(applicable)
         picked.append((0 if partial else 1, int(row["rank_raw"]), code, stages))
     picked.sort()
@@ -287,13 +303,17 @@ def cmd_prepare(args):
         reason = f"書類を取れない（{type(e).__name__}: {e}）"
         ready = {"analysis": reason, "description": reason}
     if not ready:
-        analysis = _load("analysis_extract", PIPELINE / "analysis" / "extract_analysis.py")
         summary = _load("summary_extract", PIPELINE / "summary" / "extract.py")
-        _, reason = analysis.update_one(row)
-        ready["analysis"] = f"原文が取れない（{reason}）" if reason else None
+        # 分析の原文は、分析を書く会社だけ取る（マニフェストの書類を分析と食い違わせない）
+        if applies("analysis", row, pp.FIRST_PERIOD_END):
+            analysis = _load("analysis_extract", PIPELINE / "analysis" / "extract_analysis.py")
+            _, reason = analysis.update_one(row)
+            ready["analysis"] = f"原文が取れない（{reason}）" if reason else None
         _, reason = summary.update_one(row)
         ready["description"] = f"原文が取れない（{reason}）" if reason else None
-    if applies("pay_policy", row["period_end"], pp.FIRST_PERIOD_END):
+    else:
+        ready = {k: v for k, v in ready.items() if applies(k, row, pp.FIRST_PERIOD_END)}
+    if applies("pay_policy", row, pp.FIRST_PERIOD_END):
         pp.CACHE.mkdir(exist_ok=True)
         _, status = pp.fetch_one(doc)
         if status not in ("ok", "cached"):
@@ -348,7 +368,7 @@ def cmd_finish(args):
     results = {}
     for stage, column in STAGES.items():
         entry[column] = docs[stage]
-        if not applies(stage, row["period_end"], pp_first):
+        if not applies(stage, row, pp_first):
             continue
         failure = stage_failure(stage, doc, analysis_rows.get(code), summary_rows.get(code), docs["pay_policy"])
         if failure is None:

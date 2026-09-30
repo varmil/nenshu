@@ -20,6 +20,8 @@
 6. 1社の最後の提出日を、取得の窓の終わりから25か月前にする。**母集団から外れる**（ADR-0018）が、
    企業ページは残る（refresh の D9・#879）。E2E がこの会社のページと、ランキング・近傍に
    いないことを見る。横持ちデータの行はそのまま残す（外れた会社のページが使う）
+7. 1社の単体従業員を40人にする。**ランキングの外へ出る**が、企業ページは残る（refresh の D11・
+   #903）。持株会社に移った会社の形で、連結の従業員数はそのまま残す（断りに連結の人数が出る）
 
 **更新台帳（`pipeline/data/ledger.csv`・D2）も同じように動かす。** 足す2社の ID は
 台帳の規則（`ledger.admit`）で振り、書類を替えた会社は台帳の数字の書類と提出日も替える。
@@ -258,6 +260,32 @@ def lapse(rows, book, as_of, skip):
     return target
 
 
+def below_line(rows, skip):
+    """1社の単体従業員を40人にする（refresh の D11）。数字の書類は替えない。
+
+    選ぶのは説明文と給与の決定方針を持ち、連結の従業員数が単体より多い会社（ランキングの外の会社の
+    ページの断りに連結の人数が出る）のうち、ほかの揺らし方で動かしていない会社。
+    """
+    policies = json.loads((DATA / "pay_policy.json").read_text(encoding="utf-8"))
+    with_policy = {p["edinet_code"] for p in policies if p["blocks"]}
+    _, summaries = read_csv(DATA / "company_summary.csv")
+    with_summary = {r["edinet_code"] for r in summaries if r["summary"]}
+    target = min(
+        (
+            r
+            for r in rows
+            if r["edinet_code"] in with_policy
+            and r["edinet_code"] in with_summary
+            and r["edinet_code"] not in skip
+            and not r["edinet_code"].startswith("E9999")
+            and float(r["employees_consolidated"] or 0) > 40
+        ),
+        key=lambda r: r["edinet_code"],
+    )
+    target["employees_nonconsolidated"] = "40.0"
+    return target
+
+
 def main():
     rows = unified.load_csv(RANKING)
     book = ledger.load()
@@ -271,6 +299,7 @@ def main():
     moved = newer_period(rows, history, book, as_of)
     advanced, filed = next_year_filing(rows, history, book, moved["edinet_code"])
     lapsed = lapse(rows, book, filed, {moved["edinet_code"], advanced["edinet_code"]})
+    below = below_line(rows, {moved["edinet_code"], advanced["edinet_code"], lapsed["edinet_code"]})
     write_csv(DATA / "salary_history.csv", hist_fields, history)
     ledger.save(book)
 
@@ -293,6 +322,7 @@ def main():
         f"翌年（{filed.year}年）の有報を出した: {advanced['name']}（{book[advanced['edinet_code']]['id']}）"
     )
     print(f"最後の提出日を25か月前にした（母集団から外れる）: {lapsed['name']}（{book[lapsed['edinet_code']]['id']}）")
+    print(f"単体従業員を40人にした（ランキングの外へ）: {below['name']}（{book[below['edinet_code']]['id']}）")
 
 
 if __name__ == "__main__":

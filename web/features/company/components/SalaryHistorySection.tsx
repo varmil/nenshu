@@ -6,7 +6,7 @@ import { SalaryHistoryTable } from "./SalaryHistoryTable";
 
 /**
  * 平均年収推移（過去10年間。T1・T2・T3）。母集団の会社（`CompanyDetail`）と、母集団から外れた会社
- * （`LapsedCompanyDetail`・D9）の両方が使う。**表示基準と独立**（timeseries spec 2.2・AC-8）。
+ * （`UnrankedCompanyDetail`・D9・D11）の両方が使う。**表示基準と独立**（timeseries spec 2.2・AC-8）。
  */
 export function SalaryHistorySection({ history }: { history: SalaryHistory }) {
   const historySummary = buildHistorySummary(history.years, history.values);

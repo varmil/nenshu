@@ -1,8 +1,8 @@
 import { SUMMARY_SOURCE, type SummaryView } from "../lib/summary";
 
 /**
- * 会社の説明文と出典の1行（C7・Issue #161）。母集団の会社（`CompanyDetail`）と、母集団から外れた
- * 会社（`LapsedCompanyDetail`・D9）の両方が使う。**説明文の無い会社では呼ばない**（AC-21）。
+ * 会社の説明文と出典の1行（C7・Issue #161）。母集団の会社（`CompanyDetail`）と、ランキングの外の
+ * 会社（`UnrankedCompanyDetail`・D9・D11）の両方が使う。**説明文の無い会社では呼ばない**（AC-21）。
  */
 export function CompanySummaryText({ summary }: { summary: SummaryView }) {
   return (
