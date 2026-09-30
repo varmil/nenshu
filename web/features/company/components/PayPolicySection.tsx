@@ -36,7 +36,7 @@ export function PayPolicySection({ view }: { view: PayPolicyView }) {
       <h2 className="text-lg font-bold">{view.heading}</h2>
       <p data-pay-note className="text-muted-foreground text-xs leading-relaxed">
         {view.fiscalPeriod}
-        の有価証券報告書に会社が書いた方針です。要約も言い換えもせず、原文のまま載せています。
+        の有価証券報告書に会社が書いた方針です。原文のまま載せています。
         <a href="/about#pay-policy" className="text-primary ml-1 underline">
           抜き出し方
         </a>

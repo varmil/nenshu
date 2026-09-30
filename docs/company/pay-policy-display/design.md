@@ -27,7 +27,7 @@
 ```
 section[data-testid=company-pay-policy]
 ├─ h2  トヨタ自動車株式会社の給与の決定方針
-├─ p   有価証券報告書に会社が書いた方針です。要約も言い換えもせず、原文のまま載せています。 a「抜き出し方」→ /about#pay-policy
+├─ p   有価証券報告書に会社が書いた方針です。原文のまま載せています。 a「抜き出し方」→ /about#pay-policy
 └─ div
    ├─ blockquote[cite=EDINET の書類]         枠。上の角だけ丸める
    │   ├─ p   「人材戦略に関する基本方針等」から          出どころの節（11px・muted）
