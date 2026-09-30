@@ -13,7 +13,7 @@ import {
   manifestIcons,
   defaultIconCandidates,
 } from "./lib/logo/site";
-import { Candidate, prioritize, sortCandidates } from "./lib/logo/candidates";
+import { Candidate, isSupplied, prioritize, sortCandidates } from "./lib/logo/candidates";
 import {
   probe,
   reject,
@@ -44,7 +44,7 @@ const MAX_ATTEMPTS_PER_COMPANY = 6;
 export type LogoEntry = {
   w: number;
   h: number;
-  src: "commons" | "jsonld" | "header" | "icon" | "ogp";
+  src: "commons" | "jsonld" | "header" | "icon" | "ogp" | "supplied";
   from: string;
   lic?: string;
   by?: string;
@@ -204,7 +204,14 @@ async function main() {
     ? Object.fromEntries(Object.entries(previous.byId).filter(([id]) => !dropped.has(id)))
     : null;
   const byId = carried ? { ...carried, ...entries } : entries;
-  const bySource: Record<string, number> = { commons: 0, jsonld: 0, header: 0, icon: 0, ogp: 0 };
+  const bySource: Record<string, number> = {
+    commons: 0,
+    jsonld: 0,
+    header: 0,
+    icon: 0,
+    ogp: 0,
+    supplied: 0,
+  };
   for (const e of Object.values(byId)) bySource[e.src]++;
   const json: LogosJson = {
     meta: {
@@ -310,13 +317,22 @@ type Picked =
   | { ok: true; candidate: Candidate; probe: ImageProbe; webp: Buffer }
   | { ok: false; reasons: string[] };
 
+/** 同梱の画像（`supplied`）はファイルから読み、それ以外はネットワークから取る。 */
+async function load(fetcher: Fetcher, candidate: Candidate) {
+  if (!isSupplied(candidate)) return fetcher.get(candidate.url);
+  const file = resolve(ROOT, candidate.url);
+  return existsSync(file)
+    ? { status: 200, body: readFileSync(file), contentType: "", url: candidate.url }
+    : { status: 404, body: Buffer.alloc(0), contentType: "", url: candidate.url };
+}
+
 async function pick(fetcher: Fetcher, candidates: readonly Candidate[]): Promise<Picked> {
   let attempts = 0;
   const reasons: string[] = [];
   for (const candidate of candidates) {
     if (attempts >= MAX_ATTEMPTS_PER_COMPANY) break;
     attempts++;
-    const res = await fetcher.get(candidate.url);
+    const res = await load(fetcher, candidate);
     if (res.status !== 200 || res.body.length === 0) {
       reasons.push(`http:${res.status}`);
       continue;
