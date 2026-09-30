@@ -40,6 +40,22 @@ ELEMENTS = {
     "jpdei_cor:CurrentFiscalYearEndDateDEI": "fy_end",
 }
 
+# **連結の従業員数は、IFRS の書類だと別の要素で来ることがある**（#905）。`jpcrp_cor:NumberOfEmployees`
+# の連結（当期・メンバー無し）を持たず、「主要な経営指標等」の IFRS 用の要素にだけ書く会社がある
+# ——ソフトバンクグループの2017・2018年の有報（68,402人・74,952人）、テクマトリックスの直近の有報
+# （1,825人。会社独自の名前空間 `jpcrp030000-asr_E05463-000:` で書いている）。`NumberOfEmployees`
+# だけを見ると連結が空になり、呼ぶ側が単体の従業員数で代用して、経常利益を1桁〜3桁小さい分母で
+# 割ることになる（ソフトバンクグループ 2017年が **144億円/人**）。
+#
+# **要素名は名前空間を外したローカル名で見る**（東京製鐵の経常利益と同じ。`performance/extract.py`）。
+# **`NumberOfEmployees` があればそちらを優先し、無いときだけ使う**——どちらも「当期末の連結従業員数」
+# で、両方ある書類（ソフトバンクグループの2019年3月期は 76,866人で一致。ほかは確かめていない）でも
+# 従来の値が動かないようにするため。
+EMPLOYEES_CONSOLIDATED_FALLBACK_LOCAL_NAMES = {
+    "NumberOfEmployeesIFRSSummaryOfBusinessResults",
+    "NumberOfEmployeesIFRS",
+}
+
 # 本文から拾うテキストブロック。**要素ごとに保存の条件も採り方も違う**ので、
 # 要素名と一緒に持つ（C5・#159。以前は `TEXT_BLOCK` という単数の定数だった）。
 #
@@ -334,6 +350,12 @@ def parse_csv_zip(path):
                 continue
             key = ELEMENTS.get(elem)
             if not key:
+                if (
+                    elem.split(":")[-1] in EMPLOYEES_CONSOLIDATED_FALLBACK_LOCAL_NAMES
+                    and ctx == "CurrentYearInstant"
+                    and value not in ("", "－", "-")
+                ):
+                    rec.setdefault("employees__ifrs", value)
                 continue
             if value in ("", "－", "-"):
                 continue
@@ -375,6 +397,8 @@ def to_record(meta, parsed):
 
     emp_nc = num(parsed.get("employees__nc"))
     emp_c = num(parsed.get("employees"))
+    if emp_c is None:
+        emp_c = num(parsed.get("employees__ifrs"))
     salary = num(parsed.get("avg_salary__nc") or parsed.get("avg_salary"))
     age = num(parsed.get("avg_age__nc") or parsed.get("avg_age"))
     tenure = num(parsed.get("avg_tenure__nc") or parsed.get("avg_tenure"))

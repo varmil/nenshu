@@ -211,6 +211,49 @@ class AdoptSalary(unittest.TestCase):
         self.assertEqual(rec, {"avg_salary": 500_000.0, "avg_age": 40.0, "avg_tenure": 12.0})
 
 
+IFRS_SUMMARY = "jpcrp_cor:NumberOfEmployeesIFRSSummaryOfBusinessResults"
+
+
+class ConsolidatedEmployees(unittest.TestCase):
+    """#905。連結の従業員数が `NumberOfEmployees` に無い書類は IFRS 用の要素から採る。"""
+
+    def _emp_c(self, rows):
+        with TemporaryDirectory() as d:
+            path = _zip(d, {"XBRL_TO_CSV/a.csv": rows})
+            return edinet.to_record(META_MOCK, edinet.parse_csv_zip(path))["employees_consolidated"]
+
+    def test_NumberOfEmployeesの連結を採る(self):
+        self.assertEqual(self._emp_c([
+            _row("jpcrp_cor:NumberOfEmployees", "76,866", "CurrentYearInstant"),
+        ]), 76866.0)
+
+    def test_IFRS用の要素だけの書類は連結として採る(self):
+        # ソフトバンクグループの2017年3月期
+        self.assertEqual(self._emp_c([
+            _row(IFRS_SUMMARY, "68402", "CurrentYearInstant"),
+            _row("jpcrp_cor:NumberOfEmployees", "199", "CurrentYearInstant_NonConsolidatedMember"),
+        ]), 68402.0)
+
+    def test_会社独自の名前空間の要素も採る(self):
+        # テクマトリックス。連結の従業員数を `jpcrp030000-asr_E05463-000:` の要素で書いている。
+        self.assertEqual(self._emp_c([
+            _row("jpcrp030000-asr_E05463-000:NumberOfEmployeesIFRSSummaryOfBusinessResults",
+                 "1825", "CurrentYearInstant"),
+        ]), 1825.0)
+
+    def test_両方あればNumberOfEmployeesを優先する(self):
+        self.assertEqual(self._emp_c([
+            _row(IFRS_SUMMARY, "1,111", "CurrentYearInstant"),
+            _row("jpcrp_cor:NumberOfEmployees", "2,222", "CurrentYearInstant"),
+        ]), 2222.0)
+
+    def test_遡った期とセグメント別の値は採らない(self):
+        self.assertIsNone(self._emp_c([
+            _row(IFRS_SUMMARY, "63591", "Prior1YearInstant"),
+            _row(IFRS_SUMMARY, "5,864", "CurrentYearInstant_OperatingSegmentsMember"),
+        ]))
+
+
 if __name__ == "__main__":
     unittest.main()
 
