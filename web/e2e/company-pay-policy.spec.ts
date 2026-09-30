@@ -7,6 +7,7 @@ import {
   type PayPolicyBlock,
 } from "../features/company/lib/payPolicy";
 import { companyPayPolicyFor } from "../features/company/lib/pageData";
+import { periodLabel } from "../lib/data/period";
 import type { CompanyRow } from "../features/ranking/types";
 
 /**
@@ -67,8 +68,7 @@ function expectedBlocks(id: string) {
 }
 
 /** その会社の節の見せ方（開いたまま出す塊と畳む塊）。本文の無い会社は `null`。 */
-const viewOf = (row: CompanyRow) =>
-  buildPayPolicyView(row[1], payPolicies.byId[row[0]], companies.periods[row[9]]);
+const viewOf = (row: CompanyRow) => buildPayPolicyView(row[1], payPolicies.byId[row[0]]);
 
 const tablesOf = (blocks: PayPolicyBlock[]) =>
   blocks.filter((b): b is TableBlock => b.kind === "table");
@@ -151,7 +151,13 @@ test.describe("AC-36 給与の決定方針", () => {
     );
     await expect(section(page)).toContainText(PAY_POLICY_SOURCE_LABEL.section);
     const text = (await section(page).textContent()) ?? "";
-    expect(text).not.toMatch(/\d{4}年\d{1,2}月期/);
+    // 決算期は節の説明の先頭に1回だけ、原文を切り出した有報の期で書く（Q&A・要約の説明と同じ置き方。
+    // site-chrome spec 5.1）。出どころの節の名前や本文には重ねない。
+    const period = periodLabel(payPolicies.byId[STANDARD].filing.period);
+    await expect(section(page).locator("[data-pay-note]")).toContainText(
+      `${period}の有価証券報告書に会社が書いた方針です`
+    );
+    expect(text.match(/\d{4}年\d{1,2}月期/g)).toEqual([period]);
     expect(text).not.toContain("推定");
     expect(text).not.toContain("生成AI");
 

@@ -24,7 +24,7 @@ export function ActualsQaSection({ qa, docId }: { qa: ActualsQa; docId: string }
   return (
     <section className="flex flex-col gap-2" data-testid="company-qa">
       <h2 className="text-lg font-bold">{qa.heading}</h2>
-      {/* 決算期はこの1行にだけ置く（企業詳細で2か所。もう1か所は要約の節の説明）。 */}
+      {/* 決算期はこの1行にだけ置く（企業詳細では、要約と給与の決定方針の節の説明も自分の節の先頭に置く）。 */}
       <p className="text-muted-foreground text-xs">{qa.note}</p>
       <div className="flex flex-col">
         <div

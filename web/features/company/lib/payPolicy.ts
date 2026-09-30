@@ -47,12 +47,12 @@ export interface PayPolicyView {
   /** 原文を切り出した有報の書類 ID。引用の `cite` と下辺の EDINET の帯がここを指す。 */
   docId: string;
   /**
-   * 原文の決算期（`2025年3月期`）。**数字の決算期とずれたときだけ持ち、そろっていれば `null`**
-   * （refresh の D3）。そろっていれば、直後の「年収に関するQ&A」の説明が同じ期を言っているので
-   * 重ねない（`docs/site-chrome/spec.md` 5.1）。ずれているのは、数字だけが新しい有報に替わり、
-   * 給与の決定方針がまだ前の有報のままの会社——そのときは読者がそれを知る必要がある。
+   * 原文の決算期（`2025年3月期`）。**常に持つ**。節の説明の1行の先頭に出して、この節の中身が
+   * どの有報のものかを示す（Q&A・要約の説明と同じ置き方。`docs/site-chrome/spec.md` 5.1）。
+   * 数字の決算期は借りない——毎日の更新で数字だけが新しい有報に替わり、給与の決定方針がまだ前の
+   * 有報のままの会社は、この期が数字の期と違う（refresh の D3）。
    */
-  fiscalPeriod: string | null;
+  fiscalPeriod: string;
 }
 
 /**
@@ -112,9 +112,7 @@ export function blockChars(block: PayPolicyBlock): number {
  */
 export function buildPayPolicyView(
   name: string,
-  record: PayPolicyRecord | undefined,
-  /** 数字の決算期（`YYYY-MM`・`companies.periods` の値）。原文の期と比べる。 */
-  numbersPeriod: string
+  record: PayPolicyRecord | undefined
 ): PayPolicyView | null {
   if (record === undefined || record.blocks.length === 0) return null;
   const total = record.blocks.reduce((sum, block) => sum + blockChars(block), 0);
@@ -139,6 +137,6 @@ export function buildPayPolicyView(
     folded,
     foldedChars: folded.reduce((sum, block) => sum + blockChars(block), 0),
     docId: record.filing.docId,
-    fiscalPeriod: record.filing.period === numbersPeriod ? null : periodLabel(record.filing.period),
+    fiscalPeriod: periodLabel(record.filing.period),
   };
 }

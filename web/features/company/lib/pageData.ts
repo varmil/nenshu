@@ -356,17 +356,7 @@ export function companyAnalysisFor(id: string): AnalysisView | null {
  * `[id].astro` が静的な HTML にして名前付きスロットで島に差し込む。社名は見出しに使う。
  */
 export function companyPayPolicyFor(id: string, name: string): PayPolicyView | null {
-  return buildPayPolicyView(name, payPolicies[id], numbersPeriodOf(id));
-}
-
-/** 数字（実測値の4項目）の決算期（`YYYY-MM`）。文章の原文の期と比べるのに使う（refresh の D3）。 */
-function numbersPeriodOf(id: string): string {
-  const index = findRowIndex(companies, id);
-  if (index !== -1) return companies.periods[companies.rows[index][9]];
-  const row = unranked.rows.find((r) => r[0] === id);
-  if (row === undefined)
-    throw new Error(`企業ID ${id} が companies.json にも unranked.json にもありません`);
-  return unranked.periods[row[9]];
+  return buildPayPolicyView(name, payPolicies[id]);
 }
 
 /**
