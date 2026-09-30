@@ -7,6 +7,7 @@
 import csv
 import io
 import json
+import sys
 import tempfile
 import unittest
 from datetime import date, datetime, timezone
@@ -101,6 +102,39 @@ class IneligibleReason(unittest.TestCase):
     def test_人数の条件だけを外せる(self):
         # 全件の組み直しは、人数で落とした社数を数えるために人数の条件を後から当てる
         self.assertIsNone(un.unified.ineligible_reason({**self.base, "employees_nonconsolidated": 40}, 0))
+
+
+class BelowLine(unittest.TestCase):
+    """載っている会社が単体従業員の線を割ったとき（D11・#903）。"""
+
+    base = {"avg_salary": 5_000_000, "avg_age": 40.0, "employees_nonconsolidated": 40}
+
+    def test_載っている会社は線だけを割ったら反映する(self):
+        self.assertTrue(un.below_line(self.base))
+        self.assertIsNone(un.ineligible(self.base, listed=True))
+
+    def test_載っていない会社は線を割っていれば載せない(self):
+        self.assertEqual(un.ineligible(self.base, listed=False), "単体の従業員が100人未満（40人）")
+
+    def test_ほかの条件も割っていれば反映しない(self):
+        # 平均年齢・平均年間給与は妥当性の検査で、割ったら読み違いを先に疑う（前の期の数字のまま）
+        for over in ({"avg_age": 70.0}, {"avg_salary": None}, {"avg_salary": 900_000}):
+            rec = {**self.base, **over}
+            self.assertFalse(un.below_line(rec), over)
+            self.assertIsNotNone(un.ineligible(rec, listed=True), over)
+
+    def test_線の上の会社は当たらない(self):
+        rec = {**self.base, "employees_nonconsolidated": 100}
+        self.assertFalse(un.below_line(rec))
+        self.assertIsNone(un.ineligible(rec, listed=False))
+
+    def test_線をまたいだ向き(self):
+        up, down = {"employees_nonconsolidated": "177.0"}, {"employees_nonconsolidated": 40.0}
+        self.assertEqual(un.line_crossing(up, down), "out")
+        self.assertEqual(un.line_crossing(down, up), "back")
+        self.assertIsNone(un.line_crossing(up, up))
+        self.assertIsNone(un.line_crossing(down, down))
+        self.assertIsNone(un.line_crossing(None, down))
 
 
 class Reread(unittest.TestCase):
@@ -291,13 +325,27 @@ class Apply(ApplyCase):
 
 class ApplyNotEligible(ApplyCase):
     def test_載っている会社が条件を割ったら前の期の数字のまま_待ち行列に理由を残す(self):
+        # 単体従業員の線だけを割ったときは `collect` が反映に回すので、ここに来るのはほかの条件（D11）
         item = {"meta": meta("E00002", "S1000002", sec="2222"), "status": "not_eligible",
-                "reason": "単体の従業員が100人未満（40人）", "listed_in_ledger": True}
+                "reason": "平均年齢が20〜65歳の外（70.0歳）", "listed_in_ledger": True}
         un.apply({"through": "2026-09-28", "items": [item]}, {}, date(2026, 9, 29))
         self.assertEqual(self.ranking()["E00002"]["doc_id"], "S000002")
         pending = un.read_csv(self.paths["PENDING"])[1]
         self.assertEqual([(p["reason"], p["detail"]) for p in pending],
-                         [("not_eligible", "単体の従業員が100人未満（40人）")])
+                         [("not_eligible", "平均年齢が20〜65歳の外（70.0歳）")])
+
+    def test_単体従業員の線を割った会社は反映し_待ち行列にも残さない(self):
+        # D11: 数字・台帳・推移を新しい有報に替える。ランキングの外に置くかはビルドが決める
+        item = self.item("E00002", "S1000002", 5_200_000.0, sec="2222")
+        item["row"]["employees_nonconsolidated"] = 40.0
+        item["below_line"] = True
+        un.apply({"through": "2026-09-28", "items": [item]}, {}, date(2026, 9, 29))
+        row = self.ranking()["E00002"]
+        self.assertEqual((row["doc_id"], float(row["employees_nonconsolidated"])), ("S1000002", 40.0))
+        entries = ledger.load(self.ledger_path)
+        self.assertEqual((entries["E00002"]["doc_numbers"], entries["E00002"]["filed"]), ("S1000002", "2026-09-26"))
+        self.assertEqual(un.read_csv(self.paths["PENDING"])[1], [])
+        self.assertIn("ランキングの外へ", sys.stdout.getvalue())
 
     def test_載っていない会社が条件を満たさなくても待ち行列に入れない(self):
         item = {"meta": meta("E00009", "S1000009"), "status": "not_eligible",

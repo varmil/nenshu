@@ -3,7 +3,7 @@ import type { BreadcrumbItem } from "@/lib/seo/jsonLd";
 
 /**
  * 企業詳細のパンくず（C3）。母集団の会社（`CompanyDetail`）と、母集団から外れた会社
- * （`LapsedCompanyDetail`・D9）の両方が使う。
+ * （`UnrankedCompanyDetail`・D9・D11）の両方が使う。
  */
 export function CompanyBreadcrumbNav({ breadcrumb }: { breadcrumb: BreadcrumbItem[] }) {
   return (

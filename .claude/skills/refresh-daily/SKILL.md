@@ -38,6 +38,7 @@ python3 update_numbers.py apply
 ```
 
 - 新しく載った会社があれば、最後に出るロゴのコマンドを回す: `cd pipeline && npm run build:logos -- --only <ID,…>`
+- 「単体従業員が100人の線をまたいだ」と出た会社は、ランキングの外へ出た（またはランキングに戻った）会社。止める必要は無い（企業ページは残る。D11・`docs/refresh/below-line/design.md`）。PR の本文に書く
 
 ## 3. 女性活躍DB（D7・`docs/refresh/worklife-fetch/design.md`）
 
@@ -94,7 +95,7 @@ cd ../web && npm test
 
 **変更が1つも無ければ（`git status` が空）、PR を立てずに終わる。** その旨だけを返す。
 
-1. 変更をコミットする（`pipeline/`・`web/public/`・`web/lib/brand/ogFacts.ts` と、直したコード）。メッセージは `データ更新 <日本時間の日付>` と、何社の数字を替えたか・新しく載った会社・働きやすさの版・文章を合わせた会社（前の書類のまま残った工程があればその理由）
+1. 変更をコミットする（`pipeline/`・`web/public/`・`web/lib/brand/ogFacts.ts` と、直したコード）。メッセージは `データ更新 <日本時間の日付>` と、何社の数字を替えたか・新しく載った会社・単体従業員の線をまたいだ会社・働きやすさの版・文章を合わせた会社（前の書類のまま残った工程があればその理由）
 2. 指定のブランチに push する
 3. PR を立てる。タイトルは `データ更新 <日本時間の日付>`、本文は `.github/pull_request_template.md` の節で、「対応 Issue」には「定期実行のデータ更新（Issue なし）」と書く。動作チェックには 7. で回したものを書く
 4. **PR に `refresh` のラベルを付ける**（GitHub のツールで Issue としてラベルを足す）。付けないと自動でマージされない

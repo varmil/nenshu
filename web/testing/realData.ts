@@ -25,7 +25,7 @@ import summariesJson from "@/public/data/summaries.json" with { type: "json" };
 import analysesJson from "@/public/data/analyses.json" with { type: "json" };
 import filingsJson from "@/public/data/filings.json" with { type: "json" };
 import payPoliciesJson from "@/public/data/pay-policies.json" with { type: "json" };
-import lapsedJson from "@/public/data/lapsed.json" with { type: "json" };
+import unrankedJson from "@/public/data/unranked.json" with { type: "json" };
 import type { CompaniesData, CompanyRow, CurvesData } from "@/features/ranking/types";
 import type { CompanyStatsData } from "@/features/company/types";
 import type { PerformanceData, RadarData } from "@/features/company/lib/radar";
@@ -37,7 +37,7 @@ import {
   type ProfitHistoryData,
 } from "@/features/company/lib/historyWindow";
 import type { PayPolicyRecord } from "@/features/company/lib/payPolicy";
-import type { LapsedData } from "@/features/company/lib/lapsed";
+import type { UnrankedData, UnrankedReason } from "@/features/company/lib/unranked";
 import type { FilingRef } from "@/lib/data/sources";
 
 export const companies = companiesJson as CompaniesData;
@@ -68,11 +68,20 @@ export const analyses = analysesJson as { byId: Record<string, AnalysisRecord> }
 export const filings = filingsJson as { byId: Record<string, string> };
 export const payPolicies = payPoliciesJson as { byId: Record<string, PayPolicyRecord> };
 /**
- * 母集団から外れた会社（最後の有報から24か月・refresh の D9）。**いまのデータにはいない**
- * （最初に外れうるのは 2027-08-26）ので、これを前提にするテストは空なら skip する。
- * 揺らしたデータ（`tools/perturb/check.sh`）では1社いる。
+ * ランキングの外の会社（refresh の D9・D11）。理由ごとに `unrankedIdsOf` で引く。
+ *
+ * - 提出が途切れた会社（最後の有報から24か月）は**いまのデータにはいない**（最初に外れうるのは
+ *   2027-08-26）ので、これを前提にするテストは空なら skip する。揺らしたデータ
+ *   （`tools/perturb/check.sh`）では1社いる
+ * - 単体従業員の線を割った会社は、毎日の更新で出入りする。いなければ skip する。揺らしたデータでは
+ *   1社増える
  */
-export const lapsed = lapsedJson as unknown as LapsedData;
+export const unranked = unrankedJson as unknown as UnrankedData;
+
+/** ランキングの外の会社のうち、その理由の会社の ID（`unranked.json` の並び）。 */
+export function unrankedIdsOf(reason: UnrankedReason): string[] {
+  return unranked.rows.map((row) => row[0]).filter((id) => unranked.reasonById[id] === reason);
+}
 
 const indexById = new Map(companies.rows.map((row, index) => [row[0], index]));
 

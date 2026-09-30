@@ -18,7 +18,7 @@ import {
   parseUnifiedCsv,
   type UnifiedRow,
 } from "./lib/csv";
-import { readLedger } from "./lib/ledger";
+import { isLapsed, readLedger } from "./lib/ledger";
 import { HISTORY_SPAN, historyWindowYears } from "./lib/historyWindow";
 import { parseCsv } from "../worklife/csv";
 import { decodeRow, type WorklifeRow } from "../worklife/json";
@@ -79,28 +79,29 @@ describe("buildData", () => {
   let outDir: string;
   let result: ReturnType<typeof buildData>;
   let sourceRows: UnifiedRow[];
-  /** 企業ページのある会社の入力の行（母集団＋外れた会社・D9）。`pageCompanyRows()` と同じ並び。 */
+  /** 企業ページのある会社の入力の行（母集団＋ランキングの外の会社・D9・D11）。`pageCompanyRows()` と同じ並び。 */
   let pageSourceRows: UnifiedRow[];
 
   beforeAll(() => {
     outDir = mkdtempSync(join(tmpdir(), "nenshu-build-data-"));
     result = buildData(outDir);
-    // 出力の行は、入力の行から母集団を外れた会社（最後の有報から24か月）を除いた並び。
-    const lapsed = new Set(result.lapsed.map((row) => row.edinetCode));
+    // 出力の行は、入力の行からランキングの外の会社（最後の有報から24か月・単体従業員の線を割った）を
+    // 除いた並び。
+    const unranked = new Set(result.unranked.map((row) => row.edinetCode));
     sourceRows = parseUnifiedCsv(
       readFileSync(join(ROOT, "data/ranking_unified.csv"), "utf-8")
-    ).filter((row) => !lapsed.has(row.edinetCode));
-    pageSourceRows = [...sourceRows, ...result.lapsed];
+    ).filter((row) => !unranked.has(row.edinetCode));
+    pageSourceRows = [...sourceRows, ...result.unranked];
     return () => rmSync(outDir, { recursive: true, force: true });
   });
 
   /**
-   * **企業ページのある会社**の行（refresh の D9・#879）。母集団（`companies.rows`）に、最後の有報から
-   * 24か月を過ぎた会社（`lapsed.json` の `rows`）を続けた並び。会社ごとのデータ（推移・説明文・
-   * 書類 等）はこちらの全社ぶんを持つ。いまのデータに外れた会社はいないので、外れた会社の側は
+   * **企業ページのある会社**の行（refresh の D9・#879・D11・#903）。母集団（`companies.rows`）に、
+   * ランキングの外の会社（`unranked.json` の `rows`）を続けた並び。会社ごとのデータ（推移・説明文・
+   * 書類 等）はこちらの全社ぶんを持つ。提出が途切れた会社はいまのデータにいないので、その側は
    * 揺らしたデータ（`tools/perturb/`）で走る。
    */
-  const pageCompanyRows = () => [...result.companies.rows, ...result.lapsedData.rows];
+  const pageCompanyRows = () => [...result.companies.rows, ...result.unrankedData.rows];
 
   /**
    * 表示基準 `basis`（`null` が実測値・ADR-0007）での全社の金額。`stats.json` の検算に使う。
@@ -686,11 +687,11 @@ describe("buildData", () => {
     it("行の並びが companies.rows と一致し、掲載の無い会社には 0 が入る（欠測を数値の 0 と混ぜない）", () => {
       const byId = readWorklifeCsv();
 
-      // 母集団（`worklife.json`）と外れた会社（`lapsed.json` の `worklife`・D9）は、それぞれ
-      // 自分の行と同じ並びで、文字列プールも別に持つ
+      // 母集団（`worklife.json`）とランキングの外の会社（`unranked.json` の `worklife`・D9・D11）は、
+      // それぞれ自分の行と同じ並びで、文字列プールも別に持つ
       const groups = [
         [result.companies.rows, result.worklife],
-        [result.lapsedData.rows, result.lapsedData.worklife],
+        [result.unrankedData.rows, result.unrankedData.worklife],
       ] as const;
       let matched = 0;
       for (const [rows, worklife] of groups) {
@@ -713,7 +714,7 @@ describe("buildData", () => {
           expect(worklife.notes[i]).toBe(cells.wage_gap_note === "" ? 0 : cells.wage_gap_note);
         });
       }
-      // CSV の行はすべて掲載社（母集団か外れた会社）に当たる（当たらなければ `buildWorklife` が落ちる）。
+      // CSV の行はすべて掲載社（母集団かランキングの外の会社）に当たる（当たらなければ `buildWorklife` が落ちる）。
       expect(matched).toBe(byId.size);
     });
   });
@@ -1116,25 +1117,43 @@ describe("buildData", () => {
    * （組み立ては web の1か所）ので、値は書類 ID そのものと一致する。
    */
   /*
-   * 母集団から外れた会社（refresh の D9・#879・ADR-0018）。**いまのデータにはいない**（最初に
-   * 外れうるのは 2027-08-26）ので、中身があるのは揺らしたデータ（`tools/perturb/` の6つ目）だけ。
+   * ランキングの外の会社（refresh の D9・#879・D11・#903・ADR-0018）。提出が途切れた会社は
+   * **いまのデータにはいない**（最初に外れうるのは 2027-08-26）ので、中身があるのは揺らしたデータ
+   * （`tools/perturb/` の6つ目）だけ。単体従業員の線を割った会社は、いまのデータにも揺らしたデータ
+   * （7つ目）にもいる。
    */
-  it("外れた会社は lapsed.json にだけ行を持ち、業種・決算期・提出日を自分のプールから引ける", () => {
-    const { rows, industries, periods, filedById } = result.lapsedData;
+  it("ランキングの外の会社は unranked.json にだけ行を持ち、業種・決算期・提出日・理由を自分のプールから引ける", () => {
+    const { rows, industries, periods, filedById, reasonById, consolidatedById } =
+      result.unrankedData;
     const ledger = readLedger();
     const universeIds = new Set(result.companies.rows.map((row) => row[0]));
-    expect(rows).toHaveLength(result.lapsed.length);
+    expect(rows).toHaveLength(result.unranked.length);
     rows.forEach((row, i) => {
-      const src = result.lapsed[i];
+      const src = result.unranked[i];
       expect(row[1], src.edinetCode).toBe(src.name);
       expect(row[6]).toBe(Math.round(src.avgSalary));
       expect(industries[row[2]]).toBe(src.tse33);
       expect(periods[row[9]]).toBe(src.periodEnd.slice(0, 7));
       expect(filedById[row[0]]).toBe(ledger.get(src.edinetCode)!.filed);
+      expect(reasonById[row[0]]).toBe(result.unrankedReasons[i]);
+      // 連結の従業員数は、単体より多い会社だけが持つ
+      const consolidated = consolidatedById[row[0]];
+      if (consolidated !== undefined) expect(consolidated).toBeGreaterThan(row[7]);
       // ランキングと母集団の統計（順位・偏差値・中央値）には入らない
       expect(universeIds.has(row[0]), row[0]).toBe(false);
     });
     expect(result.stats.count).toBe(result.companies.rows.length);
+  });
+
+  it("線を割った会社は単体従業員が線の下で、提出は24か月に満たない（提出が途切れた会社とは別の理由）", () => {
+    const { minEmployees } = result.companies.meta.excluded;
+    const asOf = result.companies.meta.filingWindow.to;
+    const ledger = readLedger();
+    result.unranked.forEach((src, i) => {
+      const lapsed = isLapsed(ledger.get(src.edinetCode)!.filed, asOf);
+      expect(result.unrankedReasons[i], src.name).toBe(lapsed ? "lapsed" : "belowLine");
+      if (!lapsed) expect(src.employeesNonConsolidated, src.name).toBeLessThan(minEmployees);
+    });
   });
 
   describe("filings.json", () => {

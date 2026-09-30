@@ -38,8 +38,12 @@ import summariesData from "@/public/data/summaries.json" with { type: "json" };
 import analysesData from "@/public/data/analyses.json" with { type: "json" };
 import filingsData from "@/public/data/filings.json" with { type: "json" };
 import payPoliciesData from "@/public/data/pay-policies.json" with { type: "json" };
-import lapsedJson from "@/public/data/lapsed.json" with { type: "json" };
-import { findLapsed, type LapsedCompany, type LapsedData } from "@/features/company/lib/lapsed";
+import unrankedJson from "@/public/data/unranked.json" with { type: "json" };
+import {
+  findUnranked,
+  type UnrankedCompany,
+  type UnrankedData,
+} from "@/features/company/lib/unranked";
 import {
   buildAnalysisView,
   type AnalysisRecord,
@@ -89,10 +93,11 @@ const profitHistory = profitHistoryData as unknown as ProfitHistoryData;
 const logoIds = logosData.byId as Record<string, unknown>;
 
 /**
- * 最後の有報から24か月を過ぎて母集団から外れた会社（refresh の D9・#879）。**`companies.json` には
- * いない**ので、順位・母集団の統計・近傍には出てこない。企業ページだけを残す（`lapsedPageData`）。
+ * ランキングの外の会社（refresh の D9・#879・D11・#903）。最後の有報から24か月を過ぎた会社と、
+ * 単体従業員の線を割った会社。**`companies.json` にはいない**ので、順位・母集団の統計・近傍には
+ * 出てこない。企業ページだけを残す（`unrankedPageData`）。
  */
-const lapsed = lapsedJson as unknown as LapsedData;
+const unranked = unrankedJson as unknown as UnrankedData;
 
 /**
  * 会社の説明文（C7・Issue #161）。**ここだけが import する**——`src/pages/index.astro`
@@ -155,7 +160,7 @@ function tenureHistoryFor(id: string, industry: string): TenureHistory | null {
   if (values === undefined || values.every((v) => v === null)) return null;
   const years = historyYearsFor(id);
   // 中央値は全社の窓を覆う年で持っているので、この会社の窓の年だけを引く。**業種は名前で引く**
-  // ——外れた会社（D9）の業種の添字は `lapsed.json` のプールを指していて、ここの並びとは別物。
+  // ——ランキングの外の会社（D9・D11）の業種の添字は `unranked.json` のプールを指していて、ここの並びとは別物。
   // 母集団にもう同業がいなければ中央値は無い
   const medians = history.tenureIndustryMedian[companies.industries.indexOf(industry)] ?? [];
   return {
@@ -357,10 +362,10 @@ export function companyPayPolicyFor(id: string, name: string): PayPolicyView | n
 function numbersPeriodOf(id: string): string {
   const index = findRowIndex(companies, id);
   if (index !== -1) return companies.periods[companies.rows[index][9]];
-  const row = lapsed.rows.find((r) => r[0] === id);
+  const row = unranked.rows.find((r) => r[0] === id);
   if (row === undefined)
-    throw new Error(`企業ID ${id} が companies.json にも lapsed.json にもありません`);
-  return lapsed.periods[row[9]];
+    throw new Error(`企業ID ${id} が companies.json にも unranked.json にもありません`);
+  return unranked.periods[row[9]];
 }
 
 /**
@@ -372,20 +377,22 @@ export function companySummaryDocId(id: string): string | null {
 }
 
 /**
- * 事前生成する全社のID（Astro の `getStaticPaths`）。**母集団から外れた会社も入る**（D9）——
+ * 事前生成する全社のID（Astro の `getStaticPaths`）。**ランキングの外の会社も入る**（D9・D11）——
  * ページを消さない（ADR-0018）。
  */
 export function companyIds(): string[] {
-  return [...companies.rows.map((row) => row[0]), ...lapsed.rows.map((row) => row[0])];
+  return [...companies.rows.map((row) => row[0]), ...unranked.rows.map((row) => row[0])];
 }
 
-/** 母集団から外れた会社か（D9）。`[id].astro` がどちらの画面を描くかを決める。 */
-export function isLapsedCompany(id: string): boolean {
-  return findRowIndex(companies, id) === -1 && lapsed.rows.some((row) => row[0] === id);
+/** ランキングの外の会社か（D9・D11）。`[id].astro` がどちらの画面を描くかを決める。 */
+export function isUnrankedCompany(id: string): boolean {
+  return findRowIndex(companies, id) === -1 && unranked.rows.some((row) => row[0] === id);
 }
 
-export interface LapsedPageData {
-  company: LapsedCompany;
+export interface UnrankedPageData {
+  company: UnrankedCompany;
+  /** 掲載の条件の単体従業員の線。線を割った会社の断りとメタに出す。 */
+  minEmployees: number;
   worklife: ReturnType<typeof buildWorklifeView>;
   history: SalaryHistory | null;
   tenureHistory: TenureHistory | null;
@@ -395,16 +402,17 @@ export interface LapsedPageData {
 }
 
 /**
- * 母集団から外れた会社のページ（D9・#879）が要る1社ぶん。**順位・偏差値・分布・レーダー・近傍は
- * 作らない**（母集団の外）。推移・働きやすさ・説明文は母集団の会社と同じ出どころから引く。
+ * ランキングの外の会社のページ（D9・#879・D11・#903）が要る1社ぶん。**順位・偏差値・分布・
+ * レーダー・近傍は作らない**（母集団の外）。推移・働きやすさ・説明文は母集団の会社と同じ出どころから引く。
  */
-export function lapsedPageData(id: string): LapsedPageData {
-  const company = findLapsed(lapsed, id);
-  if (company === null) throw new Error(`企業ID ${id} が lapsed.json にありません`);
-  const index = lapsed.rows.findIndex((row) => row[0] === id);
+export function unrankedPageData(id: string): UnrankedPageData {
+  const company = findUnranked(unranked, id);
+  if (company === null) throw new Error(`企業ID ${id} が unranked.json にありません`);
+  const index = unranked.rows.findIndex((row) => row[0] === id);
   return {
     company,
-    worklife: buildWorklifeView(decodeWorklife(lapsed.worklife, index)),
+    minEmployees: companies.meta.excluded.minEmployees,
+    worklife: buildWorklifeView(decodeWorklife(unranked.worklife, index)),
     history: historyFor(id),
     tenureHistory: tenureHistoryFor(id, company.tse33),
     profitHistory: profitHistoryFor(id),

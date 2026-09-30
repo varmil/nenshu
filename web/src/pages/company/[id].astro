@@ -13,11 +13,11 @@ import {
   companyPageData,
   companyPayPolicyFor,
   companySummaryDocId,
-  isLapsedCompany,
-  lapsedPageData,
+  isUnrankedCompany,
+  unrankedPageData,
 } from "@/features/company/lib/pageData";
-import { LapsedCompanyDetail } from "@/features/company/components/LapsedCompanyDetail";
-import { lapsedPageMeta } from "@/features/company/lib/lapsed";
+import { UnrankedCompanyDetail } from "@/features/company/components/UnrankedCompanyDetail";
+import { unrankedPageMeta } from "@/features/company/lib/unranked";
 import { AnalysisSection, DigestSection } from "@/features/company/components/AnalysisSections";
 import { ActualsQaSection } from "@/features/company/components/ActualsQaSection";
 import { PayPolicySection } from "@/features/company/components/PayPolicySection";
@@ -33,18 +33,23 @@ export function getStaticPaths() {
 }
 
 const id = Astro.params.id!;
-// **母集団から外れた会社（最後の有報から24か月）は別の画面**（refresh の D9・#879）。順位・偏差値・
-// 近傍が無く、操作も無いので島を持たない。どの節を残したかは `LapsedCompanyDetail` の注記。
-const lapsed = isLapsedCompany(id) ? lapsedPageData(id) : null;
-const data = lapsed === null ? companyPageData(id) : null;
-const company = lapsed?.company ?? data!.view;
-const meta = lapsed !== null ? lapsedPageMeta(lapsed.company) : companyPageMeta(data!.view, data!.fiscalPeriod);
+// **ランキングの外の会社（最後の有報から24か月・単体従業員の線を割った）は別の画面**（refresh の
+// D9・#879・D11・#903）。順位・偏差値・近傍が無く、操作も無いので島を持たない。どの節を残したかは
+// `UnrankedCompanyDetail` の注記。
+const unranked = isUnrankedCompany(id) ? unrankedPageData(id) : null;
+const data = unranked === null ? companyPageData(id) : null;
+const company = unranked?.company ?? data!.view;
+const meta =
+  unranked !== null
+    ? unrankedPageMeta(unranked.company, unranked.minEmployees)
+    : companyPageMeta(data!.view, data!.fiscalPeriod);
 // 推移と説明文の有無（出典の節が挙げる行を決める）。どちらの画面のデータも同じ名前で持つ
-const page = lapsed ?? data!;
+const page = unranked ?? data!;
 // 有報の要約と AI 分析（C10・#242）。**`data` に入れない**——島の props を通さず、
 // 下の名前付きスロットで静的な HTML として差し込む（`features/company/lib/analysis.ts`）。
-// 外れた会社には出さない（書いた時点の見立てを「今後」として読ませない。要約は分析と対）
-const analysis = lapsed === null ? companyAnalysisFor(id) : null;
+// ランキングの外の会社には出さない（提出が途切れた会社では書いた時点の見立てを「今後」として
+// 読ませない。線を割った会社では分析を書き直さない（D11）。要約は分析と対）
+const analysis = unranked === null ? companyAnalysisFor(id) : null;
 // 実測値の4項目を取った有報（C13・#814）。Q&A の帯と出典の節の2か所が同じ書類を指す。
 // **`data` に入れない**——どちらも島の外で描くので、島の props に載せる理由が無い（C16・#838）。
 const filingDocId = companyFilingDocId(id);
@@ -53,7 +58,7 @@ const filingDocId = companyFilingDocId(id);
 const payPolicy = companyPayPolicyFor(id, company.name);
 // 「{社名}の年収に関するQ&A」（C16・#838）。表示基準でも年齢でも変わらないので、C10・C12 と
 // 同じく名前付きスロットで静的な HTML として差し込む。
-const qa = buildActualsQa(company, lapsed?.company.fiscalPeriod ?? data!.fiscalPeriod);
+const qa = buildActualsQa(company, unranked?.company.fiscalPeriod ?? data!.fiscalPeriod);
 // 「このページの出典」（C12・#805）。**ページに出ている節だけを挙げる**ので、有無はここで渡す。
 // 有報を挙げる行は、その行の中身を作った書類を指す（refresh の D3）。
 const sourceRows = buildSourceRows({
@@ -63,8 +68,8 @@ const sourceRows = buildSourceRows({
   summaryDocId: page.summary !== null ? companySummaryDocId(id) : null,
   analysisDocId: analysis?.docId ?? null,
   payPolicyDocId: payPolicy?.docId ?? null,
-  // 母集団から外れた会社のページには順位・分布・レーダー・年齢別の推定年収が無い（D9）
-  ranked: lapsed === null,
+  // ランキングの外の会社のページには順位・分布・レーダー・年齢別の推定年収が無い（D9・D11）
+  ranked: unranked === null,
   profitHistory: page.profitHistory !== null,
 });
 ---
@@ -81,12 +86,12 @@ const sourceRows = buildSourceRows({
     set:html={JSON.stringify(breadcrumbJsonLd(companyBreadcrumb(company)))}
   />
   {
-    lapsed !== null ? (
-      <LapsedCompanyDetail data={lapsed}>
+    unranked !== null ? (
+      <UnrankedCompanyDetail data={unranked}>
         {payPolicy && <PayPolicySection slot="payPolicy" view={payPolicy} />}
         <ActualsQaSection slot="qa" qa={qa} docId={filingDocId} />
         <SourcesSection slot="sources" rows={sourceRows} />
-      </LapsedCompanyDetail>
+      </UnrankedCompanyDetail>
     ) : (
       <CompanyDetailIsland data={data!} client:load>
         {analysis && <AnalysisSection slot="analysis" name={company.name} view={analysis} />}

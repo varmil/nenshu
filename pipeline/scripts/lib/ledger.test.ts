@@ -99,34 +99,55 @@ describe("selectUniverse", () => {
     csv(
       "E00001,1111,2026-06-25,S1,,,", // 直近の提出
       "E00002,2222,2025-06-25,S2,,,", // 12か月を過ぎて24か月に満たない
-      "E00003,E00003,2024-06-25,S3,,," // 24か月を過ぎた
+      "E00003,E00003,2024-06-25,S3,,,", // 24か月を過ぎた
+      "E00004,4444,2026-06-25,S4,,," // 直近の提出で、単体従業員の線を割った
     )
   );
-  const row = (edinetCode: string) => ({ edinetCode, name: `会社${edinetCode}` });
+  const row = (edinetCode: string, employeesNonConsolidated = 500) => ({
+    edinetCode,
+    name: `会社${edinetCode}`,
+    employeesNonConsolidated,
+  });
   const asOf = "2026-08-25";
+  const all = [row("E00001"), row("E00002"), row("E00003"), row("E00004", 40)];
 
-  it("24か月に満たない会社は最後の有報の数字で残り、過ぎた会社は外れる", () => {
-    const { rows, ids, lapsed, lapsedIds } = selectUniverse(
-      [row("E00001"), row("E00002"), row("E00003")],
-      ledger,
-      asOf
-    );
+  it("24か月に満たない会社は最後の有報の数字で残り、過ぎた会社と線を割った会社は外れる", () => {
+    const { rows, ids, unranked, unrankedIds, reasons } = selectUniverse(all, ledger, asOf, 100);
     expect(rows.map((r) => r.edinetCode)).toEqual(["E00001", "E00002"]);
     expect(ids).toEqual(["1111", "2222"]);
-    expect(lapsed.map((r) => r.edinetCode)).toEqual(["E00003"]);
-    // 外れた会社も台帳の ID のまま（企業ページを残す。D9）
-    expect(lapsedIds).toEqual(["E00003"]);
+    expect(unranked.map((r) => r.edinetCode)).toEqual(["E00003", "E00004"]);
+    // ランキングの外の会社も台帳の ID のまま（企業ページを残す。D9・D11）
+    expect(unrankedIds).toEqual(["E00003", "4444"]);
+    expect(reasons).toEqual(["lapsed", "belowLine"]);
+  });
+
+  it("線はちょうどの人数を含む（100人は載る）", () => {
+    const { rows } = selectUniverse(
+      [row("E00001", 100), row("E00002"), row("E00003"), row("E00004", 99)],
+      ledger,
+      asOf,
+      100
+    );
+    expect(rows.map((r) => r.edinetCode)).toEqual(["E00001", "E00002"]);
+  });
+
+  it("提出が途切れて線も割っている会社は、提出が途切れたほうで外れる（数字が古い）", () => {
+    const { reasons } = selectUniverse(
+      [row("E00001"), row("E00002"), row("E00003", 40), row("E00004")],
+      ledger,
+      asOf,
+      100
+    );
+    expect(reasons).toEqual(["lapsed"]);
   });
 
   it("台帳に無い会社が行にあれば落とす（ID を振るのは台帳を書く側）", () => {
-    expect(() =>
-      selectUniverse([row("E00001"), row("E00002"), row("E00003"), row("E00009")], ledger, asOf)
-    ).toThrow(/更新台帳/);
+    expect(() => selectUniverse([...all, row("E00009")], ledger, asOf, 100)).toThrow(/更新台帳/);
   });
 
   it("台帳の会社が行に無ければ落とす（一度載った会社を黙って消さない）", () => {
-    expect(() => selectUniverse([row("E00001"), row("E00003")], ledger, asOf)).toThrow(
-      /1社が ranking_unified.csv にありません/
+    expect(() => selectUniverse([row("E00001"), row("E00003")], ledger, asOf, 100)).toThrow(
+      /2社が ranking_unified.csv にありません/
     );
   });
 });

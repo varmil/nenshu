@@ -144,21 +144,23 @@ describe("buildSourceRows（C12・AC-16）", () => {
   });
 
   /*
-   * 母集団から外れた会社のページ（refresh の D9・spec 1.16・AC-7）。順位・偏差値・分布・
+   * ランキングの外の会社のページ（refresh の D9・D11・spec 1.16・AC-7）。順位・偏差値・分布・
    * レーダー・年齢別の推定年収の節が無いので、出典の一覧もそれを挙げない。
    */
-  it("母集団から外れた会社では、推定値の行を出さず、計算値はページにあるものだけを挙げる", () => {
-    const lapsed = { ...ALL, analysisDocId: null, ranked: false };
-    const rows = buildSourceRows({ ...lapsed, profitHistory: true });
+  it("ランキングの外の会社では、推定値の行を出さず、計算値はページにあるものだけを挙げる", () => {
+    const unranked = { ...ALL, analysisDocId: null, ranked: false };
+    const rows = buildSourceRows({ ...unranked, profitHistory: true });
     expect(rows.map((r) => r.kind)).not.toContain("estimated");
     expect(byKind(rows, "computed").covers).toBe("稼ぐ力・業種の中央値");
 
-    expect(byKind(buildSourceRows({ ...lapsed, profitHistory: false }), "computed").covers).toBe(
+    expect(byKind(buildSourceRows({ ...unranked, profitHistory: false }), "computed").covers).toBe(
       "業種の中央値"
     );
     // 計算値が1つも無ければ行ごと出さない
     expect(
-      buildSourceRows({ ...lapsed, profitHistory: false, tenureHistory: false }).map((r) => r.kind)
+      buildSourceRows({ ...unranked, profitHistory: false, tenureHistory: false }).map(
+        (r) => r.kind
+      )
     ).not.toContain("computed");
   });
 

@@ -30,34 +30,45 @@ def entry(code, numbers, analysis="", description="", pay_policy=""):
     }
 
 
-def ranking(code, rank, period_end="2027-03-31"):
-    return {"edinet_code": code, "rank_raw": str(rank), "period_end": period_end, "doc_id": ""}
+def ranking(code, rank, period_end="2027-03-31", employees="500.0"):
+    return {"edinet_code": code, "rank_raw": str(rank), "period_end": period_end, "doc_id": "",
+            "employees_nonconsolidated": employees}
+
+
+def row(period_end="2027-03-31", employees="500.0"):
+    return ranking("E1", 1, period_end, employees)
 
 
 class TodoStages(unittest.TestCase):
     def test_all_stages_follow_the_numbers_filing(self):
         e = entry("E1", "NEW", "OLD", "OLD", "OLD")
-        self.assertEqual(todo_stages(e, "2027-03-31", set(), FIRST), ["analysis", "description", "pay_policy"])
+        self.assertEqual(todo_stages(e, row("2027-03-31"), set(), FIRST), ["analysis", "description", "pay_policy"])
 
     def test_done_stages_are_skipped(self):
         e = entry("E1", "NEW", "NEW", "OLD", "OLD")
-        self.assertEqual(todo_stages(e, "2027-03-31", set(), FIRST), ["description", "pay_policy"])
+        self.assertEqual(todo_stages(e, row("2027-03-31"), set(), FIRST), ["description", "pay_policy"])
 
     def test_pay_policy_only_for_periods_with_the_section(self):
         # 開示府令 (58-2) より前の期の書類には節が無い
         e = entry("E1", "NEW", "OLD", "OLD", "")
-        self.assertEqual(todo_stages(e, "2026-02-28", set(), FIRST), ["analysis", "description"])
+        self.assertEqual(todo_stages(e, row("2026-02-28"), set(), FIRST), ["analysis", "description"])
 
     def test_a_stage_that_failed_on_this_filing_is_not_picked_again(self):
         # 同じ書類で落ちた工程を毎日選び直すと、その会社が上限を使い切り続ける
         e = entry("E1", "NEW", "OLD", "OLD", "OLD")
         failed = {("analysis", "NEW")}
-        self.assertEqual(todo_stages(e, "2027-03-31", failed, FIRST), ["description", "pay_policy"])
+        self.assertEqual(todo_stages(e, row("2027-03-31"), failed, FIRST), ["description", "pay_policy"])
 
     def test_a_failure_on_an_older_filing_does_not_block_the_new_one(self):
         e = entry("E1", "NEW", "OLD", "OLD", "OLD")
         failed = {("analysis", "OLD")}
-        self.assertIn("analysis", todo_stages(e, "2027-03-31", failed, FIRST))
+        self.assertIn("analysis", todo_stages(e, row("2027-03-31"), failed, FIRST))
+
+    def test_below_the_employee_line_skips_the_analysis(self):
+        # D11: ランキングの外の会社の画面は分析と要約を出さない。説明文と給与の決定方針は書く
+        e = entry("E1", "NEW", "OLD", "OLD", "OLD")
+        self.assertEqual(todo_stages(e, row(employees="40.0"), set(), FIRST), ["description", "pay_policy"])
+        self.assertEqual(todo_stages(e, row(employees="100.0"), set(), FIRST), ["analysis", "description", "pay_policy"])
 
 
 class SelectQueue(unittest.TestCase):
@@ -85,6 +96,13 @@ class SelectQueue(unittest.TestCase):
         entries = {f"E{i}": entry(f"E{i}", f"N{i}") for i in range(5)}
         rank = {f"E{i}": ranking(f"E{i}", i + 1) for i in range(5)}
         self.assertEqual([c for c, _ in select_queue(entries, rank, [], FIRST, limit=2)], ["E0", "E1"])
+
+    def test_below_the_line_is_not_partial_without_the_analysis(self):
+        # 分析を選ばないのは「途中で止まった」ではない。順位の順に並ぶ
+        entries = {"E1": entry("E1", "N1", "O", "O", "O"), "E2": entry("E2", "N2", "O", "O", "O")}
+        rank = {"E1": ranking("E1", 1), "E2": ranking("E2", 9, employees="40.0")}
+        got = select_queue(entries, rank, [], FIRST, limit=10)
+        self.assertEqual(got, [("E1", ["analysis", "description", "pay_policy"]), ("E2", ["description", "pay_policy"])])
 
     def test_new_company_without_any_text(self):
         # 新しく載った会社は文章の書類が空。書けるまで節は出ない（spec 1.9）

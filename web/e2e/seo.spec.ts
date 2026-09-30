@@ -3,7 +3,7 @@ import { test, expect } from "./appTest";
 import { formatInt } from "../features/ranking/lib/format";
 import { PAGE_SIZE, TARGET_AGES } from "../features/ranking/types";
 import { fiscalPeriodLabel } from "../lib/data/period";
-import { companies, lapsed, pickCompanies } from "../testing/realData";
+import { companies, pickCompanies, unranked } from "../testing/realData";
 
 /**
  * U8（Issue #53）。ADR-0006 のインデックス戦略が、実際に返るHTMLと
@@ -87,7 +87,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 企業ページには、母集団から外れた会社（最後の有報から24か月）のぶんも入る（refresh の D9）。
     const industriesWithCompanies = new Set(companies.rows.map((row) => row[2])).size;
     expect(locs).toHaveLength(
-      2 + TARGET_AGES.length + industriesWithCompanies + companies.rows.length + lapsed.rows.length
+      2 +
+        TARGET_AGES.length +
+        industriesWithCompanies +
+        companies.rows.length +
+        unranked.rows.length
     );
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
