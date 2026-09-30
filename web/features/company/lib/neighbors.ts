@@ -62,25 +62,10 @@ export function findNeighbors(
    * 除いたぶん詰まって本来の順位とずれる（自分より上の会社が1つ繰り上がる）。
    * 1業種は最大173社なので、並べ直しても当該1社ぶんの計算に埋もれる。
    */
-  const industry = companies.rows
-    .filter((row) => row[2] === industryIdx)
-    .map((row) => ({
-      id: row[0],
-      name: row[1],
-      salary: salaryOf(row),
-      avgAge: row[4],
-    }))
-    .sort((a, b) => b.salary - a.salary);
-
-  let previousSalary = Number.NaN;
-  let previousRank = 0;
-  const ranked = industry.map((company, index) => {
-    // 同額は同順位。次は飛ばす（1,2,2,4）——ランキングの `rank.ts` と同じ扱い。
-    const industryRank = company.salary === previousSalary ? previousRank : index + 1;
-    previousSalary = company.salary;
-    previousRank = industryRank;
-    return { ...company, industryRank };
-  });
+  const ranked = rankIndustry(
+    companies.rows.filter((row) => row[2] === industryIdx),
+    salaryOf
+  );
 
   return (
     ranked
@@ -90,4 +75,44 @@ export function findNeighbors(
       // 並べるときは金額の降順にする。近さで並べると上下に交互に跳ねて読みにくい。
       .sort((a, b) => b.salary - a.salary)
   );
+}
+
+/**
+ * 同じ業種の実測値の上位 `limit` 社（refresh の D11・運営者の指示）。**ランキングの外の会社**
+ * （`UnrankedCompanyDetail`）のサイドバーに出す——その会社は母集団にいないので「水準が近い」を
+ * 母集団の中で測れない。便宜的に業種の1位から並べる。
+ *
+ * 業種は**名前で引く**。ランキングの外の会社の業種の添字は `unranked.json` のプールを指す。
+ * 母集団に同業がいなければ空。
+ */
+export function topOfIndustry(
+  companies: CompaniesData,
+  industry: string,
+  limit: number = NEIGHBOR_COUNT
+): NeighborCompany[] {
+  const industryIdx = companies.industries.indexOf(industry);
+  if (industryIdx === -1) return [];
+  return rankIndustry(
+    companies.rows.filter((row) => row[2] === industryIdx),
+    (row) => row[6]
+  ).slice(0, limit);
+}
+
+/** 同じ業種の会社を金額の降順に並べ、業界内順位を振る。同額は同順位で、次は飛ばす（1,2,2,4）。 */
+function rankIndustry(
+  rows: CompaniesData["rows"],
+  salaryOf: (row: CompaniesData["rows"][number]) => number
+): NeighborCompany[] {
+  const industry = rows
+    .map((row) => ({ id: row[0], name: row[1], salary: salaryOf(row), avgAge: row[4] }))
+    .sort((a, b) => b.salary - a.salary);
+  let previousSalary = Number.NaN;
+  let previousRank = 0;
+  return industry.map((company, index) => {
+    // ランキングの `rank.ts` と同じ扱い
+    const industryRank = company.salary === previousSalary ? previousRank : index + 1;
+    previousSalary = company.salary;
+    previousRank = industryRank;
+    return { ...company, industryRank };
+  });
 }

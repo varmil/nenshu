@@ -989,7 +989,7 @@ test.describe("AC-15 レイアウト", () => {
    * - 給与の決定方針がいちばん長い会社（畳む）と、表の列がいちばん多い会社（C19・AC-36）
    * - ランキングの外の会社（refresh の D9・D11）: 別の画面（`UnrankedCompanyDetail`）で、断りの器が
    *   増える。理由ごとに1社ずつ、いれば足す（提出が途切れた会社はいまのデータにいない。揺らしたデータで
-   *   1社いる）。サイドバーは無い
+   *   1社いる）。サイドバーは業種の上位10社
    */
   test("375px では1カラムで、どの会社でも横スクロールが発生しない", async ({ page }) => {
     const ids = [
@@ -1026,9 +1026,8 @@ test.describe("AC-15 レイアウト", () => {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth
       );
       expect(overflow, id).toBeLessThanOrEqual(0);
-      if (!unrankedPage) {
-        expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
-      }
+      // サイドバーは本文の下に積まれる（ランキングの外の会社も同じ器。refresh の D11 の後の指摘）
+      expect((await page.locator("aside").boundingBox())!.x, id).toBeLessThan(64);
 
       // 推移の表は器の中で横に送る作りではない（T2 AC-14・T4 AC-22）。器ごと収まっていること。
       for (const [label, section, present] of [
