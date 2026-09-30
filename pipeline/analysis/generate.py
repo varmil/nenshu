@@ -62,6 +62,8 @@ MANIFEST = DATA / "analysis_text_manifest.csv"
 # **切った版の gzip より先に見る。** 置き場所と理由は `extract_analysis.OVERLAY`。
 OVERLAY = extract_analysis.OVERLAY
 UNIVERSE = DATA / "ranking_unified.csv"
+# 企業 ID（refresh の D2・ADR-0017）。稼ぐ力・働きやすさは ID で引く
+LEDGER = DATA / "ledger.csv"
 SALARY_HISTORY = DATA / "salary_history.csv"
 # **稼ぐ力は `web/public/data/` の生成物から読む。** `pipeline/data/` にあるのは
 # 年ごとの生の CSV（`performance_history.csv`）で、「直近5期の中央値 ÷ 従業員数」に
@@ -172,25 +174,32 @@ def salary_history():
 
 
 def profit_per_employee():
-    """`(sec/edinet の並び順の添字 → 稼ぐ力, 業種 → 業種中央値)`。
+    """`(企業 ID → 稼ぐ力, 業種 → 業種中央値)`。
 
     `performance.json` の `perEmployee` は **`companies.rows` と同じ並びの配列**
-    （`build-data.ts`）で、その並びは `ranking_unified.csv` の行順に等しい。
-    **行がずれると別の会社の数字を出す**ので、ここでも同じループで組む。
+    （`build-data.ts`）。**ID は `companies.rows` から引く。`ranking_unified.csv` の行順で
+    引かない**——ランキングの外の会社（提出が途切れた・単体従業員の線を割った。refresh の
+    D9・D11）は CSV にいて `companies.rows` にいないので、行順で引くとその後ろの会社が
+    1つずつずれる（D11 のマージ直後、392社が隣の会社の稼ぐ力を材料にするところだった）。
     """
     if not PERFORMANCE.exists():
-        return [], {}
+        return {}, {}
     d = json.loads(PERFORMANCE.read_text(encoding="utf-8"))
     medians = d.get("industryMedian") or []
+    per = d.get("perEmployee") or []
+    companies = json.loads(COMPANIES.read_text(encoding="utf-8")) if COMPANIES.exists() else {}
+    rows = companies.get("rows") or []
+    if per and len(rows) != len(per):
+        raise ValueError(
+            f"performance.json の perEmployee（{len(per)}件）が companies.rows（{len(rows)}件）と並ばない"
+        )
     # **業種名の並びは `companies.json` の `industries` から取る。ここで並べ直さない。**
     # `build-data.ts` は `localeCompare(a, b, "ja")` で並べており、Python の `sorted()`
     # （コードポイント順）とは**33業種中31業種でずれる**（13回目に生成側が見つけた。
     # 機械（三井海洋開発）に鉱業の 3,845万円が入り、電気機器には 587万円が入っていた）。
-    names = []
-    if COMPANIES.exists():
-        names = json.loads(COMPANIES.read_text(encoding="utf-8")).get("industries") or []
+    names = companies.get("industries") or []
     by_name = dict(zip(names, medians)) if len(names) == len(medians) else {}
-    return d.get("perEmployee") or [], by_name
+    return {row[0]: v for row, v in zip(rows, per)}, by_name
 
 
 def worklife():
@@ -288,12 +297,12 @@ def build_figures(row, uni_index, history, per_emp, ind_by_name, wl):
     """**同じページが既に表示している数値だけ**を渡す（ADR-0015 決定2）。
 
     外部から新しく数値を引いてこない——読者が根拠を同じページの中で突き合わせられる
-    ことが、評価を書いてよい前提になる。
+    ことが、評価を書いてよい前提になる。`per_emp`・`wl` は**企業 ID（台帳）で引く**。
     """
     u = uni_index.get(row["edinet_code"])
     if u is None:
         return {}
-    idx = u["_index"]
+    company_id = u.get("_id")
     industry = u.get("tse33") or ""
     figures = {
         "avg_salary_yen": _num(u.get("avg_salary")),
@@ -305,13 +314,14 @@ def build_figures(row, uni_index, history, per_emp, ind_by_name, wl):
         "salary_history_yen": {str(y): v for y, v in
                                sorted(history.get(row["edinet_code"], {}).items())},
     }
-    if idx < len(per_emp) and per_emp[idx]:
-        figures["profit_per_employee_yen"] = per_emp[idx]
+    if per_emp.get(company_id):
+        figures["profit_per_employee_yen"] = per_emp[company_id]
     if industry in ind_by_name:
         figures["industry_median_profit_per_employee_yen"] = ind_by_name[industry]
-    key = u.get("sec_code") or row["edinet_code"]
-    if key in wl:
-        got = {k: v for k, v in wl[key].items() if v not in (None, "")}
+    # 証券コードで引かない。`0000` の会社（ID は EDINETコード）や、証券コードが先に使われていた
+    # 会社は、ID と証券コードが違う（`ledger.normalize_sec_code`・`assign_id`）
+    if company_id in wl:
+        got = {k: v for k, v in wl[company_id].items() if v not in (None, "")}
         if got:
             figures["worklife"] = got
     return figures
@@ -345,9 +355,10 @@ def figures_context():
     いなかった）。**読み方を2か所に書き写さない**ためにここへ寄せてある。
     """
     uni = universe()
+    ids = {r["edinet_code"]: r["id"] for r in read_csv(LEDGER)}
     uni_index = {}
-    for i, u in enumerate(uni):
-        u["_index"] = i
+    for u in uni:
+        u["_id"] = ids.get(u["edinet_code"])
         uni_index[u["edinet_code"]] = u
     per_emp, ind_by_name = profit_per_employee()
     return uni_index, salary_history(), per_emp, ind_by_name, worklife()
