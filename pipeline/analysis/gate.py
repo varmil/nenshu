@@ -281,6 +281,24 @@ def escape_phrases(text):
     return out
 
 
+# **業種の「平均」を名乗る語。** `figures` が渡すのは業種の中央値
+# （`industry_median_profit_per_employee_yen`）で、平均はどこにも無い——平均だと業種の
+# 代表値が最上位の1社に引きずられるので、リポジトリとして持たないと決めている。
+# `prompts/generate.md` が止めていたのは見出しだけで、本文では45社・46文が
+# 「業種平均の3倍を超える」「業界の平均並み」のように書いていた（#918 で直した）。
+# 検証パスは言い換えとして通すことがあるので、**名前の取り違えはここで機械的に止める**（#919）。
+#
+# **カギ括弧の中は見ない。** 会社が自分の言葉で書いた「業界平均を上回る初任給」を引くのは、
+# 同じページの数値と比べた主張ではない（`digit_runs` と同じ扱い）。
+_AVERAGE_NAME = re.compile(r"(?:業種|業界|同業(?:他社)?)の?平均")
+
+
+def average_names(text):
+    """業種の平均を名乗る語を出現順に返す（カギ括弧の中は数えない）。"""
+    naked = _QUOTED.sub(lambda m: "〓" * len(m.group(0)), text or "")
+    return [m.group(0) for m in _AVERAGE_NAME.finditer(naked)]
+
+
 def apply_analysis_gate(headline, analysis, sources, max_digits=MAX_ANALYSIS_DIGITS):
     """分析に機械ゲートを当てる。`(通った見出し, 通った本文, 落とした理由の並び)` を返す。
 
@@ -319,6 +337,11 @@ def apply_analysis_gate(headline, analysis, sources, max_digits=MAX_ANALYSIS_DIG
     if len(escapes) > MAX_ESCAPE_PHRASES:
         reasons.append(f"帰属で言い切りを避ける語が多い: {len(escapes)}個"
                        f"（上限{MAX_ESCAPE_PHRASES}） — {'・'.join(escapes)}")
+
+    averages = list(dict.fromkeys(average_names(headline) + average_names(analysis)))
+    if averages:
+        reasons.append(f"業種の平均を名乗っている（データにあるのは業種中央値）"
+                       f" — {'・'.join(averages)}")
 
     reasons += source_problems(sources)
 
