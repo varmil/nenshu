@@ -1,4 +1,4 @@
-export type LogoSource = "commons" | "jsonld" | "header" | "icon" | "ogp";
+export type LogoSource = "commons" | "jsonld" | "header" | "icon" | "ogp" | "supplied";
 
 export type Candidate = {
   source: LogoSource;
@@ -218,6 +218,22 @@ const PINNED: Record<string, Candidate> = {
   "9466": { source: "ogp", url: "https://www.e-aidma.co.jp/ogp.jpg" },
   // 白洋舍（9731）。いまは 41×34 の favicon
   "9731": { source: "ogp", url: "https://www.hakuyosha.co.jp/dcms_media/image/ogp.png" },
+
+  /*
+    **運営者から画像で受け取った4社**（`pipeline/data/logo-assets/<企業ID>.png`）。
+    `url` はその画像の `pipeline/` からの相対パスで、ネットワークには出ない
+    （`build-logos.ts` の `load`）。**画像を `web/public/logos/` に手で置くと、次の全周で
+    取り直した瞬間に元へ戻る**ので、取り込みの入口として指定に載せてある。
+
+    - 日本オラクル（4716）・グロービング（277A）・高砂熱学工業（1969）: Wikidata にも
+      gBizINFO にも公式サイトのURLが無く、候補が1件も集まらない会社（`noUrl`）
+    - メルカリ（4385）: Commons の `Mercari_logo_2018.svg` が先に取れていたのを、
+      受け取った画像に差し替える（指定は優先順より先に試される）
+  */
+  "4716": { source: "supplied", url: "data/logo-assets/4716.png" },
+  "277A": { source: "supplied", url: "data/logo-assets/277A.png" },
+  "1969": { source: "supplied", url: "data/logo-assets/1969.png" },
+  "4385": { source: "supplied", url: "data/logo-assets/4385.png" },
 };
 
 /** 指定がある会社では、その候補を先頭に置く（同じURLが候補にあれば1つに畳む）。 */
@@ -227,14 +243,26 @@ export function prioritize(id: string, candidates: readonly Candidate[]): Candid
   return [pin, ...candidates.filter((c) => c.url !== pin.url)];
 }
 
+/** 同梱の画像を使う指定か。`url` はネットワークのURLではなく、`pipeline/` からの相対パス。 */
+export function isSupplied(candidate: Candidate): boolean {
+  return candidate.source === "supplied";
+}
+
 /** 指定そのもの（テストが形を検める）。 */
 export const pinnedCandidates: Readonly<Record<string, Candidate>> = PINNED;
 
 /**
- * **`ogp` は集めない。** `PINNED` から名指しで入るだけなので、ここに並ぶことは無い
+ * **`ogp`・`supplied` は集めない。** `PINNED` から名指しで入るだけなので、ここに並ぶことは無い
  * （型を満たすために末尾に置く）。理由は下の `PINNED` の説明にある。
  */
-const ORDER: Record<LogoSource, number> = { commons: 0, jsonld: 1, header: 2, icon: 3, ogp: 4 };
+const ORDER: Record<LogoSource, number> = {
+  commons: 0,
+  jsonld: 1,
+  header: 2,
+  icon: 3,
+  ogp: 4,
+  supplied: 5,
+};
 
 /**
  * 出典の確からしさを解像度より優先する。

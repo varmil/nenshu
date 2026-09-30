@@ -1,9 +1,13 @@
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, it, expect } from "vitest";
 import { extractCandidates, manifestIcons, manifestUrl, absolute } from "./lib/logo/site";
 import {
   sortCandidates,
   prioritize,
   pinnedCandidates,
+  isSupplied,
   parseSizes,
   toOrigin,
   Candidate,
@@ -12,6 +16,7 @@ import { looksLikeSvg } from "./lib/logo/image";
 import { titleFromP154 } from "./lib/logo/commons";
 
 const BASE = "https://example.co.jp/";
+const PIPELINE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("公式サイトからの候補の抽出", () => {
   it("JSON-LD の Organization.logo を拾う（@graph の中も見る）", () => {
@@ -269,8 +274,21 @@ describe("会社ごとに決めた候補の指定", () => {
 
   it("指定のURLは絶対URLで書く", () => {
     // 候補は `absolute()` を通った絶対URLで届く。相対で書くと1つも一致しないまま
-    // 「効いている」ように見える
-    for (const c of Object.values(pinnedCandidates)) expect(c.url).toMatch(/^https?:\/\//);
+    // 「効いている」ように見える。同梱の画像（`supplied`）だけはファイルの相対パス
+    for (const c of Object.values(pinnedCandidates)) {
+      if (!isSupplied(c)) expect(c.url).toMatch(/^https?:\/\//);
+    }
+  });
+
+  it("同梱の画像を指す指定は、その画像が実在する", () => {
+    // 無いまま指定だけ残ると `load` が 404 を返し、次の候補（favicon 等）へ落ちるだけで
+    // 気づけない。パスは `data/logo-assets/<企業ID>.png` に固定して取り違えも見る
+    const supplied = Object.entries(pinnedCandidates).filter(([, c]) => isSupplied(c));
+    expect(supplied.length).toBeGreaterThan(0);
+    for (const [id, c] of supplied) {
+      expect(c.url).toBe(`data/logo-assets/${id}.png`);
+      expect(existsSync(resolve(PIPELINE_ROOT, c.url))).toBe(true);
+    }
   });
 });
 
