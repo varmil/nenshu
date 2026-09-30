@@ -239,5 +239,43 @@ class 逃げの語(unittest.TestCase):
         self.assertEqual([r for r in reasons if "言い切りを避ける語" in r], [])
 
 
+class 業種の平均(unittest.TestCase):
+    """**データにあるのは業種中央値で、平均は無い**（#919）。規格が見出しでだけ止めていて、
+    本文では45社が「業種平均の3倍を超える」のように書いていた（#918 で直した）。"""
+
+    def test_業種の平均を名乗ると分析ごと落とす(self):
+        for sentence in ("一人当たりの稼ぐ力は業種平均の3倍を超える。",
+                         "稼ぐ力は業界平均より低い。",
+                         "稼ぐ力はまだ業界の平均並みにとどまる。",
+                         "稼ぐ効率は業種の平均的な水準に届いていない。",
+                         "稼ぐ力は同業他社の平均を下回る。"):
+            with self.subTest(sentence=sentence):
+                h, b, reasons = gate.apply_analysis_gate(HEADLINE, BODY + sentence, SOURCES)
+                self.assertEqual((h, b), ("", ""))
+                self.assertTrue(any("業種の平均を名乗っている" in r for r in reasons), reasons)
+
+    def test_見出しでも落とす(self):
+        _, b, reasons = gate.apply_analysis_gate(
+            "増収でも、稼ぐ力は業種平均に届かない。", BODY, SOURCES)
+        self.assertEqual(b, "")
+        self.assertTrue(any("業種の平均を名乗っている" in r for r in reasons), reasons)
+
+    def test_業種中央値は通す(self):
+        _, b, reasons = gate.apply_analysis_gate(
+            HEADLINE, BODY + "一人当たりの稼ぐ力は業種中央値の3倍を超える。", SOURCES)
+        self.assertEqual(reasons, [])
+        self.assertTrue(b)
+
+    def test_カギ括弧の中は通す(self):
+        # 会社が自分の言葉で書いたものを引くのは、同じページの数値と比べた主張ではない。
+        _, b, reasons = gate.apply_analysis_gate(
+            HEADLINE, BODY + "採用ページは「業界平均を上回る初任給」をうたう。", SOURCES)
+        self.assertEqual(reasons, [])
+        self.assertTrue(b)
+
+    def test_平均年収のような語は数えない(self):
+        self.assertEqual(gate.average_names("平均年収は業界の中で高いほうにある。"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
