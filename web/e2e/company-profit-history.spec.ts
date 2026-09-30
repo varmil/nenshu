@@ -1,6 +1,6 @@
 import { test, expect } from "./appTest";
 import type { Page } from "@playwright/test";
-import { pickCompany, profitHistory } from "../testing/realData";
+import { history, performance, pickCompany, profitHistory } from "../testing/realData";
 import { companyPageData } from "../features/company/lib/pageData";
 import { buildProfitSummary, formatSignedManYen } from "../features/company/lib/profitHistory";
 
@@ -42,6 +42,44 @@ const LATEST = pickCompany("稼ぐ力の推移の最新年がそろった会社"
     profitHistory.income[id]?.at(-1) != null &&
     profit.filter((v) => v !== null).length >= 2
   );
+});
+
+/**
+ * 稼ぐ力が出ない会社（連結の経常利益が無い会社——IFRS・米国基準。Issue #911）。データからは
+ * 「稼ぐ力の推移が無く、レーダーの稼ぐ力も無く、平均年収の推移は10年そろう」という状態で選ぶ。
+ * 10年そろう条件は、推移が短くて稼ぐ力も出ない新しい会社（別の理由で無い）を外すため。
+ */
+const NO_PROFIT = pickCompany(
+  "稼ぐ力が出ず、平均年収の推移は10年そろう会社",
+  ([id], index) =>
+    profitHistory.profit[id] === undefined &&
+    performance.perEmployee[index] === null &&
+    (history.byId[id] ?? []).filter((value) => value !== null).length >= 10
+);
+
+test.describe("Issue 911 稼ぐ力が出ない会社", () => {
+  test("稼ぐ力の推移の節が節ごと出ず、レーダーの稼ぐ力は掲載なしで、出典にも稼ぐ力を挙げない", async ({
+    page,
+  }) => {
+    await page.goto(`/company/${NO_PROFIT}`);
+
+    // 節ごと出ない（見出しも、空の図や表も残さない）。ページごと消えているのではない
+    await expect(page.getByRole("heading", { name: "稼ぐ力の推移（過去10年間）" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "平均年収推移（過去10年間）" })).toBeVisible();
+
+    // レーダーの稼ぐ力の行は掲載なし
+    const radarRow = page
+      .getByRole("heading", { name: "公開資料による全体像" })
+      .locator("xpath=..")
+      .locator("dl > div")
+      .filter({ has: page.locator("dt", { hasText: "稼ぐ力" }) });
+    await expect(radarRow).toContainText("掲載なし");
+
+    // 出典の一覧にも稼ぐ力を挙げない（ページに無い値を計算値として名乗らない）
+    const sources = page.getByRole("heading", { name: "このページの出典" }).locator("xpath=..");
+    await expect(sources).toBeVisible();
+    await expect(sources).not.toContainText("稼ぐ力");
+  });
 });
 
 test.describe("AC-10 稼ぐ力の推移", () => {

@@ -753,21 +753,36 @@ describe("buildData", () => {
       (incomesByCode.get(sourceRows[i].edinetCode) ?? []).slice(0, 5).map((r) => r.ordinaryIncome);
     /**
      * 最後の開示が最終年かその前年の会社。**古い会社は落とす**——「直近5期」が何年も前の
-     * 中央値になってしまう（E6 の時点で弘電社・キクカワエンタープライズの2社。最後の開示が8年前）。
+     * 中央値になってしまう。いまは0社（#911 の前に当たっていた弘電社・キクカワエンタープライズは、
+     * 経常利益を「経常収益」の要素でタグ付けしていて取れていなかっただけだった）。
      */
     const hasRecent = (i: number) => {
       const list = incomesByCode.get(sourceRows[i].edinetCode);
       return list !== undefined && list.length > 0 && list[0].year >= latestYear - 1;
     };
 
-    it("AC-1 経常利益の推移を直近まで持つ会社には、すべて値が入る", () => {
+    /**
+     * 連結の経常利益が無い会社（IFRS・米国基準）。**最新年の経常利益が単体だけで、連結の従業員数が
+     * ある**（Issue #911）。実装の関数（`lib/profitBasis.ts`）を使わず、CSV から同じ規則を書き直す
+     * ——実装と同じ書き間違いで通らないように。
+     */
+    const isGroupMismatch = (i: number) => {
+      const latest = incomesByCode.get(sourceRows[i].edinetCode)?.[0];
+      if (latest === undefined) return false;
+      // 分子と分母の範囲が食い違う（単体 ÷ 連結、または逆向きの 連結 ÷ 単体）
+      return (latest.basis === "consolidated") !== (sourceRows[i].employeesConsolidated !== null);
+    };
+
+    it("AC-1 経常利益の推移を直近まで持つ会社には、すべて値が入る（連結の経常利益が無い会社を除く）", () => {
       // 経常利益の要素名は3つの綴りがあり（`OrdinaryIncomeLoss` / `OrdinaryIncome` /
       // 会社独自の名前空間の `OrdinaryProfit`）、標準名だけを見ていた頃は13書類が取れず、
       // 東京製鐵は2013〜2017年しか残らなかった。**値を持たないのは、推移が無い会社（新しく
       // 載って、まだ取れていない会社）と、最後の開示が古い会社だけ。**
       const { perEmployee, meta } = result.performance;
       const mismatched = result.companies.rows.flatMap((row, i) =>
-        (perEmployee[i] !== null) === hasRecent(i) ? [] : [`${row[0]} ${row[1]}`]
+        (perEmployee[i] !== null) === (hasRecent(i) && !isGroupMismatch(i))
+          ? []
+          : [`${row[0]} ${row[1]}`]
       );
       expect(mismatched).toEqual([]);
       expect(meta.matched).toBe(perEmployee.filter((v) => v !== null).length);
@@ -819,12 +834,26 @@ describe("buildData", () => {
       // 5期の中央値が負になる会社を、経常利益の推移から選ぶ。名指しすると、その会社が
       // 黒字に戻ったときに崩れる。
       const deficits = result.companies.rows.flatMap((_, i) =>
-        hasRecent(i) && median(recentIncomes(i)) < 0 ? [i] : []
+        hasRecent(i) && !isGroupMismatch(i) && median(recentIncomes(i)) < 0 ? [i] : []
       );
       expect(deficits.length, "5期の中央値が負の会社が居ない").toBeGreaterThan(0);
       for (const i of deficits) {
         expect(result.performance.perEmployee[i], result.companies.rows[i][0]).toBeLessThan(0);
       }
+    });
+
+    it("連結の経常利益が無い会社は稼ぐ力を出さず、業種中央値の母集団にも数えない（#911）", () => {
+      // 単体の経常利益 ÷ 連結の従業員数は、連結の値の代わりにならない（最新年の実測で、連結の
+      // 税引前利益に対する比の中央値 0.59・±25% に収まるのは21%）。**社数を書き写さない**——
+      // 決算のたびに動くので、居ることだけを見る。
+      const hidden = sourceRows.flatMap((_, i) => (isGroupMismatch(i) ? [i] : []));
+      expect(hidden.length, "連結の経常利益が無い会社が居ない").toBeGreaterThan(0);
+      for (const i of hidden) {
+        expect(result.performance.perEmployee[i], result.companies.rows[i][0]).toBeNull();
+      }
+      // ほとんどは「単体の経常利益 ÷ 連結の従業員数」（IFRS・米国基準）。逆向きは例外的な書類だけ
+      const reverse = hidden.filter((i) => sourceRows[i].employeesConsolidated === null);
+      expect(reverse.length).toBeLessThan(hidden.length / 10);
     });
 
     it("AC-3 連結の従業員数が無い会社は単体で代用する", () => {
@@ -833,10 +862,11 @@ describe("buildData", () => {
         row.employeesConsolidated === null ? [i] : []
       );
       // 代用しないとこれらの会社が丸ごと欠ける。**埋まらないのは、推移が無いか最後の
-      // 開示が古い会社だけ**（AC-1 と同じ線）。分母が単体であることは上の並びのテストが見る。
+      // 開示が古い会社と、連結の経常利益を単体の人数で割ることになる会社（#911 の逆向き）だけ**
+      // （AC-1 と同じ線）。分母が単体であることは上の並びのテストが見る。
       const filled = missing.filter((i) => result.performance.perEmployee[i] !== null);
       expect(filled.length, "代用で埋まった会社が居ない").toBeGreaterThan(0);
-      expect(filled).toEqual(missing.filter(hasRecent));
+      expect(filled).toEqual(missing.filter((i) => hasRecent(i) && !isGroupMismatch(i)));
     });
 
     it("業種中央値が industries と同じ並びで欠けがなく、平均ではなく中央値で、業種間で桁が違う", () => {
@@ -1026,6 +1056,33 @@ describe("buildData", () => {
           const expected = Math.round((income[id][i] as number) / (employees[id][i] as number));
           expect(value, `${id} ${i}`).toBe(expected);
         });
+      }
+    });
+
+    it("連結の経常利益が無い会社はキーごと落とす——企業詳細で節ごと出ない（#911）", () => {
+      // レーダーの稼ぐ力（`perEmployee`）と同じ規則。片方だけ落とすと、同じページで推移は出るのに
+      // レーダーは掲載なし（またはその逆）になる。ランキングの外の会社（企業ページだけ残す会社）も同じ。
+      const latest = new Map<string, { year: number; basis: string }>();
+      for (const row of parsePerformanceHistoryCsv(
+        readFileSync(join(ROOT, "data/performance_history.csv"), "utf-8")
+      )) {
+        const old = latest.get(row.edinetCode);
+        if (old === undefined || row.year > old.year) latest.set(row.edinetCode, row);
+      }
+      const ids = pageCompanyRows().map((row) => row[0] as string);
+      const hidden = pageSourceRows.flatMap((row, i) => {
+        const basis = latest.get(row.edinetCode)?.basis;
+        return basis !== undefined &&
+          (basis === "consolidated") !== (row.employeesConsolidated !== null)
+          ? [ids[i]]
+          : [];
+      });
+      expect(hidden.length, "連結の経常利益が無い会社が居ない").toBeGreaterThan(0);
+      const { profit, income, employees } = result.profitHistory;
+      for (const id of hidden) {
+        expect(profit[id], id).toBeUndefined();
+        expect(income[id], id).toBeUndefined();
+        expect(employees[id], id).toBeUndefined();
       }
     });
 
