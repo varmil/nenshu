@@ -3,6 +3,8 @@
 Issue: [#879](https://github.com/varmil/nenshu/issues/879)
 spec: `docs/refresh/spec.md` 1.3・1.16・AC-7（ページの側） ／ 段取り: `plan.md` ／ ADR: `docs/adr/0018-universe-entry-exit.md` ／ 触る Unit: C1〜C20（`docs/company/`）・U8（sitemap）
 
+> **D11（#903）で、単体従業員の線を割った会社も同じ画面に載った。** 入れ物の名前を「ランキングの外の会社」に改めた——`lapsed.json` → `unranked.json`、`LapsedCompanyDetail` → `UnrankedCompanyDetail`、`lapsed.ts` → `unranked.ts` ほか（対応表は `docs/refresh/below-line/design.md`「名前を改めた範囲」）。以下は D9 の時点の名前で書いてある。
+
 最後の有報から24か月を過ぎた会社（ADR-0018）は、ランキングと母集団（順位・偏差値・母集団の統計）から外れる。**企業ページ `/company/[id]` は残し**、最後の有報の決算期と、提出が途切れていることを社名の直下で断る。順位・偏差値は出さない。
 
 **いまのデータに外れた会社はいない。** 台帳でいちばん古い提出日は 2025-08-26 で、最初に外れうるのは 2027-08-26。この画面を実際に描くのは揺らしたデータ（`tools/perturb/` の6つ目）だけになる。
