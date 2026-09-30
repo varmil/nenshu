@@ -197,6 +197,10 @@ def fix_salary_typos(rows):
     **大きすぎる側だけでなく小さすぎる側も直す。** 「7,196」のように千円単位の
     数字を円の欄にタグ付けした書類があり、これは上限に当たらないので素通りする。
     10年ぶんに広げて初めて5件見つかった（2026年には無い）。
+
+    **大きすぎる側は百万倍まで見る。** 円の値を百万円の桁でタグ付けした書類がある
+    （フルヤ金属 2026年6月期の `7567272000000`。表には 7,567,272円とある）。
+    1万倍で打ち切っていた頃はこれを直せず、会社ごと掲載の条件から落としていた。
     """
     fixed = []
     for r in rows:
@@ -219,7 +223,7 @@ def fix_salary_typos(rows):
         if s <= ceiling:
             continue
         original = s
-        for div in (10, 100, 1000, 10000):
+        for div in (10, 100, 1000, 10_000, 100_000, 1_000_000):
             if FLOOR <= original / div <= ceiling:
                 r["avg_salary"] = original / div
                 r["salary_fixed"] = f"{original:.0f}→{original/div:.0f}"
