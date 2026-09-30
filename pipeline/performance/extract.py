@@ -50,6 +50,8 @@ OI_LOCAL_NAMES = {
 # 要素はラベルが空になるので、「空でなく、かつ経常収益」のときだけ弾く。
 OI_REJECT_LABEL = "経常収益"
 EMPLOYEES_LOCAL_NAME = "NumberOfEmployees"
+# 連結の従業員数が `NumberOfEmployees` に無い書類（IFRS）のための代わりの要素は、ランキング側と
+# 共有する（`edinet.EMPLOYEES_CONSOLIDATED_FALLBACK_LOCAL_NAMES`・#905）。
 
 # 「主要な経営指標等の推移」のコンテキスト。**当期からの遡り年数**を持つ。
 OI_CONTEXTS = {
@@ -84,6 +86,7 @@ def parse(path):
     oi = {}       # 遡り年数 → 連結の経常利益
     oi_nc = {}    # 遡り年数 → 単体の経常利益
     emp_c = None
+    emp_c_fallback = None
     emp_nc = None
     try:
         z = zipfile.ZipFile(path)
@@ -120,6 +123,13 @@ def parse(path):
                     emp_c = emp_c if emp_c is not None else num(value)
                 elif ctx == "CurrentYearInstant_NonConsolidatedMember":
                     emp_nc = emp_nc if emp_nc is not None else num(value)
+            elif (
+                local in edinet.EMPLOYEES_CONSOLIDATED_FALLBACK_LOCAL_NAMES
+                and ctx == "CurrentYearInstant"
+            ):
+                emp_c_fallback = emp_c_fallback if emp_c_fallback is not None else num(value)
+    if emp_c is None:
+        emp_c = emp_c_fallback
     return {"oi": oi, "oi_nc": oi_nc, "emp_c": emp_c, "emp_nc": emp_nc}
 
 
