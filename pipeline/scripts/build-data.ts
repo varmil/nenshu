@@ -4,6 +4,7 @@ import { gzipSync } from "node:zlib";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseUnifiedCsv, parseSalaryHistoryCsv, parsePerformanceHistoryCsv } from "./lib/csv";
+import { isProfitBasisMismatched, latestRowsByCode } from "./lib/profitBasis";
 import { parseCsv } from "../worklife/csv";
 import { encodeRow, StringPool, type WorklifeRow } from "../worklife/json";
 import { checkStageDocs, readLedger, selectUniverse, type Ledger } from "./lib/ledger";
@@ -593,10 +594,20 @@ function buildPerformance(rows: ReturnType<typeof parseUnifiedCsv>, industries: 
      *
      * 「直近5期」は最新年から遡って数えるので、最後に経常利益を開示したのが
      * 8年前の会社では 2014〜2018年の中央値が「稼ぐ力」として画面に出る。
-     * **古い数字を最新のものとして見せない。** 該当は1〜2社で、そこは
-     * レーダーの軸も「掲載なし」になる。
+     * **古い数字を最新のものとして見せない。** いまは該当0社で、ガードとして残す。
+     * #911 の前は弘電社・キクカワエンタープライズの2社が当たっていたが、開示が古いのではなく、
+     * 経常利益を「経常収益」の要素でタグ付けしていて取れていなかった（`performance/extract.py`）。
      */
     if (recent[0].year < latestYear - 1) {
+      perEmployee.push(null);
+      continue;
+    }
+    /*
+     * **連結の経常利益が無い会社（IFRS・米国基準）は出さない**（Issue #911）。単体の経常利益を
+     * 連結の従業員数で割った値は、連結の値の代わりにならない（`lib/profitBasis.ts`）。
+     * 上の分母の代用（連結の従業員数が無ければ単体）は、単体がグループ全体の会社に限る。
+     */
+    if (isProfitBasisMismatched(recent[0], row.employeesConsolidated)) {
       perEmployee.push(null);
       continue;
     }
@@ -726,9 +737,15 @@ function buildProfitHistory(
    * `endById` だけが持つ**（画面は同じ年を3つの推移に渡す）。
    */
   const endByCode = new Map<string, number>();
+  // **連結の経常利益が無い会社（IFRS・米国基準）は、窓に入れない**（Issue #911）。キーごと落ちるので、
+  // 企業詳細では節ごと出ない。レーダーの稼ぐ力（`buildPerformance`）と同じ関数で判定する。
+  const latestByCode = latestRowsByCode(historyRows);
   rows.forEach((row, i) => {
     const end = endById[companyRows[i][0] as string];
-    if (end !== undefined) endByCode.set(row.edinetCode, end);
+    if (end === undefined) return;
+    if (isProfitBasisMismatched(latestByCode.get(row.edinetCode), row.employeesConsolidated))
+      return;
+    endByCode.set(row.edinetCode, end);
   });
 
   type Series = {

@@ -70,6 +70,12 @@ export interface PageSources {
   ranked?: boolean;
   /** 稼ぐ力の推移（P2）。母集団から外れた会社のページで、計算値の行が挙げるかを決める。 */
   profitHistory?: boolean;
+  /**
+   * 稼ぐ力（レーダーの軸か推移）がページに出るか。既定は `true`。**連結の経常利益が無い会社
+   * （IFRS・米国基準）では `false`**——稼ぐ力を出さないので（Issue #911）、計算値に挙げない。
+   * 母集団から外れた会社のページ（`ranked: false`）は `profitHistory` が同じ役をする。
+   */
+  profit?: boolean;
 }
 
 /**
@@ -99,9 +105,13 @@ function computedAndEstimated(page: PageSources): SourceRow[] {
       kind: "computed",
       label: "計算値",
       // 業種の中央値は稼ぐ力（レーダー）と在籍年数の推移（T4）の2か所に出る。
-      covers: page.tenureHistory
-        ? "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
-        : "順位・偏差値・分布・レーダー・稼ぐ力",
+      covers: [
+        "順位・偏差値・分布・レーダー",
+        page.profit === false ? null : "稼ぐ力",
+        page.tenureHistory ? "業種の中央値" : null,
+      ]
+        .filter((c): c is string => c !== null)
+        .join("・"),
       source: computedSource,
     },
     {

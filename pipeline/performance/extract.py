@@ -49,6 +49,17 @@ OI_LOCAL_NAMES = {
 # 上の2つで経常収益が紛れたことは無いが、**ラベルで二重に止める**。独自拡張の
 # 要素はラベルが空になるので、「空でなく、かつ経常収益」のときだけ弾く。
 OI_REJECT_LABEL = "経常収益"
+# **「経常収益」の要素に経常利益の値を入れている書類がある**（#911）。弘電社・ディーブイエックス・
+# キクカワエンタープライズは、主要な経営指標等の経常利益を `OrdinaryIncomeSummaryOfBusinessResults`
+# （ラベルは「経常収益、経営指標等」）でタグ付けしており、値は同じ書類の損益計算書の経常利益
+# （`jppfs_cor:OrdinaryIncome`）と1円まで一致する。上の2つの綴りだけを読むと経常利益が丸ごと抜け、
+# キクカワエンタープライズは2019年以降の8年ぶんが無く「最後の開示が8年前」に見えていた。
+#
+# **読み替えるのは、その側（連結・単体）に正しい要素が1つも無く、かつ当期の値が損益計算書の経常利益と
+# 一致するときだけ。** 銀行・保険の「経常収益」は経常利益と別の要素で並んで載り、値も損益計算書の
+# 経常利益と一致しないので、どちらの条件でも読み替えない。
+OI_MISTAGGED_LOCAL_NAME = "OrdinaryIncomeSummaryOfBusinessResults"
+PL_OI_LOCAL_NAME = "OrdinaryIncome"  # 損益計算書（`jppfs_cor:`）の「経常利益又は経常損失（△）」
 EMPLOYEES_LOCAL_NAME = "NumberOfEmployees"
 # 連結の従業員数が `NumberOfEmployees` に無い書類（IFRS）のための代わりの要素は、ランキング側と
 # 共有する（`edinet.EMPLOYEES_CONSOLIDATED_FALLBACK_LOCAL_NAMES`・#905）。
@@ -85,6 +96,9 @@ def parse(path):
     """1書類から経常利益（5期・連結と単体）と当期の従業員数を抜く。"""
     oi = {}       # 遡り年数 → 連結の経常利益
     oi_nc = {}    # 遡り年数 → 単体の経常利益
+    oi_mistagged = {}     # 遡り年数 → 「経常収益」の要素に入った連結の値
+    oi_nc_mistagged = {}  # 同じく単体
+    pl_oi = {}            # "c" / "n" → 損益計算書の当期の経常利益
     emp_c = None
     emp_c_fallback = None
     emp_nc = None
@@ -110,7 +124,21 @@ def parse(path):
             value = cols[8].strip().strip('"')
             if value in ("", "－", "-", "－"):
                 continue
-            local = elem.split(":")[-1]
+            prefix, _, local = elem.rpartition(":")
+            if local == OI_MISTAGGED_LOCAL_NAME:
+                if ctx in OI_CONTEXTS:
+                    oi_mistagged.setdefault(OI_CONTEXTS[ctx], num(value))
+                elif ctx.endswith("_NonConsolidatedMember"):
+                    base = ctx[: -len("_NonConsolidatedMember")]
+                    if base in OI_CONTEXTS:
+                        oi_nc_mistagged.setdefault(OI_CONTEXTS[base], num(value))
+                continue
+            if local == PL_OI_LOCAL_NAME and prefix.startswith("jppfs"):
+                if ctx == "CurrentYearDuration":
+                    pl_oi.setdefault("c", num(value))
+                elif ctx == "CurrentYearDuration_NonConsolidatedMember":
+                    pl_oi.setdefault("n", num(value))
+                continue
             if local in OI_LOCAL_NAMES and OI_REJECT_LABEL not in label:
                 if ctx in OI_CONTEXTS:
                     oi.setdefault(OI_CONTEXTS[ctx], num(value))
@@ -130,7 +158,17 @@ def parse(path):
                 emp_c_fallback = emp_c_fallback if emp_c_fallback is not None else num(value)
     if emp_c is None:
         emp_c = emp_c_fallback
+    oi = oi or _mistagged_ordinary_income(oi_mistagged, pl_oi.get("c"))
+    oi_nc = oi_nc or _mistagged_ordinary_income(oi_nc_mistagged, pl_oi.get("n"))
     return {"oi": oi, "oi_nc": oi_nc, "emp_c": emp_c, "emp_nc": emp_nc}
+
+
+def _mistagged_ordinary_income(values, pl_value):
+    """「経常収益」の要素に入った経常利益を読み替える（#911）。当期の値が損益計算書の経常利益と
+    一致するときだけで、それ以外は空を返す（呼ぶ側は正しい要素が無い側にだけ使う）。"""
+    if pl_value is None or values.get(0) is None or values[0] != pl_value:
+        return {}
+    return {back: v for back, v in values.items() if v is not None}
 
 
 def documents(first_year, last_year):

@@ -125,6 +125,22 @@ describe("buildSourceRows（C12・AC-16）", () => {
     expect(computedWithout.covers).not.toContain("業種の中央値");
   });
 
+  it("稼ぐ力が出ない会社（連結の経常利益が無い会社・Issue 911）では、計算値に稼ぐ力を挙げない", () => {
+    expect(byKind(buildSourceRows(ALL), "computed").covers).toBe(
+      "順位・偏差値・分布・レーダー・稼ぐ力・業種の中央値"
+    );
+    // 既定は挙げる（`profit` を渡さない会社の出典は変えない）
+    expect(byKind(buildSourceRows({ ...ALL, profit: true }), "computed").covers).toBe(
+      byKind(buildSourceRows(ALL), "computed").covers
+    );
+    expect(byKind(buildSourceRows({ ...ALL, profit: false }), "computed").covers).toBe(
+      "順位・偏差値・分布・レーダー・業種の中央値"
+    );
+    expect(
+      byKind(buildSourceRows({ ...ALL, profit: false, tenureHistory: false }), "computed").covers
+    ).toBe("順位・偏差値・分布・レーダー");
+  });
+
   it("説明文の無い会社では、AIの要約に説明文を挙げない", () => {
     const digest = buildSourceRows({ ...ALL, summaryDocId: null }).find(
       (r) => r.kind === "aiDigest"

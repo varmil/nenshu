@@ -71,6 +71,9 @@ const sourceRows = buildSourceRows({
   // ランキングの外の会社のページには順位・分布・レーダー・年齢別の推定年収が無い（D9・D11）
   ranked: unranked === null,
   profitHistory: page.profitHistory !== null,
+  // 稼ぐ力（レーダーの軸か推移）が出る会社か。連結の経常利益が無い会社（IFRS・米国基準）は出さない
+  // ——出典の計算値にも挙げない（Issue #911）
+  profit: data === null || data.profitHistory !== null || data.radar.profit.value !== null,
 });
 ---
 
