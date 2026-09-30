@@ -127,3 +127,7 @@ D9 の画面（`UnrankedCompanyDetail`）をそのまま使う。**節の並び�
 - **E2E**（`e2e/company-unranked.spec.ts`）: 理由ごとに1社で、200・断り（見出し・人数・線・連結・提出日）・決算期が2回・金額と Q&A がある・順位・偏差値・分布・レーダー・近い会社・年齢別・分析が無い・検索に出ない・sitemap に載る。横スクロールは `company-refresh.spec.ts` の AC-15 のループに理由ごとに1社
   - 線を割った会社は実データ（サイバーステップＨＤ）で走る。提出が途切れた会社は揺らしたデータでだけ走る
 - **揺らし方の7つ目**（`perturb.py` の `below_line`）: 説明文と給与の決定方針を持ち、連結の従業員数が40人より多い会社を1社選び、単体従業員を40人にする。ほかの揺らし方が選んだ会社は避ける
+
+## マージの後に直したもの
+
+- **分析の材料の稼ぐ力を、`ranking_unified.csv` の行順で引いていた**（`pipeline/analysis/generate.py` の `build_figures`）。`performance.json` の `perEmployee` は `companies.rows` と同じ並びで、D11 まではランキング CSV の行順と一致していた。ランキングの外の会社は CSV にいて `companies.rows` にいないので、**その後ろの392社が隣の会社の稼ぐ力を材料にするところだった**（定期実行が分析を書く前に見つけた）。企業 ID（台帳）で引くように改め、働きやすさも証券コードではなく ID で引く（証券コードが `0000` の1社がずれていた）。`test_generate.py` の `ProfitPerEmployeeById`

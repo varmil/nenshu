@@ -30,6 +30,41 @@ def _write(path, rows, gzipped=False):
             w.writerow(r)
 
 
+class ProfitPerEmployeeById(unittest.TestCase):
+    """稼ぐ力は ID で引く。**ランキングの外の会社は CSV にいて `companies.rows` にいない**ので、
+    CSV の行順で引くと後ろの会社がずれる（refresh の D11 のマージ直後に392社ずれていた）。"""
+
+    def test_csv_row_between_ranked_rows_does_not_shift_the_rest(self):
+        with TemporaryDirectory() as d:
+            perf, comp = Path(d) / "performance.json", Path(d) / "companies.json"
+            # CSV は A・外（ランキングの外）・B の順、companies.rows は A・B
+            comp.write_text(json.dumps({"industries": ["電気機器"], "rows": [["1111"], ["2222"]]}))
+            perf.write_text(json.dumps({"perEmployee": [100, 200], "industryMedian": [150]}))
+            old = generate.PERFORMANCE, generate.COMPANIES
+            generate.PERFORMANCE, generate.COMPANIES = perf, comp
+            try:
+                per_emp, by_name = generate.profit_per_employee()
+            finally:
+                generate.PERFORMANCE, generate.COMPANIES = old
+        uni_index = {
+            "E1": {"edinet_code": "E1", "_id": "1111", "tse33": "電気機器"},
+            "E9": {"edinet_code": "E9", "_id": "9999", "tse33": "電気機器"},
+            "E2": {"edinet_code": "E2", "_id": "2222", "tse33": "電気機器"},
+        }
+        fig = lambda code: generate.build_figures({"edinet_code": code}, uni_index, {}, per_emp, by_name, {})
+        self.assertEqual(fig("E1")["profit_per_employee_yen"], 100)
+        self.assertEqual(fig("E2")["profit_per_employee_yen"], 200)
+        self.assertNotIn("profit_per_employee_yen", fig("E9"))
+        self.assertEqual(fig("E2")["industry_median_profit_per_employee_yen"], 150)
+
+    def test_worklife_is_looked_up_by_id_not_by_securities_code(self):
+        # 証券コードが 0000 の会社の ID は EDINETコード（`ledger.normalize_sec_code`）
+        uni_index = {"E42126": {"edinet_code": "E42126", "_id": "E42126", "sec_code": "0000"}}
+        wl = {"E42126": {"overtime_hours_per_month": 10.0}}
+        fig = generate.build_figures({"edinet_code": "E42126"}, uni_index, {}, {}, {}, wl)
+        self.assertEqual(fig["worklife"], {"overtime_hours_per_month": 10.0})
+
+
 class ReadCsv(unittest.TestCase):
     def test_素のCSVを読む(self):
         with TemporaryDirectory() as d:
