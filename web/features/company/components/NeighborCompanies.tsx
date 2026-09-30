@@ -14,22 +14,28 @@ import type { NeighborCompany } from "../lib/neighbors";
  *
  * 末尾に業種一覧への導線を置く。ここは `?ind=` の実体を持つリンクで、ランキングの
  * 業種チップと同じ経路になる（ADR-0006）。
+ *
+ * **ランキングの外の会社（`UnrankedCompanyDetail`・refresh の D11）でも同じ器を使う。** その会社は
+ * 母集団にいないので、中身は業種の実測値の上位10社（`topOfIndustry`）で、見出しを `title` で替える。
  */
 export function NeighborCompanies({
   neighbors,
   industry,
   industryCount,
+  title = `${industry}で水準が近い会社`,
 }: {
   neighbors: NeighborCompany[];
   industry: string;
   /** 同じ業種の社数。「◯◯150社をすべて見る」に使う。 */
   industryCount: number;
+  /** 見出し。既定は「◯◯で水準が近い会社」。 */
+  title?: string;
 }) {
   if (neighbors.length === 0) return null;
 
   return (
     <section className="border-border flex flex-col gap-2.5 rounded-lg border p-4">
-      <h2 className="text-sm font-bold">{industry}で水準が近い会社</h2>
+      <h2 className="text-sm font-bold">{title}</h2>
       <ul className="flex flex-col">
         {neighbors.map((company) => (
           <li

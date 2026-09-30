@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { companies, curves, industryOf, pickCompany, rowOf } from "@/testing/realData";
-import { findNeighbors, NEIGHBOR_COUNT } from "./neighbors";
+import { findNeighbors, NEIGHBOR_COUNT, topOfIndustry } from "./neighbors";
 
 /** その業種の社数（自分を含む）。 */
 const industrySize = (industryIdx: number) =>
@@ -71,5 +71,39 @@ describe("findNeighbors（AC-12）", () => {
 
   it("存在しないIDなら空配列", () => {
     expect(findNeighbors(companies, curves, "存在しない", null)).toEqual([]);
+  });
+});
+
+/*
+ * ランキングの外の会社のサイドバー（refresh の D11・運営者の指示）。その会社は母集団にいないので、
+ * 同じ業種の実測値の上位を便宜的に出す。
+ */
+describe("topOfIndustry", () => {
+  const busiest = () => {
+    const counts = new Map<number, number>();
+    for (const row of companies.rows) counts.set(row[2], (counts.get(row[2]) ?? 0) + 1);
+    const idx = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    return companies.industries[idx];
+  };
+
+  it("業種の実測値の1位から10社を、金額の降順・業界順位つきで返す", () => {
+    const industry = busiest();
+    const top = topOfIndustry(companies, industry);
+    expect(top).toHaveLength(NEIGHBOR_COUNT);
+    const salaries = companies.rows
+      .filter((row) => companies.industries[row[2]] === industry)
+      .map((row) => row[6])
+      .sort((a, b) => b - a);
+    expect(top.map((c) => c.salary)).toEqual(salaries.slice(0, NEIGHBOR_COUNT));
+    expect(top[0].industryRank).toBe(1);
+    for (const c of top) {
+      expect(industryOf(c.id)).toBe(industry);
+      // 業界順位は「自分より金額が高い同業の数＋1」（同額は同順位）
+      expect(c.industryRank).toBe(salaries.filter((s) => s > c.salary).length + 1);
+    }
+  });
+
+  it("母集団に無い業種なら空配列", () => {
+    expect(topOfIndustry(companies, "存在しない業種")).toEqual([]);
   });
 });

@@ -3,6 +3,7 @@ import { buildWorklifeView, unitLabel } from "@/features/company/lib/worklife";
 import { buildSummaryView, type SummaryView } from "@/features/company/lib/summary";
 import { decodeWorklife, type WorklifeData, type WorklifeRecord } from "@/lib/data/worklife";
 import { representative } from "@/features/company/lib/radar";
+import { topOfIndustry, type NeighborCompany } from "@/features/company/lib/neighbors";
 import {
   historyWindowYears,
   type HistoryData,
@@ -393,6 +394,10 @@ export interface UnrankedPageData {
   company: UnrankedCompany;
   /** 掲載の条件の単体従業員の線。線を割った会社の断りとメタに出す。 */
   minEmployees: number;
+  /** サイドバーに出す、同じ業種の実測値の上位10社（D11）。母集団に同業がいなければ空。 */
+  industryTop: NeighborCompany[];
+  /** 母集団の同じ業種の社数。「◯◯150社をすべて見る」に使う。 */
+  industryCount: number;
   worklife: ReturnType<typeof buildWorklifeView>;
   history: SalaryHistory | null;
   tenureHistory: TenureHistory | null;
@@ -409,14 +414,19 @@ export function unrankedPageData(id: string): UnrankedPageData {
   const company = findUnranked(unranked, id);
   if (company === null) throw new Error(`企業ID ${id} が unranked.json にありません`);
   const index = unranked.rows.findIndex((row) => row[0] === id);
+  const industryIdx = companies.industries.indexOf(company.tse33);
+  const industryTop = topOfIndustry(companies, company.tse33);
   return {
     company,
     minEmployees: companies.meta.excluded.minEmployees,
+    industryTop,
+    industryCount: companies.rows.filter((row) => row[2] === industryIdx).length,
     worklife: buildWorklifeView(decodeWorklife(unranked.worklife, index)),
     history: historyFor(id),
     tenureHistory: tenureHistoryFor(id, company.tse33),
     profitHistory: profitHistoryFor(id),
     summary: buildSummaryView(summaries[id]),
-    logoIds: logoIds[id] ? [id] : [],
+    // 自分とサイドバーの10社のうち、ロゴのある会社
+    logoIds: [id, ...industryTop.map((c) => c.id)].filter((cid) => logoIds[cid]),
   };
 }

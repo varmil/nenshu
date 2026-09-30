@@ -14,7 +14,10 @@ import { companies, unrankedIdsOf } from "../testing/realData";
  * 横スクロールは `company-refresh.spec.ts` の AC-15 のループが理由ごとに1社ずつ見ている。
  */
 
-/** 母集団に依存する節と、表示基準の操作。どちらの理由でも出ない。出典の節もこれらを挙げない。 */
+/**
+ * 母集団に依存する節と、表示基準の操作。どちらの理由でも出ない。出典の節もこれらを挙げない。
+ * サイドバーは「水準が近い会社」ではなく業種の上位10社で、見出しが違う（下のレイアウトのテスト）。
+ */
 const ABSENT = [
   "業界内順位",
   "全体順位",
@@ -31,9 +34,7 @@ for (const reason of ["lapsed", "belowLine"] as const) {
   test.describe(`AC-7 ランキングの外の会社のページ（${reason}）`, () => {
     test.skip(id === undefined, `いまのデータに ${reason} の会社はいない（揺らしたデータで走る）`);
 
-    test("ページは残り、ランキングにいない理由が社名の直下で読め、順位・偏差値は出ない", async ({
-      page,
-    }) => {
+    test("ページは残り、ランキングにいない理由が読め、順位・偏差値は出ない", async ({ page }) => {
       const { company, minEmployees } = unrankedPageData(id!);
       const notice = unrankedNotice(company, minEmployees);
       const response = await page.goto(`/company/${id}`);
@@ -73,6 +74,36 @@ for (const reason of ["lapsed", "belowLine"] as const) {
       );
       // 分析は出さない（提出が途切れた会社では書いた時点の見立て。線を割った会社では書き直さない）
       await expect(body.getByText(`${company.name}の現状と今後`)).toHaveCount(0);
+    });
+
+    test("PC は通常の企業詳細と同じ2カラムで、断りは年収カードの直下、サイドバーは業種の上位10社", async ({
+      page,
+    }) => {
+      const { company, industryTop } = unrankedPageData(id!);
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.goto(`/company/${id}`);
+
+      // 断りは年収カードの直下（運営者の指示・2026-09-30）
+      const amount = page.getByText(formatManYen(company.avgSalary), { exact: true }).first();
+      const box = page.getByTestId("company-unranked-notice");
+      const amountBox = (await amount.boundingBox())!;
+      const noticeBox = (await box.boundingBox())!;
+      expect(noticeBox.y).toBeGreaterThan(amountBox.y);
+      await expect(page.getByTestId("company-qa")).toBeVisible();
+      const qaBox = (await page.getByTestId("company-qa").boundingBox())!;
+      expect(noticeBox.y).toBeLessThan(qaBox.y);
+
+      // サイドバーは本文の右。中身は業種の実測値の1位からの10社（この会社は母集団にいない）
+      const aside = page.locator("aside");
+      const asideBox = (await aside.boundingBox())!;
+      expect(asideBox.x).toBeGreaterThan(noticeBox.x + noticeBox.width);
+      if (industryTop.length > 0) {
+        await expect(aside.locator("h2")).toHaveText(`${company.tse33}で平均年収が高い会社`);
+        const links = aside.locator("li a");
+        await expect(links).toHaveCount(industryTop.length);
+        await expect(links.first()).toHaveAttribute("href", `/company/${industryTop[0].id}`);
+        await expect(aside.locator("li").first()).toContainText("業界1位");
+      }
     });
 
     test("ランキングにはいない（検索しても出ない）が、sitemap には載る", async ({ page }) => {
