@@ -1,8 +1,9 @@
 import { test, expect } from "./appTest";
 import { unrankedPageData } from "../features/company/lib/pageData";
 import { unrankedNotice } from "../features/company/lib/unranked";
+import { periodLabel } from "../lib/data/period";
 import { formatInt, formatManYen } from "../features/ranking/lib/format";
-import { companies, unrankedIdsOf } from "../testing/realData";
+import { companies, payPolicies, unrankedIdsOf } from "../testing/realData";
 
 /**
  * ランキングの外の会社のページ（refresh の D9・#879・D11・#903・spec 1.16・AC-7）。理由ごとに1社で見る。
@@ -55,9 +56,13 @@ for (const reason of ["lapsed", "belowLine"] as const) {
           await expect(box).toContainText(`連結${formatInt(company.employeesConsolidated)}人`);
         }
       }
-      // 決算期は断りと Q&A の説明の2か所だけ（S3。カードの1文には書かない）
+      // 決算期は断りと Q&A の説明の2か所だけ（S3。カードの1文には書かない）。給与の決定方針の節が
+      // ある会社は、その説明の先頭にも書く（原文の期。数字より前の有報のままなら別の期）
+      const policy = payPolicies.byId[id!];
+      const policyHere =
+        policy !== undefined && periodLabel(policy.filing.period) === company.fiscalPeriod;
       const count = (await page.locator("body").innerText()).split(company.fiscalPeriod).length - 1;
-      expect(count).toBe(2);
+      expect(count).toBe(policyHere ? 3 : 2);
 
       // 有報の金額と、その有報の Q&A は残る
       await expect(

@@ -32,7 +32,7 @@ test.describe("AC-31 有報への直リンク", () => {
     await expect(filing(page)).toHaveAttribute("target", "_blank");
     await expect(filing(page)).toContainText("この会社の有価証券報告書");
     await expect(filing(page)).toContainText("EDINETで開く");
-    // 決算期は同じ節の Q&A の説明が持っている（企業詳細は2か所まで・S3）。
+    // 決算期は同じ節の Q&A の説明が持っている（企業詳細は各節の説明の先頭だけ・S3）。
     await expect(filing(page)).not.toContainText(/\d{4}年\d{1,2}月期/);
 
     // 4問の枠とつながって見える——帯の上辺が枠の下辺に接し、左右がそろう。

@@ -24,9 +24,9 @@ import { FilingLink } from "./FilingLink";
  * - **段落の中の改行は残す**（`whitespace-pre-line`）。原文の行の区切りのまま読ませる
  * - **「生成AI」の語を置かない。** 文そのものを AI が書いたように読める。範囲の判定に生成AIを
  *   使ったことは「このページの出典」と `/about` が言う（spec 1.23）
- * - **決算期は、数字の決算期とずれたときだけ書く**（refresh の D3）。そろっていれば企業詳細の
- *   決算期は Q&A の説明と要約の説明の2か所（site-chrome spec 5.1）。ずれていれば、引用の枠の先頭に
- *   「{期}の有価証券報告書の「◯◯」から」と原文の期を出す
+ * - **決算期は節の説明の1行の先頭に、常に書く**（Q&A・要約の説明と同じ置き方。site-chrome spec 5.1）。
+ *   値は原文を切り出した有報の期で、数字の期とは違いうる（refresh の D3。毎日の更新で数字だけが
+ *   先に新しい有報へ替わる）。引用の枠の先頭（出どころの節の名前）には書かない——同じ節で2回になる
  * - **引用の `cite` と下辺の帯は、原文を切り出した書類を指す**（数字の書類ではない。refresh の D3）
  * - **下辺に EDINET の帯**（C13 と同じ）。原文の枠は下の角を丸めず、帯が枠の続きとして下の角を持つ
  */
@@ -34,8 +34,9 @@ export function PayPolicySection({ view }: { view: PayPolicyView }) {
   return (
     <section className="flex flex-col gap-2" data-testid="company-pay-policy">
       <h2 className="text-lg font-bold">{view.heading}</h2>
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        有価証券報告書に会社が書いた方針です。要約も言い換えもせず、原文のまま載せています。
+      <p data-pay-note className="text-muted-foreground text-xs leading-relaxed">
+        {view.fiscalPeriod}
+        の有価証券報告書に会社が書いた方針です。要約も言い換えもせず、原文のまま載せています。
         <a href="/about#pay-policy" className="text-primary ml-1 underline">
           抜き出し方
         </a>
@@ -46,8 +47,7 @@ export function PayPolicySection({ view }: { view: PayPolicyView }) {
           className="border-border flex flex-col gap-2.5 rounded-t-lg border px-4 py-3.5"
         >
           <p data-pay-source className="text-muted-foreground text-[11px] leading-4">
-            {view.fiscalPeriod !== null && `${view.fiscalPeriod}の有価証券報告書の`}「
-            {view.sourceLabel}」から
+            「{view.sourceLabel}」から
           </p>
           {view.title !== null && (
             <p data-pay-title className="text-sm leading-[1.8] font-semibold whitespace-pre-line">

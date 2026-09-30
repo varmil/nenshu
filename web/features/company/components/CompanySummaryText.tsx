@@ -10,7 +10,7 @@ export function CompanySummaryText({ summary }: { summary: SummaryView }) {
       <p className="text-muted-foreground text-sm leading-relaxed">{summary.text}</p>
       {/*
         要約であることと出典（AC-22）。**決算期を書かない**——企業詳細の決算期は
-        下の「年収に関するQ&A」の説明と要約の節の説明の2か所と決まっている（S3・#134。
+        Q&A・要約・給与の決定方針の各節の説明の先頭と決まっている（S3・#134。
         C7 の時点では「有価証券報告書の実測値（2026年3月期）」の見出しと重なった）。
         **同じ断りも1画面に2回置かない**ので、下の Q&A にはこの文を重ねていない
         （Issue #128 と同じ扱い）。

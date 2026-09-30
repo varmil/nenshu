@@ -20,7 +20,7 @@ import { pickCompany, rowOf, summaries } from "../testing/realData";
  * `company-page.spec.ts` の AC-10、表示基準で変わらないこと（AC-23）は同じく AC-3、
  * モバイルの横スクロールは `company-refresh.spec.ts` の AC-15、`/about` の作り方の節は
  * `company-page.spec.ts` の「/about に…」、出典の1行に決算期が入らないことは
- * `data-period.spec.ts`（企業詳細の決算期は2か所だけ）。
+ * `data-period.spec.ts`（企業詳細の決算期は各節の説明の先頭だけ）。
  */
 
 /** 説明文のある会社。 */

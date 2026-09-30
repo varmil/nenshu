@@ -92,6 +92,19 @@ const OTHER_PERIOD_COMPANY = pickCompany(
   (row, i) => countable(row[0], i) && periodOf(row[0]) !== periodOf(COMPANY)
 );
 
+/**
+ * 給与の決定方針の節は、自分を作った有報の期を説明の先頭に常に書く（site-chrome spec 5.1）。
+ * 節のある会社と無い会社（改正前の様式・空）を1社ずつ、数える対象に加える。
+ */
+const WITH_POLICY = pickCompany(
+  "決算期を数えられる、給与の決定方針のある会社",
+  (row, i) => countable(row[0], i) && row[0] in payPolicies.byId
+);
+const WITHOUT_POLICY = pickCompany(
+  "決算期を数えられる、給与の決定方針の無い会社",
+  (row, i) => countable(row[0], i) && !(row[0] in payPolicies.byId)
+);
+
 async function html(request: import("@playwright/test").APIRequestContext, path: string) {
   const response = await request.get(path);
   expect(response.status(), path).toBe(200);
@@ -159,33 +172,42 @@ test.describe("データの時点（S3・E1）", () => {
     }
   });
 
-  // **企業詳細だけは2回**（2026-09-24 に spec 5.1 を改めた）。「年収に関するQ&A」の説明の
-  // 1行（C16 までは「有価証券報告書の実測値」の見出し）と、**要約の節の説明**。どちらも自分の
-  // 節の中身がどの年度の有報かを示す。**それ以外の場所には増やさない**——説明文（C7）の出典の
-  // 1行に入れて重なったのを、この spec が一度捕まえている。
+  // **企業詳細だけは複数回**（2026-09-24 に spec 5.1 を改め、2026-09-30 に給与の決定方針を足した）。
+  // 「年収に関するQ&A」の説明の1行（C16 までは「有価証券報告書の実測値」の見出し）と、**要約の節の
+  // 説明**と、**給与の決定方針の節の説明**。どれも自分の節の中身がどの年度の有報かを示す。給与の
+  // 決定方針の無い会社（改正前の様式・空）は2回。**それ以外の場所には増やさない**——説明文（C7）の
+  // 出典の1行に入れて重なったのを、この spec が一度捕まえている。
   //
   // **企業詳細は幅ではなくその会社の決算期**（E1・AC-7）。母集団の幅を出すと、決算期の
   // 違う会社のページにまで幅の端が付いて、その会社の数字がいつのものかぼやける。
-  test("企業詳細の決算期は Q&A の説明と要約の説明の2か所だけ", async ({ page }) => {
-    for (const id of [COMPANY, OTHER_PERIOD_COMPANY]) {
+  test("企業詳細の決算期は Q&A・要約・給与の決定方針の説明の先頭だけ（給与の決定方針が無ければ2か所）", async ({
+    page,
+  }) => {
+    for (const id of new Set([COMPANY, OTHER_PERIOD_COMPANY, WITH_POLICY, WITHOUT_POLICY])) {
       const path = `/company/${id}`;
       const label = periodOf(id);
+      const hasPolicy = id in payPolicies.byId;
       await page.goto(path);
       const count = (await page.locator("body").innerText()).split(label).length - 1;
-      expect(count, path).toBe(2);
+      expect(count, path).toBe(hasPolicy ? 3 : 2);
       await expect(page.getByTestId("company-qa"), path).toContainText(
         `${label}の有価証券報告書の値です。`
       );
       await expect(page.getByTestId("company-digest"), path).toContainText(
         `${label}の有価証券報告書`
       );
+      if (hasPolicy) {
+        await expect(page.getByTestId("company-pay-policy"), path).toContainText(
+          `${label}の有価証券報告書に会社が書いた方針です`
+        );
+      }
     }
   });
 
   /*
    * refresh の D3（spec 1.5・AC-3）。**文章の節は、数字の側の期と書類を借りずに、自分を作った
    * 有報の期を名乗り、その書類を指す。** Q&A は数字の期のまま。給与の決定方針の期は、数字の期と
-   * ずれたときだけ引用の枠の先頭に出る（site-chrome spec 5.1 の例外）。
+   * そろっていてもずれていても節の説明の先頭に出る（site-chrome spec 5.1）。
    */
   /** 「このページの出典」の行ごとの見出しと、その行が指す EDINET の書類。 */
   async function sourceRows(page: import("@playwright/test").Page) {
@@ -228,7 +250,7 @@ test.describe("データの時点（S3・E1）", () => {
     );
   });
 
-  test("給与の決定方針が数字より前の有報のままの会社では、引用の枠がその有報の期を名乗り、指す", async ({
+  test("給与の決定方針が数字より前の有報のままの会社では、節の説明がその有報の期を名乗り、引用の枠が指す", async ({
     page,
   }) => {
     test.skip(
@@ -240,9 +262,10 @@ test.describe("データの時点（S3・E1）", () => {
     await page.goto(`/company/${id}`);
 
     const pay = page.getByTestId("company-pay-policy");
-    await expect(pay.locator("[data-pay-source]")).toContainText(
-      `${periodLabel(policy.period)}の有価証券報告書の「`
+    await expect(pay.locator("[data-pay-note]")).toContainText(
+      `${periodLabel(policy.period)}の有価証券報告書に`
     );
+    await expect(pay.locator("[data-pay-note]")).not.toContainText(periodOf(id));
     await expect(pay.locator("blockquote")).toHaveAttribute(
       "cite",
       edinetDocumentUrl(policy.docId)
