@@ -105,7 +105,7 @@ Issue: [#876](https://github.com/varmil/nenshu/issues/876) ／ plan: `plan.md` �
 
 ## 書いたモデル（spec 1.14・AC-16）
 
-3つの工程の `merge --model` に、実際に使ったモデルと推論の設定を `<モデル ID>@<推論>` の形で渡す（例 `claude-opus-5-5@xhigh`。推論は環境変数 `CLAUDE_EFFORT`）。
+3つの工程の `merge --model` に、実際に使ったモデルと推論の設定を `<モデル ID>@<推論>` の形で渡す（例 `claude-sonnet-5-5@xhigh`。推論は環境変数 `CLAUDE_EFFORT`）。
 
 | 工程 | 記録する場所 |
 | --- | --- |
