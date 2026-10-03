@@ -30,6 +30,7 @@
 | logo | 企業ロゴ | 着手中 | `docs/logo/` |
 | worklife | 働きやすさ指標（残業・有給・男女の賃金の差異） | 着手中 | `docs/worklife/` |
 | performance | 稼ぐ力（一人当たり経常利益） | 着手中 | `docs/performance/` |
+| radar | レーダー「公開資料による全体像」に平均年収の伸びを足す（6軸） | 未着手（Inception 中・A0） | `docs/radar/` |
 | runtime | Worker の実行予算（CPU 10ms に収める） | 着手中 | `docs/runtime/` |
 | expansion | 掲載企業数の拡大（母集団を有報提出会社の全件へ） | 未着手（Inception完了・E0〜E6） | `docs/expansion/` |
 | framework | 配信フレームワークの移行（Next.js + OpenNext → Astro） | 未着手（Inception完了・F0〜F2 = #208〜#210。ADR-0014） | `docs/framework/` |
