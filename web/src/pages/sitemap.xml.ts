@@ -1,7 +1,7 @@
 import type { APIRoute } from "astro";
 import { industryCounts } from "@/features/ranking/lib/industryCounts";
-import { TARGET_AGES, type CompaniesData } from "@/features/ranking/types";
-import { agePath, industryPath } from "@/lib/seo/ranking";
+import type { CompaniesData } from "@/features/ranking/types";
+import { industryPath } from "@/lib/seo/ranking";
 import { absoluteUrl } from "@/lib/seo/site";
 import companiesData from "@/public/data/companies.json";
 import unrankedData from "@/public/data/unranked.json";
@@ -11,20 +11,23 @@ const companies = companiesData as CompaniesData;
 const unranked = unrankedData as unknown as UnrankedData;
 
 /**
- * ADR-0006 のインデックス対象をそのまま並べる（約3,004 URL）。
+ * ADR-0006 のインデックス対象のうち、sitemap で発見を勧めるものを並べる。
  *
  * **ビルド時に確定して静的アセットになる**（F1・AC-1）。Next.js の
  * `MetadataRoute.Sitemap` が組み立てていた XML を自分で書く形になったが、
- * **載せるURLの作り方は1文字も変えていない**——`agePath`・`industryPath`・
- * `absoluteUrl` を canonical と共有しているという U8 の性質が担保になる。
+ * **載せるURLの作り方は1文字も変えていない**——`industryPath`・`absoluteUrl` を
+ * canonical と共有しているという U8 の性質が担保になる。
  *
  * | 対象 | 件数 |
  * | --- | --- |
  * | `/` | 1 |
  * | `/about` | 1 |
- * | `/?age=N` | 8 |
- * | `/?ind=X` | 33 |
- * | `/company/[id]` | 1,867 |
+ * | `/?ind=X` | 会社のいる業種ごとに1（33） |
+ * | `/company/[id]` | 全社（ランキングの外の会社を含む。毎日の更新で動く） |
+ *
+ * **`/?age=N`（8件）は載せない**（2026-10-03・ADR-0006 の追記）。Search Console で
+ * 全くインデックスされておらず、重要とみなされていなかったため。canonical は自己の
+ * まま変えていない（寄せ先を変える判断ではなく、sitemap で発見を勧めるのをやめるだけ）。
  *
  * **canonical と載せるURLが1文字もずれないこと。** `/?ind=X` は `industryPath` を
  * 通してエンコードし、`app/page.tsx` の canonical と同じ関数を共有している。
@@ -44,8 +47,6 @@ export const GET: APIRoute = () => {
   const counts = industryCounts(companies);
 
   const urls: string[] = [absoluteUrl("/"), absoluteUrl("/about")];
-
-  for (const age of TARGET_AGES) urls.push(absoluteUrl(agePath(age)));
 
   companies.industries.forEach((industry, index) => {
     // 0件の業種は載せない（現状は33件すべてに会社があるが、データ更新で

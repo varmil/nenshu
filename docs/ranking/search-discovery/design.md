@@ -154,12 +154,14 @@ Google のページネーション指針も「連番の各ページに自分自�
 | --- | --- |
 | `/` | 1 |
 | `/about` | 1 |
-| `/?age=N` | 8 |
+| ~~`/?age=N`~~ | ~~8~~ → **0**（2026-10-03・ADR-0006 の追記） |
 | `/?ind=X` | 33 |
 | `/company/[id]` | 1,867 |
-| 計 | 1,910 |
+| 計 | ~~1,910~~ → 1,902 |
 
-`agePath()`・`industryPath()` を canonical と共有する。別々に組み立てると、sitemap が載せるURLと canonical が指すURLが1文字ずれても気づかず、Google から見て sitemap 全体の信頼が下がる。
+**`/?age=N` は載せなくなった**（2026-10-03）。Search Console で全くインデックスされておらず、重要とみなされていないため。canonical は自己のままなので、「インデックス対象の1,910 URL」は canonical の話として変わらず、sitemap に載る数だけが8件減る。以下の件数は、この Unit を作った時点の値である（企業ページは以降 2,961 社まで増えている）。
+
+`industryPath()` を canonical と共有する（年齢は `agePath()` を canonical だけが使う）。別々に組み立てると、sitemap が載せるURLと canonical が指すURLが1文字ずれても気づかず、Google から見て sitemap 全体の信頼が下がる。
 
 `lastModified` はビルド時に確定する `companies.json` の `meta.generatedAt`。データの更新は年1回（`docs/product/product.md`）なので、リクエストごとの現在時刻を入れると「毎日更新されている」という誤った信号になる。
 

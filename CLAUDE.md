@@ -228,7 +228,7 @@ Unit の実装を終えたら、次の順で進める。
 - **モードによる描き分けは JS でやらない。** アイコンも読み上げ名も両方をHTMLに出し、`dark:` バリアントで見せ分ける。以前はモードをJSで読んでサーバー側ではアイコンを出さない実装にしており、**ボタンが約86ms 空のまま残ってからアイコンが現れる**ちらつきになっていた（実測）。`e2e/theme.spec.ts` が生のHTTPレスポンスに両アイコンが入っていることで固定している
 - **`--primary` はライトとダークで別の値。** ライトをそのままダーク背景に置くと 2.72:1 で AA を割る（実際に割っていた）。`tokens.test.ts` のコントラストテストは**両モードで回す**（`:root` だけ見ていたのがこの見逃しの原因）
 
-**`/age/[age]`・`/industry/[industry]` は作らない（ADR-0006・Issue #49）。** ADR-0004でフルSSRになった時点で「パスにしなければクロールできない」前提が消え、Googleのファセットナビゲーション指針もパスとクエリを区別しない。年齢8件・業種33件は `?age=`・`?ind=` のまま自己canonical＋sitemap登録にし、他の組み合わせ・`q`・`page` は正規URLへ寄せる。実装はU8（Issue #53）。
+**`/age/[age]`・`/industry/[industry]` は作らない（ADR-0006・Issue #49）。** ADR-0004でフルSSRになった時点で「パスにしなければクロールできない」前提が消え、Googleのファセットナビゲーション指針もパスとクエリを区別しない。年齢8件・業種33件は `?age=`・`?ind=` のまま自己canonicalにし、他の組み合わせ・`q`・`page` は正規URLへ寄せる。**sitemap に載せるのは業種33件だけ。年齢8件は 2026-10-03 に外した**（Search Console で全くインデックスされておらず重要とみなされていないため。canonical は自己のまま。ADR-0006 の追記）。実装はU8（Issue #53）。
 
 **企業ページのIDは 証券コード（1,760社）／EDINETコード（107社）**（ADR-0006）。現行の書類ID由来のIDは毎年の有報提出で変わり、URLが年1回リセットされてしまうため。`edinet_code` 列は将来の10年推移でも名寄せキーになる。実装はC0（Issue #51）。**一度振った ID は変えない**（ADR-0017）——**ビルドは ID を計算せず、更新台帳 `pipeline/data/ledger.csv` から引く**（refresh の D2・#872）。振るのは台帳を書く側（`pipeline/ledger/ledger.py` の `assign_id`）だけで、`makeId` は消した。
 
@@ -249,7 +249,7 @@ Unit の実装を終えたら、次の順で進める。
 **検索エンジン向けの出力は `web/lib/seo/` に閉じている**（U8・Issue #53・ADR-0006）。ranking と company の両方にかかる横断の関心なので `features/<施策>/` ではなく `lib/` に置く（`lib/analytics/` と同じ位置づけ）。
 
 - **オリジンの定義は `lib/seo/site.ts` の `SITE_ORIGIN` だけ。** canonical・sitemap・robots・OGP（S2）が全部その上に乗るので、他所に `https://openreport.net` を書かない。`absoluteUrl()` は**ルートだけ末尾スラッシュを落とす**——`/` の canonical を `https://openreport.net` と出しているので、sitemap の `<loc>` を `/` 付きにすると同じページを2つのURLとして申告することになる（Next.js の `metadataBase` がやっていた正規化を引き継いだ形）
-- **canonical の判断は `lib/seo/ranking.ts` の `rankingCanonical()` 1か所。** インデックスさせるのは `/`・`/about`・`/?age=N` 8件・`/?ind=X` 33件・`/company/[id]` 1,867件の計1,910 URL だけ。**`?age=N&ind=X` は業種側（`/?ind=X`）へ寄せる**——同じ会社が同じ順で並ぶ near-duplicate は業種側で、`/?age=N` は1,867行の別ページだから（ADR-0006 の追記で年齢側から変更）。`/company/[id]?age=N` は素の `/company/[id]` へ
+- **canonical の判断は `lib/seo/ranking.ts` の `rankingCanonical()` 1か所。** インデックスさせるのは `/`・`/about`・`/?age=N` 8件・`/?ind=X` 33件・`/company/[id]` 1,867件の計1,910 URL だけ。**そのうち sitemap に載せるのは `/?age=N` を除いた分**（2026-10-03。自己canonical を残したまま sitemap から外している。canonical と sitemap は別の判断なので、`/?age=N` を足し戻すときは `sitemap.xml.ts` だけを触る）。**`?age=N&ind=X` は業種側（`/?ind=X`）へ寄せる**——同じ会社が同じ順で並ぶ near-duplicate は業種側で、`/?age=N` は1,867行の別ページだから（ADR-0006 の追記で年齢側から変更）。`/company/[id]?age=N` は素の `/company/[id]` へ
 - **`?page=N` は `/` へ寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく別の30社が並ぶ。**どのページからも `<a href>` で辿れる企業ページは30件だけで、残り1,837社への内部リンクはページ2〜63の中にしか無い**——先頭へ寄せるとその経路を細める。Google のページネーション指針も先頭ページへ寄せるなと明記している。sitemap には1ページ目しか載せないので、インデックスを勧めているわけではない
 - **ページ送りは範囲外のページへ `href` を出さない。** `RankingPagination` は `state.page` を総ページ数に丸める。丸める前は `?page=999` が200で最終ページを返しつつ `?page=1000` へリンクしており、クローラが際限なく歩けた（実測）。**`aria-disabled` と `pointer-events-none` はクローラに効かない**
 - **sitemap と canonical は `agePath()`・`industryPath()` を共有する。** 別々に組み立てると載せるURLと canonical が1文字ずれても気づかない

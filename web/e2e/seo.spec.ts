@@ -1,7 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "./appTest";
 import { formatInt } from "../features/ranking/lib/format";
-import { PAGE_SIZE, TARGET_AGES } from "../features/ranking/types";
+import { PAGE_SIZE } from "../features/ranking/types";
 import { fiscalPeriodLabel } from "../lib/data/period";
 import { companies, pickCompanies, unranked } from "../testing/realData";
 
@@ -75,7 +75,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     }
   });
 
-  test("sitemap.xml に `/`・`/about`・年齢・業種・全社の URL が載り、canonical と同じ文字列になっている", async ({
+  test("sitemap.xml に `/`・`/about`・業種・全社の URL が載り、canonical と同じ文字列になっている", async ({
     request,
   }) => {
     const response = await request.get("/sitemap.xml");
@@ -83,15 +83,12 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const xml = await response.text();
 
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-    // `/` と `/about`、年齢ごとに1件、会社のいる業種ごとに1件、企業ページが全社ぶん（ADR-0006）。
+    // `/` と `/about`、会社のいる業種ごとに1件、企業ページが全社ぶん（ADR-0006）。
+    // 年齢（`/?age=N`）は載せない（2026-10-03・ADR-0006 の追記）。
     // 企業ページには、母集団から外れた会社（最後の有報から24か月）のぶんも入る（refresh の D9）。
     const industriesWithCompanies = new Set(companies.rows.map((row) => row[2])).size;
     expect(locs).toHaveLength(
-      2 +
-        TARGET_AGES.length +
-        industriesWithCompanies +
-        companies.rows.length +
-        unranked.rows.length
+      2 + industriesWithCompanies + companies.rows.length + unranked.rows.length
     );
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
@@ -99,7 +96,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // **各ページが申告する canonical と1文字も違わない。** 別々に組み立てると、載せる
     // URLと canonical が1文字ずれても気づけない（両者は `agePath()`・`industryPath()` を
     // 共有している）。
-    for (const path of ["/", "/about", "/?age=25", "/?age=60", `/?ind=${BANK}`, "/company/6861"]) {
+    for (const path of ["/", "/about", `/?ind=${BANK}`, "/company/6861"]) {
       const { canonical } = await headOf(request, path);
       expect(locs, path).toContain(canonical);
     }
@@ -107,8 +104,9 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 寄せる側のURLは1つも載せない。
     expect(locs.some((loc) => loc.includes("emp="))).toBe(false);
     expect(locs.some((loc) => loc.includes("page="))).toBe(false);
-    expect(locs.some((loc) => loc.includes("age=") && loc.includes("ind="))).toBe(false);
-    expect(locs.some((loc) => loc.includes("/company/") && loc.includes("age="))).toBe(false);
+    // 年齢は組み合わせ（`?age=N&ind=X`）も企業ページ（`/company/[id]?age=N`）も含めて1つも載せない。
+    // 自己canonical のまま残る `/?age=N` も載せない（Search Console で全くインデックスされていない）。
+    expect(locs.some((loc) => loc.includes("age="))).toBe(false);
   });
 
   test("robots.txt はクロールを止めず、sitemap の在り処だけ示す", async ({ request }) => {
