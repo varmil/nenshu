@@ -21,7 +21,7 @@ python3 update_texts.py queue --limit <上限>
 ```
 
 - 上限は `SKILL.md` にある。出てきた会社を上から順に処理する
-- 書いたモデルを記録する値を決める: `MODEL="<このセッションのモデル ID>@${CLAUDE_EFFORT}"`（モデル ID はシステムプロンプトにある。例 `claude-opus-5-5@xhigh`）。3つの工程の `merge` に渡す
+- 書いたモデルを記録する値を決める: `MODEL="<このセッションのモデル ID>@${CLAUDE_EFFORT}"`（モデル ID はシステムプロンプトにある。例 `claude-sonnet-5-5@xhigh`）。3つの工程の `merge` に渡す。**Agent ツールの `model` は指定しない**（セッションのモデルを引き継がせる。指定すると、記録のモデルと実際に書いたモデルがずれる）
 
 ## 1. 原文を取る
 
