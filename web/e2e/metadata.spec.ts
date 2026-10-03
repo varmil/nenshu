@@ -98,14 +98,15 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
    * 絞り込み）だった。**性質は1つ——操作したあとの DOM が、そのURLを直接開いた HTML と
    * 一致する——なので、1本の流れで続けて操作し、1手ごとに突き合わせる。**
    *
-   * 文言そのもの（タイトルに年齢・業種名・ページ番号が入ること、寄せ先の文言を返すこと）は
+   * 文言そのもの（タイトルに業種名・ページ番号が入ること、寄せ先の文言を返すこと）は
    * `lib/seo/ranking.test.ts` の `rankingPageMeta` が持つ。ここでは書き写さない。
    * 代わりに**1手ごとにタイトルが前の手から変わる**ことを見る——サーバーもクライアントも
    * クエリを無視して `/` の文言を返す壊れ方だと、突き合わせだけでは通ってしまう。
    *
    * 手の並びは、寄せ方の違う URL を順に通るように選んだ。
    * - ページ送り: ページ2以降は自己canonical
-   * - 表示基準・年齢: `?age=N` は自己canonical
+   * - 表示基準・年齢: `?age=N` は `/` へ寄る（2026-10-03・ADR-0006 の追記）。**表示基準で
+   *   タブのタイトルは `/` のものに戻り、年齢を替えても動かない**（寄せ先が同じ）
    * - 業種チップ: `?age=N&ind=X` は業種側（`/?ind=X`）へ寄る
    * - ヘッダの検索: `?q=` はインデックスさせないので `/` へ寄る。**寄せた先の文言に
    *   戻る**ことまで含めて `/` を直接開いたときと同じであることを見る（ADR-0006）
@@ -122,13 +123,16 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
     const industryIndex = companies.industries.indexOf(industry);
     const industryCount = companies.rows.filter((row) => row[2] === industryIndex).length;
 
-    const steps: [string, () => Promise<void>][] = [
+    // 3つめは「この手でタイトルが前の手から変わるか」。年齢を替えても寄せ先は `/` のままなので、
+    // 動かないのが正しい（動いたら年齢専用の title を作ってしまっている）。
+    const steps: [string, () => Promise<void>, titleChanges: boolean][] = [
       [
         "ページ送り",
         async () => {
           await page.getByRole("button", { name: "次のページへ" }).click();
           await expect(page).toHaveURL(/[?&]page=2/);
         },
+        true,
       ],
       [
         "表示基準",
@@ -136,6 +140,8 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
           await page.getByRole("button", { name: "年齢そろえ" }).click();
           await expect(page).toHaveURL(/[?&]age=35/);
         },
+        // ページ2の title から `/` の title へ戻る。
+        true,
       ],
       [
         "年齢",
@@ -143,6 +149,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
           await page.getByRole("button", { name: "40歳", exact: true }).click();
           await expect(page).toHaveURL(/[?&]age=40/);
         },
+        false,
       ],
       [
         "業種チップ",
@@ -153,6 +160,7 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
             .click();
           await expect(page).toHaveURL(/ind=/);
         },
+        true,
       ],
       [
         "ヘッダの検索",
@@ -163,13 +171,15 @@ test.describe("メタデータと表示状態の一致（AC-16）", () => {
             .fill("商船三井");
           await expect(page).toHaveURL(/q=/);
         },
+        true,
       ],
     ];
 
-    for (const [label, step] of steps) {
+    for (const [label, step, titleChanges] of steps) {
       await step();
       const meta = await expectMetaMatchesUrl(page, request, label);
-      expect(meta.title, `${label}でタイトルが変わる`).not.toBe(previous.title);
+      if (titleChanges) expect(meta.title, `${label}でタイトルが変わる`).not.toBe(previous.title);
+      else expect(meta.title, `${label}でタイトルは変わらない`).toBe(previous.title);
       previous = meta;
     }
 
@@ -226,7 +236,9 @@ test.describe("ページを跨いだ戻る/進むの後（AC-15・AC-16）", () 
     await page.goBack();
     await expect(page).toHaveURL(/[?&]age=40/);
     const ranking = await expectMetaMatchesUrl(page, request, "戻った後");
-    expect(ranking.title).toContain("40歳");
+    // `?age=N` の canonical は `/`（ADR-0006 の追記）。企業詳細のものが残っていない。
+    expect(ranking.canonical).toBe("https://openreport.net");
+    expect(ranking.canonical).not.toBe(detail.canonical);
 
     await page.goForward();
     await expect(page).toHaveURL(/\/company\//);

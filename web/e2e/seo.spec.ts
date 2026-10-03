@@ -1,7 +1,7 @@
 import type { APIRequestContext } from "@playwright/test";
 import { test, expect } from "./appTest";
 import { formatInt } from "../features/ranking/lib/format";
-import { PAGE_SIZE, TARGET_AGES } from "../features/ranking/types";
+import { PAGE_SIZE } from "../features/ranking/types";
 import { fiscalPeriodLabel } from "../lib/data/period";
 import { companies, pickCompanies, unranked } from "../testing/realData";
 
@@ -54,7 +54,6 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const cases: [path: string, canonical: string][] = [
       // インデックスさせる側は自己canonical。ルートだけ末尾のスラッシュを落とす。
       ["/", ORIGIN],
-      ["/?age=35", `${ORIGIN}/?age=35`],
       [`/?ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
       ["/about", `${ORIGIN}/about`],
       ["/company/6861", `${ORIGIN}/company/6861`],
@@ -62,8 +61,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
       // 先頭へ寄せると他の会社への内部リンク経路（ページ2以降の中にしか無い）を細める。
       ["/?page=2", `${ORIGIN}/?page=2`],
       [`/?ind=${BANK}&page=2`, `${ORIGIN}/?ind=${BANK}&page=2`],
-      // `?age=N&ind=X` は業種側へ寄る。
+      // `?age=N` は年齢を取り除いて寄る（2026-10-03・ADR-0006 の追記）。`?age=N&ind=X` は業種側、
+      // `?age=N&page=M` は `/?page=M` へ。
+      ["/?age=35", ORIGIN],
       [`/?age=35&ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
+      ["/?age=35&page=2", `${ORIGIN}/?page=2`],
       // インデックスさせない絞り込みと、総ページ数を超えたページは `/` へ寄る。
       ["/?emp=1000-", ORIGIN],
       [`/?page=${OUT_OF_RANGE_PAGE}`, ORIGIN],
@@ -75,7 +77,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     }
   });
 
-  test("sitemap.xml に `/`・`/about`・年齢・業種・全社の URL が載り、canonical と同じ文字列になっている", async ({
+  test("sitemap.xml に `/`・`/about`・業種・全社の URL が載り、canonical と同じ文字列になっている", async ({
     request,
   }) => {
     const response = await request.get("/sitemap.xml");
@@ -83,15 +85,12 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const xml = await response.text();
 
     const locs = [...xml.matchAll(/<loc>([^<]*)<\/loc>/g)].map((m) => m[1]);
-    // `/` と `/about`、年齢ごとに1件、会社のいる業種ごとに1件、企業ページが全社ぶん（ADR-0006）。
+    // `/` と `/about`、会社のいる業種ごとに1件、企業ページが全社ぶん（ADR-0006）。
+    // 年齢（`/?age=N`）は載せない（2026-10-03・ADR-0006 の追記）。
     // 企業ページには、母集団から外れた会社（最後の有報から24か月）のぶんも入る（refresh の D9）。
     const industriesWithCompanies = new Set(companies.rows.map((row) => row[2])).size;
     expect(locs).toHaveLength(
-      2 +
-        TARGET_AGES.length +
-        industriesWithCompanies +
-        companies.rows.length +
-        unranked.rows.length
+      2 + industriesWithCompanies + companies.rows.length + unranked.rows.length
     );
     // 重複が無いこと。canonical と sitemap が食い違うと sitemap 全体の信頼が下がる。
     expect(new Set(locs).size).toBe(locs.length);
@@ -99,7 +98,7 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // **各ページが申告する canonical と1文字も違わない。** 別々に組み立てると、載せる
     // URLと canonical が1文字ずれても気づけない（両者は `agePath()`・`industryPath()` を
     // 共有している）。
-    for (const path of ["/", "/about", "/?age=25", "/?age=60", `/?ind=${BANK}`, "/company/6861"]) {
+    for (const path of ["/", "/about", `/?ind=${BANK}`, "/company/6861"]) {
       const { canonical } = await headOf(request, path);
       expect(locs, path).toContain(canonical);
     }
@@ -107,8 +106,9 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 寄せる側のURLは1つも載せない。
     expect(locs.some((loc) => loc.includes("emp="))).toBe(false);
     expect(locs.some((loc) => loc.includes("page="))).toBe(false);
-    expect(locs.some((loc) => loc.includes("age=") && loc.includes("ind="))).toBe(false);
-    expect(locs.some((loc) => loc.includes("/company/") && loc.includes("age="))).toBe(false);
+    // 年齢は `/?age=N` も組み合わせ（`?age=N&ind=X`）も企業ページ（`/company/[id]?age=N`）も
+    // 1つも載せない。`/?age=N` の canonical は `/` へ寄せてある（上のテスト）。
+    expect(locs.some((loc) => loc.includes("age="))).toBe(false);
   });
 
   test("robots.txt はクロールを止めず、sitemap の在り処だけ示す", async ({ request }) => {
@@ -136,12 +136,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
     request,
   }) => {
     // `/` の社数と決算期の幅はデータから引く。
+    const rootTitle = `OpenReport | 有価証券報告書ベースの平均年収ランキング ${formatInt(companies.rows.length)}社【${fiscalPeriodLabel(companies.meta)}】`;
     const titles: [path: string, title: string | null][] = [
-      [
-        "/",
-        `OpenReport | 有価証券報告書ベースの平均年収ランキング ${formatInt(companies.rows.length)}社【${fiscalPeriodLabel(companies.meta)}】`,
-      ],
-      ["/?age=35", "35歳年収ランキング | OpenReport"],
+      ["/", rootTitle],
+      // `?age=N` は canonical が `/` なので、title も寄せ先 `/` のもの（専用の title は無い）。
+      ["/?age=35", rootTitle],
       [`/?ind=${BANK}`, "銀行業の平均年収ランキング | OpenReport"],
       // 文言は単体テストが持つので、ここでは出ていることだけ見る。
       ["/about", null],

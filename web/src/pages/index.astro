@@ -2,9 +2,10 @@
 /**
  * ランキング（U2〜U6・U11〜U16）。**この施策で唯一の SSR ルート。**
  *
- * `?age=N` 8件・`?ind=X` 33件を別内容・別canonicalでインデックスさせているので
- * （ADR-0006）、ここだけはサーバーで描く。**Worker を起こすのはこの1ルートだけ**
- * （`wrangler.jsonc` の `run_worker_first`）。
+ * `?ind=X` 33件を別内容・別canonicalでインデックスさせているので（ADR-0006）、
+ * ここだけはサーバーで描く。`?age=N` は 2026-10-03 から canonical を `/` へ寄せているが、
+ * 開いた時点で表示基準が決まった HTML を返す点は変わらない。**Worker を起こすのは
+ * この1ルートだけ**（`wrangler.jsonc` の `run_worker_first`）。
  */
 export const prerender = false;
 

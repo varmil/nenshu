@@ -38,9 +38,12 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
     expect(canonicalOf("")).toBe("/");
   });
 
-  it("`?age=N` は自己canonical（8件）", () => {
-    expect(canonicalOf("age=25")).toBe("/?age=25");
-    expect(canonicalOf("age=60")).toBe("/?age=60");
+  // 2026-10-03・ADR-0006 の追記。Search Console で全くインデックスされていなかった。
+  // 年齢は表示基準なので、canonical からは取り除いて寄せ先を決める。
+  it("`?age=N` は `/` へ寄せる（8件とも）", () => {
+    for (const age of [25, 30, 35, 40, 45, 50, 55, 60]) {
+      expect(canonicalOf(`age=${age}`), `age=${age}`).toBe("/");
+    }
   });
 
   it("`?ind=X` は自己canonical。業種名はパーセントエンコードする", () => {
@@ -48,8 +51,7 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
   });
 
   it("`?age=N&ind=X` は業種側へ寄せる（U8 で決め直し。ADR-0006 追記）", () => {
-    // 業種は行の部分集合を決めるので `/?ind=X` と同じ会社が並ぶ。一方 `/?age=N` は
-    // 1,867社の別ページで、重複しているのは業種側である。
+    // 業種は行の部分集合を決めるので `/?ind=X` と同じ会社が並ぶ。年齢は取り除かれる。
     expect(canonicalOf("age=35&ind=銀行業")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
   });
 
@@ -62,7 +64,7 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
     // 向きだけ違うURL（Issue #106）も、並びが違うページなので同じく寄せる。
     expect(canonicalOf("sort=salary-asc")).toBe("/");
     expect(canonicalOf("age=35&sort=age-asc")).toBe("/");
-    // 年齢・業種と組み合わさっても寄せ先は `/`（インデックス対象は41件だけ）。
+    // 年齢・業種と組み合わさっても寄せ先は `/`（インデックス対象は `/` と業種33件だけ）。
     expect(canonicalOf("age=35&ind=銀行業&emp=1000-")).toBe("/");
     // ページ送りも一緒に落ちる。
     expect(canonicalOf("emp=1000-&page=2")).toBe("/");
@@ -73,7 +75,7 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
     expect(canonicalOf("page=1")).toBe("/");
     expect(canonicalOf("sort=salary")).toBe("/");
     expect(canonicalOf("q=")).toBe("/");
-    expect(canonicalOf("age=35&page=1")).toBe("/?age=35");
+    expect(canonicalOf("age=35&page=1")).toBe("/");
   });
 
   it("不正な値は寄せる判断に使わない", () => {
@@ -89,7 +91,7 @@ describe("rankingCanonical — ADR-0006 のインデックス戦略", () => {
 
   it("33件のリストに無い業種名は `/` へ寄せる（0件のページを正規URLにしない）", () => {
     expect(canonicalOf("ind=存在しない業種")).toBe("/");
-    expect(canonicalOf("age=35&ind=存在しない業種")).toBe("/?age=35");
+    expect(canonicalOf("age=35&ind=存在しない業種")).toBe("/");
   });
 });
 
@@ -102,8 +104,9 @@ describe("rankingCanonical — ページ送り", () => {
   });
 
   it("インデックス対象のファセットにはページを付けたまま寄せる", () => {
-    expect(canonicalOf("age=35&page=2")).toBe("/?age=35&page=2");
     expect(canonicalOf("ind=銀行業&page=2")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
+    // 年齢は取り除く。ページはそのまま乗せる（`/?page=2` は自己canonical）。
+    expect(canonicalOf("age=35&page=2")).toBe("/?page=2");
     // 年齢と業種の組み合わせは業種側へ。ページはそのまま乗せる。
     expect(canonicalOf("age=35&ind=銀行業&page=2")).toBe(
       "/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2"
@@ -112,7 +115,7 @@ describe("rankingCanonical — ページ送り", () => {
 
   it("`buildSearchParams` と同じ並び（page が最後）になっている", () => {
     // ランキング側が作るURLと canonical の文字列が食い違わないため。
-    expect(canonicalOf("page=2&age=35")).toBe("/?age=35&page=2");
+    expect(canonicalOf("page=2&ind=銀行業")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=2");
   });
 
   it("総ページ数を超える page は落とす", () => {
@@ -124,8 +127,8 @@ describe("rankingCanonical — ページ送り", () => {
     expect(canonicalOf("ind=銀行業&page=3")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD&page=3");
     expect(canonicalOf("ind=銀行業&page=4")).toBe("/?ind=%E9%8A%80%E8%A1%8C%E6%A5%AD");
     // 年齢は金額を書き換えるだけで行は減らないので、総ページ数は全体と同じ。
-    expect(canonicalOf("age=35&page=63")).toBe("/?age=35&page=63");
-    expect(canonicalOf("age=35&page=64")).toBe("/?age=35");
+    expect(canonicalOf("age=35&page=63")).toBe("/?page=63");
+    expect(canonicalOf("age=35&page=64")).toBe("/");
   });
 });
 
@@ -153,13 +156,21 @@ describe("rankingPageMeta", () => {
     }
   });
 
-  // ファセットの title は（この it と業種ページの it で）完全一致で見る。有価証券報告書も
-  // 決算期も入れず、8件・33件のファセットページは「◯歳」「業種名」に文字数を使う
-  // （入れるのは `/` だけ）。
-  it("年齢そろえの description には推定であることを書く（AC-9）", () => {
-    const meta = rankingPageMeta(new URLSearchParams("age=35"), companies, count);
-    expect(meta.title).toBe("35歳年収ランキング | OpenReport");
-    expect(meta.description).toContain("推定");
+  // 業種ページの title は（業種ページの it で）完全一致で見る。有価証券報告書も決算期も
+  // 入れず、33件の業種ページは「業種名」に文字数を使う（入れるのは `/` だけ）。
+  //
+  // **`?age=N` 専用の title・description は無い**（2026-10-03・ADR-0006 の追記）。canonical が
+  // `/` なので、返すのも `/` の文言である。「推定」の語は `/` の description が
+  // 「推定年収に切り替えて並べ直せる」として持つ（AC-9）。
+  it("年齢そろえは寄せ先 `/` の title・description・canonical をそのまま返す", () => {
+    const root = rankingPageMeta(new URLSearchParams(""), companies, count);
+    for (const age of [25, 35, 60]) {
+      expect(
+        rankingPageMeta(new URLSearchParams(`age=${age}`), companies, count),
+        `age=${age}`
+      ).toEqual(root);
+    }
+    expect(root.description).toContain("推定年収");
   });
 
   // 決算期は直書きせず `companies.meta` から引く（AC-20）。データを差し替えたら
@@ -187,8 +198,9 @@ describe("rankingPageMeta", () => {
     expect(rankingPageMeta(new URLSearchParams("page=3"), companies, count).title).toBe(
       "OpenReport | 有価証券報告書ベースの平均年収ランキング【2026年3月期〜4月期】（3ページ目）"
     );
+    // 年齢は取り除かれるので、`/?page=2` と同じ title になる。
     expect(rankingPageMeta(new URLSearchParams("age=35&page=2"), companies, count).title).toBe(
-      "35歳年収ランキング（2ページ目） | OpenReport"
+      rankingPageMeta(new URLSearchParams("page=2"), companies, count).title
     );
     expect(rankingPageMeta(new URLSearchParams("ind=銀行業&page=2"), companies, count).title).toBe(
       "銀行業の平均年収ランキング（2ページ目） | OpenReport"
@@ -240,8 +252,9 @@ describe("rankingHeading", () => {
     ]);
   });
 
-  it("インデックスさせるファセットページの title は、見出しにブランドを足したもの", () => {
-    for (const query of ["age=35", "ind=銀行業", "ind=海運業"]) {
+  // 年齢は対象外——`?age=N` の見出しは画面の状態で、title は寄せ先 `/` のものになる。
+  it("インデックスさせるファセットページ（業種）の title は、見出しにブランドを足したもの", () => {
+    for (const query of ["ind=銀行業", "ind=海運業"]) {
       expect(rankingPageMeta(new URLSearchParams(query), companies, count).title, query).toBe(
         `${heading(query)} | OpenReport`
       );
