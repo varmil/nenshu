@@ -1,6 +1,6 @@
 import { INITIAL_STATE, parseSearchParams } from "@/features/ranking/lib/urlState";
 import { PAGE_SIZE } from "@/features/ranking/types";
-import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/types";
+import type { CompaniesData, RankingState } from "@/features/ranking/types";
 
 /**
  * canonical と文言に要るのは `meta`（社数・決算期）と業種名だけで、**全社ぶんの
@@ -11,20 +11,22 @@ import type { CompaniesData, RankingState, TargetAge } from "@/features/ranking/
 type CompaniesFacts = Pick<CompaniesData, "meta" | "industries">;
 import { fiscalPeriodLabel } from "@/lib/data/period";
 import type { PageMeta } from "./pageMeta";
-import { agePath, industryPath } from "./paths";
+import { industryPath } from "./paths";
 import { SITE_NAME } from "./site";
 
 // パスの組み立ては `lib/seo/paths.ts` に移した（S2）。**再輸出しておく**——
-// sitemap も canonical もパンくずも同じ2本を通ることが、この施策の要点である。
-export { agePath, industryPath };
+// sitemap も canonical もパンくずも同じ関数を通ることが、この施策の要点である。
+export { industryPath };
 
 /**
- * ランキングURLの正規化。`path` が canonical で、`targetAge`・`industry`・`page` は
+ * ランキングURLの正規化。`path` が canonical で、`industry`・`page` は
  * その canonical が表す状態（title・description はここから組み立てる）。
+ *
+ * **年齢（`targetAge`）は持たない。** `?age=N` は canonical に現れず、いつも寄せ先
+ * （`/` か `/?ind=X`）の状態として扱う（2026-10-03・ADR-0006 の追記）。
  */
 export interface RankingCanonical {
   path: string;
-  targetAge: TargetAge | null;
   industry: string | null;
   /** 1始まり。1 なら canonical にクエリとして出さない。 */
   page: number;
@@ -41,13 +43,20 @@ function withPage(base: string, page: number): string {
 
 /**
  * ADR-0006 のインデックス戦略を関数にしたもの。インデックスさせるのは
- * `/`・`/?age=N`（8件）・`/?ind=X`（33件）だけで、それ以外は寄せる。
+ * `/` と `/?ind=X`（33件）だけで、それ以外は寄せる。
  *
- * **`?age=N&ind=X` は業種側（`/?ind=X`）に寄せる。** ADR-0006 は当初これを年齢側に
+ * **`?age=N` は canonical に出さない。年齢は取り除いたうえで、残りの状態から寄せ先を
+ * 決める**（2026-10-03・ADR-0006 の追記）。`?age=N` は `/`、`?age=N&ind=X` は `/?ind=X`、
+ * `?age=N&page=M` は `/?page=M` になる。Search Console で `/?age=N`（8件）が全く
+ * インデックスされず、重要とみなされていなかったため。年齢は金額の見せ方を変える
+ * 表示基準であって、独立したページとして申告する価値が無いと判断した。
+ * 画面の `h1`（`N歳年収ランキング`）と URL 同期はこれまでどおり動く——寄せるのは
+ * 検索エンジンへの申告だけである。
+ *
+ * **`?age=N&ind=X` が業種側に寄るのは以前から。** ADR-0006 は当初これを年齢側に
  * 置いていたが、ADR-0007 で既定が実測値になり「年齢補正が主軸」という前提が
- * 弱まったため、U8 の実装時に決め直した（ADR-0006 の追記）。業種は行の部分集合を
- * 決めるフィルタなので `/?ind=X` とは同じ会社が並ぶ near-duplicate になる。一方
- * `/?age=N` は2,961社が並ぶ別物で、重複しているのは業種側である。
+ * 弱まったため、U8 の実装時に決め直した。業種は行の部分集合を決めるフィルタなので
+ * `/?ind=X` とは同じ会社が並ぶ near-duplicate になる。
  *
  * **ページ送りは寄せない。自己canonical にする。** `/?page=2` は `/` の複製ではなく、
  * 別の30社が並ぶ別のページである。**しかもページから `<a href>` で辿れる企業ページは
@@ -79,17 +88,12 @@ export function rankingCanonical(
     // 向きだけ違う `?sort=salary-asc` も並びが違うページなので寄せる（Issue #106）。
     state.sort.key !== INITIAL_STATE.sort.key ||
     state.sort.order !== INITIAL_STATE.sort.order;
-  if (hasUnindexed) return { path: "/", targetAge: null, industry: null, page: 1 };
+  if (hasUnindexed) return { path: "/", industry: null, page: 1 };
 
   // 33件のリスト外の業種名は、URLとしては通るがページとしては0件なので寄せる。
   const industry = listedIndustry(state.industry, companies.industries);
 
-  const base =
-    industry !== null
-      ? industryPath(industry)
-      : state.targetAge !== null
-        ? agePath(state.targetAge)
-        : "/";
+  const base = industry !== null ? industryPath(industry) : "/";
 
   // 総ページ数を超える `page` は落として先頭へ寄せる。`?page=999` は最終ページと
   // 同じ7社を200で返すので、自己canonical にすると実在しないURLを正規URLとして
@@ -100,12 +104,7 @@ export function rankingCanonical(
   const maxPage = Math.max(1, Math.ceil(rows / PAGE_SIZE));
   const page = state.page >= 2 && state.page <= maxPage ? state.page : 1;
 
-  return {
-    path: withPage(base, page),
-    targetAge: industry !== null ? null : state.targetAge,
-    industry,
-    page,
-  };
+  return { path: withPage(base, page), industry, page };
 }
 
 /**
@@ -163,11 +162,13 @@ export function rankingHeading(
  * ときに読者が見分けられるかどうかがそこで決まる（`docs/ranking/intent.md` の
  * 差別化要因）。**タイトルに入れるのは `/` だけ**——競合6社を実測すると、
  * タイトルで競っているのは鮮度（「2026年8月最新」）と規模（TOP100・21626社）で、
- * 出所をタイトルに置いている競合は1つも無い。8件・33件のファセットページでは
- * 「◯歳」「業種名」のほうが情報量が高く、限られた文字数をそちらに使う。
+ * 出所をタイトルに置いている競合は1つも無い。33件の業種ページでは
+ * 「業種名」のほうが情報量が高く、限られた文字数をそちらに使う。
  *
- * **年齢そろえの description には推定であることを書く**（`docs/ranking/spec.md` AC-9）。
- * 実測値のページには推定の語を1つも出さない。
+ * **`?age=N` 専用の title・description は持たない。** canonical が寄せ先（`/`・`/?ind=X`）
+ * になったので、返すのも寄せ先の文言である（非正規URLに固有の文言を作らない）。
+ * 「推定」の語は画面（見出し・並べ方の帯）が持ち、`/` の description にも
+ * 「推定年収に切り替えて並べ直せる」と書いてある（AC-9）。
  *
  * **決算期は全ページの description に入れ、タイトルには `/` の末尾にだけ置く**
  * （`docs/site-chrome/spec.md` 5.・AC-17/AC-18）。前に置くと、差別化要因である
@@ -193,21 +194,12 @@ export function rankingPageMeta(
   if (canonical.industry !== null) {
     const count = industryCount(canonical.industry).toLocaleString("ja-JP");
     return {
-      title: `${rankingHeading(canonical, companies.industries)}${pageSuffix} | ${SITE_NAME}`,
+      // 業種ページの title は実測値の見出し（年齢は寄せ先に無いので null）。
+      title: `${rankingHeading({ targetAge: null, industry: canonical.industry }, companies.industries)}${pageSuffix} | ${SITE_NAME}`,
       description:
         `${canonical.industry}${count}社の平均年収ランキング。` +
         `金融庁 EDINET の有価証券報告書（${period}）に載っている平均年間給与そのままの実測値を、` +
         `順位・偏差値・平均年齢つきで比較できる。`,
-      canonical: canonical.path,
-    };
-  }
-
-  if (canonical.targetAge !== null) {
-    return {
-      title: `${rankingHeading(canonical, companies.industries)}${pageSuffix} | ${SITE_NAME}`,
-      description:
-        `有価証券報告書（${period}）の平均年間給与を${canonical.targetAge}歳時点に補正した推定年収のランキング。` +
-        `平均年齢の違いをならしたうえで、上場・非上場${total}社を比較できる。`,
       canonical: canonical.path,
     };
   }

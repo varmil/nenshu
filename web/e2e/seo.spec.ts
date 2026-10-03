@@ -54,7 +54,6 @@ test.describe("検索エンジン向け導線（U8）", () => {
     const cases: [path: string, canonical: string][] = [
       // インデックスさせる側は自己canonical。ルートだけ末尾のスラッシュを落とす。
       ["/", ORIGIN],
-      ["/?age=35", `${ORIGIN}/?age=35`],
       [`/?ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
       ["/about", `${ORIGIN}/about`],
       ["/company/6861", `${ORIGIN}/company/6861`],
@@ -62,8 +61,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
       // 先頭へ寄せると他の会社への内部リンク経路（ページ2以降の中にしか無い）を細める。
       ["/?page=2", `${ORIGIN}/?page=2`],
       [`/?ind=${BANK}&page=2`, `${ORIGIN}/?ind=${BANK}&page=2`],
-      // `?age=N&ind=X` は業種側へ寄る。
+      // `?age=N` は年齢を取り除いて寄る（2026-10-03・ADR-0006 の追記）。`?age=N&ind=X` は業種側、
+      // `?age=N&page=M` は `/?page=M` へ。
+      ["/?age=35", ORIGIN],
       [`/?age=35&ind=${BANK}`, `${ORIGIN}/?ind=${BANK}`],
+      ["/?age=35&page=2", `${ORIGIN}/?page=2`],
       // インデックスさせない絞り込みと、総ページ数を超えたページは `/` へ寄る。
       ["/?emp=1000-", ORIGIN],
       [`/?page=${OUT_OF_RANGE_PAGE}`, ORIGIN],
@@ -104,8 +106,8 @@ test.describe("検索エンジン向け導線（U8）", () => {
     // 寄せる側のURLは1つも載せない。
     expect(locs.some((loc) => loc.includes("emp="))).toBe(false);
     expect(locs.some((loc) => loc.includes("page="))).toBe(false);
-    // 年齢は組み合わせ（`?age=N&ind=X`）も企業ページ（`/company/[id]?age=N`）も含めて1つも載せない。
-    // 自己canonical のまま残る `/?age=N` も載せない（Search Console で全くインデックスされていない）。
+    // 年齢は `/?age=N` も組み合わせ（`?age=N&ind=X`）も企業ページ（`/company/[id]?age=N`）も
+    // 1つも載せない。`/?age=N` の canonical は `/` へ寄せてある（上のテスト）。
     expect(locs.some((loc) => loc.includes("age="))).toBe(false);
   });
 
@@ -134,12 +136,11 @@ test.describe("検索エンジン向け導線（U8）", () => {
     request,
   }) => {
     // `/` の社数と決算期の幅はデータから引く。
+    const rootTitle = `OpenReport | 有価証券報告書ベースの平均年収ランキング ${formatInt(companies.rows.length)}社【${fiscalPeriodLabel(companies.meta)}】`;
     const titles: [path: string, title: string | null][] = [
-      [
-        "/",
-        `OpenReport | 有価証券報告書ベースの平均年収ランキング ${formatInt(companies.rows.length)}社【${fiscalPeriodLabel(companies.meta)}】`,
-      ],
-      ["/?age=35", "35歳年収ランキング | OpenReport"],
+      ["/", rootTitle],
+      // `?age=N` は canonical が `/` なので、title も寄せ先 `/` のもの（専用の title は無い）。
+      ["/?age=35", rootTitle],
       [`/?ind=${BANK}`, "銀行業の平均年収ランキング | OpenReport"],
       // 文言は単体テストが持つので、ここでは出ていることだけ見る。
       ["/about", null],

@@ -15,15 +15,15 @@ import { OG_IMAGE } from "../lib/brand/assets";
 const ORIGIN = "https://openreport.net";
 const BANK = "%E9%8A%80%E8%A1%8C%E6%A5%AD";
 
-/** インデックスさせる5種類。ファセットも含めて全部見る（AC-10）。 */
-const PAGES = ["/", "/?age=35", `/?ind=${BANK}`, "/about", "/company/6861"];
+/** インデックスさせる4種類。ファセットも含めて全部見る（AC-10）。 */
+const PAGES = ["/", `/?ind=${BANK}`, "/about", "/company/6861"];
 
 /**
  * 非正規URL（AC-11 の肝）。**両方が寄せ先を指す**こと——別々に組み立てていると、
  * canonical だけが `/?ind=銀行業` を指して `og:url` が自分自身を指す。寄せ先そのものが
- * 正しいかは `seo.spec.ts` が見る。
+ * 正しいかは `seo.spec.ts` が見る。`/?age=N` は 2026-10-03 から寄せる側（ADR-0006 の追記）。
  */
-const NON_CANONICAL = [`/?age=35&ind=${BANK}`, "/?emp=1000-", "/company/6861?age=35"];
+const NON_CANONICAL = ["/?age=35", `/?age=35&ind=${BANK}`, "/?emp=1000-", "/company/6861?age=35"];
 
 function unescapeHtml(value: string): string {
   return value

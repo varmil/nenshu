@@ -26,8 +26,8 @@ const unranked = unrankedData as unknown as UnrankedData;
  * | `/company/[id]` | 全社（ランキングの外の会社を含む。毎日の更新で動く） |
  *
  * **`/?age=N`（8件）は載せない**（2026-10-03・ADR-0006 の追記）。Search Console で
- * 全くインデックスされておらず、重要とみなされていなかったため。canonical は自己の
- * まま変えていない（寄せ先を変える判断ではなく、sitemap で発見を勧めるのをやめるだけ）。
+ * 全くインデックスされておらず、重要とみなされていなかったため。canonical も `/` へ
+ * 寄せてあるので（`lib/seo/ranking.ts`）、sitemap に載る URL はどれも自己 canonical である。
  *
  * **canonical と載せるURLが1文字もずれないこと。** `/?ind=X` は `industryPath` を
  * 通してエンコードし、`app/page.tsx` の canonical と同じ関数を共有している。
