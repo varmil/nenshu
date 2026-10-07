@@ -16,6 +16,7 @@ description: OpenReport の掲載データを毎日更新する定期実行の�
 
 ## 1. 準備
 
+0. **始めた時刻（UTC）を控える**: `date -u +%FT%TZ | tee /tmp/claude-0/refresh_start.txt`。5. の3時間の線と、8. の消費量の計測がこれを使う
 1. リポジトリ `varmil/nenshu` がコンテナに無ければ、`add_repo`（push）で付けて clone し、`register_repo_root` する
 2. このセッションに指定されたブランチを、main の最新から作り直す: `git fetch origin main && git checkout -B <指定のブランチ> origin/main`
 3. 依存が無ければ入れる（ふだんは `.claude/hooks/session-start.sh` が入れている）: ルート・`pipeline/`・`web/` で `npm ci`
@@ -99,4 +100,6 @@ cd ../web && npm test
 2. 指定のブランチに push する
 3. PR を立てる。タイトルは `データ更新 <日本時間の日付>`、本文は `.github/pull_request_template.md` の節で、「対応 Issue」には「定期実行のデータ更新（Issue なし）」と書く。動作チェックには 7. で回したものを書く
 4. **PR に `refresh` のラベルを付ける**（GitHub のツールで Issue としてラベルを足す）。付けないと自動でマージされない
-5. **PR を購読しない・CI を待たない**（見張りは自動マージと知らせのワークフローが引き受ける）。そのまま終わる。最後に、今日やったこと（数字・新しい会社・待ち行列・働きやすさ・文章・直したコード）を短くまとめて返す
+5. **PR を購読しない・CI を待たない**（見張りは自動マージと知らせのワークフローが引き受ける）。そのまま終わる
+6. **消費量を測って報告に添える**（`docs/refresh/token-cost.md`）: `python3 tools/token-usage/measure.py "$(cut -c1-16 /tmp/claude-0/refresh_start.txt)" "$(date -u +%FT%H:%M)"`。出た表の「合計（重み付き）」を1行で書く。**基準は 2026-10-07 の回の 31.30**（10社）で、目標は半分以下。会社数が違うときは、1社あたり（合計 ÷ 処理した社数）で比べる。測れなかったら飛ばしてよい
+7. 最後に、今日やったこと（数字・新しい会社・待ち行列・働きやすさ・文章・直したコード・消費量）を短くまとめて返す

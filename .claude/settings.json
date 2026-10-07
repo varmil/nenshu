@@ -1,5 +1,6 @@
 {
   "effortLevel": "xhigh",
+  "autoCompactWindow": 300000,
   "hooks": {
     "SessionStart": [
       {

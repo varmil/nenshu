@@ -23,5 +23,5 @@ Closes #
 ## docs
 
 - [ ] `docs/<施策>/<unit>/plan.md`・`design.md`（Unit の PR では必須）
-- [ ] CLAUDE.md の「現在地」を実態に合わせた
+- [ ] `docs/status/` の該当ファイルを実態に合わせた（CLAUDE.md には現在地を書かない）
 - [ ] 不可逆な決定をしたなら `docs/adr/NNNN-*.md` を追加した
