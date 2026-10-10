@@ -172,15 +172,16 @@ test.describe("データの時点（S3・E1）", () => {
     }
   });
 
-  // **企業詳細だけは複数回**（2026-09-24 に spec 5.1 を改め、2026-09-30 に給与の決定方針を足した）。
-  // 「年収に関するQ&A」の説明の1行（C16 までは「有価証券報告書の実測値」の見出し）と、**要約の節の
-  // 説明**と、**給与の決定方針の節の説明**。どれも自分の節の中身がどの年度の有報かを示す。給与の
-  // 決定方針の無い会社（改正前の様式・空）は2回。**それ以外の場所には増やさない**——説明文（C7）の
-  // 出典の1行に入れて重なったのを、この spec が一度捕まえている。
+  // **企業詳細だけは複数回**（2026-09-24 に spec 5.1 を改め、2026-09-30 に給与の決定方針、
+  // 2026-10-10 に分析を足した）。「年収に関するQ&A」の説明の1行（C16 までは「有価証券報告書の
+  // 実測値」の見出し）と、**分析の節の断り**と、**要約の節の説明**と、**給与の決定方針の節の説明**。
+  // どれも自分の節の中身がどの年度の有報かを示す。給与の決定方針の無い会社（改正前の様式・空）は
+  // 3回。**それ以外の場所には増やさない**——説明文（C7）の出典の1行に入れて重なったのを、この spec が
+  // 一度捕まえている。
   //
   // **企業詳細は幅ではなくその会社の決算期**（E1・AC-7）。母集団の幅を出すと、決算期の
   // 違う会社のページにまで幅の端が付いて、その会社の数字がいつのものかぼやける。
-  test("企業詳細の決算期は Q&A・要約・給与の決定方針の説明の先頭だけ（給与の決定方針が無ければ2か所）", async ({
+  test("企業詳細の決算期は Q&A・分析・要約・給与の決定方針の説明の先頭だけ（給与の決定方針が無ければ3か所）", async ({
     page,
   }) => {
     for (const id of new Set([COMPANY, OTHER_PERIOD_COMPANY, WITH_POLICY, WITHOUT_POLICY])) {
@@ -189,9 +190,12 @@ test.describe("データの時点（S3・E1）", () => {
       const hasPolicy = id in payPolicies.byId;
       await page.goto(path);
       const count = (await page.locator("body").innerText()).split(label).length - 1;
-      expect(count, path).toBe(hasPolicy ? 3 : 2);
+      expect(count, path).toBe(hasPolicy ? 4 : 3);
       await expect(page.getByTestId("company-qa"), path).toContainText(
         `${label}の有価証券報告書の値です。`
+      );
+      await expect(page.getByTestId("company-analysis"), path).toContainText(
+        `${label}の有価証券報告書・公開資料をもとに`
       );
       await expect(page.getByTestId("company-digest"), path).toContainText(
         `${label}の有価証券報告書`
@@ -224,7 +228,7 @@ test.describe("データの時点（S3・E1）", () => {
       );
   }
 
-  test("要約・分析が数字より前の有報のままの会社では、要約の節と出典がその有報を名乗り、指す", async ({
+  test("要約・分析が数字より前の有報のままの会社では、要約・分析の節と出典がその有報を名乗り、指す", async ({
     page,
   }) => {
     test.skip(TEXT_BEHIND === undefined, "要約・分析が数字とずれた会社がいまのデータにいない");
@@ -239,6 +243,12 @@ test.describe("データの時点（S3・E1）", () => {
     const digest = page.getByTestId("company-digest");
     await expect(digest).toContainText(`${periodLabel(analysis.period)}の有価証券報告書`);
     await expect(digest).not.toContainText(periodOf(id));
+    // 分析の本文は、新しい期を「来期の計画」として書いていることがある（ロジザード）ので、
+    // 節全体ではなく断りの言い方で見る
+    const note = (period: string) => `${period}の有価証券報告書・公開資料をもとに`;
+    const analysisSection = page.getByTestId("company-analysis");
+    await expect(analysisSection).toContainText(note(periodLabel(analysis.period)));
+    await expect(analysisSection).not.toContainText(note(periodOf(id)));
 
     // 「このページの出典」は行ごとに、その行の中身を作った書類を指す
     expect(await sourceRows(page)).toEqual(

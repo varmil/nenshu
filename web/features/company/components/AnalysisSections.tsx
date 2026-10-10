@@ -25,7 +25,7 @@ export function AnalysisSection({ name, view }: { name: string; view: AnalysisVi
     >
       <h2 className="text-lg font-bold">{name}の現状と今後</h2>
       <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-        {analysisNote(view.asOf)}
+        {analysisNote(view.fiscalPeriod)}
         <a href="/about#company-analysis" className="text-primary underline">
           要約と分析の作り方
         </a>

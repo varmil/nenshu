@@ -51,12 +51,12 @@ const pickWithSources = () =>
 
 test.describe("有報の要約と AI 分析", () => {
   /*
-   * **読者が2つを見分けられること**（AC-29）。分析だけに「AIが書いた評価」の断りと
-   * **書いた年月**を1回置き、`bg-muted` の面で囲う。要約には面も断りも付けない
-   * （付けると2つの区別が消える）。**年月はデータ（`analyses.json` の `generatedAt`）から引く**
-   * ——文言を書き写すと、データを作り直した年にテストだけが古い年月で落ちる。
+   * **読者が2つを見分けられること**（AC-29）。分析だけに「AIが書いた評価」の断りを1回置き、
+   * `bg-muted` の面で囲う。要約には面も断りも付けない（付けると2つの区別が消える）。断りの先頭は
+   * **原文の決算期**（2026-10-10 から。書いた年月は出さない）。**決算期はデータ（`analyses.json` の
+   * `filing`）から引く**——文言を書き写すと、その会社の次の有報でテストだけが古い期で落ちる。
    */
-  test("AC-29: 2つが別の節で、AI の評価だという断りと書いた年月は分析にだけ1回あり、分析だけが面を持つ", async ({
+  test("AC-29: 2つが別の節で、AI の評価だという断りは分析にだけ1回あり、分析だけが面を持つ", async ({
     page,
   }) => {
     const id = pickWithoutSources();
@@ -74,7 +74,8 @@ test.describe("有報の要約と AI 分析", () => {
       })
     ).toBeVisible();
 
-    await expect(analysis(page)).toContainText(analysisNote(view.asOf));
+    await expect(analysis(page)).toContainText(analysisNote(view.fiscalPeriod));
+    await expect(analysis(page)).not.toContainText("時点");
     await expect(analysis(page).getByText("ひとことで言うと")).toBeVisible();
     await expect(analysis(page)).toContainText(view.headline);
     await expect(page.getByText("AIが書いた評価", { exact: false })).toHaveCount(1);
