@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { analyses as analysesData } from "@/testing/realData";
 import {
   analysisNote,
-  asOfLabel,
   buildAnalysisView,
   digestNote,
   sourceMeta,
@@ -32,15 +31,17 @@ describe("buildAnalysisView（AC-28）", () => {
     expect(view.digest).toBe("要約。");
     expect(view.headline).toBe("一言。");
     expect(view.sources[0].meta).toBe("www.mitsui.com・2026年9月8日に参照");
-    expect(view.asOf).toBe("2026年9月時点");
   });
 
-  // refresh の D3（spec 1.5・AC-3）。要約の節は数字の側ではなく、要約の原文の期を名乗る。
+  // refresh の D3（spec 1.5・AC-3）。要約の節も分析の節も、数字の側ではなく原文の期を名乗る。
   it("原文にした有報の書類と決算期を持つ", () => {
     const view = buildAnalysisView(record)!;
     expect(view.docId).toBe("S100TEST");
     expect(view.fiscalPeriod).toBe("2025年3月期");
     expect(digestNote(view.fiscalPeriod)).toMatch(/^2025年3月期の有価証券報告書のうち/);
+    expect(analysisNote(view.fiscalPeriod)).toMatch(
+      /^2025年3月期の有価証券報告書・公開資料をもとに/
+    );
   });
 
   it("記録が無い会社では null（節ごと出さない）", () => {
@@ -56,13 +57,13 @@ describe("buildAnalysisView（AC-28）", () => {
 });
 
 describe("時点の表記", () => {
-  it("分析は書いた年月。月はゼロ埋めしない", () => {
-    expect(asOfLabel("2026-09")).toBe("2026年9月時点");
-    expect(asOfLabel("2027-01")).toBe("2027年1月時点");
-  });
-
-  it("分析の断りに書いた時点が入る", () => {
-    expect(analysisNote("2026年9月時点")).toContain("（2026年9月時点）");
+  // 2026-10-10・運営者の判断。書いた年月は出さない——前の期の有報で書いた分析が新しく見え、
+  // 決算期と並べると日付が2つになる。
+  it("分析の断りは原文の決算期で始まり、書いた年月を持たない", () => {
+    const note = analysisNote("2025年6月期");
+    expect(note).toMatch(/^2025年6月期の有価証券報告書・公開資料をもとにAIが書いた評価です。$/);
+    expect(note).not.toContain("時点");
+    expect(note).not.toMatch(/\d{4}年\d{1,2}月(?!期)/);
   });
 
   it("要約の説明に原文の決算期が入る。会社ごとに違う値が出る", () => {

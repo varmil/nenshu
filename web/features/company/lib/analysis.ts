@@ -25,7 +25,7 @@ export interface AnalysisRecord {
   headline: string;
   body: string;
   sources: AnalysisSource[];
-  /** 分析を書いた年月（`YYYY-MM`・日本時間）。 */
+  /** 分析を書いた年月（`YYYY-MM`・日本時間）。**画面には出さない**（`analysisNote`）。 */
   generatedAt: string;
   /** 要約と分析の原文にした有報（refresh の D3）。 */
   filing: FilingRef;
@@ -39,14 +39,12 @@ export interface AnalysisView {
   /** 分析の本文。一言と同じ書き出しの文はビルド時に落としてある。 */
   body: string;
   sources: AnalysisSourceView[];
-  /** 分析を書いた時点。`2026年9月時点`。 */
-  asOf: string;
   /** 要約と分析の原文にした有報の書類 ID。「このページの出典」の AI の2行がここを指す。 */
   docId: string;
   /**
-   * 要約の原文の決算期（`2026年3月期`）。**要約の節はこれを名乗る**（refresh の D3・spec 1.5）
-   * ——数字の側の決算期を借りると、数字だけが新しい書類に替わった会社で、前の期の要約が
-   * 新しい期を名乗る。
+   * 要約と分析の原文にした有報の決算期（`2026年3月期`）。**要約の節も分析の節もこれを名乗る**
+   * （refresh の D3・spec 1.5。分析は 2026-10-10 から）——数字の側の決算期を借りると、数字だけが
+   * 新しい書類に替わった会社で、前の期の文章が新しい期を名乗る。
    */
   fiscalPeriod: string;
 }
@@ -78,16 +76,9 @@ export function buildAnalysisView(record: AnalysisRecord | null | undefined): An
       title: source.title,
       meta: sourceMeta(source),
     })),
-    asOf: asOfLabel(record.generatedAt),
     docId: record.filing.docId,
     fiscalPeriod: periodLabel(record.filing.period),
   };
-}
-
-/** `"2026-09"` → `"2026年9月時点"`。月はゼロ埋めしない（`sourceMeta` の日付と同じ書き方）。 */
-export function asOfLabel(generatedAt: string): string {
-  const [y, m] = generatedAt.split("-").map(Number);
-  return `${y}年${m}月時点`;
 }
 
 /**
@@ -112,12 +103,15 @@ function accessedLabel(accessed: string): string {
  * 同じ断りを付けると2つの区別が消える。**見出しに「AIによる分析」を付けない**のは、
  * この1行と合わせて AI である旨を2回言うことになるため（アートボード 8b）。
  *
- * **書いた時点を添える**（2026-09-24・運営者の判断）。分析は公開資料とモデルの一般知識を
- * 使って「今後」まで書いており、いつの評価かが読めないと古くなったことに気づけない。
- * 参照した資料の日付（`sourceMeta`）は資料を使った会社にしか出ないので、節の側に1つ置く。
+ * **先頭に原文の決算期を書く。書いた年月は出さない**（2026-10-10・運営者の判断）。毎日の更新では
+ * 数字が先に新しい有報へ替わり、分析は書き直すまで前の有報のまま出る。書いた年月を出していた頃は、
+ * 前の期の有報で書いた分析が「2026年9月時点」と新しく見え、決算期と並べると日付が2つになって
+ * 読みにくかった。新しい有報が出るたびに書き直すので、いつの評価かは原文の決算期で読める。
+ * 公開資料の時点は「参照した資料」の参照日（`sourceMeta`）が持つ。書いた年月はデータ
+ * （`AnalysisRecord.generatedAt`）には残す。
  */
-export function analysisNote(asOf: string): string {
-  return `有価証券報告書・公開資料をもとにAIが書いた評価です（${asOf}）。`;
+export function analysisNote(fiscalPeriod: string): string {
+  return `${fiscalPeriod}の有価証券報告書・公開資料をもとにAIが書いた評価です。`;
 }
 
 /**
