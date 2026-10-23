@@ -11,8 +11,8 @@
  * **データを作り直したら `cd pipeline && npm run build:brand` も回すこと。**
  */
 export const OG_FACTS = {
-  count: 2981,
-  averageManYen: 694,
+  count: 2982,
+  averageManYen: 693,
   fiscalPeriod: "2025年5月期〜2026年7月期",
-  alt: "OpenReport — 有価証券報告書の数値のまま、2,981社の平均年収。対象社数 2,981社、全体平均 694万円、対象期間・出典 2025年5月期〜2026年7月期・金融庁 EDINET",
+  alt: "OpenReport — 有価証券報告書の数値のまま、2,982社の平均年収。対象社数 2,982社、全体平均 693万円、対象期間・出典 2025年5月期〜2026年7月期・金融庁 EDINET",
 } as const;
