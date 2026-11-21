@@ -1,10 +1,10 @@
 {
   "source": "厚生労働省 女性の活躍推進企業データベース オープンデータ（全件版）",
   "url": "https://positive-ryouritsu.mhlw.go.jp/positivedb/opendata/",
-  "file": "99_20261121_utf8.zip",
-  "sha256": "b95be03e224ddcc8b4ad543567a800651c7ef61700a47c93842dca3b284c57ab",
-  "bytes": 11576485,
-  "fetchedAt": "2026-11-21",
+  "file": "99_20261122_utf8.zip",
+  "sha256": "ff3e7f09561e8ef3e39723722bc4cae6c743241b833e9ec3f1173d8c0f60656a",
+  "bytes": 11576402,
+  "fetchedAt": "2026-11-22",
   "sourceRows": 66839,
   "matched": 2669,
   "written": 2413
